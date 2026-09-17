@@ -1,0 +1,47 @@
+:root {
+  --red: #c1161c;
+  --red-deep: #8e0f14;
+
+  --paper: #fdfcfb;
+  --paper-soft: #f4f3f1;
+  --paper-card: #fff;
+  --dark: #16151a;
+  --shot-bg: #eff1f4;
+
+  --ink: #1a1a1c;
+  --ink-soft: #6a6a70;
+  --ink-faint: #6f6f77;
+
+  --line: #e7e5e2;
+
+  --radius: 18px;
+  --shadow-shot: 0 2px 6px rgb(20 18 16 / 6%), 0 28px 70px rgb(20 18 16 / 12%);
+
+  --display: 'Ruslan Display', 'Noto Serif', Georgia, serif;
+  --sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'Inter', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+
+  --wide: 1120px;
+
+  /** Высота липкой шапки: от неё считаются экран, прокрутка к якорю и прилипание. */
+  --header: 54px;
+}
+
+@font-face {
+  font-family: 'Ruslan Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ruslan-display-cyrillic.woff2') format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Ruslan Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/ruslan-display-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F, U+2212;
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@maxkit/react",
+  "version": "0.1.0",
+  "description": "React-хуки поверх MAX Bridge: параметры запуска, системная кнопка «назад», хранилища и запросы к клиенту с отменой",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@maxkit/bridge": "0.1.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.13.2",
+    "@types/react": "^19.0.0",
+    "happy-dom": "^20.13.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "maxkit-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "landing"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "tsc -b && npm run bundle",
+    "bundle": "vite build apps/miniapp",
+    "stand": "npm run build && node scripts/stand.mjs",
+    "landing": "npm run build --workspace @bezslavie/landing && node scripts/landing.mjs",
+    "openapi": "npm run build && node scripts/openapi.mjs",
+    "testdata": "npm run build && node scripts/testdata.mjs",
+    "check-api": "node scripts/check-api.mjs",
+    "test": "npm run build && npm run test --workspaces --if-present",
+    "lint": "eslint packages apps landing scripts --max-warnings 0",
+    "lint:fix": "eslint packages apps landing scripts --fix",
+    "typecheck": "tsc -b && tsc -p apps/miniapp/tsconfig.test.json && tsc -p tsconfig.lint.json --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "js-yaml": "^4.3.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.69.0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@domovoy/bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Чат-бот управляющей компании: заявки из переписки на тех же сценариях, что и мини-приложение",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@domovoy/app": "0.1.0",
+    "@domovoy/domain": "0.1.0",
+    "@maxkit/max-bot-api": "0.3.0-maxkit.1",
+    "@maxkit/runtime": "0.1.0"
+  },
+  "devDependencies": {
+    "@maxkit/platform-mock": "0.1.0"
+  }
+}

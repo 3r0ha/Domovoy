@@ -1,0 +1,69 @@
+name: Deploy
+
+# Обновление боевой машины идёт только после зелёного CI, поэтому запуск
+# привязан к нему, а не к самому push. Ручной запуск оставлен для отката.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Две выкладки подряд не пересекаются: вторая ждёт первую.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Без адреса машины шаг пропускается: форк и локальная копия ничего не выкладывают.
+    if: >-
+      vars.DEPLOY_HOST != '' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ключ доступа к машине
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+
+      # Путь уходит на машину аргументом: переменные шага живут на бегуне,
+      # а не в удалённой оболочке.
+      - name: Забрать свежий код и поднять заново
+        run: |
+          ssh -p "${DEPLOY_PORT:-22}" "$DEPLOY_USER@$DEPLOY_HOST" bash -s -- "$DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          git fetch --prune origin
+          git reset --hard origin/main
+          docker compose up -d --build
+          docker image prune -f
+          REMOTE
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+
+      - name: Проверить, что сайт отвечает
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS "${SITE_URL}/health" | grep -q '"status":"ok"'; then
+              echo "Сайт отвечает"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Сайт не ответил за две с половиной минуты"
+          exit 1
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}

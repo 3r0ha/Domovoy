@@ -1,0 +1,216 @@
+import { timingSafeEqual } from 'node:crypto';
+
+import {
+  ensureResident,
+  openByCode,
+  raiseSensorAlarm,
+  type MeterVisionDeps,
+} from '@domovoy/app';
+import { maxSession, type SessionAuth } from '@maxkit/server';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
+import { domainErrorHandler } from './errors.js';
+import { billingRoutes } from './routes/billing.js';
+import { broadcastRoutes } from './routes/broadcast.js';
+import { buildingRoutes } from './routes/buildings.js';
+import { deviceRoutes } from './routes/devices.js';
+import { houseRoutes } from './routes/house.js';
+import { LEGAL_DOCUMENTS, LEGAL_VERSION, formatLegal } from '@domovoy/domain';
+
+import { meRoutes } from './routes/me.js';
+import { meterRoutes } from './routes/meters.js';
+import { requestRoutes } from './routes/requests.js';
+import { staffRoutes } from './routes/staff.js';
+import { stickerRoutes } from './routes/stickers.js';
+import { supportRoutes } from './routes/support.js';
+import { handoffRoutes } from './routes/handoffs.js';
+import { visitRoutes } from './routes/visits.js';
+import { votingRoutes } from './routes/voting.js';
+import {
+  buildingIdSchema,
+} from './serialize.js';
+
+export interface RoutesOptions extends MeterVisionDeps {
+  auth: SessionAuth;
+  /** Общий секрет домофонии. Без него маршрутов для оборудования нет. */
+  hubSecret?: string;
+  /** Токен бота: им подписан телефон, полученный через `requestContact`. */
+  botToken?: string;
+}
+
+/** HTTP-адаптер продукта. */
+export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options) => {
+  const { auth, ...deps } = options;
+
+  fastify.setErrorHandler(domainErrorHandler(fastify));
+
+  fastify.post(
+    '/auth/session',
+    {
+      schema: {
+        response: {
+          200: {
+            type: 'object',
+            properties: { token: { type: 'string' }, expiresAt: { type: 'number' }, displayName: { type: 'string' } },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const header = request.headers['x-max-init-data'];
+      const initData = Array.isArray(header) ? header[0] : header;
+
+      const issued = await auth.issue(initData);
+      const user = issued.session.data.user;
+
+      const resident = await ensureResident(deps, {
+        maxUserId: issued.session.userId,
+        displayName: [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Жилец',
+      });
+
+      return reply.send({ token: issued.token, expiresAt: issued.expiresAt, displayName: resident.displayName });
+    },
+  );
+
+  /**
+   * Документы продукта: политика обработки персональных данных открывается
+   * без входа, этого требует ч. 2 ст. 18.1 152-ФЗ.
+   */
+  fastify.get('/api/legal', async () => ({
+    version: LEGAL_VERSION,
+    documents: LEGAL_DOCUMENTS.map((document) => ({
+      slug: document.slug,
+      title: document.title,
+      short: document.short,
+      about: document.about,
+      text: formatLegal(document),
+    })),
+  }));
+
+  /** События от домофонии. */
+  if (options.hubSecret) {
+    const secret = Buffer.from(options.hubSecret);
+
+    // Сравнение за постоянное время: по длительности ответа секрет не подбирается.
+    const authorized = (request: FastifyRequest): boolean => {
+      const header = request.headers['x-hub-secret'];
+      const value = Array.isArray(header) ? header[0] : header;
+
+      if (typeof value !== 'string') return false;
+
+      const received = Buffer.from(value);
+
+      return received.length === secret.length && timingSafeEqual(received, secret);
+    };
+
+    fastify.post<{ Body: { buildingId: string; deviceId: string } }>(
+      '/api/hub/alarm',
+      {
+        schema: {
+          body: {
+            type: 'object',
+            required: ['buildingId', 'deviceId'],
+            properties: { buildingId: buildingIdSchema, deviceId: { type: 'string', maxLength: 128 } },
+          },
+        },
+      },
+      async (request, reply) => {
+        if (!authorized(request)) return reply.code(401).send({ error: 'unauthorized', message: 'Нужен секрет' });
+
+        const result = await raiseSensorAlarm(deps, request.body.buildingId, request.body.deviceId);
+
+        return reply.code(202).send({
+          requestId: result.kind === 'created' ? result.request.id : result.kind === 'joined' ? result.request.id : null,
+          joined: result.kind === 'joined',
+        });
+      },
+    );
+
+    fastify.post<{ Body: { code: string } }>(
+      '/api/hub/guest-entry',
+      {
+        schema: {
+          body: { type: 'object', required: ['code'], properties: { code: { type: 'string', maxLength: 32 } } },
+        },
+      },
+      async (request, reply) => {
+        if (!authorized(request)) return reply.code(401).send({ error: 'unauthorized', message: 'Нужен секрет' });
+
+        await openByCode(deps, request.body.code);
+
+        return reply.code(204).send();
+      },
+    );
+  }
+
+  // Всё, что требует сессии, живёт в одной области: проверка токена ставится один раз.
+  await fastify.register(async (scope) => {
+    await scope.register(maxSession, { auth });
+
+    for (const area of [
+      meRoutes,
+      requestRoutes,
+      billingRoutes,
+      meterRoutes,
+      votingRoutes,
+      deviceRoutes,
+      staffRoutes,
+      buildingRoutes,
+      broadcastRoutes,
+      houseRoutes,
+      stickerRoutes,
+      supportRoutes,
+      visitRoutes,
+      handoffRoutes,
+    ]) {
+      await scope.register(area, deps);
+    }
+  });
+};
+
+export interface HealthOptions {
+  /** Проверка хранилища. */
+  storage?: () => Promise<unknown>;
+  now?: () => number;
+  /** Как часто ходить в базу. Проверку живости дёргают каждые несколько секунд. */
+  cacheMs?: number;
+}
+
+/** Сколько держать прошлый ответ проверки живости. */
+const HEALTH_CACHE_MS = 2000;
+
+/** Проверка живости для мониторинга, вне защищённой области. */
+export const health: FastifyPluginAsync<HealthOptions> = async (fastify, options) => {
+  const now = options.now ?? Date.now;
+  const cacheMs = options.cacheMs ?? HEALTH_CACHE_MS;
+  let checkedAt = 0;
+  let storageOk = true;
+
+  const probe = async (): Promise<boolean> => {
+    if (!options.storage) return true;
+
+    const at = now();
+
+    if (at - checkedAt < cacheMs) return storageOk;
+
+    checkedAt = at;
+
+    try {
+      await options.storage();
+      storageOk = true;
+    } catch (error) {
+      fastify.log.error(error, 'хранилище недоступно');
+      storageOk = false;
+    }
+
+    return storageOk;
+  };
+
+  fastify.get('/health', async (_request, reply) => {
+    const ok = await probe();
+
+    return reply.code(ok ? 200 : 503).send({
+      status: ok ? 'ok' : 'degraded',
+      storage: ok ? 'ok' : 'unavailable',
+    });
+  });
+};

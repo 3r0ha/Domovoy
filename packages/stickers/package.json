@@ -1,0 +1,31 @@
+{
+  "name": "@domovoy/stickers",
+  "version": "0.1.0",
+  "description": "Наклейки с кодами объектов: рисунок кода, подпись и лист для печати",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@domovoy/domain": "0.1.0",
+    "@expo-google-fonts/roboto": "^0.4.3",
+    "@resvg/resvg-js": "^2.6.2",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@maxkit/max-bot-api",
+  "version": "0.3.0-maxkit.1",
+  "description": "Форк @maxhub/max-bot-api 0.3.0 с исправлениями, которые нельзя внести снаружи",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "debug": "^4.4.3",
+    "form-data": "^4.0.6",
+    "vcf": "^2.1.2"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.13",
+    "@types/vcf": "^2.0.7"
+  }
+}

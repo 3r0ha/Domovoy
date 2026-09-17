@@ -1,0 +1,32 @@
+{
+  "name": "@domovoy/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Точка сборки: бот и API продукта в одном процессе",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -b",
+    "start": "node dist/main.js",
+    "seed": "node dist/cli.js seed",
+    "stickers": "node dist/cli.js stickers",
+    "walkthrough": "node dist/cli.js walkthrough",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@domovoy/api": "0.1.0",
+    "@domovoy/app": "0.1.0",
+    "@domovoy/bot": "0.1.0",
+    "@domovoy/stickers": "0.1.0",
+    "@domovoy/storage": "0.1.0",
+    "@maxkit/platform-mock": "0.1.0",
+    "@maxkit/runtime": "0.1.0",
+    "@maxkit/server": "0.1.0",
+    "@maxkit/sessions": "0.1.0",
+    "pg": "^8.13.0",
+    "redis": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0"
+  }
+}

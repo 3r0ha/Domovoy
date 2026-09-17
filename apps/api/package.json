@@ -1,0 +1,25 @@
+{
+  "name": "@domovoy/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HTTP API продукта: заявки, объявления и авторизация мини-приложения",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@domovoy/app": "0.1.0",
+    "@domovoy/domain": "0.1.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.3",
+    "@maxkit/server": "0.1.0",
+    "fastify": "^5.6.1"
+  },
+  "devDependencies": {
+    "@maxkit/bridge": "0.1.0",
+    "@maxkit/runtime": "0.1.0"
+  }
+}

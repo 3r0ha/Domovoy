@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+**/dist-test
+**/*.tsbuildinfo
+.git
+.github
+coverage
+stickers
+state
+upstream
+*.pdf

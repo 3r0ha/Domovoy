@@ -1,0 +1,33 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "composite": false,
+    "declaration": true,
+    "declarationMap": false,
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    // Разрешение как у сборщика: UI-кит платформы ссылается на свои файлы
+    // без расширений, и по правилам NodeNext его типы не находятся. Наш код
+    // расширения пишет, поэтому собранное всё равно запускается Node напрямую.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "outDir": "dist-test",
+    "rootDir": "src",
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "src/main.tsx",
+    "src/stand.ts"
+  ]
+}

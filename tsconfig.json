@@ -1,0 +1,50 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/domain"
+    },
+    {
+      "path": "packages/app"
+    },
+    {
+      "path": "packages/stickers"
+    },
+    {
+      "path": "packages/storage"
+    },
+    {
+      "path": "packages/max-bot-api"
+    },
+    {
+      "path": "packages/bridge"
+    },
+    {
+      "path": "packages/runtime"
+    },
+    {
+      "path": "packages/sessions"
+    },
+    {
+      "path": "packages/server"
+    },
+    {
+      "path": "packages/devhost"
+    },
+    {
+      "path": "packages/react"
+    },
+    {
+      "path": "packages/platform-mock"
+    },
+    {
+      "path": "apps/api"
+    },
+    {
+      "path": "apps/bot"
+    },
+    {
+      "path": "apps/domovoy"
+    }
+  ]
+}

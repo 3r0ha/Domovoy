@@ -1,0 +1,124 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Reasoner } from '@domovoy/app';
+
+import { createHttpReasoner } from './reasoner.js';
+
+/**
+ * GigaChat: российская модель с бесплатным режимом. Ключ живёт полчаса и
+ * меняется на долгоживущий Authorization key, поэтому токен обновляется сам.
+ * Для TLS нужен корень «Russian Trusted Root CA»: он лежит в образе продукта.
+ */
+export interface GigaChatOptions {
+  /** Authorization key из личного кабинета: пара Client ID и Client Secret в base64. */
+  authKey: string;
+  /** Область доступа: `GIGACHAT_API_PERS` у физического лица. */
+  scope?: string;
+  oauthUrl?: string;
+  endpoint?: string;
+  model?: string;
+  fetch?: typeof globalThis.fetch;
+  now?: () => number;
+  onError?: (error: unknown) => void;
+}
+
+const OAUTH_URL = 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
+const ENDPOINT = 'https://gigachat.devices.sberbank.ru/api/v1/chat/completions';
+
+/**
+ * Старшая из моделей, выданных бесплатным режимом: 25 млн токенов в год.
+ * На коротких ответах продукта этого хватает с запасом, а обращение она
+ * разбирает точнее младших и отвечает быстрее Pro.
+ */
+const MODEL = 'GigaChat-2-Max';
+
+/** За сколько до конца срока брать новый токен: сетевой задержке нужен запас. */
+const EARLY_MS = 60_000;
+
+interface Token {
+  value: string;
+  until: number;
+}
+
+/** Выдаёт действующий токен, обновляя его по сроку. */
+export const createTokenSource = (options: GigaChatOptions): (() => Promise<string | undefined>) => {
+  const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+  const now = options.now ?? Date.now;
+  let token: Token | undefined;
+  let asking: Promise<Token | undefined> | undefined;
+
+  const fetchToken = async (): Promise<Token | undefined> => {
+    try {
+      const response = await doFetch(options.oauthUrl ?? OAUTH_URL, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-www-form-urlencoded',
+          accept: 'application/json',
+          rquid: randomUUID(),
+          authorization: `Basic ${options.authKey}`,
+        },
+        body: new URLSearchParams({ scope: options.scope ?? 'GIGACHAT_API_PERS' }).toString(),
+      });
+
+      if (!response.ok) {
+        options.onError?.(new Error(`GigaChat не выдал токен: ${response.status}`));
+        return undefined;
+      }
+
+      const body = (await response.json()) as { access_token?: unknown; expires_at?: unknown };
+
+      if (typeof body.access_token !== 'string') return undefined;
+
+      // Срок приходит меткой времени в миллисекундах. Без него берём полчаса.
+      const until = typeof body.expires_at === 'number' ? body.expires_at : now() + 30 * 60_000;
+
+      return { value: body.access_token, until };
+    } catch (error) {
+      options.onError?.(error);
+      return undefined;
+    }
+  };
+
+  return async () => {
+    if (token && token.until - EARLY_MS > now()) return token.value;
+
+    // Пока токен обновляется, остальные запросы ждут тот же ответ.
+    asking ??= fetchToken().finally(() => {
+      asking = undefined;
+    });
+
+    token = await asking;
+
+    return token?.value;
+  };
+};
+
+/** Разбор обращений и помощник на GigaChat. */
+export const createGigaChatReasoner = (options: GigaChatOptions): Reasoner =>
+  createHttpReasoner({
+    endpoint: options.endpoint ?? ENDPOINT,
+    model: options.model ?? MODEL,
+    authorization: createTokenSource(options),
+    // Бесплатный режим для физического лица держит один поток.
+    serial: true,
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.onError ? { onError: options.onError } : {}),
+  });
+
+/** Модель из настроек окружения: сначала GigaChat, потом любая совместимая с OpenAI. */
+export const gigaChatFromEnv = (
+  env: Record<string, string | undefined>,
+  onError?: (error: unknown) => void,
+): Reasoner | undefined => {
+  const authKey = env['GIGACHAT_AUTH_KEY']?.trim();
+
+  if (!authKey) return undefined;
+
+  return createGigaChatReasoner({
+    authKey,
+    ...(env['GIGACHAT_SCOPE']?.trim() ? { scope: env['GIGACHAT_SCOPE'].trim() } : {}),
+    ...(env['GIGACHAT_MODEL']?.trim() ? { model: env['GIGACHAT_MODEL'].trim() } : {}),
+    ...(env['GIGACHAT_URL']?.trim() ? { endpoint: env['GIGACHAT_URL'].trim() } : {}),
+    ...(onError ? { onError } : {}),
+  });
+};

@@ -1,0 +1,42 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "lib": [
+      "ES2023"
+    ]
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../../packages/app"
+    },
+    {
+      "path": "../../packages/storage"
+    },
+    {
+      "path": "../../packages/platform-mock"
+    },
+    {
+      "path": "../../packages/runtime"
+    },
+    {
+      "path": "../../packages/server"
+    },
+    {
+      "path": "../../packages/sessions"
+    },
+    {
+      "path": "../api"
+    },
+    {
+      "path": "../bot"
+    },
+    {
+      "path": "../../packages/stickers"
+    }
+  ]
+}

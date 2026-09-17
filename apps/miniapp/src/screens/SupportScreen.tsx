@@ -1,0 +1,417 @@
+import { Button, CellSimple } from '@maxhub/max-ui';
+import { useBridgeRequest } from '@maxkit/react';
+import { useState } from 'react';
+
+import {
+  ApiError,
+  formatDay,
+  formatPublished,
+  formatSince,
+  plural,
+  type DomovoyApi,
+  type HouseContactsView,
+  type TicketView,
+} from '../api.js';
+import { useHaptics } from '../haptics.js';
+import { usePhotos } from '../use-photos.js';
+import { Empty } from './Empty.js';
+import { ErrorText } from './ErrorText.js';
+import { Attachments } from './Attachments.js';
+import { Composer } from './Composer.js';
+import { Failure } from './Failure.js';
+import { Group } from './Group.js';
+import { IconChat, IconPerson, IconWarning } from './icons.js';
+import { Skeleton } from './Skeleton.js';
+
+export interface SupportScreenProps {
+  api: DomovoyApi;
+  /** Смена отвечает на вопросы жильцов, жилец их задаёт. */
+  staff?: boolean;
+}
+
+/** Кто спросил и сколько ждёт: смене это нужно до открытия переписки. */
+const asker = (ticket: TicketView): string =>
+  [
+    [ticket.authorName ?? 'Жилец', ticket.apartment === undefined ? '' : `кв. ${ticket.apartment}`]
+      .filter(Boolean)
+      .join(', '),
+    ticket.overdue === true
+      ? `срок ответа истёк · ждёт ${formatSince(ticket.waitingSince ?? ticket.createdAt)}`
+      : ticket.waitingSince
+        ? `ждёт ${formatSince(ticket.waitingSince)}`
+        : ticket.statusTitle,
+  ].join(' · ');
+
+/** Состояние обращения глазами жильца: со сроком ответа, пока он идёт. */
+const state = (ticket: TicketView): string =>
+  [
+    ticket.statusTitle,
+    formatPublished(ticket.updatedAt),
+    ticket.answerDueAt ? `ответ до ${formatDay(ticket.answerDueAt)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+/** Контакты дома: ответственный от компании и кто сейчас дежурит. */
+const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
+  const { contact, duty, service } = contacts;
+  const call = (phone: string): void => void globalThis.open(`tel:${phone}`, '_self');
+
+  return (
+    <Group title="К кому обращаться">
+      {service?.emergencyPhone ? (
+        <CellSimple
+          before={
+            <span className="tile tile-red">
+              <IconWarning />
+            </span>
+          }
+          title="Аварийная служба"
+          subtitle={`${service.emergencyPhone} · круглосуточно`}
+          height="compact"
+          showChevron
+          onClick={() => call(service.emergencyPhone ?? '')}
+        />
+      ) : null}
+
+      <CellSimple
+        before={
+          <span className="tile tile-teal">
+            <IconPerson />
+          </span>
+        }
+        title={contact?.name ?? contacts.managementCompany ?? 'Управляющая компания'}
+        subtitle={contact?.role ?? contacts.address}
+        height="compact"
+        separator={Boolean(service?.emergencyPhone)}
+      />
+
+      {contact?.phone ? (
+        <CellSimple
+          title="Позвонить"
+          subtitle={contact.phone}
+          height="compact"
+          separator
+          showChevron
+          onClick={() => globalThis.open(`tel:${contact.phone ?? ''}`, '_self')}
+        />
+      ) : null}
+
+      {contact?.email ? (
+        <CellSimple
+          title="Написать письмо"
+          subtitle={contact.email}
+          height="compact"
+          separator
+          showChevron
+          onClick={() => globalThis.open(`mailto:${contact.email ?? ''}`, '_self')}
+        />
+      ) : null}
+
+      {service?.phone || service?.hours ? (
+        <CellSimple
+          title="Управляющая организация"
+          subtitle={[service.phone, service.hours].filter(Boolean).join(' · ')}
+          height="compact"
+          separator
+          {...(service.phone ? { showChevron: true, onClick: () => call(service.phone ?? '') } : {})}
+        />
+      ) : null}
+
+      {service?.office ? (
+        <CellSimple
+          title="Приём"
+          subtitle={[service.office, service.officeHours].filter(Boolean).join(' · ')}
+          height="compact"
+          separator
+        />
+      ) : null}
+
+      {duty ? (
+        <CellSimple
+          title="Дежурит сейчас"
+          subtitle={duty.phone ? `${duty.displayName} · ${duty.phone}` : duty.displayName}
+          height="compact"
+          separator
+          {...(duty.phone ? { showChevron: true, onClick: () => globalThis.open(`tel:${duty.phone ?? ''}`, '_self') } : {})}
+        />
+      ) : null}
+    </Group>
+  );
+};
+
+/** Переписка по одному обращению. */
+const Thread = ({
+  api,
+  ticket,
+  staff,
+  onChanged,
+  onBack,
+}: {
+  api: DomovoyApi;
+  ticket: TicketView;
+  staff?: boolean;
+  onChanged: (ticket: TicketView) => void;
+  onBack: () => void;
+}) => {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const haptics = useHaptics();
+  const photos = usePhotos(api);
+  const closed = ticket.status === 'closed';
+
+  const run = async (what: () => Promise<TicketView>): Promise<void> => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      const saved = await what();
+
+      haptics.done();
+      setText('');
+      photos.reset();
+      onChanged(saved);
+    } catch (reason) {
+      haptics.failed();
+      setError(reason instanceof ApiError ? reason.message : 'Сообщение не ушло');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const send = (): Promise<void> =>
+    run(() =>
+      staff
+        ? api.answerSupport(ticket.id, text.trim(), photos.photos)
+        : api.askSupport(text.trim(), ticket.id, photos.photos),
+    );
+
+  // Жилец снимает вопрос, когда получил ответ; смена закрывает переписку в любой момент.
+  const canClose = staff || ticket.status === 'answered';
+
+  return (
+    <section className="chat">
+      <button type="button" className="link chat-back" onClick={onBack}>
+        {staff ? '← Все вопросы' : '← Все обращения'}
+      </button>
+
+      <div className="chat-flow">
+        {staff ? <p className="hint chat-who">{asker(ticket)}</p> : null}
+
+        {ticket.messages.map((message, index) => (
+          <article key={`${message.at}-${index}`} className={message.own ? 'said said-own' : 'said'}>
+            {message.own ? null : <span className="said-who">{message.authorName ?? 'Управляющая компания'}</span>}
+            {message.text ? <p className="description">{message.text}</p> : null}
+            <Attachments api={api} items={message.attachments ?? []} alt={message.authorName ?? 'Вложение'} />
+            <time className="said-at">{formatPublished(message.at)}</time>
+          </article>
+        ))}
+      </div>
+
+      {closed ? (
+        <p className="hint chat-closed">Обращение закрыто</p>
+      ) : (
+        <div className="chat-foot">
+          {error ? <ErrorText>{error}</ErrorText> : null}
+
+          {/* Ответ прочитан и подошёл: снятый вопрос убирает значок из панели. */}
+          {canClose ? (
+            <button
+              type="button"
+              className="link chat-done"
+              disabled={busy}
+              onClick={() => void run(() => api.closeSupport(ticket.id))}
+            >
+              {staff ? 'Закрыть обращение' : 'Вопрос решён'}
+            </button>
+          ) : null}
+
+          <Composer
+            id={`support-reply-${ticket.id}`}
+            label={staff ? 'Ответ жильцу' : 'Сообщение'}
+            placeholder={staff ? 'Ответ жильцу' : 'Сообщение'}
+            value={text}
+            busy={busy}
+            photos={photos}
+            onChange={setText}
+            onSend={() => void send()}
+          />
+        </div>
+      )}
+
+    </section>
+  );
+};
+
+/** Новый вопрос в управляющую компанию. */
+const Ask = ({
+  api,
+  onAsked,
+  onBack,
+}: {
+  api: DomovoyApi;
+  onAsked: (ticket: TicketView) => void;
+  onBack: () => void;
+}) => {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const photos = usePhotos(api);
+  const haptics = useHaptics();
+
+  const ask = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      const ticket = await api.askSupport(text.trim(), undefined, photos.photos);
+
+      haptics.done();
+      setText('');
+      photos.reset();
+      onAsked(ticket);
+    } catch (reason) {
+      haptics.failed();
+      setError(reason instanceof ApiError ? reason.message : 'Вопрос не ушёл');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="chat">
+      <button type="button" className="link chat-back" onClick={onBack}>
+        ← Все обращения
+      </button>
+
+      <div className="chat-flow">
+        <article className="said said-bot">
+          <p className="description">Спросите управляющую компанию о чём угодно</p>
+        </article>
+      </div>
+
+      <div className="chat-foot">
+        {error ? <ErrorText>{error}</ErrorText> : null}
+
+        <Composer
+          id="support-ask"
+          label="Вопрос"
+          placeholder="Вопрос"
+          value={text}
+          busy={busy}
+          photos={photos}
+          requireText
+          onChange={setText}
+          onSend={() => void ask()}
+        />
+      </div>
+    </section>
+  );
+};
+
+/** Поддержка: контакты дома и переписка с управляющей компанией. */
+export const SupportScreen = ({ api, staff }: SupportScreenProps) => {
+  const contacts = useBridgeRequest(() => api.houseContacts(), [api]);
+  const tickets = useBridgeRequest(() => api.supportTickets(), [api]);
+  const [changed, setChanged] = useState<TicketView[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
+
+  const merged = [...changed, ...(tickets.data ?? []).filter((item) => !changed.some((one) => one.id === item.id))];
+  const remember = (ticket: TicketView): void => {
+    setChanged((current) => [ticket, ...current.filter((item) => item.id !== ticket.id)]);
+    setOpenId(ticket.id);
+  };
+
+  if (tickets.loading && !tickets.data) return <Skeleton count={2} />;
+
+  if (tickets.error && !tickets.data) {
+    return <Failure title="Поддержка недоступна" error={tickets.error} onRetry={tickets.reload} />;
+  }
+
+  if (asking) {
+    return (
+      <section className="list">
+        <Ask
+          api={api}
+          onAsked={(ticket) => {
+            setAsking(false);
+            remember(ticket);
+          }}
+          onBack={() => setAsking(false)}
+        />
+      </section>
+    );
+  }
+
+  const open = merged.find((ticket) => ticket.id === openId);
+
+  if (open) {
+    return (
+      <section className="list">
+        <Thread
+          api={api}
+          ticket={open}
+          staff={staff}
+          onChanged={remember}
+          onBack={() => {
+            setOpenId(null);
+          }}
+        />
+      </section>
+    );
+  }
+
+  const waiting = merged.filter((ticket) => ticket.status === 'open').length;
+
+  return (
+    <section className="list">
+      {contacts.data && !staff ? <Contacts contacts={contacts.data} /> : null}
+
+      {staff ? null : (
+        <Button type="button" stretched size="large" onClick={() => setAsking(true)}>
+          Новый вопрос
+        </Button>
+      )}
+
+      {merged.length === 0 ? (
+        <Empty
+          icon={<IconChat />}
+          title={staff ? 'Вопросов нет' : 'Вы ещё не спрашивали'}
+          hint={staff ? 'Здесь появятся вопросы жильцов дома' : 'Спросите управляющую компанию о чём угодно'}
+        />
+      ) : (
+        <Group
+          title={staff ? 'Вопросы жильцов' : 'Ваши вопросы'}
+          {...(staff && waiting > 0 ? { aside: `${plural(waiting, 'ждёт', 'ждут', 'ждут')} ответа` } : {})}
+        >
+          {merged.map((ticket, index) => (
+            <CellSimple
+              key={ticket.id}
+              className="ticket-row"
+              before={
+                <span className={ticket.status === 'open' ? 'tile tile-orange' : 'tile tile-teal'}>
+                  <IconChat />
+                </span>
+              }
+              title={ticket.subject}
+              subtitle={staff ? asker(ticket) : state(ticket)}
+              after={
+                (staff ? ticket.status === 'open' : ticket.status === 'answered') ? (
+                  <span className="badge badge-waiting" aria-label="ждёт вас">
+                    1
+                  </span>
+                ) : null
+              }
+              showChevron
+              height="compact"
+              separator={index > 0}
+              onClick={() => setOpenId(ticket.id)}
+            />
+          ))}
+        </Group>
+      )}
+    </section>
+  );
+};

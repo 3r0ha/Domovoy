@@ -1,0 +1,29 @@
+{
+  "name": "@domovoy/miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Мини-приложение управляющей компании для платформы МАХ",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "test": "tsc -p tsconfig.test.json && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@maxhub/max-ui": "^0.4.0",
+    "@maxkit/bridge": "0.1.0",
+    "@maxkit/devhost": "0.1.0",
+    "@maxkit/react": "0.1.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.13.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "happy-dom": "^20.13.2",
+    "vite": "^6.0.0"
+  }
+}

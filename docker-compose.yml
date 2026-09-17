@@ -1,0 +1,129 @@
+# Продукт целиком одной командой: `docker compose up`.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: domovoy
+      POSTGRES_PASSWORD: domovoy
+      POSTGRES_DB: domovoy
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U domovoy']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Состояние диалога и сессии живут вне процесса: нужно для нескольких реплик.
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  domovoy:
+    build:
+      context: .
+      args:
+        # Пусто означает «тот же адрес»: лендинг, приложение и API отдаёт один
+        # сервер. Заполняется, только если статику раздаёт кто-то другой.
+        VITE_API_URL: ${VITE_API_URL:-}
+        # Ссылка на бота: с ней лендинг ведёт прямо в MAX.
+        VITE_BOT_LINK: ${VITE_BOT_LINK:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:?нужен токен бота}
+      DATABASE_URL: postgresql://domovoy:domovoy@postgres:5432/domovoy
+      REDIS_URL: redis://redis:6379
+      PORT: '3000'
+      DEFAULT_BUILDING_ID: ${DEFAULT_BUILDING_ID:-dom15}
+      # Первый управляющий: без него в свежей базе некому раздавать роли.
+      OWNER_MAX_ID: ${OWNER_MAX_ID:-}
+      OWNER_NAME: ${OWNER_NAME:-}
+      # Боевой режим платформы, вебхук. Пусто: бот забирает апдейты опросом.
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      WEBHOOK_PATH: ${WEBHOOK_PATH:-/bot/updates}
+      # Кому можно открывать приложение в рамке. Пусто: клиент MAX и свой адрес.
+      FRAME_ANCESTORS: ${FRAME_ANCESTORS:-}
+      # Адрес Bot API. Подменяется на эмулятор при разработке без токена.
+      MAX_API_URL: ${MAX_API_URL:-}
+      # Нужен, только если мини-приложение открывается с чужого адреса.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      MINI_APP_URL: ${MINI_APP_URL:-}
+      # Адрес сайта: по нему бот даёт ссылки на документы продукта.
+      SITE_URL: ${SITE_URL:-https://domovoy.homes}
+      # Ник бота: из него собираются ссылки наклеек и квитанций.
+      BOT_NAME: ${BOT_NAME:-}
+      SPEECH_URL: ${SPEECH_URL:-}
+      SPEECH_KEY: ${SPEECH_KEY:-}
+      SPEECH_MODEL: ${SPEECH_MODEL:-}
+      SPEECH_LANGUAGE: ${SPEECH_LANGUAGE:-}
+      # Модель: сначала GigaChat, потом любая совместимая с форматом OpenAI.
+      GIGACHAT_AUTH_KEY: ${GIGACHAT_AUTH_KEY:-}
+      GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-}
+      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-}
+      GIGACHAT_URL: ${GIGACHAT_URL:-}
+      REASONER_URL: ${REASONER_URL:-}
+      REASONER_KEY: ${REASONER_KEY:-}
+      REASONER_MODEL: ${REASONER_MODEL:-}
+      METER_VISION_URL: ${METER_VISION_URL:-}
+      METER_VISION_KEY: ${METER_VISION_KEY:-}
+      METER_VISION_MODEL: ${METER_VISION_MODEL:-}
+      # Общий секрет с домофонией: без него события датчиков не принимаются.
+      HUB_SECRET: ${HUB_SECRET:-}
+      # Заглушки поставщиков: включаются значением mock, по умолчанию выключены.
+      HUB: ${HUB:-}
+      PAYMENTS: ${PAYMENTS:-}
+      # Канал передачи обращений смежным организациям: модельный при mock.
+      HANDOFF: ${HANDOFF:-}
+      HANDOFF_CHANNEL: ${HANDOFF_CHANNEL:-}
+      # Закрывает /metrics. Без токена страница открыта.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      # Проверка ролями: значение 1 включает примерку роли в боте и приложении.
+      DEMO_ROLES: ${DEMO_ROLES:-}
+      # Корень доверия для Bot API MAX: в образе он лежит рядом с продуктом.
+      NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-/app/certs/russian-trusted-root-ca.pem}
+    # Внешние службы разбора и распознавания часто подняты рядом на машине,
+    # а не в этом compose: по этому имени они доступны и из контейнера.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    # Наружу продукт смотрит через Caddy: свой порт он открывает только в сеть
+    # compose. Прямой доступ включается переменной, если край не нужен.
+    expose:
+      - '3000'
+    volumes:
+      - state:/state
+    restart: unless-stopped
+
+  # Внешний край: сертификат, сжатие и кеш статики.
+  edge:
+    image: caddy:2-alpine
+    depends_on:
+      - domovoy
+    environment:
+      # Локально это просто порт, и сертификат не нужен. На домене: SITE_ADDRESS=domovoy.homes.
+      # Пустая переменная для Caddy, не то же самое, что незаданная: умолчание он
+      # подставит только во второй раз, поэтому оно стоит здесь.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+    ports:
+      - '${HTTP_PORT:-8080}:80'
+      - '${HTTPS_PORT:-8443}:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+
+volumes:
+  postgres:
+  state:
+  caddy-data:
+  caddy-config:

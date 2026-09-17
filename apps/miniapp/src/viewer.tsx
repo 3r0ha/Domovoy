@@ -1,0 +1,43 @@
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+
+type Show = (source: string, alt?: string) => void;
+
+const ViewerContext = createContext<Show>(() => undefined);
+
+/** Открыть снимок во весь экран. */
+export const useViewer = (): Show => useContext(ViewerContext);
+
+/** Снимок целиком: на маленькой картинке в переписке половины не разглядеть. */
+export const Viewer = ({ children }: { children: ReactNode }) => {
+  const [shown, setShown] = useState<{ source: string; alt: string } | null>(null);
+
+  useEffect(() => {
+    if (!shown) return undefined;
+
+    const close = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setShown(null);
+    };
+
+    globalThis.addEventListener('keydown', close);
+
+    return () => globalThis.removeEventListener('keydown', close);
+  }, [shown]);
+
+  return (
+    <ViewerContext.Provider value={(source, alt) => setShown({ source, alt: alt ?? '' })}>
+      {children}
+
+      {shown ? (
+        <div
+          className="viewer"
+          role="dialog"
+          aria-modal="true"
+          aria-label={shown.alt || 'Снимок'}
+          onClick={() => setShown(null)}
+        >
+          <img src={shown.source} alt={shown.alt} />
+        </div>
+      ) : null}
+    </ViewerContext.Provider>
+  );
+};

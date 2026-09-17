@@ -1,0 +1,135 @@
+import createDebug from 'debug';
+
+const debug = createDebug('max:client');
+
+const defaultOptions = {
+  // baseUrl: 'https://platform-api.max.ru', // @deprecated: use botapi v2 instead
+  baseUrl: 'https://platform-api2.max.ru',
+};
+
+export type ClientOptions = Partial<typeof defaultOptions> & {
+  /**
+   * Своя реализация fetch. Позволяет направить запросы через прокси,
+   * добавить логирование или подставить двойник в тестах.
+   * По умолчанию используется глобальный fetch.
+   */
+  fetch?: typeof globalThis.fetch;
+};
+
+export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+export type ReqOptions = {
+  method?: HTTPMethod;
+  body?: object | null,
+  query?: Record<string, string | number | boolean | null | undefined>,
+  path?: Record<string, string | number | boolean>,
+  signal?: AbortSignal,
+};
+
+type CallOptions = {
+  method: string;
+  options: ReqOptions;
+};
+
+const SECRET_KEYS = new Set(['secret'])
+
+const sanitizeJsonFieldCallback = (key: string, value: unknown)=> {
+  if (SECRET_KEYS.has(key)) return '[HIDDEN]';
+
+  return value;
+}
+
+export const createClient = (token: string, options: ClientOptions = {}) => {
+  const { baseUrl } = { ...defaultOptions, ...options };
+  // Обёртка сохраняет позднее связывание: подмена глобального fetch в тестах продолжает работать.
+  const doFetch: typeof globalThis.fetch = options.fetch ?? ((input, init) => fetch(input, init));
+
+  const call = async ({ method, options: callOptions }: CallOptions) => {
+    const httpMethod = callOptions.method || 'GET';
+    debug(`Call method ${httpMethod} /${method}`, JSON.stringify(callOptions, sanitizeJsonFieldCallback, 2));
+
+    if (!token) {
+      return {
+        status: 401,
+        data: {
+          code: 'verify.token',
+          message: 'Empty access_token',
+        },
+      };
+    }
+
+    const url = new URL(buildUrl(method, callOptions.path), baseUrl);
+
+    Object.keys(callOptions.query ?? {}).forEach((param) => {
+      const value = callOptions.query?.[param];
+      // Пропускаются только незаданные параметры: 0, false и пустая строка это допустимые значения.
+      if (value === undefined || value === null) return;
+      url.searchParams.set(param, value.toString());
+    });
+
+    const init: RequestInit = { ...getResponseInit(callOptions?.body), method: httpMethod };
+    init.headers = { ...init.headers, Authorization: token };
+    if (callOptions.signal) {
+      init.signal = callOptions.signal;
+    }
+
+    const res = await doFetch(url.href, init);
+
+    if (res.status === 401) {
+      return {
+        status: 401,
+        data: {
+          code: 'verify.token',
+          message: 'Invalid access_token',
+        },
+      };
+    }
+
+    return getJsonResponse(res);
+  };
+
+  return { call };
+};
+
+export type Client = ReturnType<typeof createClient>;
+
+const getJsonResponse = async (res: Response) => {
+  try {
+    const data = await res.json();
+    return { status: res.status, data };
+  } catch {
+    const contentType = res.headers.get('content-type') ?? 'unknown';
+    return {
+      status: res.status,
+      data: {
+        code: 'unexpected.response',
+        message: `Failed to parse JSON. Content-Type was "${contentType}"`,
+      },
+    };
+  }
+};
+
+const getResponseInit = (body?: ReqOptions['body']): RequestInit => {
+  if (!body) return {};
+
+  return {
+    body: JSON.stringify(body),
+    headers: {
+      'content-type': 'application/json',
+    },
+  };
+};
+
+const buildUrl = (baseUrl: string, path?: ReqOptions['path']): string => {
+  let url = baseUrl;
+
+  if (path) {
+    Object.keys(path)?.forEach((key) => {
+      const regexp = new RegExp(`{${key}}`, 'g');
+      const value = path[key].toString();
+      url = url.replace(regexp, value);
+    });
+  }
+
+  return url;
+};

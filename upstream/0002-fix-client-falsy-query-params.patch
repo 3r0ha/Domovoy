@@ -1,0 +1,87 @@
+From ae1fb105e4f081ac99600c529de75ce0ec8cfa26 Mon Sep 17 00:00:00 2001
+From: dev <noreply@example.com>
+Date: Thu, 3 Sep 2026 00:28:55 +0400
+Subject: [PATCH] =?UTF-8?q?fix(client):=20=D0=BD=D0=B5=20=D1=82=D0=B5?=
+ =?UTF-8?q?=D1=80=D1=8F=D1=82=D1=8C=20=D0=BF=D0=B0=D1=80=D0=B0=D0=BC=D0=B5?=
+ =?UTF-8?q?=D1=82=D1=80=D1=8B=20=D0=B7=D0=B0=D0=BF=D1=80=D0=BE=D1=81=D0=B0?=
+ =?UTF-8?q?=20=D1=81=D0=BE=20=D0=B7=D0=BD=D0=B0=D1=87=D0=B5=D0=BD=D0=B8?=
+ =?UTF-8?q?=D1=8F=D0=BC=D0=B8=200,=20false=20=D0=B8=20=D0=BF=D1=83=D1=81?=
+ =?UTF-8?q?=D1=82=D0=BE=D0=B9=20=D1=81=D1=82=D1=80=D0=BE=D0=BA=D0=BE=D0=B9?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+При сборке query-параметров проверка `if (!value) return` отбрасывает не только
+незаданные значения, но и осмысленные: 0, false и пустую строку. Из-за этого,
+например, нельзя явно передать disable_link_preview=false, а marker=0 не доходит
+до платформы.
+
+Пропускаются только undefined и null.
+---
+ src/core/network/api/client.ts |  3 ++-
+ tests/client-query.test.js     | 39 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+ create mode 100644 tests/client-query.test.js
+
+diff --git a/src/core/network/api/client.ts b/src/core/network/api/client.ts
+index 16e14a3..4b7367b 100644
+--- a/src/core/network/api/client.ts
++++ b/src/core/network/api/client.ts
+@@ -53,7 +53,8 @@ export const createClient = (token: string, options: ClientOptions = {}) => {
+ 
+     Object.keys(callOptions.query ?? {}).forEach((param) => {
+       const value = callOptions.query?.[param];
+-      if (!value) return;
++      // Пропускаются только незаданные параметры: 0, false и пустая строка это допустимые значения.
++      if (value === undefined || value === null) return;
+       url.searchParams.set(param, value.toString());
+     });
+ 
+diff --git a/tests/client-query.test.js b/tests/client-query.test.js
+new file mode 100644
+index 0000000..1f95f09
+--- /dev/null
++++ b/tests/client-query.test.js
+@@ -0,0 +1,39 @@
++const assert = require('node:assert/strict');
++const { test } = require('node:test');
++
++const { createClient } = require('../dist/core/network/api');
++
++const captureUrl = async (query) => {
++  let captured = '';
++  const original = globalThis.fetch;
++
++  globalThis.fetch = (input) => {
++    captured = String(input);
++    return Promise.resolve(new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }));
++  };
++
++  try {
++    const client = createClient('token');
++    await client.call({ method: 'messages', options: { query } });
++  } finally {
++    globalThis.fetch = original;
++  }
++
++  return new URL(captured);
++};
++
++test('query keeps zero, false and an empty string', async () => {
++  const url = await captureUrl({ marker: 0, disable_link_preview: false, text: '' });
++
++  assert.equal(url.searchParams.get('marker'), '0');
++  assert.equal(url.searchParams.get('disable_link_preview'), 'false');
++  assert.equal(url.searchParams.get('text'), '');
++});
++
++test('query skips undefined and null', async () => {
++  const url = await captureUrl({ chat_id: 42, user_id: undefined, marker: null });
++
++  assert.equal(url.searchParams.get('chat_id'), '42');
++  assert.equal(url.searchParams.has('user_id'), false);
++  assert.equal(url.searchParams.has('marker'), false);
++});
+-- 
+2.50.1 (Apple Git-155)
+

@@ -1,0 +1,42 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "jsx": "react-jsx",
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    // Разрешение как у сборщика: UI-кит платформы ссылается на свои файлы без
+    // расширений, и по правилам NodeNext его типы не находятся, весь кит
+    // превратился бы в `any`, а правила про небезопасные типы посыпались бы
+    // на каждый его вызов. На сборку это не влияет: здесь ничего не собирается.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "packages/*/src/**/*.ts",
+    "packages/*/src/**/*.tsx",
+    "packages/*/test/**/*.ts",
+    "apps/*/src/**/*.ts",
+    "apps/*/src/**/*.tsx",
+    "apps/*/test/**/*.ts",
+    "apps/*/*.config.ts",
+    "landing/src/**/*.ts",
+    "landing/src/**/*.tsx",
+    "landing/*.config.ts"
+  ],
+  "exclude": [
+    "packages/max-bot-api/**",
+    "**/dist/**"
+  ]
+}

@@ -1,0 +1,146 @@
+import { Domovoy } from './components/Domovoy.js';
+import { Hem, Mark } from './components/Ornament.js';
+import { BOT_LINK, Foot, Shot, Top } from './components/Parts.js';
+import { Rail } from './components/Rail.js';
+import { useReveal } from './reveal.js';
+import { useSnap } from './snap.js';
+import { SECTIONS } from './sections.js';
+
+const Scene = ({ index }: { index: number }) => {
+  const section = SECTIONS[index]!;
+
+  return (
+    <section id={section.id} className={index % 2 ? 'scene scene-soft scene-right' : 'scene'}>
+      <div className="wrap scene-inner">
+        <div className="scene-text" data-reveal="text">
+          <p className="eyebrow">{section.eyebrow}</p>
+          <h2>{section.title}</h2>
+          <p className="lead">{section.text}</p>
+          <ul className="scene-points">
+            {section.points.map((point) => (
+              <li key={point}>
+                <Mark size={9} />
+                {point}
+              </li>
+            ))}
+          </ul>
+          <a className="cta" href={`/${section.id}/`}>
+            {section.cta}
+            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+              <path d="M3 8h9M8 3.5 12.5 8 8 12.5" />
+            </svg>
+          </a>
+        </div>
+        <div className="scene-art" data-reveal="art">
+          <Shot name={section.shot} alt={section.alt} />
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export const App = () => {
+  useReveal();
+  useSnap();
+
+  return (
+    <>
+      <Top />
+      <Rail />
+
+      <main id="top">
+        <section className="hero">
+          <Hem open className="hero-hem hero-hem-open" />
+
+          <div className="wrap hero-inner">
+            <div className="hero-text">
+              <h1>Домовой</h1>
+              <p className="hero-claim">Дом целиком в одном чате</p>
+              <p className="lead hero-lead">
+                Заявки в управляющую компанию, собрания собственников и счета там же, где вы
+                переписываетесь.
+              </p>
+            </div>
+
+            <div className="hero-art">
+              <Domovoy mood="greeting" size="hero" />
+            </div>
+          </div>
+
+          <Hem className="hero-hem" />
+
+          <div className="hero-foot">
+            {BOT_LINK ? (
+              <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
+                Открыть в MAX
+              </a>
+            ) : null}
+
+            <a className="cta" href="#request">
+              Посмотреть, как это работает
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                <path d="M8 3v9M3.5 8 8 12.5 12.5 8" />
+              </svg>
+            </a>
+          </div>
+        </section>
+
+        <Scene index={0} />
+        <Scene index={1} />
+
+        <section className="dark">
+          <div className="wrap dark-inner">
+            <div className="dark-text" data-reveal="text">
+              <p className="eyebrow">Когда сроки нарушены</p>
+              <h2>Просрочку видит не только жилец</h2>
+              <p className="lead">
+                Хронология с именами, датами и нормативами складывается в обращение
+                в жилищную инспекцию. Жильцу остаётся его отправить.
+              </p>
+              <ul className="scene-points">
+                <li>
+                  <Mark size={9} />
+                  Час опоздания поводом для жалобы не считается
+                </li>
+                <li>
+                  <Mark size={9} />
+                  Нарушенный срок остаётся в отчёте и после закрытия
+                </li>
+              </ul>
+            </div>
+
+            <div className="dark-art" data-reveal="art">
+              <Shot name="complaint" alt="Готовое обращение в жилищную инспекцию" />
+              <Domovoy mood="alarmed" size="large" />
+            </div>
+          </div>
+        </section>
+
+        {SECTIONS.slice(2).map((section, index) => (
+          <Scene key={section.id} index={index + 2} />
+        ))}
+
+        <section className="final">
+          <div className="wrap final-inner" data-reveal="text">
+            <h2>Это не всё!</h2>
+            <p className="lead">
+              Мы подготовили полноценный продукт, готовый к запуску прямо сейчас, поэтому
+              на одной страничке обо всём не рассказать. Узнайте подробнее по кнопке ниже!
+            </p>
+
+            <a className="cta" href="/request/">
+              Узнать подробнее
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                <path d="M3 8h9M8 3.5 12.5 8 8 12.5" />
+              </svg>
+            </a>
+
+            <Domovoy mood="sleeping-sitting" size="small" />
+          </div>
+        </section>
+      </main>
+
+      <Foot />
+    </>
+  );
+};

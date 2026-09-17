@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-test/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+coverage/
+
+# Наклейки и позиция в потоке апдейтов: это вывод команд, а не исходники.
+# Каталог в корне, не одноимённый пакет: `/` в начале держит правило на месте.
+/stickers/
+apps/domovoy/stickers/
+/state/
+
+# Исходные картинки логотипа и маскота: тяжёлые и не нужны сборке. В проекте
+# лежит готовое: `landing/public` и `apps/miniapp/public/domovoy`.
+AntiLogos/
+png/

@@ -1,0 +1,1555 @@
+{
+  "about": [
+    "Тестовые данные решения «Домовой» для трека «Умный город».",
+    "Данные вымышленные: адресов, людей и лицевых счетов из реальной жизни в наборе нет.",
+    "Тот же набор заводит команда `npm run seed --workspace @domovoy/server`."
+  ],
+  "generatedFor": "2026-09-22T10:00:00.000Z",
+  "people": [
+    {
+      "id": "res-maria",
+      "maxUserId": 1001,
+      "displayName": "Мария",
+      "role": "resident",
+      "buildingId": "dom15",
+      "apartmentId": "apt-1",
+      "phone": null
+    },
+    {
+      "id": "res-ivan",
+      "maxUserId": 1002,
+      "displayName": "Иван",
+      "role": "resident",
+      "buildingId": "dom15",
+      "apartmentId": "apt-2",
+      "phone": null
+    },
+    {
+      "id": "staff-dispatcher",
+      "maxUserId": 2001,
+      "displayName": "Ольга Титова",
+      "role": "dispatcher",
+      "buildingId": "dom15",
+      "apartmentId": "apt-17-8",
+      "phone": null
+    },
+    {
+      "id": "staff-technician",
+      "maxUserId": 2002,
+      "displayName": "Сергей Малых",
+      "role": "technician",
+      "buildingId": "dom15",
+      "apartmentId": null,
+      "phone": null
+    },
+    {
+      "id": "staff-manager",
+      "maxUserId": 2003,
+      "displayName": "Нина Гордеева",
+      "role": "manager",
+      "buildingId": "dom15",
+      "apartmentId": null,
+      "phone": null
+    },
+    {
+      "id": "staff-contractor",
+      "maxUserId": 2004,
+      "displayName": "Лифтсервис",
+      "role": "contractor",
+      "buildingId": "dom15",
+      "apartmentId": null,
+      "phone": null
+    },
+    {
+      "id": "res-anna",
+      "maxUserId": 1003,
+      "displayName": "Анна",
+      "role": "resident",
+      "buildingId": "dom15",
+      "apartmentId": "apt-3",
+      "phone": null
+    },
+    {
+      "id": "res-petr",
+      "maxUserId": 1004,
+      "displayName": "Пётр",
+      "role": "resident",
+      "buildingId": "dom15",
+      "apartmentId": "apt-6",
+      "phone": null
+    }
+  ],
+  "houses": [
+    {
+      "id": "dom15",
+      "code": "Д15",
+      "address": "ул. Ленина, 15",
+      "managementCompany": "ООО «УК Ленинская»",
+      "timeZone": null,
+      "contact": {
+        "name": "Гордеева Нина Павловна",
+        "role": "управляющая домом",
+        "phone": "+7 900 120-45-15",
+        "email": "nina@uk-leninskaya.ru"
+      },
+      "service": {
+        "emergencyPhone": "+7 900 120-00-15",
+        "phone": "+7 900 120-45-00",
+        "email": "uk@uk-leninskaya.ru",
+        "hours": "пн-пт 9:00-18:00",
+        "office": "ул. Ленина, 15, офис 1",
+        "officeHours": "вт и чт 15:00-19:00"
+      },
+      "partners": [
+        {
+          "kind": "resource",
+          "title": "МУП «Водоканал»",
+          "categories": [
+            "plumbing"
+          ],
+          "phone": "+7 900 130-10-10",
+          "channel": "email"
+        },
+        {
+          "kind": "resource",
+          "title": "АО «Теплосеть»",
+          "categories": [
+            "heating"
+          ],
+          "phone": "+7 900 130-20-20",
+          "channel": "email"
+        },
+        {
+          "kind": "contractor",
+          "title": "ООО «Лифтсервис»",
+          "categories": [
+            "elevator"
+          ],
+          "phone": "+7 900 130-30-30",
+          "channel": "phone"
+        },
+        {
+          "kind": "municipal",
+          "title": "Администрация Ленинского района",
+          "categories": [
+            "yard"
+          ],
+          "phone": "+7 900 130-40-40",
+          "channel": "pos"
+        },
+        {
+          "kind": "inspection",
+          "title": "Государственная жилищная инспекция области",
+          "phone": "+7 900 130-50-50",
+          "channel": "gis_zhkh"
+        }
+      ],
+      "equipment": [
+        {
+          "buildingId": "dom15",
+          "code": "lift-1",
+          "title": "Лифт, подъезд 1",
+          "kind": "lift"
+        },
+        {
+          "buildingId": "dom15",
+          "code": "lift-2",
+          "title": "Лифт, подъезд 2",
+          "kind": "lift"
+        },
+        {
+          "buildingId": "dom15",
+          "code": "domofon-1",
+          "title": "Домофон, подъезд 1",
+          "kind": "intercom"
+        },
+        {
+          "buildingId": "dom15",
+          "code": "uzel-1",
+          "title": "Узел учёта тепла",
+          "kind": "meter_unit"
+        }
+      ],
+      "tariffs": [],
+      "apartments": [
+        {
+          "id": "apt-1",
+          "code": "KVMR4783",
+          "number": 1,
+          "entrance": 1,
+          "riser": 1,
+          "area": 55,
+          "residents": 3
+        },
+        {
+          "id": "apt-2",
+          "code": "HTPN9434",
+          "number": 2,
+          "entrance": 1,
+          "riser": 2,
+          "area": 40,
+          "residents": 2
+        },
+        {
+          "id": "apt-3",
+          "code": "LWEC7439",
+          "number": 3,
+          "entrance": 1,
+          "riser": 2,
+          "area": 35,
+          "residents": 2
+        },
+        {
+          "id": "apt-6",
+          "code": "NRUA8374",
+          "number": 6,
+          "entrance": 1,
+          "riser": 2,
+          "area": 25,
+          "residents": 1
+        },
+        {
+          "id": "apt-10",
+          "code": "YMCF4798",
+          "number": 10,
+          "entrance": 1,
+          "riser": 2,
+          "area": 20,
+          "residents": 1
+        },
+        {
+          "id": "apt-20",
+          "code": "XPTK3947",
+          "number": 20,
+          "entrance": 2,
+          "riser": 1,
+          "area": 25,
+          "residents": 1
+        }
+      ],
+      "meters": [
+        {
+          "id": "cold_water-apt-1",
+          "apartmentId": "apt-1",
+          "kind": "cold_water",
+          "serial": "ХВС-1",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 137.1,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 133.8,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 129.3,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 126.3,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-1",
+          "apartmentId": "apt-1",
+          "kind": "hot_water",
+          "serial": "ГВС-1",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 75.4,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 73.2,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 70.2,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 68.2,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-1",
+          "apartmentId": "apt-1",
+          "kind": "electricity",
+          "serial": "ЭЛ-1",
+          "verifiedUntil": "2026-11-01T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 5326,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 5128,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 4858,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 4678,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "cold_water-apt-2",
+          "apartmentId": "apt-2",
+          "kind": "cold_water",
+          "serial": "ХВС-2",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 137.1,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 133.8,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 129.3,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 126.3,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-2",
+          "apartmentId": "apt-2",
+          "kind": "hot_water",
+          "serial": "ГВС-2",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 75.4,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 73.2,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 70.2,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 68.2,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-2",
+          "apartmentId": "apt-2",
+          "kind": "electricity",
+          "serial": "ЭЛ-2",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 5326,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 5128,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 4858,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 4678,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "cold_water-apt-3",
+          "apartmentId": "apt-3",
+          "kind": "cold_water",
+          "serial": "ХВС-3",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 137.1,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 133.8,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 129.3,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 126.3,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-3",
+          "apartmentId": "apt-3",
+          "kind": "hot_water",
+          "serial": "ГВС-3",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 75.4,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 73.2,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 70.2,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 68.2,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-3",
+          "apartmentId": "apt-3",
+          "kind": "electricity",
+          "serial": "ЭЛ-3",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 5326,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 5128,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 4858,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 4678,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "cold_water-apt-6",
+          "apartmentId": "apt-6",
+          "kind": "cold_water",
+          "serial": "ХВС-6",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-6",
+          "apartmentId": "apt-6",
+          "kind": "hot_water",
+          "serial": "ГВС-6",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-6",
+          "apartmentId": "apt-6",
+          "kind": "electricity",
+          "serial": "ЭЛ-6",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "cold_water-apt-10",
+          "apartmentId": "apt-10",
+          "kind": "cold_water",
+          "serial": "ХВС-10",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 137.1,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 133.8,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 129.3,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 126.3,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-10",
+          "apartmentId": "apt-10",
+          "kind": "hot_water",
+          "serial": "ГВС-10",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 75.4,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 73.2,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 70.2,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 68.2,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-10",
+          "apartmentId": "apt-10",
+          "kind": "electricity",
+          "serial": "ЭЛ-10",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 5326,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 5128,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 4858,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 4678,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "cold_water-apt-20",
+          "apartmentId": "apt-20",
+          "kind": "cold_water",
+          "serial": "ХВС-20",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 137.1,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 133.8,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 129.3,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 126.3,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 122.4,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 120,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "hot_water-apt-20",
+          "apartmentId": "apt-20",
+          "kind": "hot_water",
+          "serial": "ГВС-20",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 75.4,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 73.2,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 70.2,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 68.2,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 65.6,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 64,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "id": "electricity-apt-20",
+          "apartmentId": "apt-20",
+          "kind": "electricity",
+          "serial": "ЭЛ-20",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": [
+            {
+              "value": 5326,
+              "at": "2026-08-22T10:00:00.000Z"
+            },
+            {
+              "value": 5128,
+              "at": "2026-07-22T10:00:00.000Z"
+            },
+            {
+              "value": 4858,
+              "at": "2026-06-22T10:00:00.000Z"
+            },
+            {
+              "value": 4678,
+              "at": "2026-05-22T10:00:00.000Z"
+            },
+            {
+              "value": 4444,
+              "at": "2026-04-22T10:00:00.000Z"
+            },
+            {
+              "value": 4300,
+              "at": "2026-03-22T10:00:00.000Z"
+            }
+          ]
+        }
+      ],
+      "requests": [
+        {
+          "number": "Д15-2608-0001",
+          "category": "yard",
+          "priority": "planned",
+          "status": "confirmed",
+          "title": "Не закрывается дверь во двор",
+          "description": "Не закрывается дверь во двор",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 2
+          },
+          "createdAt": "2026-08-13T10:00:00.000Z",
+          "reactionDueAt": "2026-08-13T18:00:00.000Z",
+          "resolutionDueAt": "2026-08-23T10:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-08-13T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-08-13T10:10:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-08-13T10:40:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-08-13T10:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-08-13T13:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2608-0002",
+          "category": "electricity",
+          "priority": "normal",
+          "status": "confirmed",
+          "title": "Перегорела лампа в подъезде",
+          "description": "Перегорела лампа в подъезде",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 2
+          },
+          "createdAt": "2026-08-15T10:00:00.000Z",
+          "reactionDueAt": "2026-08-15T10:30:00.000Z",
+          "resolutionDueAt": "2026-08-15T22:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-08-15T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-08-15T10:10:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-08-15T10:40:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-08-15T10:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-08-15T13:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0001",
+          "category": "electricity",
+          "priority": "normal",
+          "status": "confirmed",
+          "title": "Не работает освещение во дворе",
+          "description": "Не работает освещение во дворе",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 2
+          },
+          "createdAt": "2026-09-02T10:00:00.000Z",
+          "reactionDueAt": "2026-09-02T10:30:00.000Z",
+          "resolutionDueAt": "2026-09-02T22:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-02T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-02T10:10:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-02T10:40:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-05T10:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-05T13:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0002",
+          "category": "other",
+          "priority": "normal",
+          "status": "confirmed",
+          "title": "Скрипит дверь подъезда",
+          "description": "Скрипит дверь подъезда",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 1
+          },
+          "createdAt": "2026-09-16T10:00:00.000Z",
+          "reactionDueAt": "2026-09-16T12:00:00.000Z",
+          "resolutionDueAt": "2026-09-19T10:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-16T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T10:20:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T11:00:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T15:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-17T10:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0003",
+          "category": "plumbing",
+          "priority": "normal",
+          "status": "in_progress",
+          "title": "Течёт кран на кухне, вода капает постоянно",
+          "description": "Течёт кран на кухне, вода капает постоянно",
+          "target": {
+            "kind": "apartment",
+            "apartmentId": "apt-2",
+            "number": 2
+          },
+          "createdAt": "2026-09-22T05:00:00.000Z",
+          "reactionDueAt": "2026-09-22T05:30:00.000Z",
+          "resolutionDueAt": "2026-09-23T05:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-22T05:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T05:15:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T07:00:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0004",
+          "category": "elevator",
+          "priority": "emergency",
+          "status": "new",
+          "title": "Застряли в лифте между третьим и четвёртым этажом",
+          "description": "Застряли в лифте между третьим и четвёртым этажом",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "lift-1",
+            "title": "Лифт, подъезд 1"
+          },
+          "createdAt": "2026-09-22T10:00:00.000Z",
+          "reactionDueAt": "2026-09-22T10:04:00.000Z",
+          "resolutionDueAt": "2026-09-22T16:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-22T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0005",
+          "category": "elevator",
+          "priority": "emergency",
+          "status": "in_progress",
+          "title": "Лифт дёргается при закрытии дверей",
+          "description": "Лифт дёргается при закрытии дверей",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "lift-2",
+            "title": "Лифт, подъезд 2"
+          },
+          "createdAt": "2026-09-22T06:00:00.000Z",
+          "reactionDueAt": "2026-09-22T06:04:00.000Z",
+          "resolutionDueAt": "2026-09-22T12:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-22T06:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T06:10:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T07:00:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0006",
+          "category": "plumbing",
+          "priority": "normal",
+          "status": "needs_info",
+          "title": "Нет горячей воды со вчерашнего вечера",
+          "description": "Нет горячей воды со вчерашнего вечера",
+          "target": {
+            "kind": "riser",
+            "buildingId": "dom15",
+            "entrance": 1,
+            "riser": 2
+          },
+          "createdAt": "2026-09-22T02:00:00.000Z",
+          "reactionDueAt": "2026-09-22T02:30:00.000Z",
+          "resolutionDueAt": "2026-09-23T02:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-22T02:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T02:20:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-22T04:00:00.000Z",
+              "status": "needs_info",
+              "role": "dispatcher",
+              "comment": "У соседей по стояку вода есть?"
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0007",
+          "category": "electricity",
+          "priority": "normal",
+          "status": "done",
+          "title": "Не горит лампа на площадке между вторым и третьим этажом",
+          "description": "Не горит лампа на площадке между вторым и третьим этажом",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 1
+          },
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "reactionDueAt": "2026-09-20T10:30:00.000Z",
+          "resolutionDueAt": "2026-09-20T22:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-20T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-20T11:00:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-20T12:00:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-21T14:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": "Лампа заменена"
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0008",
+          "category": "elevator",
+          "priority": "emergency",
+          "status": "confirmed",
+          "title": "Лифт встал на пятом",
+          "description": "Лифт встал на пятом",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "lift-1",
+            "title": "Лифт, подъезд 1"
+          },
+          "createdAt": "2026-09-13T10:00:00.000Z",
+          "reactionDueAt": "2026-09-13T10:04:00.000Z",
+          "resolutionDueAt": "2026-09-13T16:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-13T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-13T10:02:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-13T10:10:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-13T13:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-13T14:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0009",
+          "category": "elevator",
+          "priority": "emergency",
+          "status": "confirmed",
+          "title": "Лифт снова не едет",
+          "description": "Лифт снова не едет",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "lift-1",
+            "title": "Лифт, подъезд 1"
+          },
+          "createdAt": "2026-09-16T10:00:00.000Z",
+          "reactionDueAt": "2026-09-16T10:04:00.000Z",
+          "resolutionDueAt": "2026-09-16T16:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-16T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T10:02:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T10:10:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T13:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-16T14:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0010",
+          "category": "elevator",
+          "priority": "emergency",
+          "status": "confirmed",
+          "title": "Лифт дёргается при остановке",
+          "description": "Лифт дёргается при остановке",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "lift-1",
+            "title": "Лифт, подъезд 1"
+          },
+          "createdAt": "2026-09-19T10:00:00.000Z",
+          "reactionDueAt": "2026-09-19T10:04:00.000Z",
+          "resolutionDueAt": "2026-09-19T16:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-19T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-19T10:02:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-19T10:10:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-19T13:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-19T14:00:00.000Z",
+              "status": "confirmed",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0011",
+          "category": "other",
+          "priority": "normal",
+          "status": "in_progress",
+          "title": "Не работает домофон, трубка молчит",
+          "description": "Не работает домофон, трубка молчит",
+          "target": {
+            "kind": "equipment",
+            "buildingId": "dom15",
+            "equipmentId": "domofon-1",
+            "title": "Домофон, подъезд 1"
+          },
+          "createdAt": "2026-09-20T10:00:00.000Z",
+          "reactionDueAt": "2026-09-20T12:00:00.000Z",
+          "resolutionDueAt": "2026-09-23T10:00:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-20T10:00:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            },
+            {
+              "at": "2026-09-20T11:00:00.000Z",
+              "status": "accepted",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-20T12:00:00.000Z",
+              "status": "in_progress",
+              "role": "dispatcher",
+              "comment": null
+            },
+            {
+              "at": "2026-09-21T04:00:00.000Z",
+              "status": "done",
+              "role": "technician",
+              "comment": null
+            },
+            {
+              "at": "2026-09-21T08:00:00.000Z",
+              "status": "in_progress",
+              "role": "resident",
+              "comment": "Трубка по-прежнему молчит"
+            }
+          ]
+        },
+        {
+          "number": "Д15-2609-0012",
+          "category": "other",
+          "priority": "normal",
+          "status": "new",
+          "title": "Перила и ступени",
+          "description": "Осмотр подъезда: Перила расшатаны на площадке второго этажа",
+          "target": {
+            "kind": "entrance",
+            "buildingId": "dom15",
+            "entrance": 1
+          },
+          "createdAt": "2026-09-22T09:50:00.000Z",
+          "reactionDueAt": "2026-09-22T11:50:00.000Z",
+          "resolutionDueAt": "2026-09-25T09:50:00.000Z",
+          "reporters": 1,
+          "history": [
+            {
+              "at": "2026-09-22T09:50:00.000Z",
+              "status": "new",
+              "role": "resident",
+              "comment": null
+            }
+          ]
+        }
+      ],
+      "announcements": [
+        {
+          "title": "Собрание собственников",
+          "body": "В четверг в 19:00 во дворе. Обсуждаем ремонт подъездов и тариф на содержание.",
+          "createdAt": "2026-09-22T10:00:00.000Z",
+          "kind": null,
+          "until": null
+        },
+        {
+          "title": "Отключение горячей воды",
+          "body": "Плановая замена запорной арматуры по стояку 2 первого подъезда.",
+          "createdAt": "2026-09-22T10:00:00.000Z",
+          "kind": null,
+          "until": null
+        },
+        {
+          "title": "Промывка системы отопления",
+          "body": "Промывка по всему дому, батареи будут холодными.",
+          "createdAt": "2026-09-22T10:00:00.000Z",
+          "kind": null,
+          "until": null
+        }
+      ],
+      "polls": [
+        {
+          "id": "id-17",
+          "kind": "qualified",
+          "title": "Ремонт подъездов",
+          "question": "Утвердить смету и порядок оплаты",
+          "opensAt": "2026-09-22T10:00:00.000Z",
+          "closesAt": "2026-10-06T10:00:00.000Z"
+        },
+        {
+          "id": "poll-past",
+          "kind": "simple",
+          "title": "Установка шлагбаума",
+          "question": "Установить шлагбаум на въезде во двор",
+          "opensAt": "2026-08-23T10:00:00.000Z",
+          "closesAt": "2026-09-20T10:00:00.000Z"
+        }
+      ],
+      "support": [
+        {
+          "subject": "Как пересчитать плату за горячую воду, пока её не было дв…",
+          "status": "answered",
+          "createdAt": "2026-09-19T10:00:00.000Z",
+          "messages": [
+            {
+              "from": "resident",
+              "text": "Как пересчитать плату за горячую воду, пока её не было двое суток?",
+              "at": "2026-09-19T10:00:00.000Z"
+            },
+            {
+              "from": "staff",
+              "text": "Перерасчёт делаем по акту, он уже составлен. Сумма уйдёт в квитанцию следующего месяца.",
+              "at": "2026-09-19T12:00:00.000Z"
+            }
+          ]
+        },
+        {
+          "subject": "Можно поставить лавочку у второго подъезда? Соседи не про…",
+          "status": "open",
+          "createdAt": "2026-09-22T09:20:00.000Z",
+          "messages": [
+            {
+              "from": "resident",
+              "text": "Можно поставить лавочку у второго подъезда? Соседи не против.",
+              "at": "2026-09-22T09:20:00.000Z"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dom17",
+      "code": "Д17",
+      "address": "ул. Ленина, 17",
+      "managementCompany": "ООО «УК Ленинская»",
+      "timeZone": null,
+      "contact": {
+        "name": "Гордеева Нина Павловна",
+        "role": "управляющая домом",
+        "phone": "+7 900 120-45-15",
+        "email": "nina@uk-leninskaya.ru"
+      },
+      "service": {
+        "emergencyPhone": "+7 900 120-00-15",
+        "phone": "+7 900 120-45-00",
+        "email": "uk@uk-leninskaya.ru",
+        "hours": "пн-пт 9:00-18:00",
+        "office": "ул. Ленина, 15, офис 1",
+        "officeHours": "вт и чт 15:00-19:00"
+      },
+      "partners": null,
+      "equipment": [],
+      "tariffs": [],
+      "apartments": [
+        {
+          "id": "apt-17-4",
+          "code": "VNAL7893",
+          "number": 4,
+          "entrance": 1,
+          "riser": 1,
+          "area": 62,
+          "residents": 2
+        },
+        {
+          "id": "apt-17-8",
+          "code": "CWHE4837",
+          "number": 8,
+          "entrance": 1,
+          "riser": 1,
+          "area": 48,
+          "residents": 1
+        }
+      ],
+      "meters": [
+        {
+          "id": "cold_water-apt-17-4",
+          "apartmentId": "apt-17-4",
+          "kind": "cold_water",
+          "serial": "ХВС-4",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        },
+        {
+          "id": "hot_water-apt-17-4",
+          "apartmentId": "apt-17-4",
+          "kind": "hot_water",
+          "serial": "ГВС-4",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        },
+        {
+          "id": "electricity-apt-17-4",
+          "apartmentId": "apt-17-4",
+          "kind": "electricity",
+          "serial": "ЭЛ-4",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        },
+        {
+          "id": "cold_water-apt-17-8",
+          "apartmentId": "apt-17-8",
+          "kind": "cold_water",
+          "serial": "ХВС-8",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        },
+        {
+          "id": "hot_water-apt-17-8",
+          "apartmentId": "apt-17-8",
+          "kind": "hot_water",
+          "serial": "ГВС-8",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        },
+        {
+          "id": "electricity-apt-17-8",
+          "apartmentId": "apt-17-8",
+          "kind": "electricity",
+          "serial": "ЭЛ-8",
+          "verifiedUntil": "2029-09-21T10:00:00.000Z",
+          "readings": []
+        }
+      ],
+      "requests": [],
+      "announcements": [],
+      "polls": [],
+      "support": []
+    }
+  ]
+}

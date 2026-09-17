@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    # Без Postgres тесты хранилища пропускаются.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: domovoy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/domovoy_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Тесты на TypeScript идут без сборки: снятие типов должно быть штатным.
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Сборка идёт первой: тесты пакетов работают со собранным dist.
+      - run: npm run build
+
+      - name: Проверить, что мини-приложение собралось
+        run: test -f apps/miniapp/dist/index.html
+
+      - name: Собрать лендинг
+        run: npm run build --workspace @bezslavie/landing
+
+      # Узоры лежат в репозитории собранными: пересборка не должна их менять.
+      - name: Проверить, что узоры собраны из исходника
+        working-directory: landing
+        run: |
+          python3 docs/split-logo.py
+          git diff --exit-code public/bezslavie-logo.svg public/bezslavie-weave.svg public/bezslavie-mark.svg
+
+      # Проверка типов идёт и по тестам: без неё тест утверждает про форму,
+      # которой код не производит, и никто об этом не узнаёт. Тесты
+      # мини-приложения читают собранное в dist-test, поэтому оно собирается
+      # тем же скриптом.
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+      - run: npm test
+
+      # Без базы набор пропускается целиком и печатает «tests 0»: это не успех.
+      - name: Проверить, что тесты хранилища не пропущены
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test --workspace @domovoy/storage 2>&1 | tee storage.log
+          grep -qE "^ℹ pass ([1-9][0-9]*)" storage.log
+          ! grep -q "база недоступна" storage.log
+
+      # Заявленный контракт API проверяется по работающей установке, а не по схемам:
+      # обязательные проверки из DATA-API.yaml идут против поднятого продукта.
+      - name: Проверить контракт API по DATA-API.yaml
+        shell: bash
+        env:
+          BOT_TOKEN: stand-token
+        run: |
+          set -euo pipefail
+          node apps/domovoy/dist/cli.js seed
+          SKIP_MINIAPP=1 node scripts/stand.mjs &
+          for attempt in $(seq 1 60); do
+            curl -fsS http://localhost:3000/health > /dev/null && break
+            sleep 1
+          done
+          npm run check-api
+
+  # Развёртывание идёт образом, поэтому он собирается на каждой правке.
+  image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Собрать образ продукта
+        run: docker build -t domovoy .
+
+      - name: Проверить, что в образе есть статика и миграции
+        run: |
+          docker run --rm domovoy sh -c 'test -f /app/apps/miniapp/dist/index.html'
+          docker run --rm domovoy sh -c 'test -f /app/landing/dist/index.html'
+          docker run --rm domovoy sh -c 'test -f /app/packages/storage/migrations/001_init.sql'
+
+      # Без корня «Russian Trusted Root CA» бот не достучится до Bot API MAX.
+      - name: Проверить, что корень доверия платформы подключён
+        run: |
+          docker run --rm domovoy node -e '
+            const { X509Certificate } = require("node:crypto");
+            const { readFileSync } = require("node:fs");
+            const cert = new X509Certificate(readFileSync(process.env.NODE_EXTRA_CA_CERTS));
+            if (!cert.subject.includes("Russian Trusted Root CA")) throw new Error(cert.subject);
+          '

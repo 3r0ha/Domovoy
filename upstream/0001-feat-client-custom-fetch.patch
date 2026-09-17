@@ -1,0 +1,144 @@
+From 86f9c0337f8a5c2be2493a81628ee4673f18f6b7 Mon Sep 17 00:00:00 2001
+From: dev <noreply@example.com>
+Date: Thu, 3 Sep 2026 00:28:15 +0400
+Subject: [PATCH] =?UTF-8?q?feat(client):=20=D0=BF=D0=BE=D0=B4=D0=B4=D0=B5?=
+ =?UTF-8?q?=D1=80=D0=B6=D0=BA=D0=B0=20=D1=81=D0=B2=D0=BE=D0=B5=D0=B9=20?=
+ =?UTF-8?q?=D1=80=D0=B5=D0=B0=D0=BB=D0=B8=D0=B7=D0=B0=D1=86=D0=B8=D0=B8=20?=
+ =?UTF-8?q?fetch=20=D0=B2=20ClientOptions?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Closes #287
+
+Сейчас createClient всегда вызывает глобальный fetch, а ClientOptions
+содержит только baseUrl. Из-за этого запросы нельзя направить через прокси,
+обернуть логированием или подменить в тестах.
+
+ClientOptions получает необязательное поле fetch. По умолчанию поведение
+не меняется: вызывается глобальный fetch, причём через обёртку, поэтому
+подмена globalThis.fetch в тестах продолжает работать.
+---
+ src/core/network/api/client.ts | 13 ++++++-
+ tests/client.test.js           | 71 ++++++++++++++++++++++++++++++++++
+ 2 files changed, 82 insertions(+), 2 deletions(-)
+ create mode 100644 tests/client.test.js
+
+diff --git a/src/core/network/api/client.ts b/src/core/network/api/client.ts
+index 16e14a3..4492bbe 100644
+--- a/src/core/network/api/client.ts
++++ b/src/core/network/api/client.ts
+@@ -7,7 +7,14 @@ const defaultOptions = {
+   baseUrl: 'https://platform-api2.max.ru',
+ };
+ 
+-export type ClientOptions = Partial<typeof defaultOptions>;
++export type ClientOptions = Partial<typeof defaultOptions> & {
++  /**
++   * Своя реализация fetch. Позволяет направить запросы через прокси,
++   * добавить логирование или подставить двойник в тестах.
++   * По умолчанию используется глобальный fetch.
++   */
++  fetch?: typeof globalThis.fetch;
++};
+ 
+ export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+ 
+@@ -34,6 +41,8 @@ const sanitizeJsonFieldCallback = (key: string, value: unknown)=> {
+ 
+ export const createClient = (token: string, options: ClientOptions = {}) => {
+   const { baseUrl } = { ...defaultOptions, ...options };
++  // Обёртка сохраняет позднее связывание: подмена глобального fetch в тестах продолжает работать.
++  const doFetch: typeof globalThis.fetch = options.fetch ?? ((input, init) => fetch(input, init));
+ 
+   const call = async ({ method, options: callOptions }: CallOptions) => {
+     const httpMethod = callOptions.method || 'GET';
+@@ -63,7 +72,7 @@ export const createClient = (token: string, options: ClientOptions = {}) => {
+       init.signal = callOptions.signal;
+     }
+ 
+-    const res = await fetch(url.href, init);
++    const res = await doFetch(url.href, init);
+ 
+     if (res.status === 401) {
+       return {
+diff --git a/tests/client.test.js b/tests/client.test.js
+new file mode 100644
+index 0000000..8325247
+--- /dev/null
++++ b/tests/client.test.js
+@@ -0,0 +1,71 @@
++const assert = require('node:assert/strict');
++const { test } = require('node:test');
++
++const { createClient } = require('../dist/core/network/api');
++
++const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), {
++  status,
++  headers: { 'content-type': 'application/json' },
++});
++
++test('client uses custom fetch when it is provided', async () => {
++  const calls = [];
++  const client = createClient('token', {
++    fetch: (input, init) => {
++      calls.push({ url: String(input), init });
++      return Promise.resolve(jsonResponse({ user_id: 1 }));
++    },
++  });
++
++  const result = await client.call({ method: 'me', options: {} });
++
++  assert.equal(calls.length, 1);
++  assert.equal(calls[0].url, 'https://platform-api2.max.ru/me');
++  assert.equal(calls[0].init.headers.Authorization, 'token');
++  assert.deepEqual(result, { status: 200, data: { user_id: 1 } });
++});
++
++test('custom fetch works together with baseUrl', async () => {
++  const calls = [];
++  const client = createClient('token', {
++    baseUrl: 'http://127.0.0.1:3000',
++    fetch: (input) => {
++      calls.push(String(input));
++      return Promise.resolve(jsonResponse({ ok: true }));
++    },
++  });
++
++  await client.call({ method: 'messages', options: { method: 'POST', body: { text: 'hi' } } });
++
++  assert.equal(calls[0], 'http://127.0.0.1:3000/messages');
++});
++
++test('client falls back to global fetch', async () => {
++  const original = globalThis.fetch;
++  const calls = [];
++
++  globalThis.fetch = (input) => {
++    calls.push(String(input));
++    return Promise.resolve(jsonResponse({ user_id: 2 }));
++  };
++
++  try {
++    const client = createClient('token');
++    const result = await client.call({ method: 'me', options: {} });
++
++    assert.equal(calls.length, 1);
++    assert.deepEqual(result, { status: 200, data: { user_id: 2 } });
++  } finally {
++    globalThis.fetch = original;
++  }
++});
++
++test('custom fetch is not called without a token', async () => {
++  let called = false;
++  const client = createClient('', { fetch: () => { called = true; return Promise.resolve(jsonResponse({})); } });
++
++  const result = await client.call({ method: 'me', options: {} });
++
++  assert.equal(called, false);
++  assert.equal(result.status, 401);
++});
+-- 
+2.50.1 (Apple Git-155)
+

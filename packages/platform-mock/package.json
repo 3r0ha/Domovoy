@@ -1,0 +1,27 @@
+{
+  "name": "@maxkit/platform-mock",
+  "version": "0.1.0",
+  "description": "Локальная замена Bot API платформы MAX: разработка и тесты бота без токена, программируемые сбои для проверки устойчивости",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "devDependencies": {
+    "@maxkit/max-bot-api": "0.3.0-maxkit.1",
+    "@maxkit/runtime": "0.1.0",
+    "@maxkit/sessions": "0.1.0"
+  }
+}

@@ -1,0 +1,387 @@
+# Описание API для автоматической проверки.
+# Схема файла и её версия заданы организатором трека «Умный город».
+version: 1
+
+solution:
+  name: Домовой
+  team: antihype
+
+# Единый адрес: по нему же раздаются лендинг и мини-приложение.
+# До привязки домена установка отвечает по адресу машины, после неё здесь будет
+# https://<домен>, и сертификат Caddy получит сам.
+baseUrl: https://domovoy.homes
+
+# Как получить токен для роли. Параметры запуска подписывает клиент MAX,
+# на проверке их подписывает тот же токен бота:
+#   BOT_TOKEN=<токен> API_URL=https://domovoy.homes node scripts/token.mjs 1001 Мария
+# Ответ: сессионный токен, который идёт в заголовке Authorization: Bearer <токен>.
+auth:
+  type: bearer
+  header: Authorization
+  obtain:
+    method: POST
+    path: /auth/session
+    headers:
+      x-max-init-data: подписанные параметры запуска MAX
+    script: node scripts/token.mjs <maxUserId> <имя>
+
+# Тестовые учётные записи заводит `npm run seed --workspace @domovoy/server`.
+# Роль определяется идентификатором MAX, пароля нет: вход идёт через MAX.
+roles:
+  resident:
+    maxUserId: 1001
+    name: Мария
+    about: жилец, квартира 1 в доме Д15 и квартира 4 в доме Д17
+  dispatcher:
+    maxUserId: 2001
+    name: Ольга Титова
+    about: диспетчер дома Д15
+  technician:
+    maxUserId: 2002
+    name: Сергей Малых
+    about: мастер
+  manager:
+    maxUserId: 2003
+    name: Нина Гордеева
+    about: управляющий, заводит дома и видит журнал действий
+  contractor:
+    maxUserId: 2004
+    name: Лифтсервис
+    about: подрядчик, видит только порученные наряды
+
+# Проверка глазами человека идёт под одной учётной записью MAX. Установка поднята
+# с DEMO_ROLES=1: в боте команда /demo, в приложении раздел «Роль», переключение
+# меняет роль самого человека. Маршруты: GET и POST /api/demo.
+#
+# Переключение меняет роль той учётной записи, из-под которой его нажали. Проверки
+# ниже опираются на роли из списка, поэтому примеряйте роли под своей учётной
+# записью MAX, а не под учётками 1001-2004. Роль возвращается тем же переключением.
+
+
+checks:
+  - name: Сервер отвечает
+    method: GET
+    path: /health
+    role: anonymous
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [status, storage]
+
+  - name: Вход в мини-приложение
+    method: POST
+    path: /auth/session
+    role: resident
+    request:
+      headers:
+        x-max-init-data: подписанные параметры запуска MAX
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [token, expiresAt]
+
+  - name: Профиль и роль
+    method: GET
+    path: /api/me
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, displayName, role, apartmentId]
+
+  - name: Заявка заводится описанием проблемы
+    method: POST
+    path: /api/requests
+    role: resident
+    request:
+      body:
+        description: Течёт кран на кухне
+        startParam: apt_apt-1
+    expect:
+      status: [201]
+      contentType: application/json
+      required: [joined, request]
+      request:
+        required: [id, number, status, title, category, resolutionDueAt]
+
+  - name: Свои заявки списком
+    method: GET
+    path: /api/requests
+    role: resident
+    request:
+      query:
+        scope: mine
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, number, status, title, target, resolutionDueAt, overdue]
+
+  - name: Заявка целиком
+    method: GET
+    path: /api/requests/{id}
+    role: resident
+    request:
+      path:
+        id: идентификатор заявки из предыдущей проверки
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, number, status, title, description, history, attachments]
+
+  - name: Сообщение по заявке
+    method: POST
+    path: /api/requests/{id}/comment
+    role: resident
+    request:
+      path:
+        id: идентификатор заявки из предыдущей проверки
+      body:
+        text: Кран течёт сильнее
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, number, status, history]
+
+  - name: Очередь дома у смены
+    method: GET
+    path: /api/requests
+    role: dispatcher
+    request:
+      query:
+        scope: queue
+        limit: 100
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, number, status, title, target]
+
+  # Четыре проверки ниже идут по одной и той же заявке, заведённой выше: так
+  # проходит основной сценарий продукта, от приёма до принятой жильцом работы.
+  - name: Диспетчер принимает заявку в работу
+    method: POST
+    path: /api/requests/{id}/transition
+    role: dispatcher
+    request:
+      path:
+        id: идентификатор заявки из проверки «Заявка заводится описанием проблемы»
+      body:
+        to: accepted
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, status, history]
+
+  - name: Мастер берёт наряд в работу
+    method: POST
+    path: /api/requests/{id}/transition
+    role: technician
+    request:
+      path:
+        id: та же заявка
+      body:
+        to: in_progress
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, status, history]
+
+  - name: Мастер сдаёт работу
+    method: POST
+    path: /api/requests/{id}/transition
+    role: technician
+    request:
+      path:
+        id: та же заявка
+      body:
+        to: done
+        comment: Заменил смеситель
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, status, history]
+
+  - name: Жилец принимает работу
+    method: POST
+    path: /api/requests/{id}/transition
+    role: resident
+    request:
+      path:
+        id: та же заявка
+      body:
+        to: confirmed
+        rating: 5
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [id, status, history]
+
+  - name: Наряды подрядчика
+    method: GET
+    path: /api/requests
+    role: contractor
+    request:
+      query:
+        scope: mine
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, number, status, title, target]
+
+  - name: Счётчики квартиры
+    method: GET
+    path: /api/meters
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, kind, title, unit, serial, submittedThisMonth, verification]
+
+  - name: Показание счётчика
+    method: POST
+    path: /api/meters/{id}/readings
+    role: resident
+    request:
+      path:
+        id: идентификатор счётчика из предыдущей проверки
+      body:
+        value: 152.4
+    expect:
+      status: [201]
+      contentType: application/json
+      required: [value, at, consumption, spike]
+
+  - name: Квитанция за месяц
+    method: GET
+    path: /api/charges
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [period, dueDay, total, paid, lines]
+
+  - name: Объявления дома
+    method: GET
+    path: /api/announcements
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, title, body, createdAt, audience, recipients]
+
+  - name: Часы приёма и своя запись
+    method: GET
+    path: /api/reception
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [buildingId, minutes, hours, slots]
+
+  - name: К кому обращаться по дому
+    method: GET
+    path: /api/house/contacts
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [buildingId, address]
+
+  - name: Собрания собственников
+    method: GET
+    path: /api/polls
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, title, question, opensAt, closesAt, open]
+
+  - name: Кто отвечает за заявку
+    method: GET
+    path: /api/requests/{id}/responsibility
+    role: resident
+    request:
+      path:
+        id: идентификатор заявки, заведённой проверкой выше
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [kind, title, basis, targets, handoffs]
+
+  - name: Переданные обращения дома
+    method: GET
+    path: /api/handoffs
+    role: dispatcher
+    expect:
+      status: [200]
+      contentType: application/json
+      type: array
+      itemRequired: [id, requestId, organization, status, dueAt, basis]
+
+  # Заявку по общему имуществу видит весь дом, это правило продукта.
+  # Закрыта именно чужая квартирная заявка.
+  - name: Чужая квартирная заявка не отдаётся
+    method: GET
+    path: /api/requests/{id}
+    role: resident
+    request:
+      path:
+        id: идентификатор квартирной заявки другого жильца
+    expect:
+      status: [403]
+      contentType: application/json
+      required: [error, message]
+
+  - name: Без токена внутрь не пускают
+    method: GET
+    path: /api/me
+    role: anonymous
+    expect:
+      status: [401]
+      contentType: application/json
+      required: [error, message]
+
+  - name: Помощник отвечает и называет раздел
+    method: POST
+    path: /api/assistant
+    role: resident
+    request:
+      body:
+        question: Где передать показания?
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [answer, by]
+
+  # Политику обработки персональных данных оператор открывает без ограничений,
+  # ч. 2 ст. 18.1 152-ФЗ, поэтому документы читаются и без входа.
+  - name: Документы продукта открыты без входа
+    method: GET
+    path: /api/legal
+    role: anonymous
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [version, documents]
+
+  - name: Согласие с документами принимается
+    method: POST
+    path: /api/me/legal
+    role: resident
+    expect:
+      status: [200]
+      contentType: application/json
+      required: [version, accepted]
+
+# Проверки идут в этом порядке и опираются на набор `seed`. Повторный прогон
+# по той же установке проходит целиком: цепочка переходов работает с заявкой,
+# которую заводит проверка «Заявка заводится описанием проблемы».
+#
+# Полное машинное описание: 114 путей и 127 операций, openapi.json в корне репозитория,
+# оно же отдаётся сервером на GET /openapi.json.
+openapi: openapi.json
