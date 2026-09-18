@@ -22,7 +22,7 @@ import {
 import type { NotificationAction } from '@domovoy/app';
 import { Keyboard } from '@maxkit/max-bot-api';
 
-import { PROMPTS, SCREENS } from './max.js';
+import { PROMPTS, ROOT_MENUS, SCREENS } from './max.js';
 import type { Extra } from './kit.js';
 
 /** Опрос соседа об аварии: два ответа и ни одного поля для ввода. */
@@ -179,7 +179,8 @@ export const actionKeyboard = (
 export const whereKeyboard = (requestId: string, options: readonly { label: string }[]) =>
   keyboardOf([
     ...options.map((option, index) => [Keyboard.button.callback(option.label, `where:${requestId}:${index}`)]),
-    [Keyboard.button.callback('✖️ Не уточнять', 'cancel')],
+    // Не «Отмена»: заявка уже принята, и отменой человек читает отказ от неё.
+    [Keyboard.button.callback('🤷 Не знаю, где именно', `where:${requestId}:skip`)],
   ]);
 
 /** Кому передать обращение: организации дома по одной кнопке на строку. */
@@ -343,6 +344,49 @@ export const cancelKeyboard = (): Extra => {
 
   PROMPTS.add(built);
   SCREENS.add(built);
+
+  return built;
+};
+
+/**
+ * Начало разговора: готовые вопросы кнопками. Человеку, который не знает, что
+ * спросить, проще нажать пример, чем придумывать формулировку.
+ */
+export const startersKeyboard = (starters: readonly string[]): Extra => {
+  const built = {
+    attachments: [
+      Keyboard.inlineKeyboard([
+        ...starters.slice(0, 3).map((_, at) => [Keyboard.button.callback(starters[at]!, `starter:${at}`)]),
+        [Keyboard.button.callback('✖️ Отмена', 'cancel')],
+      ]),
+    ],
+  };
+
+  PROMPTS.add(built);
+  SCREENS.add(built);
+
+  return built;
+};
+
+/**
+ * Разговор с помощником: под ответом стоит переход в названный раздел и выход.
+ * Пока выход не нажали, следующее сообщение человека это следующий вопрос, и
+ * снова нажимать «Спросить» не нужно.
+ */
+export const talkKeyboard = (section?: { title: string; command: string }): Extra => {
+  const built = {
+    attachments: [
+      Keyboard.inlineKeyboard([
+        ...(section ? [[Keyboard.button.callback(section.title, `menu:${section.command}`)]] : []),
+        [Keyboard.button.callback('✖️ Закончить разговор', 'talk:stop')],
+        [Keyboard.button.callback('🏠 Меню', 'group:back')],
+      ]),
+    ],
+  };
+
+  // Ответ помощника не подсказка: вопросы и ответы остаются в переписке, иначе
+  // разговор стирает сам себя и читать его будет нечего.
+  ROOT_MENUS.add(built);
 
   return built;
 };

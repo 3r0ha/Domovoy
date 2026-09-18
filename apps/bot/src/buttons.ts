@@ -82,7 +82,8 @@ import { takeLegal } from './commands/legal.js';
 import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard, groupWith, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
-import { expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
+import { askStarter } from './talk.js';
+import { endTalk, expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
 import type { Resident } from '@domovoy/app';
 import type { BotKit, Extra } from './kit.js';
 
@@ -234,6 +235,28 @@ const cancel: Button = async (kit, typed) => {
   const onScreen = here !== undefined && here === typed.session?.screen;
 
   await (onScreen ? morphing(typed) : typed).reply(back.title, back.extra);
+};
+
+/**
+ * Выход из разговора с помощником. Отдельной кнопкой, а не отменой: отмена
+ * стёрла бы сам разговор, а его человек может перечитать.
+ */
+const talk: Button = async (kit, typed, [what]) => {
+  if (what !== 'stop') return stale(typed);
+
+  forget(typed);
+  endTalk(typed);
+
+  const back = await backTo(kit, typed);
+
+  await typed.reply(back.title, back.extra);
+};
+
+/** Готовый вопрос кнопкой: с него начинают те, кто не знает, что спросить. */
+const starter: Button = async (kit, typed, [at]) => {
+  const asked = await askStarter(kit, typed, Number(at));
+
+  if (asked === undefined) await stale(typed);
 };
 
 /** «Всё равно оставить заявку»: обращение, на которое ответили работами или советом. */
@@ -501,11 +524,23 @@ const ticket: Button = async (kit, typed, [ticketId]) => {
 /** Ответ на уточняющий вопрос: нажатая кнопка ставит заявке настоящий адрес. */
 const where: Button = async (kit, typed, [requestId, index]) => {
   const asked = typed.session?.where;
-  const option = requestId && asked?.requestId === requestId ? asked.options[Number(index)] : undefined;
-
-  if (!requestId || !option) return stale(typed);
+  const mine = Boolean(requestId) && asked?.requestId === requestId;
+  const option = mine ? asked?.options[Number(index)] : undefined;
 
   const resident = await kit.residentOf(typed);
+
+  // Адрес человек не знает: заявка от этого не пропадает, и сказать об этом
+  // надо словами. Иначе кнопка читается как отказ от самой заявки.
+  if (mine && index === 'skip') {
+    delete typed.session?.where;
+    forget(typed);
+
+    await typed.reply('Хорошо, адрес уточнит мастер на месте. Заявка уже у смены.', kit.menuKeyboard(resident));
+
+    return;
+  }
+
+  if (!requestId || !option) return stale(typed);
 
   try {
     const updated = await retargetRequest(kit.deps, { resident, requestId, startParam: option.startParam });
@@ -1001,4 +1036,6 @@ export const BUTTONS: Record<string, Button> = {
   handoff: handoffAnswer,
   leave,
   forget: forgetMe,
+  talk,
+  starter,
 };

@@ -105,6 +105,9 @@ export const titleFor = (
 
 /** Разделы, на которые ведут ссылки из чата: `?startapp=go-queue`. */
 const LINKED: readonly Screen[] = [
+  // Помощник уводит и сюда: «Сообщить о поломке» и «Привязать квартиру».
+  'new',
+  'bind',
   'list',
   'queue',
   'news',

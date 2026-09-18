@@ -80,9 +80,10 @@ const aboutBill = async (deps: AppDeps, resident: Resident): Promise<string | un
 
     if (charges.lines.length === 0) return 'За этот месяц начислений пока нет.';
 
+    // Про команды жильцу не говорят: за разбором по строкам он идёт кнопкой.
     return left > 0
-      ? `К оплате ${formatMoney(left)} до ${charges.dueDay} числа. Подробности по команде /bill.`
-      : 'За этот месяц всё оплачено. Подробности по команде /bill.';
+      ? `К оплате ${formatMoney(left)} до ${charges.dueDay} числа.`
+      : 'За этот месяц всё оплачено.';
   } catch {
     return undefined;
   }

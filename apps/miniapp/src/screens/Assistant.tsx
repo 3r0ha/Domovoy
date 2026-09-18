@@ -26,6 +26,25 @@ interface Line {
   title?: string;
 }
 
+/** Сколько прошлых реплик уходит модели: дальше разговор уходит в сторону. */
+const TALK_DEPTH = 6;
+
+/**
+ * Разговор парами «спросили, ответили»: по ним модель читает продолжение вроде
+ * «а если нет». Незаконченная пара не отправляется, у неё нет ответа.
+ */
+const pairs = (lines: readonly Line[]): { asked: string; said: string }[] => {
+  const said: { asked: string; said: string }[] = [];
+
+  for (let at = 0; at + 1 < lines.length; at += 1) {
+    if (lines[at]?.from === 'you' && lines[at + 1]?.from === 'bot') {
+      said.push({ asked: lines[at]!.text, said: lines[at + 1]!.text });
+    }
+  }
+
+  return said.slice(-TALK_DEPTH);
+};
+
 /**
  * Кнопка помощника: она в шапке любого экрана и подписана словом. Значок без
  * подписи человек, который редко берёт телефон в руки, просто не замечает.
@@ -85,7 +104,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
     setFailed(null);
 
     try {
-      const answer = await api.assistant(text);
+      const answer = await api.assistant(text, pairs(lines));
 
       setLines((said) => [
         ...said,

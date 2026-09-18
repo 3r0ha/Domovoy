@@ -329,7 +329,7 @@ export const remindAboutReadings = async (deps: AppDeps, buildingId: string): Pr
       pending.length > 0
         ? `Пора подать показания счётчиков, ${daysLeftPhrase(left)}:\n` +
           `${pending.map((state) => `  ${name(state.meter)}`).join('\n')}\n` +
-          'Отправьте их командой /meters.'
+          'Нажмите кнопку ниже и отправьте цифры со счётчика.'
         : '';
     const verify =
       expired.length > 0

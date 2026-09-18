@@ -151,7 +151,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
     );
 
     /** Помощник по приложению: короткий ответ и готовый переход в раздел. */
-    scope.post<{ Body: { question: string } }>(
+    scope.post<{ Body: { question: string; history?: { asked: string; said: string }[] } }>(
       '/api/assistant',
       {
         schema: {
@@ -159,7 +159,23 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
             type: 'object',
             required: ['question'],
             additionalProperties: false,
-            properties: { question: { type: 'string', minLength: 1, maxLength: 500 } },
+            properties: {
+              question: { type: 'string', minLength: 1, maxLength: 500 },
+              // Прошлые реплики разговора: по ним читается «а если нет».
+              history: {
+                type: 'array',
+                maxItems: 6,
+                items: {
+                  type: 'object',
+                  required: ['asked', 'said'],
+                  additionalProperties: false,
+                  properties: {
+                    asked: { type: 'string', maxLength: 500 },
+                    said: { type: 'string', maxLength: 500 },
+                  },
+                },
+              },
+            },
           },
           response: {
             200: {
@@ -180,7 +196,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
-        return askAssistant(deps, resident, request.body.question);
+        return askAssistant(deps, resident, request.body.question, request.body.history ?? []);
       },
     );
 

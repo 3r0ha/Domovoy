@@ -332,10 +332,10 @@ export class DomovoyApi {
   }
 
   /** Помощник: короткий ответ и готовый переход в нужный раздел. */
-  assistant(question: string): Promise<AssistantView> {
+  assistant(question: string, history: readonly { asked: string; said: string }[] = []): Promise<AssistantView> {
     return this.send<AssistantView>('/api/assistant', {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(history.length > 0 ? { question, history } : { question }),
     });
   }
 

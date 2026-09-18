@@ -1,4 +1,4 @@
-import { answerAboutHouse, clarifyTarget, type Resident, type SubmitResult } from '@domovoy/app';
+import { answerAboutHouse, clarifyTarget, zoneOf, type Resident, type SubmitResult } from '@domovoy/app';
 import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
@@ -16,6 +16,14 @@ const remember = (typed: BotContext, description: string, startParam?: string): 
 /** Вопрос о доме получает ответ вместо заявки. */
 /** О чём ответ: про дом целиком или про самого спрашивающего. */
 const PERSONAL_TOPICS = new Set(['bill', 'request']);
+
+/** Где продолжается ответ: раздел бота под тему вопроса. */
+const TOPIC_SECTIONS: Record<string, { title: string; command: string }> = {
+  bill: { title: '🧾 Квитанция за месяц', command: 'bill' },
+  request: { title: '📋 Заявки', command: 'my' },
+  works: { title: '📣 Объявления', command: 'news' },
+  incident: { title: '📣 Объявления', command: 'news' },
+};
 
 export const answerQuestion = async (
   kit: BotKit,
@@ -42,7 +50,18 @@ export const answerQuestion = async (
 
   remember(typed, description, startParam);
 
-  await typed.reply(answer.text, { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]])] });
+  // К ответу даётся сам раздел: назвать его словами и не дать кнопку значит
+  // оставить человека искать её руками по меню.
+  const to = TOPIC_SECTIONS[answer.topic];
+
+  await typed.reply(answer.text, {
+    attachments: [
+      Keyboard.inlineKeyboard([
+        ...(to ? [[Keyboard.button.callback(to.title, `menu:${to.command}`)]] : []),
+        [Keyboard.button.callback('✍️ Оформить заявку', 'anyway')],
+      ]),
+    ],
+  });
 
   return true;
 };
@@ -104,12 +123,16 @@ export const announce = async (
   const created = result.request;
   const rule = CATEGORY_RULES[created.category];
 
+  // Сроки показываются по времени дома: в карточке заявки они уже так и
+  // печатаются, и два разных времени у одного срока человека сбивают.
+  const zone = await zoneOf(kit.deps, created.buildingId);
+
   if (result.kind === 'joined') {
     await typed.reply(
       `О такой проблеме уже сообщили: заявка ${created.number}, ` +
         `${STATUS_TITLES[created.status]}.\n` +
         `${rule.title}, ${describeTarget(created.target)}.\n` +
-        `Вы ${result.reporters}-й, кто написал об этом. Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.\n` +
+        `Вы ${result.reporters}-й, кто написал об этом. Починят до ${formatMoment(created.resolutionDueAt, zone)}.\n` +
         'Об изменениях сообщу вам так же, как автору.',
       kit.openApp(startParam, typed),
     );
@@ -119,10 +142,10 @@ export const announce = async (
   const hint = emergencyHint(created.category, created.priority);
 
   const receipt =
-    `Заявка ${created.number} принята.\n` +
-    `${rule.title}, ${describeTarget(created.target)}.\n` +
-    `Ответим до ${formatMoment(created.reactionDueAt)}.\n` +
-    `Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.` +
+    `Заявка ${created.number} принята. Номер пригодится, если будете звонить.\n` +
+    `Что: ${rule.title.toLowerCase()}, ${describeTarget(created.target)}.\n` +
+    `Ответим до ${formatMoment(created.reactionDueAt, zone)}.\n` +
+    `Починят до ${formatMoment(created.resolutionDueAt, zone)}.` +
     (hint ? `\n\n${hint}` : '');
 
   // Где случилось, спрашивается кнопками: набирать адрес руками пожилому человеку

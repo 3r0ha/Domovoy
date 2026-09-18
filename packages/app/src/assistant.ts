@@ -69,7 +69,7 @@ export const CAPABILITIES: readonly Capability[] = [
     command: '/meters',
     title: 'Показания и квитанция',
     about: 'Передать показания счётчиков и посмотреть начисление за месяц, долг и пени',
-    words: /показани|счётчик|счетчик|квитанц|оплат|начислен|долг|пени|тариф/i,
+    words: /показани|счётчик|счетчик|квитанц|оплат|плат[иеёя]|начислен|долг|пени|тариф/i,
   },
   {
     screen: 'home',
@@ -467,27 +467,27 @@ export const OFF_TOPIC =
   'Я помогаю только с домом и этим приложением: заявки, счётчики, квитанция, собрания, ' +
   'двери и вопросы в управляющую организацию. С остальным ответит человек из управляющей организации.';
 
-/** То же сотруднику: его работа это смена, а не квитанция и не собрание. */
+/** То же сотруднику: к работе смены добавляются его собственные дела по квартире. */
 export const OFF_TOPIC_STAFF =
-  'Я помогаю по работе смены и этому приложению: очередь и сроки, назначение исполнителя, наряды, ' +
-  'передача смежным организациям, рассылка, должники и сводка по дому. С остальным помочь не смогу.';
+  'Я помогаю по работе смены и по вашей квартире: очередь и сроки, наряды, передача смежным ' +
+  'организациям, рассылка, должники и сводка по дому, а ещё ваши показания, квитанция и заявки.';
 
 /** Отказ помощника словами этой роли. */
 export const offTopicFor = (role: Role): string => (isCompanyStaff(role) ? OFF_TOPIC_STAFF : OFF_TOPIC);
 
 /**
  * Отказ в постороннем вопросе. Даже с ним человека не оставляют ни с чем:
- * разговор с живым сотрудником идёт в поддержке. Сотруднику идти некуда,
- * поддержка у него чужая: там он сам отвечает жильцам.
+ * жильцу разговор с живым сотрудником идёт в поддержке, а сотруднику остаётся
+ * очередь дома: поддержка у него чужая, там он сам отвечает жильцам.
  */
 const declined = (role: Role): AssistantAnswer => {
-  const support = isCompanyStaff(role) ? undefined : capabilityFor('support', role);
+  const to = capabilityFor(isCompanyStaff(role) ? 'queue' : 'support', role);
 
   return {
     answer: offTopicFor(role),
     offTopic: true,
-    ...(support ? { screen: 'support', title: support.title } : {}),
-    ...(support?.command ? { command: support.command } : {}),
+    ...(to ? { screen: to.screen, title: to.title } : {}),
+    ...(to?.command ? { command: to.command } : {}),
     by: 'model',
   };
 };
@@ -496,6 +496,7 @@ export const askAssistant = async (
   deps: AppDeps,
   resident: Resident,
   question: string,
+  history: readonly { asked: string; said: string }[] = [],
 ): Promise<AssistantAnswer> => {
   const asked = question.trim().slice(0, QUESTION_MAX_LENGTH);
   const plain = plainAnswer(asked, resident.role);
@@ -505,22 +506,42 @@ export const askAssistant = async (
 
   // Смайлик, междометие или одно слово вроде «когда»: модели тут решать нечего,
   // а отказ «это не про дом» звучит грубее, чем просьба сказать словами.
+  // В начатом разговоре порог не работает: «а сколько?» это продолжение.
   const letters = (asked.match(/\p{L}/gu) ?? []).length;
   const words = asked.split(/\s+/u).filter(Boolean).length;
+  const answering = history.length > 0;
 
-  if (letters < 3 || words < 2) return plain;
+  if (!answering && (letters < 3 || words < 2)) return plain;
 
   const staff = isCompanyStaff(resident.role);
 
   // Сначала отдельным вопросом проверяется, о доме ли речь. Так посторонняя
   // просьба не доходит до подсказки и не тратит ни ответа, ни доверия.
-  const about = reasoner.onTopic ? await reasoner.onTopic(asked, staff).catch(() => undefined) : undefined;
+  // Продолжение разговора не проверяется: «а если нет» само по себе звучит
+  // посторонним, хотя относится к прошлому вопросу.
+  const about =
+    reasoner.onTopic && !answering ? await reasoner.onTopic(asked, staff).catch(() => undefined) : undefined;
 
   // Слова продукта перевешивают отказ модели: «что горит» и «кто на дежурстве»
   // звучат посторонним, а спрашивают про сроки и смену.
   const known = findCapability(asked, resident.role) !== undefined;
 
   if (about === false && !known) return declined(resident.role);
+
+  return answerByModel(deps, resident, asked, history, plain);
+};
+
+/** Ответ модели, проверенный по фактам и по разделам этой роли. */
+const answerByModel = async (
+  deps: AppDeps,
+  resident: Resident,
+  asked: string,
+  history: readonly { asked: string; said: string }[],
+  plain: AssistantAnswer,
+): Promise<AssistantAnswer> => {
+  const reasoner = deps.reasoner;
+
+  if (!reasoner?.assist) return plain;
 
   const sections = capabilitiesFor(resident.role).map((item) => ({
     screen: item.screen,
@@ -531,7 +552,13 @@ export const askAssistant = async (
   const facts = await dossierFor(deps, resident);
 
   const read = await reasoner
-    .assist({ question: asked, facts, knowledge: knowledgeFor(resident.role), sections })
+    .assist({
+      question: asked,
+      facts,
+      knowledge: knowledgeFor(resident.role),
+      sections,
+      ...(history.length > 0 ? { history: [...history] } : {}),
+    })
     .catch(() => undefined);
 
   if (!read?.answer?.trim()) return plain;
@@ -541,7 +568,10 @@ export const askAssistant = async (
   if (!groundedInMoney(read.answer, facts)) return plain;
 
   // Раздел, которого у роли нет, помощник не предлагает: кнопка вела бы в отказ.
-  const screen = sections.some((item) => item.screen === read.screen) ? read.screen : undefined;
+  // Раздел, которого модель не назвала, берётся подбором по словам: ответ, в
+  // котором раздел назван словами, но нажать нечего, человеку бесполезен.
+  const named = sections.some((item) => item.screen === read.screen) ? read.screen : undefined;
+  const screen = named ?? findCapability(asked, resident.role)?.screen;
   const capability = capabilityFor(screen, resident.role);
 
   return {

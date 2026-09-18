@@ -70,8 +70,8 @@ const RESIDENT: RoleMenu = {
       items: [
         { title: '📣 Объявления', command: 'news' },
         { title: '🗳 Собрания', command: 'vote' },
-        { title: '👥 О чём сообщили соседи', command: 'neighbours' },
-        { title: '📊 Как работает компания', command: 'house' },
+        { title: '👥 Заявки соседей', command: 'neighbours' },
+        { title: '📊 Работа компании', command: 'house' },
         {
           title: '🏗 Капитальный ремонт',
           command: 'capital',
@@ -84,7 +84,7 @@ const RESIDENT: RoleMenu = {
     },
     {
       key: 'me',
-      title: '👤 Мой профиль и связь с УК',
+      title: '☎️ Связь и профиль',
       items: [
         { title: '💬 Поддержка', command: 'support' },
         { title: '🗓 Приём', command: 'visit' },
@@ -143,7 +143,7 @@ const STAFF: RoleMenu = {
     },
     {
       key: 'app',
-      title: '📱 На экране приложения',
+      title: '📱 В приложении',
       items: [
         {
           title: '🔍 Осмотры',

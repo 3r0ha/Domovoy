@@ -18,6 +18,8 @@ export interface DialogSession {
   screen?: string;
   /** Наряд, по которому мастер отсканировал наклейку: отметка уйдёт со сдачей. */
   proved?: { requestId: string; code: string };
+  /** Разговор с помощником: прошлые реплики, чтобы вопрос читался в контексте. */
+  talk?: { asked: string; said: string }[];
 }
 
 /** Чего бот ждёт от следующего сообщения. Ожидание всегда одно. */
@@ -41,6 +43,20 @@ export const expect = (context: { session?: DialogSession }, awaiting: Awaiting)
 /** Ожидание снимается, как только ответ пришёл. */
 export const forget = (context: { session?: DialogSession }): void => {
   if (context.session) delete context.session.awaiting;
+};
+
+/** Сколько реплик помощник держит в голове: дальше разговор уходит в сторону. */
+export const TALK_DEPTH = 6;
+
+/** Разговор с помощником закончен: следующий вопрос начинается с чистого листа. */
+export const endTalk = (context: { session?: DialogSession }): void => {
+  if (context.session) delete context.session.talk;
+};
+
+/** Сказанное в разговоре запоминается парами: вопрос и ответ. */
+export const remember = (context: { session?: DialogSession }, asked: string, said: string): void => {
+  context.session ??= {};
+  context.session.talk = [...(context.session.talk ?? []), { asked, said }].slice(-TALK_DEPTH);
 };
 
 export type BotContext = {

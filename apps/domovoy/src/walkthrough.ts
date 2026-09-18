@@ -427,7 +427,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
       firstName: 'Пётр',
       mention: true,
     });
-    await expectChat(/Срок выполнения/);
+    await expectChat(/Починят до/);
 
     say('', 'В чате видны номер и срок, квартира автора не раскрывается');
 

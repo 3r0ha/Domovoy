@@ -185,6 +185,43 @@ describe('помощник смены', () => {
     assert.match(answer.answer, /за жильца/);
   });
 
+  it('личный вопрос сотрудника отказом не становится', async () => {
+    // Модель считает вопрос о квартире посторонним для смены: продукт знает,
+    // что сотрудник тоже платит за свою квартиру, и отвечает по делу.
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+    });
+
+    const answer = await askAssistant(deps, { ...technician, apartmentId: 'apt-1' }, 'Как заплатить за квартиру?');
+
+    assert.equal(answer.offTopic, undefined, 'мастеру отказали в вопросе о своей квартире');
+    assert.equal(answer.screen, 'meters');
+    assert.equal(answer.command, '/meters', 'в разделе не на что нажать');
+  });
+
+  it('продолжение разговора отвечает по прошлому вопросу', async () => {
+    const said: string[] = [];
+
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+      assist: (input) => {
+        said.push(...(input.history ?? []).map((turn) => turn.asked));
+
+        return Promise.resolve({ answer: 'Пени считают с 31 дня просрочки.', screen: 'meters' });
+      },
+    });
+
+    const answer = await askAssistant(deps, maria, 'а если нет?', [
+      { asked: 'Как заплатить за квартиру?', said: 'Оплата в разделе «Показания и квитанция».' },
+    ]);
+
+    assert.deepEqual(said, ['Как заплатить за квартиру?'], 'модель не увидела прошлый вопрос');
+    assert.equal(answer.offTopic, undefined, 'продолжение разговора приняли за постороннее');
+    assert.equal(answer.screen, 'meters');
+  });
+
   it('непонятный вопрос смене уводит в очередь, а не в список заявок', async () => {
     const deps = setup();
 
@@ -205,7 +242,7 @@ describe('помощник смены', () => {
 
     assert.equal(toStaff.offTopic, true);
     assert.equal(toStaff.answer, OFF_TOPIC_STAFF);
-    assert.equal(toStaff.screen, undefined, 'сотруднику с посторонним вопросом идти некуда');
+    assert.equal(toStaff.screen, 'queue', 'сотруднику после отказа предлагают его работу');
 
     const toResident = await askAssistant(deps, maria, 'Свари борщ');
 

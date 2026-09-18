@@ -1,7 +1,6 @@
 import {
   actionsFor,
   answerSupport,
-  askAssistant,
   askSupport,
   answerHandoff,
   bindApartment,
@@ -23,7 +22,6 @@ import {
   isCompanyStaff,
   normalizeApartmentCode,
   requestNumberIn,
-  sectionParam,
   METER_RULES,
   STATUS_TITLES,
   verificationState,
@@ -47,6 +45,8 @@ import {
   visitCancelKeyboard,
   visitKeyboard,
 } from './keyboards.js';
+import { answerFromAssistant } from './talk.js';
+import { thinking } from './thinking.js';
 import { freeHours } from './commands/visits.js';
 import { expect, forget, isChatter, QUIT, type Awaiting, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
@@ -216,6 +216,10 @@ const describeProblem = async (
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
 
+  // Разбор сообщения идёт через модель и занимает секунды: молчание в переписке
+  // читается как «не дошло», поэтому на это время появляется отметка.
+  const waiting = thinking(kit, typed);
+
   try {
     const { description, attachments } = await describeFromAttachments(said.text, said.attachments, kit.transcriber);
 
@@ -249,6 +253,8 @@ const describeProblem = async (
       `${error.message}. Отсканируйте код на подъезде или откройте приложение, там можно выбрать адрес.`,
       kit.openApp(undefined, typed),
     );
+  } finally {
+    await waiting();
   }
 };
 
@@ -384,19 +390,6 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   }
 
   return describeProblem(kit, typed, undefined, said);
-};
-
-/** Помощник по продукту: короткий ответ и кнопка в нужный раздел приложения. */
-const answerFromAssistant = async (kit: BotKit, typed: BotContext, question: string): Promise<void> => {
-  forget(typed);
-
-  const resident = await kit.residentOf(typed);
-  const help = await askAssistant(kit.deps, resident, question);
-
-  await typed.reply(
-    help.answer,
-    help.screen ? kit.openApp(sectionParam(help.screen), typed) : kit.menuKeyboard(resident),
-  );
 };
 
 /** Ответ смежной организации записан словами: он уходит и жильцу. */

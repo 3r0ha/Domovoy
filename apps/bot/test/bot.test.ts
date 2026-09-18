@@ -22,6 +22,7 @@ import { type MockPlatform, type SentMessage, startMockPlatform } from '@maxkit/
 import { MemoryMarkerStore, type MarkerStore } from '@maxkit/runtime';
 
 import { createDomovoyBot } from '../dist/index.js';
+import { menuFor } from '../dist/menu.js';
 
 const MINI_APP = 'https://domovoy.homes/app';
 
@@ -280,7 +281,7 @@ describe('чат-бот управляющей компании', () => {
     assert.match(confirmation, /Заявка Д15-2609-0001 принята/);
     assert.match(confirmation, /Лифт, Лифт, подъезд 2|Лифт, подъезд 2/);
     assert.match(confirmation, /Ответим до /);
-    assert.match(confirmation, /Срок выполнения: до /);
+    assert.match(confirmation, /Починят до /);
     assert.match(confirmation, /нажмите кнопку связи/, 'по аварии бот говорит, что делать прямо сейчас');
 
     const created = await bot.deps.repository.listRequests({});
@@ -298,7 +299,7 @@ describe('чат-бот управляющей компании', () => {
     platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
     const messages = await platform.waitForOutgoing(2, 3000);
 
-    assert.match(messages[1]?.text ?? '', /Водоснабжение и канализация, квартира/);
+    assert.match(messages[1]?.text ?? '', /водоснабжение и канализация, квартира/i);
 
     await bot.stop();
   });
@@ -334,7 +335,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('Течёт кран на кухне, вода капает постоянно', { userId: 3003, chatId: 3003 });
-    assert.match(await waitForMessage(3003, /принята/), /Срок выполнения/);
+    assert.match(await waitForMessage(3003, /принята/), /Починят до/);
 
     const [created] = await bot.deps.repository.listRequests({});
 
@@ -1045,6 +1046,40 @@ describe('чат-бот управляющей компании', () => {
     assert.match(said, /квитанц/i);
     assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'вопрос не стал заявкой');
 
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /menu:meters/, 'в раздел нечем перейти');
+    assert.match(keyboard, /talk:stop/, 'из разговора нечем выйти');
+
+    await bot.stop();
+  });
+
+  it('разговор с помощником продолжается без повторного нажатия', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/help', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Спросите словами/);
+
+    platform.userSends('где передать показания счётчиков', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Показания/);
+
+    // Второй вопрос подряд: кнопку «Спросить» человек больше не нажимал.
+    platform.userSends('а где открыть дверь подъезда', { userId: 3003, chatId: 3003 });
+
+    const next = await waitForMessage(3003, /двер/i);
+
+    assert.match(next, /Спросите ещё/);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'второй вопрос стал заявкой');
+
+    platform.userPressesButton('talk:stop', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Домовой/);
+
+    // Разговор закончен: следующее сообщение это уже обращение, а не вопрос.
+    platform.userSends('в подъезде разбито стекло', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 1);
+
     await bot.stop();
   });
 
@@ -1062,7 +1097,7 @@ describe('чат-бот управляющей компании', () => {
     // Жильцу в ответе нужны категория, срок и номер: служебная пометка о том,
     // откуда взялась категория, ему ничего не даёт.
     assert.doesNotMatch(said, /разбор текста/);
-    assert.match(said, /Водоснабжение и канализация/);
+    assert.match(said, /водоснабжение и канализация/i);
 
     await bot.stop();
   });
@@ -3372,7 +3407,7 @@ describe('чат-бот управляющей компании', () => {
         mention: true,
       });
 
-      const said = await waitForMessage(HOUSE_CHAT, /Срок выполнения/);
+      const said = await waitForMessage(HOUSE_CHAT, /Починят до/);
 
       assert.match(said, /Заявка Д15-2609-0001 принята/);
 
@@ -3394,7 +3429,7 @@ describe('чат-бот управляющей компании', () => {
         quote: 'Второй день не работает домофон в третьем подъезде',
       });
 
-      await waitForMessage(HOUSE_CHAT, /Срок выполнения/);
+      await waitForMessage(HOUSE_CHAT, /Починят до/);
 
       const [request] = await bot.deps.repository.listRequests({});
 
@@ -3631,5 +3666,27 @@ describe('чат-бот управляющей компании', () => {
 
       await bot.stop();
     });
+  });
+});
+
+describe('названия в меню', () => {
+  /** Длиннее этого название переносится на вторую строку и кнопка теряет вид. */
+  const LIMIT = 20;
+
+  it('умещаются в кнопку на телефоне', () => {
+    const roles: Resident['role'][] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
+
+    const long = roles.flatMap((role) => {
+      const menu = menuFor(
+        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, buildingId: BUILDING_ID },
+        { demo: true },
+      );
+
+      return [...menu.top, ...menu.groups.flatMap((group) => [{ title: group.title }, ...group.items])]
+        .map((item) => item.title)
+        .filter((title) => [...title].length > LIMIT);
+    });
+
+    assert.deepEqual([...new Set(long)], []);
   });
 });

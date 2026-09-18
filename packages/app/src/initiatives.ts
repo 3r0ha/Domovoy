@@ -13,7 +13,7 @@ import {
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import { homeBuildingOf, housesOf } from './buildings.js';
 import { wanting } from './notices.js';
-import { noopNotifier, notifyResident } from './notifier.js';
+import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 import { formatArea, startPoll } from './voting.js';
@@ -226,10 +226,11 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
 
   const author = await deps.repository.findResident(found.authorId);
 
-  await notifyResident(
+  await notifyAbout(
     deps.notifier ?? noopNotifier,
     author,
-    `Собрание по вашему предложению объявлено: ${poll.title}.\nПроголосовать: команда /vote.`,
+    `Собрание по вашему предложению объявлено: ${poll.title}.\nГолос подают кнопкой ниже.`,
+    { section: 'polls' },
   );
 
   return poll;

@@ -349,6 +349,28 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 500
+                  },
+                  "history": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "asked",
+                        "said"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "asked": {
+                          "type": "string",
+                          "maxLength": 500
+                        },
+                        "said": {
+                          "type": "string",
+                          "maxLength": 500
+                        }
+                      }
+                    }
                   }
                 }
               }

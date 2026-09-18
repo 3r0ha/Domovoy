@@ -125,6 +125,28 @@ const SECTION_TITLES: Record<string, string> = {
   queue: 'Очередь в приложении',
 };
 
+/**
+ * То же самое в переписке: не у всех есть приложение, и набирать команду из
+ * текста человеку не нужно, для этого под сообщением стоит кнопка.
+ */
+const SECTION_IN_CHAT: Record<string, { title: string; command: string }> = {
+  news: { title: '📣 Объявления', command: 'news' },
+  meters: { title: '💧 Передать показания', command: 'meters' },
+  polls: { title: '🗳 Собрания', command: 'vote' },
+  list: { title: '📋 Заявки', command: 'my' },
+  queue: { title: '🗂 Очередь дома', command: 'queue' },
+  debtors: { title: '💰 Долги дома', command: 'debts' },
+  support: { title: '💬 Вопросы жильцов', command: 'support' },
+  report: { title: '📊 Сводка за месяц', command: 'report' },
+};
+
+/** Ряд с тем же разделом в переписке. Пусто, если в боте такого раздела нет. */
+const inChatRow = (section: string | undefined) => {
+  const to = section ? SECTION_IN_CHAT[section] : undefined;
+
+  return to ? [[Keyboard.button.callback(to.title, `menu:${to.command}`)]] : [];
+};
+
 /** Меню команд в клиенте MAX. */
 export const BOT_COMMANDS = [
   { name: 'new', description: 'Новая заявка' },
@@ -205,6 +227,7 @@ export const createBotNotifier = (
                     ...(complaintFor
                       ? [[Keyboard.button.callback('📄 Жилинспекция', `gzhi:${complaintFor}`)]]
                       : []),
+                    ...inChatRow(section),
                     ...(section
                       ? appRow(miniAppUrl, SECTION_TITLES[section] ?? 'Открыть приложение', section)
                       : []),

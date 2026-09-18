@@ -7,6 +7,7 @@ import {
 } from '@domovoy/app';
 
 import { cancelKeyboard, dataKeyboard, demoKeyboard, flatKeyboard, flatTitle, menuButton } from '../keyboards.js';
+import { startTalk } from '../talk.js';
 import { expect, inChat } from '../max.js';
 import { showRequests } from '../pages.js';
 import type { BotKit, Handler } from '../kit.js';
@@ -80,10 +81,6 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
       return;
     }
 
-    // Помощник ждёт вопрос словами, поэтому на экране остаётся только отмена:
-    // меню рядом с полем ввода сбивает с толку, ответ ждут от человека.
-    expect(typed, { kind: 'assistant' });
-
-    await typed.reply('Спросите словами, что нужно сделать. Я подскажу и открою нужный раздел.', cancelKeyboard());
+    await startTalk(kit, typed);
   },
 });
