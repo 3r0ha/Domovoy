@@ -30,7 +30,7 @@ import type { Extra } from './kit.js';
  * одному, прежнее убирается, когда появился новый. Чек заявки и код гостя
  * экранами не помечаются: их из переписки стирать нельзя.
  */
-const screenOf = <T>(extra: T): T => {
+export const screenOf = <T>(extra: T): T => {
   if (extra && typeof extra === 'object') SCREENS.add(extra);
 
   return extra;

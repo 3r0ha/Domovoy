@@ -94,6 +94,19 @@ describe('чат-бот управляющей компании', () => {
    */
   const said = (text: string): string => text.replace(/\*\*/gu, '');
 
+  /** Кнопка дела: её метка живёт одно предложение, поэтому читается из экрана. */
+  const doingButton = (recipient: number, at = 0): string => {
+    const keyboard = JSON.stringify(
+      platform.outgoing.findLast((message) => message.chatId === recipient)?.attachments ?? [],
+    );
+
+    const found = [...keyboard.matchAll(/"payload":"(do:[^"]+)"/gu)].map((match) => match[1]!);
+
+    if (found.length === 0) throw new Error(`в экране нет кнопки дела: ${keyboard}`);
+
+    return found[at] ?? found[0]!;
+  };
+
   /** Ждёт, пока сообщение уберут из переписки: удаление идёт после ответа. */
   const untilGone = async (pattern: RegExp, timeoutMs = 6000): Promise<void> => {
     const deadline = Date.now() + timeoutMs;
@@ -1785,7 +1798,7 @@ describe('чат-бот управляющей компании', () => {
       'работа сдана без подтверждения',
     );
 
-    platform.userPressesButton(`do:done:${request.id}`, { userId: 5030, chatId: 5030 });
+    platform.userPressesButton(doingButton(5030), { userId: 5030, chatId: 5030 });
     await waitForMessage(5030, /выполнена/);
 
     const closed = await bot.deps.repository.findRequest(request.id);
@@ -1813,7 +1826,7 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(asked, /Д15-2609-0001/);
 
-    platform.userPressesButton(`do:confirmed:${request.id}`, { userId: 3003, chatId: 3003 });
+    platform.userPressesButton(doingButton(3003), { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята жильцом|закрыта/);
 
     assert.equal((await bot.deps.repository.findRequest(request.id))?.status, 'confirmed');
@@ -1858,7 +1871,7 @@ describe('чат-бот управляющей компании', () => {
     const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
     assert.match(asked, /Понял: сдать работу/);
-    assert.equal((buttons.match(/do:done:/g) ?? []).length, 2, 'выбор из двух нарядов не предложен');
+    assert.equal((buttons.match(/"payload":"do:/g) ?? []).length, 2, 'выбор из двух нарядов не предложен');
 
     await bot.stop();
   });

@@ -1083,11 +1083,20 @@ const ask: Button = async (kit, typed, [requestId, to]) => {
  * отчётом о работе или причиной перехода: писать то же самое второй раз
  * ради формы незачем.
  */
-const doIt: Button = async (kit, typed, [to, requestId]) => {
-  if (!to || !requestId) return stale(typed, kit);
+const doIt: Button = async (kit, typed, [token, requestId]) => {
+  if (!token || !requestId) return stale(typed, kit);
+
+  const said = typed.session?.doing;
+
+  // Предложение одноразовое: второе нажатие по той же кнопке дело не повторяет,
+  // а слова из нового предложения в старую заявку не уходят.
+  if (!said || said.token !== token) {
+    await typed.reply('Это дело уже сделано или отменено.', menuButton(typed));
+
+    return;
+  }
 
   const resident = await kit.residentOf(typed);
-  const said = typed.session?.doing;
 
   delete typed.session?.doing;
 
@@ -1095,13 +1104,13 @@ const doIt: Button = async (kit, typed, [to, requestId]) => {
     const updated = await transitionRequest(kit.deps, {
       resident,
       requestId,
-      to: to as never,
-      ...(said?.comment ? { comment: said.comment } : {}),
+      to: said.to as never,
+      comment: said.comment,
     });
 
     await typed.reply(
       `Заявка ${strong(updated.number)}: ${STATUS_TITLES[updated.status]}.` +
-        (said?.comment ? `\nЗаписал: ${plain(said.comment)}` : ''),
+        (said.comment ? `\nЗаписал: ${plain(said.comment)}` : ''),
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), assignable(updated, resident.role)),
     );
   } catch (error) {
