@@ -19,7 +19,8 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
     expect(typed, { kind: 'description' });
 
     await typed.reply(
-      'Опишите, что случилось. Если знаете номер подъезда или квартиры, укажите в тексте.',
+      'Напишите, что случилось. Например: в подъезде 2 не горит лампочка.\n' +
+        'Можно прислать фото или записать голосом.',
       cancelKeyboard(),
     );
   },
@@ -46,8 +47,13 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
     const resident = await kit.residentOf(typed);
     const data = await exportPersonalData(kit.deps, resident);
 
+    // Человеку нужно узнать себя: имя и адрес, а не одни числа записей.
+    const who = [data.displayName, data.address, data.apartment ? `кв. ${data.apartment}` : undefined]
+      .filter(Boolean)
+      .join(', ');
+
     await typed.reply(
-      `О вас: ${personalDataSummary(data)}.`,
+      `${who}.\nЯ храню о вас: ${personalDataSummary(data)}.`,
       dataKeyboard(apartmentsOf(resident).length > 0, typed),
     );
   },
@@ -60,12 +66,17 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
       // Код ждут следующим сообщением: без ожидания он уходит в обращение.
       expect(typed, { kind: 'code' });
 
-      await typed.reply('Квартира ещё не привязана. Отправьте код из квитанции.', cancelKeyboard());
+      await typed.reply(
+        'Я пока не знаю, в какой вы квартире.\n' +
+          'В квитанции напечатан код из 8 знаков рядом с адресом. Пришлите его сообщением.',
+        cancelKeyboard(),
+      );
       return;
     }
 
     if (own.length === 1) {
-      await typed.reply(`Ваша ${flatTitle(own[0]!)}.`, menuButton(typed));
+      // Квартира может быть указана чужая: исправить это надо прямо отсюда.
+      await typed.reply(`Ваша ${flatTitle(own[0]!)}.`, flatKeyboard(own));
       return;
     }
 

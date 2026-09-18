@@ -212,7 +212,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
       user: { user_id: IVAN.maxUserId, first_name: 'Иван', is_bot: false },
       payload: 'rsr_dom15_1_2',
     });
-    await expect(IVAN, /Опишите/);
+    await expect(IVAN, /что случилось/);
 
     say(IVAN.name, 'Нет горячей воды со вчерашнего вечера');
     platform.userSends('Нет горячей воды со вчерашнего вечера', {
@@ -394,7 +394,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'По показаниям считается квитанция: сумма, срок и оплата в переписке');
     say(IVAN.name, '/bill');
     platform.userSends('/bill', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /К оплате/);
+    await expect(IVAN, /Заплатить /);
 
     say('', 'Разбор по строкам открывается в приложении');
     const payer = expectResident(await bot.deps.repository.findResidentByMaxUserId(IVAN.maxUserId));
@@ -458,7 +458,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Сосед пока не привязан к квартире и вводит код из своей квитанции');
     say('Сосед в чате дома', flatCode);
     platform.userSends(flatCode, { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
-    await expect(NEWCOMER, /привязаны к квартире/);
+    await expect(NEWCOMER, /вы в квартире/);
 
     say('', 'Код у каждой квартиры свой, промахи ограничены');
     say('Сосед в чате дома', 'WXYWXY33');
@@ -513,7 +513,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Выгрузка своих данных: сначала состав, файл по кнопке');
     say(IVAN.name, '/mydata');
     platform.userSends('/mydata', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /О вас: /);
+    await expect(IVAN, /Я храню о вас/);
 
     say(IVAN.name, 'нажимает «Выгрузить мои данные»');
     platform.userPressesButton('mydata:file', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
@@ -522,7 +522,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Вопрос о доме получает ответ данными, заявка не заводится');
     say(PETR.name, '/new');
     platform.userSends('/new', { userId: PETR.maxUserId, chatId: PETR.maxUserId });
-    await expect(PETR, /Опишите/);
+    await expect(PETR, /что случилось/);
 
     const asked = (await deps.repository.listRequests({})).length;
 

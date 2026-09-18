@@ -8,12 +8,23 @@ import {
   keyboardOf,
   menuButton,
   metersKeyboard,
+  oneKeyboard,
   payRows,
   readingKeyboard,
   readingPrompt,
 } from '../keyboards.js';
 import { expect } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
+
+/**
+ * Срок оплаты днём и месяцем. «До 10 числа» человек читает как «какого месяца»,
+ * особенно если сегодня уже двадцатое.
+ */
+const dueDate = (now: Date, day: number): string => {
+  const at = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > day ? 1 : 0), day);
+
+  return at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+};
 
 /** Счётчики и квитанция: то, из-за чего жилец заходит раз в месяц. */
 export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
@@ -27,7 +38,10 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       const meters = await metersFor(deps, resident);
 
       if (meters.length === 0) {
-        await typed.reply('Счётчики за вашей квартирой не числятся. Обратитесь в управляющую компанию.', menuButton(typed));
+        await typed.reply(
+          'За вашей квартирой счётчиков не записано. Если они есть, скажите об этом управляющей компании.',
+          oneKeyboard('✉️ Написать в компанию', 'menu:support'),
+        );
         return;
       }
 
@@ -39,8 +53,12 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
 
       if (expired.length > 0) {
         await typed.reply(
-          `Нужна поверка: ${expired.map((state) => `${METER_RULES[state.meter.kind].title} (${state.meter.serial})`).join(', ')}.\n` +
-            'До неё показания принимать нельзя, начисляют по нормативу.',
+          `Истёк срок проверки счётчика: ${expired
+            .map((state) => `${METER_RULES[state.meter.kind].title} № ${state.meter.serial}`)
+            .join(', ')}.\n` +
+            'Пока его не проверят, показания принять не могу, и за эту услугу считают по средней норме.\n' +
+            'Проверку заказывают в управляющей компании.',
+          oneKeyboard('✉️ Написать в компанию', 'menu:support'),
         );
       }
 
@@ -94,7 +112,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(
         [
           left > 0
-            ? `К оплате ${formatMoney(left)} до ${charges.dueDay} числа`
+            ? `Заплатить ${formatMoney(left)} до ${dueDate(deps.now(), charges.dueDay)}`
             : `Начислено ${formatMoney(charges.total)}, за этот месяц всё оплачено`,
           debt,
           'Из чего сложилось и за что, смотрите в приложении.',

@@ -180,7 +180,8 @@ const group: Button = async (kit, typed, [key]) => {
   typed.session ??= {};
   typed.session.menu = chosen.key;
 
-  await typed.reply(chosen.title, groupKeyboard(chosen));
+  // Заголовка группы человеку мало: строка объясняет, что тут делают.
+  await typed.reply(chosen.about ? `${chosen.title}\n${chosen.about}` : chosen.title, groupKeyboard(chosen));
 };
 
 /**
@@ -214,7 +215,7 @@ const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; 
 
   if (!chosen) return { title: await menuTitle(kit, resident), extra: kit.menuKeyboard(resident) };
 
-  return { title: chosen.title, extra: groupKeyboard(chosen) };
+  return { title: chosen.about ? `${chosen.title}\n${chosen.about}` : chosen.title, extra: groupKeyboard(chosen) };
 };
 
 /**

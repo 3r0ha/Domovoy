@@ -45,8 +45,10 @@ export const decimal = (value: number): string => value.toLocaleString('ru-RU', 
 
 /** Ряды оплаты: месяц и долг за прошлые месяцы платят отдельно. */
 export const payRows = (month: number | undefined, debt: number | undefined): ButtonRows => [
-  ...(month === undefined ? [] : [[Keyboard.button.callback(`💳 За месяц: ${formatMoney(month)}`, 'pay')]]),
-  ...(debt === undefined ? [] : [[Keyboard.button.callback(`💰 Долг: ${formatMoney(debt)}`, 'pay-debt')]]),
+  ...(month === undefined ? [] : [[Keyboard.button.callback(`💳 За месяц ${formatMoney(month)}`, 'pay')]]),
+  ...(debt === undefined
+    ? []
+    : [[Keyboard.button.callback(`💰 Старый долг ${formatMoney(debt)}`, 'pay-debt')]]),
 ];
 
 /** Каждая дверь своей кнопкой. */
@@ -304,9 +306,9 @@ export const afterError = (error: unknown, context?: Parameters<typeof menuButto
 export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuButton>[0]) =>
   keyboardOf(
     [
-      [Keyboard.button.callback('📄 Выгрузить мои данные', 'mydata:file')],
-      ...(bound ? [[Keyboard.button.callback('🚪 Отвязать квартиру', 'leave:ask')]] : []),
-      [Keyboard.button.callback('🗑 Удалить профиль', 'forget:ask')],
+      [Keyboard.button.callback('📄 Прислать файлом', 'mydata:file')],
+      ...(bound ? [[Keyboard.button.callback('🏢 Это не моя квартира', 'leave:ask')]] : []),
+      [Keyboard.button.callback('🗑 Удалить меня', 'forget:ask')],
       [Keyboard.button.callback('🏠 Меню', 'group:back')],
     ],
     context,
@@ -465,8 +467,8 @@ export const flatTitle = (apartment: OwnApartment): string =>
 /** Выбор одной из своих квартир. */
 export const flatKeyboard = (own: readonly OwnApartment[]) => ({
   attachments: [
-    Keyboard.inlineKeyboard(
-      own
+    Keyboard.inlineKeyboard([
+      ...own
         .filter((apartment) => !apartment.current)
         .map((apartment) => {
           const title = flatTitle(apartment);
@@ -478,7 +480,9 @@ export const flatKeyboard = (own: readonly OwnApartment[]) => ({
             ),
           ];
         }),
-    ),
+      // Квартиру могли привязать по чужому коду: отсюда это и исправляют.
+      [Keyboard.button.callback('🏢 Это не моя квартира', 'leave:ask')],
+    ]),
   ],
 });
 

@@ -20,6 +20,8 @@ export interface MenuGroup {
   /** Ключ группы: он же приходит в нажатой кнопке. */
   key: string;
   title: string;
+  /** Что здесь делают, одной строкой: заголовка группы человеку мало. */
+  about?: string;
   items: MenuItem[];
 }
 
@@ -42,31 +44,31 @@ const HOME_GROUP: MenuGroup = {
 };
 
 /** Помощник стоит первым экраном у всех: спросить словами проще, чем искать пункт. */
-const ASK_ITEM: MenuItem = { title: '❓ Спросить помощника', command: 'help' };
+const ASK_ITEM: MenuItem = { title: '❓ Не знаю, куда нажать', command: 'help' };
 
 const RESIDENT: RoleMenu = {
   top: [
-    { title: '✍️ Новая заявка', command: 'new' },
-    { title: '📋 Заявки', command: 'my' },
+    { title: '✍️ Сообщить о поломке', command: 'new' },
+    { title: '📋 Мои обращения', command: 'my' },
+    // Дверь открывают на ходу, стоя у подъезда: прятать её в группу значит
+    // заставить человека нажимать дважды, пока за ним закрывается домофон.
+    { title: '🚪 Открыть дверь', command: 'door' },
     ASK_ITEM,
   ],
   groups: [
     {
       key: 'money',
-      title: '💳 Счета и показания',
+      title: '💳 Деньги и счётчики',
+      about: 'Сколько платить в этом месяце и куда отправить цифры со счётчиков.',
       items: [
-        { title: '🧾 Квитанция за месяц', command: 'bill' },
-        { title: '💧 Передать показания', command: 'meters' },
+        { title: '🧾 Сколько платить', command: 'bill' },
+        { title: '💧 Отправить показания', command: 'meters' },
       ],
-    },
-    {
-      key: 'doors',
-      title: '🚪 Открыть дверь',
-      items: [{ title: '🚪 Домофон и шлагбаум', command: 'door' }],
     },
     {
       key: 'house',
       title: '📣 Новости дома',
+      about: 'Объявления управляющей компании, собрания соседей и работа по дому.',
       items: [
         { title: '📣 Объявления', command: 'news' },
         { title: '🗳 Собрания', command: 'vote' },
@@ -85,9 +87,10 @@ const RESIDENT: RoleMenu = {
     {
       key: 'me',
       title: '☎️ Связь и профиль',
+      about: 'Как связаться с управляющей компанией и что продукт о вас знает.',
       items: [
-        { title: '💬 Поддержка', command: 'support' },
-        { title: '🗓 Приём', command: 'visit' },
+        { title: '✉️ Написать в компанию', command: 'support' },
+        { title: '🗓 Записаться на приём', command: 'visit' },
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '🏢 Квартира', command: 'flat' },
         { title: '🗂 Мои данные', command: 'mydata' },

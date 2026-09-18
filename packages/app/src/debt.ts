@@ -264,9 +264,10 @@ export const formatDebtShort = (debt: Debt): string | undefined => {
   if (debt.total <= 0) return undefined;
 
   const months = plural(debt.periods.length, 'месяц', 'месяца', 'месяцев');
-  const penalty = debt.penalty > 0 ? `, пени ${formatMoney(debt.penalty)}` : '';
+  // «Пени» знают не все: для человека это штраф за просрочку.
+  const penalty = debt.penalty > 0 ? `, штраф за просрочку ${formatMoney(debt.penalty)}` : '';
 
-  return `Долг за ${months}: ${formatMoney(debt.total)}${penalty}`;
+  return `Старый долг за ${months}: ${formatMoney(debt.total)}${penalty}`;
 };
 
 /** Оплата долга: каждый месяц закрывается своим платежом. @throws {DomainError} */

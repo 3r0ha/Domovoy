@@ -234,7 +234,7 @@ describe('чат-бот управляющей компании', () => {
     const [greeting] = await platform.waitForOutgoing(1, 3000);
 
     assert.match(greeting?.text ?? '', /Лифт, подъезд 2/, 'у объекта человеческое название, а не код');
-    assert.match(greeting?.text ?? '', /Опишите/);
+    assert.match(greeting?.text ?? '', /Опишите|Напишите, что случилось/);
 
     await bot.stop();
   });
@@ -252,7 +252,7 @@ describe('чат-бот управляющей компании', () => {
       payload: encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' }),
     });
 
-    assert.match(await waitForMessage(2002, /Лифт, подъезд 2/), /Опишите/);
+    assert.match(await waitForMessage(2002, /Лифт, подъезд 2/), /Опишите|Напишите, что случилось/);
 
     await bot.stop();
   });
@@ -311,7 +311,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(9009, /персональные данные/);
 
     platform.userPressesButton('legal:accept', { userId: 9009, chatId: 9009 });
-    await waitForMessage(9009, /Опишите/);
+    await waitForMessage(9009, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Что-то сломалось', { userId: 9009, chatId: 9009 });
 
@@ -561,7 +561,7 @@ describe('чат-бот управляющей компании', () => {
       user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload: encodeTarget({ kind: 'entrance', buildingId: BUILDING_ID, entrance: 1 }),
     });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Не убрана площадка второго этажа', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
@@ -627,7 +627,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/bill', { userId: 3003, chatId: 3003 });
-    const said = await waitForMessage(3003, /К оплате/);
+    const said = await waitForMessage(3003, /Заплатить /);
 
     // В переписке сумма и срок, а разбор по строкам открывается в приложении.
     assert.doesNotMatch(said, /Содержание и текущий ремонт/, 'разбор квитанции остался в чате');
@@ -636,7 +636,7 @@ describe('чат-бот управляющей компании', () => {
     const menu = platform.outgoing.findLast((message) => message.chatId === 3003);
     const buttons = JSON.stringify(menu?.attachments ?? []);
 
-    assert.match(buttons, /За месяц: /, 'на кнопке видно, за что платят');
+    assert.match(buttons, /За месяц /, 'на кнопке видно, за что платят');
     assert.match(buttons, /Квитанция в приложении/);
 
     platform.userPressesButton('pay', { userId: 3003, chatId: 3003 });
@@ -729,7 +729,7 @@ describe('чат-бот управляющей компании', () => {
       user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload: encodeTarget({ kind: 'riser', buildingId: BUILDING_ID, entrance: 1, riser: 1 }),
     });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Нет горячей воды', { userId: 3003, chatId: 3003 });
     await waitForMessage(5006, /Новая заявка/);
@@ -781,7 +781,7 @@ describe('чат-бот управляющей компании', () => {
       user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload: encodeTarget({ kind: 'riser', buildingId: BUILDING_ID, entrance: 1, riser: 1 }),
     });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Нет горячей воды', { userId: 3003, chatId: 3003 });
     await waitForMessage(5006, /Новая заявка/);
@@ -911,7 +911,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/mydata', { userId: 3003, chatId: 3003 });
 
-    const profile = await waitForMessage(3003, /О вас: /);
+    const profile = await waitForMessage(3003, /Я храню о вас/);
 
     assert.match(profile, /Заявок 8/, 'сначала видно, что о человеке известно');
 
@@ -928,7 +928,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/mydata', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /О вас: /);
+    await waitForMessage(3003, /Я храню о вас/);
 
     platform.userPressesButton('leave:ask', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Отвязать квартиру\?/);
@@ -1125,7 +1125,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
 
-    assert.match(await waitForMessage(4009, /привязаны к квартире/), /квартире 1/);
+    assert.match(await waitForMessage(4009, /Теперь я знаю, что вы в квартире/), /квартире 1/);
 
     const resident = await bot.deps.repository.findResidentByMaxUserId(4009);
 
@@ -1313,7 +1313,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT, dispatcher]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
     platform.userSends('Течёт кран', { userId: 3003, chatId: 3003 });
     await waitForMessage(5008, /Новая заявка/);
 
@@ -1352,7 +1352,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT], { now: () => new Date('2026-09-03T10:00:00Z') });
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
     platform.userSends('Течёт кран', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
@@ -1389,7 +1389,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT, olga, master], { now: () => new Date('2026-09-03T10:00:00Z') });
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
     platform.userSends('Течёт кран', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
@@ -1422,7 +1422,7 @@ describe('чат-бот управляющей компании', () => {
       user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload,
     });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
@@ -1493,7 +1493,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('отмена', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Отменил/);
@@ -1702,15 +1702,15 @@ describe('чат-бот управляющей компании', () => {
     const forResident = keyboardOf(3003);
     const forStaff = keyboardOf(7009);
 
-    assert.match(forResident, /Новая заявка/);
-    assert.match(forResident, /Счета и показания/, 'частое кнопками, редкое группами');
+    assert.match(forResident, /Сообщить о поломке/);
+    assert.match(forResident, /Деньги и счётчики/, 'частое кнопками, редкое группами');
     assert.equal(/Смена/.test(forResident), false);
     assert.match(forStaff, /Жильцы/);
-    assert.equal(/Счета и показания/.test(forStaff), false, 'своей квартиры у этого управляющего нет');
+    assert.equal(/Деньги и счётчики/.test(forStaff), false, 'своей квартиры у этого управляющего нет');
 
     // Второй экран меню: пункты группы открываются нажатием.
     platform.userPressesButton('group:money', { userId: 3003, chatId: 3003 });
-    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Квитанция/);
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Сколько платить|Квитанция/);
 
     platform.userPressesButton('group:house', { userId: 7009, chatId: 7009 });
 
@@ -1749,7 +1749,7 @@ describe('чат-бот управляющей компании', () => {
     const own = JSON.stringify((await waitForKeyboard(7010)) ?? []);
 
     assert.match(own, /Показания/);
-    assert.match(own, /Квитанция/);
+    assert.match(own, /Сколько платить|Квитанция/);
     assert.match(own, /Квартира/);
 
     await bot.stop();
@@ -1773,7 +1773,7 @@ describe('чат-бот управляющей компании', () => {
       platform.outgoing.findLast((message) => message.chatId === 7011)?.attachments ?? [],
     );
 
-    assert.equal(/Квитанция/.test(keyboard), false);
+    assert.equal(/Сколько платить|Квитанция/.test(keyboard), false);
     assert.equal(/Квартира/.test(keyboard), false);
 
     await bot.stop();
@@ -1786,7 +1786,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(3003, /Здравствуйте/);
 
     platform.userPressesButton('menu:new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите, что случилось/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
@@ -1798,7 +1798,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
     platform.userSends('Течёт кран', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
@@ -1888,7 +1888,7 @@ describe('чат-бот управляющей компании', () => {
     await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
     platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
@@ -1977,7 +1977,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Что нужно сделать/);
@@ -2004,10 +2004,10 @@ describe('чат-бот управляющей компании', () => {
     const single = platform.outgoing.length;
 
     platform.userPressesButton('group:money', { userId: 3003, chatId: 3003 });
-    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Квитанция/);
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Сколько платить|Квитанция/);
 
     platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
-    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Счета и показания/);
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Деньги и счётчики/);
 
     assert.equal(platform.outgoing.length, single, 'переписка от хождения по меню не растёт');
 
@@ -2018,7 +2018,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('6', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Напишите словами/);
@@ -2041,12 +2041,12 @@ describe('чат-бот управляющей компании', () => {
     platform.forgetOutgoing();
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Что нужно сделать/);
 
-    const left = platform.outgoing.filter((message) => /Опишите/.test(message.text));
+    const left = platform.outgoing.filter((message) => /Опишите|Напишите, что случилось/.test(message.text));
 
     assert.equal(left.length, 0, 'подсказка с «Отмена» в переписке не остаётся');
 
@@ -2057,13 +2057,13 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
     assert.equal(
-      platform.outgoing.filter((message) => /Опишите, что случилось/.test(message.text)).length,
+      platform.outgoing.filter((message) => /Опишите|Напишите, что случилось/.test(message.text)).length,
       0,
       'отвеченная подсказка убрана',
     );
@@ -2200,7 +2200,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     const shown = JSON.stringify(platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? []);
 
@@ -2237,7 +2237,7 @@ describe('чат-бот управляющей компании', () => {
 
     const root = JSON.stringify((await waitForKeyboard(3003)) ?? []);
 
-    assert.match(root, /Спросить/, 'с первого экрана отмена возвращает на первый экран');
+    assert.match(root, /Не знаю, куда нажать/, 'с первого экрана отмена возвращает на первый экран');
     assert.doesNotMatch(root, /Мои данные/, 'а не в группу, где человек был раньше');
 
     await bot.stop();
@@ -2378,10 +2378,10 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
 
-    const warning = await waitForMessage(3003, /Нужна поверка/);
+    const warning = await waitForMessage(3003, /Истёк срок проверки/);
 
-    assert.match(warning, /Холодная вода \(ХВС-1\)/);
-    assert.match(warning, /начисляют по нормативу/);
+    assert.match(warning, /Холодная вода № ХВС-1/);
+    assert.match(warning, /считают по средней норме/);
 
     const asked = await waitForMessage(3003, /Отправьте показание числом/);
 
@@ -2492,7 +2492,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForMessage(3003, /не числятся/), /Обратитесь в управляющую компанию/);
+    assert.match(await waitForMessage(3003, /счётчиков не записано/), /Написать в компанию|управляющей компании/);
 
     await bot.stop();
   });
@@ -2579,10 +2579,10 @@ describe('чат-бот управляющей компании', () => {
       payload,
     });
 
-    const greeting = await waitForMessage(4005, /привязаны к квартире/);
+    const greeting = await waitForMessage(4005, /Теперь я знаю, что вы в квартире/);
 
     assert.match(greeting, /квартире 1/);
-    assert.match(greeting, /\/meters/);
+    assert.match(greeting, /цифры со счётчиков/);
 
     const resident = await bot.deps.repository.findResidentByMaxUserId(4005);
 
@@ -2655,7 +2655,7 @@ describe('чат-бот управляющей компании', () => {
     });
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Опишите/);
+    await waitForMessage(3003, /Опишите|Напишите, что случилось/);
 
     platform.chaos.failNext(400, { times: 1, path: 'messages' });
 
@@ -3291,13 +3291,13 @@ describe('чат-бот управляющей компании', () => {
       const bot = await start([newcomer]);
 
       platform.userSends('/flat', { userId: 3010, chatId: 3010 });
-      await waitForMessage(3010, /код из квитанции/);
+      await waitForMessage(3010, /код из 8 знаков/);
 
       platform.userSends('не помню', { userId: 3010, chatId: 3010 });
       await waitForMessage(3010, /Код не подошёл/);
 
       platform.userSends(FLAT_CODE, { userId: 3010, chatId: 3010 });
-      await waitForMessage(3010, /привязаны к квартире 1/);
+      await waitForMessage(3010, /вы в квартире 1/);
 
       assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'ввод кода стал заявкой');
 
@@ -3480,11 +3480,11 @@ describe('чат-бот управляющей компании', () => {
 
       platform.chatSends('/bill', { userId: 3003, chatId: HOUSE_CHAT });
 
-      const personal = await waitForMessage(3003, /К оплате/);
+      const personal = await waitForMessage(3003, /Заплатить /);
       const public_ = await waitForMessage(HOUSE_CHAT, /ответил вам лично/);
 
-      assert.match(personal, /К оплате/);
-      assert.equal(/К оплате/.test(public_), false, 'сумма показана соседям');
+      assert.match(personal, /Заплатить /);
+      assert.equal(/Заплатить /.test(public_), false, 'сумма показана соседям');
 
       await bot.stop();
     });
@@ -3670,8 +3670,11 @@ describe('чат-бот управляющей компании', () => {
 });
 
 describe('названия в меню', () => {
-  /** Длиннее этого название переносится на вторую строку и кнопка теряет вид. */
-  const LIMIT = 20;
+  /** Длиннее этого название обрезается многоточием на телефоне. */
+  const LIMIT = 23;
+
+  /** Значок считается одним знаком: селектор начертания в ширину не идёт. */
+  const width = (title: string): number => [...title.replace(/️/gu, '')].length;
 
   it('умещаются в кнопку на телефоне', () => {
     const roles: Resident['role'][] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
@@ -3684,7 +3687,7 @@ describe('названия в меню', () => {
 
       return [...menu.top, ...menu.groups.flatMap((group) => [{ title: group.title }, ...group.items])]
         .map((item) => item.title)
-        .filter((title) => [...title].length > LIMIT);
+        .filter((title) => width(title) > LIMIT);
     });
 
     assert.deepEqual([...new Set(long)], []);
