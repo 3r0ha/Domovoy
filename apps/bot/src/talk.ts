@@ -17,8 +17,9 @@ export const startTalk = async (kit: BotKit, typed: BotContext): Promise<void> =
   const resident = await kit.residentOf(typed);
 
   await typed.reply(
-    'Спросите словами, что нужно сделать. Я отвечу и открою нужный раздел.\n' +
-      'Спрашивать можно подряд, разговор закончится по кнопке.',
+    'Спрашивайте о доме и о том, как что сделать. Отвечу и открою нужный раздел.\n' +
+      'Спрашивать можно подряд, разговор закончится по кнопке.\n' +
+      'Отдельно заходить сюда не нужно: словами я понимаю и в обычной переписке.',
     startersKeyboard(startersFor(resident.role)),
   );
 };

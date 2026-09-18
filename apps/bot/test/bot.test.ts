@@ -1048,7 +1048,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/help', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Спросите словами/);
+    await waitForMessage(3003, /Спрашивайте о доме/);
 
     platform.userSends('где передать показания счётчиков', { userId: 3003, chatId: 3003 });
 
@@ -1085,7 +1085,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/help', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Спросите словами/);
+    await waitForMessage(3003, /Спрашивайте о доме/);
 
     platform.userSends('где передать показания счётчиков', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Показания/);
@@ -3333,7 +3333,7 @@ describe('чат-бот управляющей компании', () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
 
       platform.userSends('/help', { userId: 3003, chatId: 3003 });
-      await waitForMessage(3003, /Спросите словами/);
+      await waitForMessage(3003, /Спрашивайте о доме/);
 
       platform.userSends('/my', { userId: 3003, chatId: 3003 });
       await waitForMessage(3003, /Заявок пока нет/);

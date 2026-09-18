@@ -162,7 +162,7 @@ export const BOT_COMMANDS = [
   { name: 'news', description: 'Объявления дома' },
   { name: 'support', description: 'Написать в управляющую компанию' },
   { name: 'contacts', description: 'К кому обращаться по дому' },
-  { name: 'help', description: 'Не знаю, куда нажать' },
+  { name: 'help', description: 'Спросить о доме словами' },
 ];
 
 /** Команда проверки: её добавляют к меню только в режиме DEMO_ROLES. */
