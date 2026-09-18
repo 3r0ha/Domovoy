@@ -15,6 +15,9 @@ export interface BindApartmentScreenProps {
   onSupport?: () => void;
 }
 
+/** Сколько знаков в коде квартиры: столько же, сколько печатает квитанция. */
+const CODE_LENGTH = 8;
+
 /** Куда звонить, если код не нашёлся. Контакты приходят вместе с домом. */
 const Help = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) => {
   const contacts = useBridgeRequest(() => api.houseContacts().catch(() => null), [api]);
@@ -75,10 +78,18 @@ export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentSc
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const say = useToast();
+  const contacts = useBridgeRequest(() => api.houseContacts().catch(() => null), [api]);
+  const house = contacts.data?.address ?? '';
 
   const bind = async (): Promise<void> => {
     if (code.trim().length === 0) {
       say('Введите код из квитанции', 'error');
+      return;
+    }
+
+    // Длину проверяем до отправки: ответ сервера про неё человек ждёт зря.
+    if (code.trim().length !== CODE_LENGTH) {
+      say(`В коде ${CODE_LENGTH} знаков, а вы набрали ${code.trim().length}`, 'error');
       return;
     }
 
@@ -99,6 +110,13 @@ export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentSc
   return (
     <div className="list">
       <section className="card">
+        {/* Человек попал сюда первым экраном: он должен понять, куда попал и
+            что ему тут дадут, а не увидеть одно поле для кода. */}
+        <h2 className="lead">Домовой{house ? `, ${house}` : ''}</h2>
+        <p className="hint">
+          Здесь заявки в управляющую компанию, счёт за квартиру, счётчики, двери подъезда и собрания соседей.
+        </p>
+
         <label htmlFor="apartment-code">Код из квитанции</label>
         <p className="hint">Он связывает вас с квартирой: без него показания и счёт не откроются</p>
 
@@ -106,7 +124,7 @@ export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentSc
           className="field"
           id="apartment-code"
           value={code}
-          maxLength={32}
+          maxLength={CODE_LENGTH}
           withClearButton={false}
           placeholder="8 букв и цифр"
           autoCapitalize="characters"

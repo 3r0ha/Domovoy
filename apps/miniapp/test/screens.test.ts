@@ -2503,6 +2503,28 @@ describe('привязка квартиры', () => {
     await screen.unmount();
   });
 
+  it('короткий код не отправляется на сервер, а объясняется сразу', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({ 'POST /api/apartments/bind': { id: 'apt-1', number: 1 } });
+
+    const screen = await render(
+      createElement(
+        Toasts as never,
+        null,
+        createElement(BindApartmentScreen as never, { api, onBound: () => undefined } as never),
+      ),
+      bridge,
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#apartment-code'), 'ACEF'));
+    await screen.act(() => screen.find<HTMLButtonElement>('button').click());
+
+    assert.match(screen.text, /8 знаков/);
+    assert.equal(calls.some((call) => call.path === '/api/apartments/bind'), false);
+
+    await screen.unmount();
+  });
+
   it('чужой код объясняется словами сервера', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiRefusing(400, 'apartment_unknown', 'Такой квартиры нет в этом доме');
@@ -2517,7 +2539,7 @@ describe('привязка квартиры', () => {
       bridge,
     );
 
-    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#apartment-code'), 'apt_999'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#apartment-code'), 'APT99999'));
     await screen.act(() => screen.find<HTMLButtonElement>('button').click());
 
     assert.match(screen.text, /Такой квартиры нет в этом доме/);
