@@ -158,7 +158,7 @@ const app: Button = async (kit, typed, [name]) => {
 
   if (!item?.app) return stale(typed, kit);
 
-  await inApp(kit, typed, `${item.title}\n${item.app.about}`, item.app.screen);
+  await inApp(kit, typed, `${strong(item.title)}\n${item.app.about}`, item.app.screen);
 };
 
 /**
@@ -213,7 +213,10 @@ const group: Button = async (kit, typed, [key]) => {
   typed.session.menu = chosen.key;
 
   // Заголовка группы человеку мало: строка объясняет, что тут делают.
-  await typed.reply(chosen.about ? `${chosen.title}\n${chosen.about}` : chosen.title, groupKeyboard(chosen));
+  await typed.reply(
+    chosen.about ? `${strong(chosen.title)}\n${chosen.about}` : strong(chosen.title),
+    groupKeyboard(chosen),
+  );
 };
 
 /**
@@ -249,7 +252,10 @@ const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; 
 
   if (!chosen) return { title: await menuTitle(kit, resident), extra: kit.menuKeyboard(resident) };
 
-  return { title: chosen.about ? `${chosen.title}\n${chosen.about}` : chosen.title, extra: groupKeyboard(chosen) };
+  return {
+    title: chosen.about ? `${strong(chosen.title)}\n${chosen.about}` : strong(chosen.title),
+    extra: groupKeyboard(chosen),
+  };
 };
 
 /**

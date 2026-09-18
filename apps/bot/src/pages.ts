@@ -47,14 +47,12 @@ import {
   replyIfOpen,
   supportKeyboard,
 } from './keyboards.js';
-import { inChat, type BotContext } from './max.js';
+import { inApp } from './commands/in-app.js';
+import { inChat, strong, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Сколько строк списка помещается в одно сообщение, не заваливая переписку. */
 export const PAGE = 5;
-
-/** Сколько соседских обращений показывается в переписке: список читают на экране. */
-const NEARBY = 2;
 
 /** Сколько заявок приходит карточками: остальное открывается списком в приложении. */
 const CARDS = 3;
@@ -278,7 +276,11 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
   );
 };
 
-/** Заявки соседей по общему имуществу: их поддерживают кнопкой «И у меня». */
+/**
+ * Заявки соседей по общему имуществу. Список живёт на экране: там их видно
+ * разом, с адресом и сроком. В переписке остаётся строка и переход, а в чате
+ * дома, где приложения может не быть, свежее обращение с кнопкой «И у меня».
+ */
 export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const requests = await supportableFor(kit.deps, resident);
@@ -286,41 +288,33 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
   if (requests.length === 0) {
     await typed.reply(
       'Соседи пока ни о чём не сообщали.\n' +
-        'Здесь появятся поломки в подъезде и во дворе, о которых написали соседи: их можно подтвердить кнопкой.',
+        'Здесь появятся поломки в подъезде и во дворе, о которых написали соседи: их можно подтвердить.',
       menuButton(typed),
     );
     return;
   }
 
-  // Карточки соседей читаются в переписке, пока их немного: строка «соседи
-  // сообщили о трёх проблемах» с одной кнопкой не говорит ни о чём.
-  if (!inChat(typed) && requests.length > NEARBY) {
+  if (inChat(typed)) {
+    const [first] = requests;
+
     await typed.reply(
-      `Соседи сообщили о ${requests.length} ${plural(requests.length, 'проблеме', 'проблемах', 'проблемах')}.`,
-      keyboardOf([...appRow(kit.miniAppUrl, 'Заявки соседей в приложении', 'list')], typed),
+      `${first!.title}\n` +
+        `${describeTarget(first!.target)} · ${plural(reportersCount(first!), 'сосед сообщил', 'соседа сообщили', 'соседей сообщили')}\n` +
+        `${first!.number}`,
+      alsoKeyboard(first!.id),
     );
 
     return;
   }
 
-  const shown = requests.slice(0, inChat(typed) ? 1 : NEARBY);
-
-  for (const request of shown) {
-    await typed.reply(
-      `${request.title}\n` +
-        `${describeTarget(request.target)} · ${plural(reportersCount(request), 'сосед сообщил', 'соседа сообщили', 'соседей сообщили')}\n` +
-        `${request.number}`,
-      alsoKeyboard(request.id),
-    );
-  }
-
-  const rest = requests.length - shown.length;
-
-  if (rest === 0) return;
-
-  await typed.reply(
-    kit.miniAppUrl ? `Ещё обращений соседей: ${rest}. Они списком в приложении.` : `Ещё обращений соседей: ${rest}`,
-    keyboardOf([...appRow(kit.miniAppUrl, 'Заявки соседей', 'list')], typed),
+  await inApp(
+    kit,
+    typed,
+    `${strong('Заявки соседей')}\n` +
+      `Соседи сообщили о ${plural(requests.length, 'проблеме', 'проблемах', 'проблемах')}. ` +
+      'В приложении видно, о чём и где, и можно подтвердить, что у вас то же самое.',
+    'list',
+    'Смотреть',
   );
 };
 

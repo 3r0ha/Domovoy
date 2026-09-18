@@ -4,7 +4,6 @@ import {
   devicesFor,
   formatContacts,
   escalationFor,
-  formatPollResult,
   formatQualityShort,
   houseQuality,
   listInitiativesFor,
@@ -21,14 +20,11 @@ import {
   cancelKeyboard,
   doorKeyboard,
   errorText,
-  formatInitiative,
-  initiativeKeyboard,
   keyboardOf,
   menuButton,
   oneKeyboard,
-  pollRow,
 } from '../keyboards.js';
-import { expect, inChat } from '../max.js';
+import { expect, inChat, strong } from '../max.js';
 import { showNeighbours, showNews, showSupport } from '../pages.js';
 import { inApp, shorten } from './in-app.js';
 import type { BotKit, Handler } from '../kit.js';
@@ -89,31 +85,16 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       return;
     }
 
-    // Собраний бывает несколько разом, у каждого свои доли и кворум. Бюллетень
-    // приходит уведомлением по каждому, а списком их читают на экране.
-    if (open.length > 1 || collecting.length > 1) {
-      const said = [
-        open.length > 0 ? `Открытых собраний: ${open.length}` : '',
-        collecting.length > 0 ? `предложений соседей: ${collecting.length}` : '',
-      ]
-        .filter(Boolean)
-        .join(', ');
+    // Собрание это бюллетень с вопросами, долями и кворумом: в переписке его
+    // не читают. В боте остаётся строка о том, что идёт, а голосуют на экране.
+    const said = [
+      open.length > 0 ? `Открытых собраний: ${open.length}` : '',
+      collecting.length > 0 ? `предложений соседей: ${collecting.length}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
 
-      await inApp(kit, typed, `${said}.`, 'polls', 'Собрания в приложении');
-      return;
-    }
-
-    // Одно собрание остаётся в переписке: проголосовать можно тут же.
-    for (const view of open) {
-      await typed.reply(
-        shorten(formatPollResult(view, { personal: !inChat(typed) }), 'Счёт голосов в приложении.'),
-        keyboardOf([pollRow(view.poll.id), ...appRow(kit.miniAppUrl, 'Собрание в приложении', 'polls')], typed),
-      );
-    }
-
-    for (const view of collecting) {
-      await typed.reply(formatInitiative(view), view.mine ? undefined : initiativeKeyboard(view.initiative.id));
-    }
+    await inApp(kit, typed, `${strong('Собрания собственников')}\n${said}.`, 'polls', 'Голосовать');
   },
 
   news: (typed) => showNews(kit, typed),

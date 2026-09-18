@@ -223,11 +223,24 @@ export const screenKeeper =
 
       if (asking) await dropPrompt(typed, messages);
 
+      // Экран в переписке живёт один: прежний убирается, когда появился новый.
+      // Иначе меню, список счётчиков и подтверждение копятся столбиком, и
+      // человек листает вверх, чтобы понять, где он сейчас.
+      const previous = extra !== undefined && SCREENS.has(extra) ? typed.session?.screen : undefined;
+
       const sent = await send(text, formatted(text, withBack(extra, typed)));
 
       if (extra !== undefined && SCREENS.has(extra)) {
         typed.session ??= {};
         typed.session.screen = midOf(sent);
+
+        const now = midOf(sent);
+
+        if (previous && now && previous !== now) {
+          if (typed.session.prompt === previous) delete typed.session.prompt;
+
+          await messages.deleteMessage(previous).catch(() => undefined);
+        }
       }
 
       if (asking) asked = midOf(sent);
@@ -323,7 +336,9 @@ export const replace = async (
   context.settled = true;
 
   return context.api
-    .answerOnCallback(id, { message: { text, ...(extra ?? {}) } })
+    // Правка сообщения идёт тем же путём, что и отправка: без пометки формата
+    // переписанный экран показал бы звёздочки вместо жирного.
+    .answerOnCallback(id, { message: { text, ...(formatted(text, extra) ?? {}) } })
     .then(() => true)
     .catch(() => {
       // Платформа правку не приняла: обычной отправкой человек хотя бы получит ответ.

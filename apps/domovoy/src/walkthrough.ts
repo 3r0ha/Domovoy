@@ -488,9 +488,10 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     say(IVAN.name, '/vote');
     platform.userSends('/vote', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /Участие/);
+    await expect(IVAN, /Собрания собственников/);
 
-    say(IVAN.name, 'нажимает «За»');
+    say('', 'Бюллетень с вопросами и долями открывается в приложении, голос идёт одним нажатием');
+    say(IVAN.name, 'нажимает «За» под уведомлением о собрании');
     platform.userPressesButton(`vote:${meeting.id}:for`, {
       userId: IVAN.maxUserId,
       chatId: IVAN.maxUserId,
@@ -611,7 +612,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Приёмных часов на две недели десятки: календарь открывается в приложении');
     say(IVAN.name, '/visit');
     platform.userSends('/visit', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /свободно часов/);
+    await expect(IVAN, /Свободных часов/);
 
     const ivan = await bot.deps.repository.findResidentByMaxUserId(IVAN.maxUserId);
     const slot = ivan ? (await receptionFor(bot.deps, ivan)).slots[0] : undefined;

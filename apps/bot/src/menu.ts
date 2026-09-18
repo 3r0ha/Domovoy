@@ -42,7 +42,11 @@ const HOME_GROUP: MenuGroup = {
     { title: '🧾 Квитанция', command: 'bill' },
     { title: '🏢 Квартира', command: 'flat' },
     { title: '✉️ Вопрос компании', command: 'support' },
-    { title: '🗓 Приём в офисе', command: 'visit' },
+    {
+      title: '🗓 Приём в офисе',
+      command: 'visit',
+      app: { screen: 'visits', about: 'Свободные часы, своя запись и её отмена.' },
+    },
   ],
 };
 
@@ -81,8 +85,22 @@ const RESIDENT: RoleMenu = {
       about: 'Объявления управляющей компании, собрания соседей и работа по дому.',
       items: [
         { title: '📣 Объявления', command: 'news' },
-        { title: '🗳 Собрания', command: 'vote' },
-        { title: '👥 Заявки соседей', command: 'neighbours' },
+        {
+          title: '🗳 Собрания',
+          command: 'vote',
+          app: {
+            screen: 'polls',
+            about: 'Голос по каждому вопросу, счёт по долям площади и протокол по итогам.',
+          },
+        },
+        {
+          title: '👥 Заявки соседей',
+          command: 'neighbours',
+          app: {
+            screen: 'list',
+            about: 'О чём уже сообщили соседи: можно подтвердить, что у вас то же самое.',
+          },
+        },
         { title: '📊 Работа компании', command: 'house' },
         {
           title: '🏗 Капитальный ремонт',
@@ -100,7 +118,14 @@ const RESIDENT: RoleMenu = {
       about: 'Как связаться с управляющей компанией и что продукт о вас знает.',
       items: [
         { title: '✉️ Вопрос компании', command: 'support' },
-        { title: '🗓 Приём в офисе', command: 'visit' },
+        {
+          title: '🗓 Приём в офисе',
+          command: 'visit',
+          app: {
+            screen: 'visits',
+            about: 'Свободные часы на две недели вперёд, своя запись и её отмена.',
+          },
+        },
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '🏢 Квартира', command: 'flat' },
         { title: '🗂 Мои данные', command: 'mydata' },
@@ -154,7 +179,14 @@ const STAFF: RoleMenu = {
       about: 'Вопросы жильцов, приём по записи и сообщения дому.',
       items: [
         { title: '💬 Вопросы жильцов', command: 'support' },
-        { title: '🗓 Приём жильцов', command: 'visit' },
+        {
+          title: '🗓 Приём жильцов',
+          command: 'visit',
+          app: {
+            screen: 'visits',
+            about: 'Часы приёма, записи жильцов, отметка о приёме и запись пришедшего без записи.',
+          },
+        },
         { title: '✉️ Рассылка', command: 'broadcast' },
         { title: '📣 Объявления', command: 'news' },
       ],
@@ -168,7 +200,14 @@ const STAFF: RoleMenu = {
         // Рассылку должникам делают диспетчер и управляющий: мастеру суммы дома
         // в работе не нужны, а писать он по ним всё равно не может.
         { title: '💰 Долги дома', command: 'debts', roles: ['dispatcher', 'manager'] },
-        { title: '🗳 Собрания', command: 'vote' },
+        {
+          title: '🗳 Собрания',
+          command: 'vote',
+          app: {
+            screen: 'polls',
+            about: 'Объявить собрание, следить за кворумом и собрать протокол по итогам.',
+          },
+        },
         { title: '🚪 Двери и камеры', command: 'door' },
       ],
     },

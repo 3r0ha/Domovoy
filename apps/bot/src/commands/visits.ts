@@ -1,9 +1,9 @@
 import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident } from '@domovoy/app';
 import { DomainError, isCompanyStaff } from '@domovoy/domain';
 
-import { menuButton, visitCancelKeyboard, visitKeyboard } from '../keyboards.js';
+import { menuButton, visitCancelKeyboard } from '../keyboards.js';
 import { inApp } from './in-app.js';
-import { inChat } from '../max.js';
+import { inChat, strong } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Сколько ближайших часов показывать кнопками: столько же, сколько строк в списках. */
@@ -45,10 +45,7 @@ export const freeHours = async (
   };
 };
 
-/** Приём в управляющей организации: запись и отмена прямо в переписке. */
-/** Сколько часов приёма ещё читаются кнопками: дальше нужен календарь. */
-const NEAREST_HOURS = 6;
-
+/** Приём в управляющей организации: своя запись и её отмена в переписке. */
 export const visitCommands = (kit: BotKit): Record<string, Handler> => {
   const { deps, residentOf } = kit;
 
@@ -79,11 +76,13 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
           return;
         }
 
-        const { reception, hours } = await freeHours(kit, resident);
+        const { reception } = await freeHours(kit, resident);
 
+        // Своя запись остаётся в переписке: её отменяют одной кнопкой, и ради
+        // этого приложение открывать незачем.
         if (reception.mine) {
           await typed.reply(
-            `Вы записаны на приём: ${formatVisit(reception.mine, await zoneOf(deps, reception.buildingId))}`,
+            `Вы записаны на приём: ${strong(formatVisit(reception.mine, await zoneOf(deps, reception.buildingId)))}`,
             visitCancelKeyboard(reception.mine.id),
           );
           return;
@@ -92,22 +91,22 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
         if (reception.slots.length === 0) {
           await typed.reply(
             reception.windows.length === 0
-              ? 'Приём по записи не ведётся. Напишите в поддержку, ответит смена.'
+              ? 'Приём по записи не ведётся. Напишите в управляющую компанию, ответит смена.'
               : 'Свободных часов на ближайшие две недели нет.',
             menuButton(typed),
           );
           return;
         }
 
-        // Часов на две недели вперёд десятки, и все кнопками не читаются. Но
-        // и уводить человека в приложение ради записи нельзя: ближайшие часы
-        // остаются кнопками здесь, а календарь целиком открывается рядом.
-        const many = reception.slots.length > NEAREST_HOURS;
-
-        await typed.reply(
-          `${reception.office ? `Приём: ${reception.office}.` : 'Приём по записи.'}\n` +
-            (many ? `Ближайшее время, всего свободно часов: ${reception.slots.length}.` : 'Когда удобно прийти?'),
-          visitKeyboard(hours, many ? kit.miniAppUrl : undefined),
+        // Выбор времени это календарь на две недели: кнопками он не читается,
+        // а на экране видно и дни, и свободные часы разом.
+        await inApp(
+          kit,
+          typed,
+          `${strong(reception.office ? `Приём: ${reception.office}` : 'Приём по записи')}\n` +
+            `Свободных часов: ${reception.slots.length}. Время выбирается в приложении.`,
+          'visits',
+          'Выбрать время',
         );
       } catch (error) {
         await typed.reply(

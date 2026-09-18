@@ -8,6 +8,8 @@ import {
   createMockHub,
   createMockPayments,
   createServiceRequest,
+  receptionFor,
+  takeVisit,
   publishAnnouncement,
   startPoll,
   transitionRequest,
@@ -602,15 +604,18 @@ describe('чат-бот управляющей компании', () => {
 
     const [request] = await bot.repository.listRequests({});
 
+    // Список соседских обращений живёт на экране: в переписке строка и переход.
     platform.userSends('/neighbours', { userId: 3004, chatId: 3004 });
 
-    const offered = await waitForMessage(3004, /Не убрана площадка/);
+    const offered = await waitForMessage(3004, /Заявки соседей/);
 
-    assert.match(offered, /1 сосед сообщил/);
+    assert.match(offered, /Соседи сообщили о 1 проблеме/);
+    assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-list/);
 
+    // Подтвердить, что то же самое, можно из уведомления и из приложения.
     platform.userPressesButton(`support:${request!.id}`, { userId: 3004, chatId: 3004 });
 
-    const answered = await waitForMessage(3004, /у вас то же самое/);
+    const answered = await waitForMessage(3004, /Записал: у вас то же самое/);
 
     assert.match(answered, /2 сообщили/);
     assert.equal((await bot.repository.findRequest(request!.id))?.joinedBy.length, 1);
@@ -1129,6 +1134,57 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(receipt?.text ?? '', /Заявка \*\*Д15-2609-0001\*\* принята/, 'номер заявки не выделен');
     assert.equal(receipt?.body?.['format'], 'markdown', 'без пометки разметка придёт звёздочками');
+
+    await bot.stop();
+  });
+
+  it('экран в переписке остаётся один, даже когда ходят разными путями', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+    platform.forgetOutgoing();
+
+    // Тот же путь, что и на скриншоте: счётчики, своя квартира, подтверждение
+    // отвязки и возврат в группу меню. Раньше каждый шаг оставлял своё сообщение.
+    platform.userPressesButton('menu:meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Холодная вода|Отправьте показание/);
+
+    platform.userPressesButton('menu:flat', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /квартира 1/);
+
+    platform.userPressesButton('leave:ask', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Отвязать квартиру/);
+
+    platform.userPressesButton('group:me', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Связь и профиль/);
+
+    // Удалённое мок из ленты убирает: остаётся то, что человек видит сейчас.
+    const alive = platform.outgoing.filter((message) => message.chatId === 3003);
+
+    assert.equal(alive.length, 1, `экранов в переписке: ${alive.map((message) => message.text).join(' | ')}`);
+
+    await bot.stop();
+  });
+
+  it('возврат в меню переписывает экран вместе с пометкой формата', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.userPressesButton('group:money', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Деньги и счётчики/);
+
+    platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
+
+    const menu = await waitForMessage(3003, /Домовой: ул\. Ленина, 15/);
+    const rewritten = platform.outgoing.findLast((message) => /Домовой/.test(message.text));
+
+    assert.match(menu, /Можно написать словами/);
+    assert.equal(rewritten?.body?.['format'], 'markdown', 'переписанный экран показал бы звёздочки');
 
     await bot.stop();
   });
@@ -2025,6 +2081,41 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('выбранная квартира держится во всех разделах, а не только в счётчиках', async () => {
+    const owner: Resident = { ...RESIDENT_WITH_FLAT, apartmentIds: ['apt-1', 'apt-2'] };
+
+    const bot = await start([owner]);
+
+    platform.userSends('/flat', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /по ней идут показания/);
+
+    platform.userPressesButton('flat:apt-2', { userId: 3003, chatId: 3003 });
+    await waitForToast(/квартира 2/);
+
+    // Первый экран говорит, по какой квартире идёт разговор.
+    platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
+    assert.match(await waitForMessage(3003, /Домовой: /), /кв\. 2/);
+
+    // Профиль и новая заявка идут по той же квартире.
+    platform.userSends('/mydata', { userId: 3003, chatId: 3003 });
+    assert.match(await waitForMessage(3003, /Я храню о вас/), /кв\. 2/);
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Напишите, что случилось/);
+    platform.userSends('Не закрывается окно в комнате', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    const [request] = await bot.deps.repository.listRequests({});
+
+    assert.equal(
+      request?.target.kind === 'apartment' ? request.target.apartmentId : undefined,
+      'apt-2',
+      'заявка ушла на прежнюю квартиру',
+    );
+
+    await bot.stop();
+  });
+
   it('нажатие «Написать» вытесняет ожидание показаний, а не ждёт вместе с ним', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
@@ -2663,9 +2754,15 @@ describe('чат-бот управляющей компании', () => {
       closesAt: new Date('2026-09-30T10:00:00Z'),
     });
 
+    // Бюллетень живёт на экране: в переписке остаётся строка и переход.
     platform.userSends('/vote', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Ремонт подъездов/);
 
+    const handoff = await waitForMessage(3003, /Собрания собственников/);
+
+    assert.match(handoff, /Открытых собраний: 1/);
+    assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-polls/);
+
+    // Голос под уведомлением о собрании остаётся: это одно нажатие.
     platform.userPressesButton(`vote:${poll.id}:for`, { userId: 3003, chatId: 3003 });
 
     const result = await waitForMessage(3003, /Голос квартиры/);
@@ -3217,7 +3314,7 @@ describe('чат-бот управляющей компании', () => {
   });
 
   describe('запись на приём', () => {
-    it('жилец выбирает час, называет тему и отменяет запись', async () => {
+    it('жилец записывается в приложении, а свою запись отменяет из переписки', async () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
       const manager: Resident = {
         id: 'man-visit',
@@ -3234,26 +3331,32 @@ describe('чат-бот управляющей компании', () => {
         service: { office: 'ул. Ленина, 15, офис 1' },
       });
 
+      // Выбор времени это календарь: бот называет число свободных часов и уводит
+      // на экран, где видно дни.
       platform.userSends('/visit', { userId: 3003, chatId: 3003 });
-      await waitForMessage(3003, /Когда удобно/);
 
-      const buttons = JSON.stringify(
-        platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? [],
-      );
-      const slot = /"payload":"(visit:[^"]+)"/.exec(buttons)?.[1];
+      const said = await waitForMessage(3003, /Свободных часов/);
 
-      assert.ok(slot, 'в клавиатуре нет свободных часов');
+      assert.match(said, /Приём: ул\. Ленина, 15, офис 1/);
+      assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-visits/);
 
-      platform.userPressesButton(slot, { userId: 3003, chatId: 3003 });
-      await waitForMessage(3003, /С чем придёте/);
+      const guest = (await bot.deps.repository.findResidentByMaxUserId(3003))!;
+      const reception = await receptionFor(bot.deps, guest);
 
-      platform.userSends('Перерасчёт за горячую воду', { userId: 3003, chatId: 3003 });
-      await waitForMessage(3003, /Записал на приём/);
+      await takeVisit(bot.deps, {
+        resident: guest,
+        at: reception.slots[0]!,
+        topic: 'Перерасчёт за горячую воду',
+      });
 
       const booked = await bot.deps.repository.listVisits({ residentId: 'res-1', statuses: ['booked'] });
 
       assert.equal(booked.length, 1);
       assert.equal(booked[0]?.topic, 'Перерасчёт за горячую воду');
+
+      // Своя запись видна в переписке, и отменяется она там же.
+      platform.userSends('/visit', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /Вы записаны на приём/);
 
       platform.userPressesButton(`visit-cancel:${booked[0]?.id ?? ''}`, { userId: 3003, chatId: 3003 });
       await waitForMessage(3003, /Запись на приём отменена/);
@@ -3263,7 +3366,7 @@ describe('чат-бот управляющей компании', () => {
       await bot.stop();
     });
 
-    it('когда часов много, ближайшие остаются кнопками, а календарь рядом', async () => {
+    it('когда часов много, бот называет их число и открывает календарь', async () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
       const manager: Resident = {
         id: 'man-many',
@@ -3284,16 +3387,10 @@ describe('чат-бот управляющей компании', () => {
 
       platform.userSends('/visit', { userId: 3003, chatId: 3003 });
 
-      const said = await waitForMessage(3003, /свободно часов/);
+      const said = await waitForMessage(3003, /Свободных часов/);
 
-      assert.match(said, /Приём: ул\. Ленина, 15, офис 1\./);
-
-      const keyboard = JSON.stringify(
-        platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? [],
-      );
-
-      assert.match(keyboard, /visit:/, 'ближайшее время записывается прямо здесь');
-      assert.match(keyboard, /Другие дни в приложении/);
+      assert.match(said, /Приём: ул\. Ленина, 15, офис 1/);
+      assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-visits/);
 
       await bot.stop();
     });

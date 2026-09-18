@@ -25,6 +25,17 @@ import { Keyboard } from '@maxkit/max-bot-api';
 import { PROMPTS, ROOT_MENUS, SCREENS } from './max.js';
 import type { Extra } from './kit.js';
 
+/**
+ * Экран разговора: меню, список, подтверждение. Такие сообщения живут по
+ * одному, прежнее убирается, когда появился новый. Чек заявки и код гостя
+ * экранами не помечаются: их из переписки стирать нельзя.
+ */
+const screenOf = <T>(extra: T): T => {
+  if (extra && typeof extra === 'object') SCREENS.add(extra);
+
+  return extra;
+};
+
 /** Опрос соседа об аварии: два ответа и ни одного поля для ввода. */
 export const alertKeyboard = (requestId: string) => ({
   attachments: [
@@ -316,15 +327,15 @@ export const afterError = (error: unknown, context?: Parameters<typeof menuButto
 
 /** Под своими данными: отвязка квартиры и удаление профиля. */
 export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuButton>[0]) =>
-  keyboardOf(
+  screenOf(keyboardOf(
     [
       [Keyboard.button.callback('📄 Прислать файлом', 'mydata:file')],
-      ...(bound ? [[Keyboard.button.callback('🏢 Это не моя квартира', 'leave:ask')]] : []),
+      ...(bound ? [[Keyboard.button.callback('🏢 Отвязать квартиру', 'leave:ask')]] : []),
       [Keyboard.button.callback('🗑 Удалить меня', 'forget:ask')],
       [Keyboard.button.callback('🏠 Меню', 'group:back')],
     ],
     context,
-  );
+  ));
 
 /** Оценка работы при приёмке: пять звёзд и возможность промолчать. */
 export const rateKeyboard = (requestId: string): Extra => ({
@@ -340,13 +351,14 @@ export const rateKeyboard = (requestId: string): Extra => ({
 });
 
 /** Подтверждение того, что не отменить: согласие и отказ. */
-export const confirmKeyboard = (title: string, payload: string) => ({
-  attachments: [
-    Keyboard.inlineKeyboard([
-      [Keyboard.button.callback(title, payload), Keyboard.button.callback('✖️ Отмена', 'cancel')],
-    ]),
-  ],
-});
+export const confirmKeyboard = (title: string, payload: string) =>
+  screenOf({
+    attachments: [
+      Keyboard.inlineKeyboard([
+        [Keyboard.button.callback(title, payload), Keyboard.button.callback('✖️ Отмена', 'cancel')],
+      ]),
+    ],
+  });
 
 /**
  * Разговор, из которого нужно уметь выйти, не набирая команду. Такой экран
@@ -413,18 +425,19 @@ export const talkKeyboard = (section?: { title: string; command: string }): Extr
  */
 export const metersKeyboard = (
   states: readonly { meter: { id: string; kind: string; serial: string }; submittedThisMonth: boolean }[],
-): Extra => ({
-  attachments: [
-    Keyboard.inlineKeyboard(
-      states.map((state) => [
-        Keyboard.button.callback(
-          `${state.submittedThisMonth ? '✅' : '💧'} ${METER_RULES[state.meter.kind as MeterKind].title}`,
-          `meter:${state.meter.id}`,
-        ),
-      ]),
-    ),
-  ],
-});
+): Extra =>
+  screenOf({
+    attachments: [
+      Keyboard.inlineKeyboard(
+        states.map((state) => [
+          Keyboard.button.callback(
+            `${state.submittedThisMonth ? '✅' : '💧'} ${METER_RULES[state.meter.kind as MeterKind].title}`,
+            `meter:${state.meter.id}`,
+          ),
+        ]),
+      ),
+    ],
+  });
 
 export const readingKeyboard = (meterId: string, canSkip: boolean) => ({
   attachments: [
@@ -480,7 +493,8 @@ export const flatTitle = (apartment: OwnApartment): string =>
   apartment.address ? `квартира ${apartment.number}, ${apartment.address}` : `квартира ${apartment.number}`;
 
 /** Выбор одной из своих квартир. */
-export const flatKeyboard = (own: readonly OwnApartment[]) => ({
+export const flatKeyboard = (own: readonly OwnApartment[]) =>
+  screenOf({
   attachments: [
     Keyboard.inlineKeyboard([
       ...own
@@ -496,10 +510,10 @@ export const flatKeyboard = (own: readonly OwnApartment[]) => ({
           ];
         }),
       // Квартиру могли привязать по чужому коду: отсюда это и исправляют.
-      [Keyboard.button.callback('🏢 Это не моя квартира', 'leave:ask')],
+      [Keyboard.button.callback('🏢 Отвязать квартиру', 'leave:ask')],
     ]),
   ],
-});
+  });
 
 /** Подпись под предложением соседа: одна кнопка. */
 export const initiativeKeyboard = (initiativeId: string) => ({
