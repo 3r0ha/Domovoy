@@ -402,8 +402,12 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     say('', charges.lines.map((line) => `${line.title}: ${formatMoney(line.amount)}`).join(' · '));
 
-    say(IVAN.name, 'нажимает «Оплатить»');
+    say(IVAN.name, 'нажимает «За месяц»');
     platform.userPressesButton('pay', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
+    await expect(IVAN, /Оплатить за месяц/);
+
+    say('', 'Деньги списываются после подтверждения суммы, а не с первого нажатия');
+    platform.userPressesButton('pay:yes', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Оплачено/);
 
     say('', 'Долги дома видит смена: крупные должники сверху');

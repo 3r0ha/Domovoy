@@ -627,6 +627,9 @@ describe('чат-бот управляющей компании', () => {
     assert.match(buttons, /Квитанция в приложении/);
 
     platform.userPressesButton('pay', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Оплатить за месяц/);
+
+    platform.userPressesButton('pay:yes', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Оплачено/);
 
     platform.userSends('/bill', { userId: 3003, chatId: 3003 });
@@ -2007,6 +2010,124 @@ describe('чат-бот управляющей компании', () => {
       0,
       'отвеченная подсказка убрана',
     );
+
+    await bot.stop();
+  });
+
+  it('мастер по наклейке отмечает выезд, а не заводит вторую заявку', async () => {
+    const technician: Resident = {
+      id: 'tech-onsite',
+      maxUserId: 4030,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+      legalVersion: LEGAL_VERSION,
+    };
+
+    const dispatcher: Resident = {
+      id: 'disp-onsite',
+      maxUserId: 5030,
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      buildingId: BUILDING_ID,
+      legalVersion: LEGAL_VERSION,
+    };
+
+    const bot = await start([RESIDENT_WITH_FLAT, technician, dispatcher]);
+
+    await bot.deps.repository.saveEquipment({
+      buildingId: BUILDING_ID,
+      code: 'lift-1',
+      title: 'Лифт, подъезд 1',
+      kind: 'lift',
+    });
+
+    const lift = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-1' });
+
+    await createServiceRequest(bot.deps, {
+      resident: RESIDENT_WITH_FLAT,
+      description: 'Лифт застрял между этажами',
+      startParam: lift,
+    });
+
+    const [request] = await bot.deps.repository.listRequests({});
+
+    await transitionRequest(bot.deps, { resident: dispatcher, requestId: request!.id, to: 'accepted' });
+    await transitionRequest(bot.deps, {
+      resident: dispatcher,
+      requestId: request!.id,
+      to: 'in_progress',
+      assigneeId: technician.id,
+    });
+
+    platform.forgetOutgoing();
+
+    // Мастер сканирует ту же наклейку, по которой жилец сообщает о поломке.
+    platform.pushUpdate({
+      update_type: 'bot_started',
+      timestamp: Date.now(),
+      chat_id: 4030,
+      user: { user_id: 4030, first_name: 'Сергей', is_bot: false },
+      payload: lift,
+    });
+
+    await waitForMessage(4030, /Вы на месте/);
+
+    platform.userPressesButton(`ask:${request!.id}:done`, { userId: 4030, chatId: 4030 });
+    await waitForMessage(4030, /Что сделано/);
+
+    platform.userSends('Поднял кабину, заменил датчик', { userId: 4030, chatId: 4030 });
+    await waitForMessage(4030, /выполнена/);
+
+    const saved = await bot.deps.repository.findRequest(request!.id);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 1, 'второй заявки не завелось');
+    assert.ok(
+      saved?.history.some((event) => event.onSite === true),
+      'в истории осталась отметка о выезде',
+    );
+
+    await bot.stop();
+  });
+
+  it('жилец принимает работу с оценкой', async () => {
+    const dispatcher: Resident = {
+      id: 'disp-rate',
+      maxUserId: 5031,
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      buildingId: BUILDING_ID,
+      legalVersion: LEGAL_VERSION,
+    };
+
+    const bot = await start([RESIDENT_WITH_FLAT, dispatcher]);
+
+    platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    const [request] = await bot.deps.repository.listRequests({});
+
+    await transitionRequest(bot.deps, { resident: dispatcher, requestId: request!.id, to: 'accepted' });
+    await transitionRequest(bot.deps, {
+      resident: dispatcher,
+      requestId: request!.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
+    await transitionRequest(bot.deps, {
+      resident: dispatcher,
+      requestId: request!.id,
+      to: 'done',
+      comment: 'Поменял лампу',
+    });
+
+    platform.userPressesButton(`req:${request!.id}:confirmed`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Как приняли работу/);
+
+    platform.userPressesButton(`rate:${request!.id}:5`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /ваша оценка 5/);
+
+    assert.equal((await bot.deps.repository.findRequest(request!.id))?.rating, 5);
 
     await bot.stop();
   });

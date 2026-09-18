@@ -1,5 +1,6 @@
 import {
   bindHouseChat,
+  releaseHouseChat,
   buildingReport,
   formatReportShort,
   setDuty,
@@ -135,6 +136,28 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       if (!(error instanceof DomainError)) throw error;
       await typed.reply(error.message, afterError(error, typed));
     }
+    },
+
+    /** Отвязка чата дома: привязали не тот, и выгонять бота ради этого незачем. */
+    unhere: async (typed) => {
+      const chatId = typed.chatId;
+
+      if (chatId === undefined || !inChat(typed)) {
+        await typed.reply('Эту команду дают в том чате, который надо отвязать.', menuButton(typed));
+        return;
+      }
+
+      try {
+        const released = await releaseHouseChat(deps, await residentOf(typed));
+
+        await typed.reply(
+          `Чат отвязан от дома ${released.address || released.code}. Объявления сюда больше не приходят.`,
+          openApp(),
+        );
+      } catch (error) {
+        if (!(error instanceof DomainError)) throw error;
+        await typed.reply(error.message, afterError(error, typed));
+      }
     },
   };
 };

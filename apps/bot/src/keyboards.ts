@@ -301,6 +301,18 @@ export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuBut
     context,
   );
 
+/** Оценка работы при приёмке: пять звёзд и возможность промолчать. */
+export const rateKeyboard = (requestId: string): Extra => ({
+  attachments: [
+    Keyboard.inlineKeyboard([
+      [1, 2, 3, 4, 5].map((stars) =>
+        Keyboard.button.callback('⭐'.repeat(stars), `rate:${requestId}:${stars}`),
+      ),
+      [Keyboard.button.callback('Принять без оценки', `rate:${requestId}:0`)],
+    ]),
+  ],
+});
+
 /** Подтверждение того, что не отменить: согласие и отказ. */
 export const confirmKeyboard = (title: string, payload: string) => ({
   attachments: [

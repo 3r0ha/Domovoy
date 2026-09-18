@@ -2,6 +2,8 @@ import {
   actionsFor,
   answerAlert,
   apartmentsOf,
+  arrearsFor,
+  chargesForResident,
   exportPersonalData,
   formatPersonalData,
   homeOf,
@@ -68,6 +70,7 @@ import {
   oneKeyboard,
   passKeyboard,
   pollKeyboard,
+  rateKeyboard,
   readingKeyboard,
   readingPrompt,
   replyIfOpen,
@@ -320,8 +323,23 @@ const sign: Button = async (kit, typed, [initiativeId]) => {
   }
 };
 
-const payMonth: Button = async (kit, typed) => {
+/**
+ * Деньги списываются без возврата, поэтому сумма называется до нажатия.
+ * Первое нажатие показывает, за что и сколько, второе платит.
+ */
+const payMonth: Button = async (kit, typed, [step]) => {
   const payer = await kit.residentOf(typed);
+
+  if (step !== 'yes') {
+    const charges = await chargesForResident(kit.deps, payer);
+    const left = Math.max(0, charges.total - charges.paid);
+
+    await typed.reply(
+      `Оплатить за месяц ${formatMoney(left)}?`,
+      confirmKeyboard(`💳 Да, оплатить ${formatMoney(left)}`, 'pay:yes'),
+    );
+    return;
+  }
 
   try {
     const receipt = await payCharges(kit.deps, payer);
@@ -336,8 +354,19 @@ const payMonth: Button = async (kit, typed) => {
   }
 };
 
-const payDebt: Button = async (kit, typed) => {
+const payDebt: Button = async (kit, typed, [step]) => {
   const payer = await kit.residentOf(typed);
+
+  if (step !== 'yes') {
+    const debt = await arrearsFor(kit.deps, payer);
+    const total = debt.total + debt.penalty;
+
+    await typed.reply(
+      `Погасить долг за прошлые месяцы ${formatMoney(total)}?`,
+      confirmKeyboard(`💰 Да, погасить ${formatMoney(total)}`, 'pay-debt:yes'),
+    );
+    return;
+  }
 
   try {
     const receipts = await payArrears(kit.deps, payer);
@@ -808,6 +837,30 @@ const mydata: Button = async (kit, typed, [what]) => {
   if (!sent) await typed.reply(text, menuButton(typed));
 };
 
+/** Оценка при приёмке: ноль означает «принять без оценки». */
+const rate: Button = async (kit, typed, [requestId, stars]) => {
+  if (!requestId || stars === undefined) return stale(typed);
+
+  const resident = await kit.residentOf(typed);
+  const rating = Number(stars);
+
+  try {
+    const updated = await transitionRequest(kit.deps, {
+      resident,
+      requestId,
+      to: 'confirmed',
+      ...(rating > 0 ? { rating } : {}),
+    });
+
+    await typed.reply(
+      `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}${rating > 0 ? `, ваша оценка ${rating}` : ''}.`,
+      menuButton(typed),
+    );
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
 /** Выбранный счётчик: бот спрашивает показание именно по нему. */
 const meter: Button = async (kit, typed, [meterId]) => {
   if (!meterId) return stale(typed);
@@ -874,6 +927,13 @@ const move: Button = async (kit, typed, [requestId, to]) => {
 
   const resident = await kit.residentOf(typed);
 
+  // Работу принимают с оценкой: спросить её здесь дешевле, чем потом
+  // собирать по жильцам, а смене видно, чем закончился наряд.
+  if (to === 'confirmed' && resident.role === 'resident') {
+    await typed.reply('Как приняли работу?', rateKeyboard(requestId));
+    return;
+  }
+
   try {
     const updated = await transitionRequest(kit.deps, { resident, requestId, to: to as never });
 
@@ -904,6 +964,7 @@ export const BUTTONS: Record<string, Button> = {
   app,
   meter,
   mydata,
+  rate,
   legal,
   menu,
   group,

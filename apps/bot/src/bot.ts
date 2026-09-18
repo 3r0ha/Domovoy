@@ -140,6 +140,7 @@ export const BOT_COMMANDS = [
   { name: 'visit', description: 'Записаться на приём' },
   { name: 'stickers', description: 'Наклейка с кодом объекта' },
   { name: 'queue', description: 'Очередь дома' },
+  { name: 'unhere', description: 'Отвязать чат дома' },
   { name: 'duty', description: 'Принять или сдать дежурство' },
   { name: 'report', description: 'Сводка по дому' },
   { name: 'debts', description: 'Долги дома' },

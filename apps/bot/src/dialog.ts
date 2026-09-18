@@ -163,9 +163,15 @@ const explainTransition = async (
   typed: BotContext,
   waiting: Extract<Awaiting, { kind: 'comment' }>,
   text: string,
+  said?: Said,
 ): Promise<void> => {
   const actor = await kit.residentOf(typed);
   forget(typed);
+
+  // Отметка о выезде по наклейке доезжает вместе со сдачей работы: мастер
+  // сканирует код на месте, а пишет о сделанном уже потом.
+  const proved = typed.session?.proved;
+  const onSite = proved?.requestId === waiting.requestId ? proved.code : undefined;
 
   try {
     const updated = await transitionRequest(kit.deps, {
@@ -173,18 +179,22 @@ const explainTransition = async (
       requestId: waiting.requestId,
       to: waiting.to as never,
       comment: text,
+      ...(onSite ? { provedBy: onSite } : {}),
+      ...(said?.attachments.length ? { attachments: said.attachments } : {}),
     });
+
+    if (onSite) delete typed.session?.proved;
 
     // Жильцу, который вернул работу, мастеру, который сдал её, и смене, которая
     // отказала, нужны разные слова: у сдачи это отметка о работе, а не причина.
-    const said =
+    const answer =
       actor.role === 'resident'
         ? `Заявка ${updated.number} снова в работе: передал ваши слова мастеру.`
         : `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}. ${
             COMMENT_DONE[waiting.to] ?? 'Причину увидит жилец.'
           }`;
 
-    await typed.reply(said, actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated)));
+    await typed.reply(answer, actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated)));
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to })) return;
     if (!(error instanceof DomainError)) throw error;
@@ -434,18 +444,26 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, said: Said)
   if (waiting.kind === 'reading') return continueReading(kit, typed, waiting.meterId, said);
   if (waiting.kind === 'description') return describeProblem(kit, typed, waiting.target, said);
 
-  // Остальные ожидания снимок не читают: без подсказки разговор повиснет.
-  if (!said.text) {
+  // Снимок с подписью и без неё читают там, где он и есть отчёт: сообщение
+  // по заявке, вопрос в поддержку и отметка о сделанной работе.
+  if (!said.text && said.attachments.length === 0) {
     await typed.reply('Здесь нужен текст: напишите ответ сообщением.', cancelKeyboard());
     return;
   }
 
   if (waiting.kind === 'support') return askSupportFrom(kit, typed, waiting.ticketId, said);
   if (waiting.kind === 'message') return sendMessage(kit, typed, waiting.requestId, said);
+
+  if (!said.text) {
+    if (waiting.kind === 'comment') return explainTransition(kit, typed, waiting, 'Фото работы', said);
+
+    await typed.reply('Здесь нужен текст: напишите ответ сообщением.', cancelKeyboard());
+    return;
+  }
   if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, said.text);
   if (waiting.kind === 'handoff') return recordAnswerFrom(kit, typed, waiting.handoffId, said.text);
   if (waiting.kind === 'code') return takeCode(kit, typed, said.text);
   if (waiting.kind === 'assistant') return answerFromAssistant(kit, typed, said.text);
 
-  return explainTransition(kit, typed, waiting, said.text);
+  return explainTransition(kit, typed, waiting, said.text, said);
 };

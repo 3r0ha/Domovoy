@@ -1,7 +1,25 @@
-import { describeContext, legalAccepted, objectPassport, type BindResult, type Building } from '@domovoy/app';
-import { DomainError, STATUS_TITLES, formatDate, isCompanyStaff, reportersCount, type Role } from '@domovoy/domain';
+import {
+  actionsFor,
+  describeContext,
+  legalAccepted,
+  listRequestsFor,
+  objectPassport,
+  type BindResult,
+  type Building,
+  type Resident,
+} from '@domovoy/app';
+import {
+  DomainError,
+  STATUS_TITLES,
+  describeTarget,
+  formatDate,
+  isCompanyStaff,
+  provesPresence,
+  reportersCount,
+  type Role,
+} from '@domovoy/domain';
 
-import { bindIfApartment, cancelKeyboard } from './keyboards.js';
+import { actionKeyboard, bindIfApartment, cancelKeyboard, replyIfOpen } from './keyboards.js';
 import { expect, inChat, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
 import type { BotKit } from './kit.js';
@@ -51,6 +69,30 @@ export const sayBound = async (kit: BotKit, typed: BotContext, flat: BindResult)
   );
 };
 
+/**
+ * Наряд мастера по этому объекту: тот же код с наклейки, что жильцу открывает
+ * заявку, мастеру подтверждает выезд. Без этого он заводил бы вторую заявку.
+ */
+const ownOrder = async (kit: BotKit, typed: BotContext, payload: string, resident: Resident): Promise<boolean> => {
+  if (resident.role !== 'technician' && resident.role !== 'contractor') return false;
+
+  const mine = (await listRequestsFor(kit.deps, resident, 'mine')).find(
+    (request) => request.assigneeId === resident.id && provesPresence(request.target, payload),
+  );
+
+  if (!mine) return false;
+
+  typed.session ??= {};
+  typed.session.proved = { requestId: mine.id, code: payload };
+
+  await typed.reply(
+    `Вы на месте: ${describeTarget(mine.target)}.\nНаряд ${mine.number}: ${mine.title}.`,
+    actionKeyboard(actionsFor(mine, resident), replyIfOpen(mine)),
+  );
+
+  return true;
+};
+
 /** Код с наклейки: бот ждёт описания того, что с объектом не так. */
 const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Promise<boolean> => {
   const described = await describeContext(kit.deps, payload);
@@ -58,6 +100,8 @@ const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Pro
   if (!described) return false;
 
   const resident = await kit.residentOf(typed);
+
+  if (await ownOrder(kit, typed, payload, resident)) return true;
 
   expect(typed, { kind: 'description', target: payload });
 
