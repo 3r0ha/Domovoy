@@ -54,6 +54,7 @@ import {
   DIALOG_COMMANDS,
   forget,
   inChat,
+  morphing,
   PRIVATE_COMMANDS,
   nameOf,
   toast,
@@ -64,6 +65,12 @@ import {
 
 /** Кнопки, которые ничего не меняют: их нажимают и до согласия с документами. */
 const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more']);
+
+/**
+ * Хождение по меню: такие нажатия переписывают сообщение, под которым стояла
+ * кнопка. Дела, у которых остаётся след в переписке, отвечают новым сообщением.
+ */
+const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'cancel', 'more', 'demo', 'page']);
 
 /** Нажатие кнопки: обработчик по приставке payload, остальное после двоеточий. */
 const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
@@ -77,7 +84,7 @@ const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
       return;
     }
 
-    await button(kit, typed, args);
+    await button(kit, NAVIGATION_BUTTONS.has(name) ? morphing(typed) : typed, args);
 
     // Нажатие закрывается в любом случае: иначе кнопка у нажавшего висит в ожидании.
     await toast(typed);

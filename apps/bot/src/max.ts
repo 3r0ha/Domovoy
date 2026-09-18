@@ -10,6 +10,8 @@ export interface DialogSession {
   afterLegal?: string;
   /** Варианты последнего уточняющего вопроса: под кнопкой лежит их номер. */
   where?: { requestId: string; options: { label: string; startParam: string }[] };
+  /** Открытая группа меню: в неё возвращает отмена, а не в первый экран. */
+  menu?: string;
 }
 
 /** Чего бот ждёт от следующего сообщения. Ожидание всегда одно. */
@@ -82,6 +84,51 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
   await context.api
     .answerOnCallback(id, short ? { notification: short.slice(0, TOAST_MAX_LENGTH) } : {})
     .catch(() => undefined);
+};
+
+/**
+ * Ответ на нажатие с новым содержимым: сообщение с кнопками переписывается
+ * на месте. Переписка от хождения по меню не растёт, а прежний экран исчезает
+ * вместе с кнопками, по которым уже нажали.
+ */
+export const replace = async (
+  context: BotContext,
+  text: string,
+  extra?: Record<string, unknown>,
+): Promise<boolean> => {
+  const id = context.callback?.callback_id;
+
+  if (!id || context.settled) return false;
+
+  context.settled = true;
+
+  return context.api
+    .answerOnCallback(id, { message: { text, ...(extra ?? {}) } })
+    .then(() => true)
+    .catch(() => {
+      // Платформа правку не приняла: обычной отправкой человек хотя бы получит ответ.
+      context.settled = false;
+      return false;
+    });
+};
+
+/**
+ * Обработчик пишет туда же, где стояла нажатая кнопка. Первый ответ правит
+ * сообщение, остальные уходят обычным порядком: за одно нажатие экран один.
+ */
+export const morphing = (context: BotContext): BotContext => {
+  const original = context.reply.bind(context);
+  let first = true;
+
+  context.reply = async (text: string, extra?: Record<string, unknown>): Promise<unknown> => {
+    if (!first) return original(text, extra);
+
+    first = false;
+
+    return (await replace(context, text, extra)) ? undefined : original(text, extra);
+  };
+
+  return context;
 };
 
 /** Разметка текста: из неё видно упоминание бота. */

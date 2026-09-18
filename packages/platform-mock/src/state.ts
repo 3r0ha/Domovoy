@@ -67,6 +67,9 @@ export class PlatformState {
   readonly subscriptions: Subscription[] = [];
   /** Закреплённое сообщение по чатам: кто закрепил, видно по отправителю. */
   readonly pinned = new Map<number, { messageId: string; senderId: number }>();
+
+  /** Нажатие и сообщение, под которым стояла кнопка: ответ правит именно его. */
+  readonly pressed = new Map<string, string>();
   /** Права бота в чате. `null`, платформа их не сообщает. */
   botPermissions: string[] | null = [...DEFAULT_PERMISSIONS];
 
@@ -131,7 +134,29 @@ export class PlatformState {
     const sent: SentAnswer = { ...answer, at: this.now() };
 
     this.answers.push(sent);
+
+    // Ответ с сообщением переписывает то, под которым стояла кнопка: так это
+    // работает на платформе, и история переписки от нажатий не растёт.
+    const mid = this.pressed.get(sent.callbackId);
+    const replacement = sent.body['message'] as Record<string, unknown> | undefined;
+
+    if (mid && replacement) {
+      const target = this.outgoing.find((message) => message.mid === mid);
+
+      if (target) {
+        if (typeof replacement['text'] === 'string') target.text = replacement['text'];
+        if (Array.isArray(replacement['attachments'])) target.attachments = replacement['attachments'];
+
+        target.body = { ...target.body, ...replacement };
+      }
+    }
+
     return sent;
+  }
+
+  /** Под каким сообщением стояла нажатая кнопка. */
+  bindPress(callbackId: string, mid: string): void {
+    this.pressed.set(callbackId, mid);
   }
 
   log(entry: RequestLogEntry): void {
@@ -151,6 +176,7 @@ export class PlatformState {
     this.requests.length = 0;
     this.subscriptions.length = 0;
     this.pinned.clear();
+    this.pressed.clear();
     this.botPermissions = [...DEFAULT_PERMISSIONS];
     this.messageCounter = 0;
     this.wakeWaiters();

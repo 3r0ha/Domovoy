@@ -74,7 +74,7 @@ import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { expect, forget, inChat, toast, type BotContext } from './max.js';
-import type { BotKit } from './kit.js';
+import type { BotKit, Extra } from './kit.js';
 
 /** Нажатие кнопки: имя действия и его данные приходят одной строкой через двоеточие. */
 export type Button = (kit: BotKit, typed: BotContext, args: string[]) => Promise<void>;
@@ -122,6 +122,9 @@ const group: Button = async (kit, typed, [key]) => {
   const resident = await kit.residentOf(typed);
 
   if (!key || key === 'back') {
+    typed.session ??= {};
+    delete typed.session.menu;
+
     await typed.reply('Что нужно сделать?', kit.menuKeyboard(resident));
     return;
   }
@@ -130,7 +133,22 @@ const group: Button = async (kit, typed, [key]) => {
 
   if (!chosen) return stale(typed);
 
+  // Группа запоминается: отмена начатого возвращает туда, откуда его начали.
+  typed.session ??= {};
+  typed.session.menu = chosen.key;
+
   await typed.reply(chosen.title, groupKeyboard(chosen));
+};
+
+/** Экран, с которого человек ушёл в разговор: группа меню либо первый экран. */
+const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; extra: Extra | undefined }> => {
+  const resident = await kit.residentOf(typed);
+  const key = typed.session?.menu;
+  const chosen = key ? groupFor(resident, key, { doors: Boolean(kit.deps.hub) }) : undefined;
+
+  if (!chosen) return { title: 'Что нужно сделать?', extra: kit.menuKeyboard(resident) };
+
+  return { title: chosen.title, extra: groupKeyboard(chosen) };
 };
 
 /** Отказ от начатого разговора: ожидание снимается, ничего не создаётся. */
@@ -142,7 +160,9 @@ const cancel: Button = async (kit, typed) => {
     return;
   }
 
-  await typed.reply('Отменил. Что нужно сделать?', kit.menuKeyboard(await kit.residentOf(typed)));
+  const back = await backTo(kit, typed);
+
+  await typed.reply(back.title, back.extra);
 };
 
 /** «Всё равно оставить заявку»: обращение, на которое ответили работами или советом. */

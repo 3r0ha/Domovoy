@@ -178,19 +178,31 @@ export class MockPlatform {
   userPressesButton(payload: string, actor: ActorOptions & { chatType?: ChatType } = {}): MockUpdate {
     const { userId, chatId, firstName, username } = { ...DEFAULT_ACTOR, ...actor };
     const chatType = actor.chatType ?? 'dialog';
+    const callbackId = `cb-${this.state.nextMarker}`;
+
+    // Кнопка стоит под последним сообщением бота в этой переписке: ответом
+    // на нажатие его и правят, поэтому нажатие с ним и связывается.
+    const under = [...this.state.outgoing].reverse().find((message) => message.chatId === chatId);
+
+    if (under) this.state.bindPress(callbackId, under.mid);
 
     return this.pushUpdate({
       update_type: 'message_callback',
       timestamp: this.options.now(),
       callback: {
         timestamp: this.options.now(),
-        callback_id: `cb-${this.state.nextMarker}`,
+        callback_id: callbackId,
         payload,
         user: { user_id: userId, first_name: firstName, username, is_bot: false },
       },
       message: {
         recipient: { chat_id: chatId, chat_type: chatType, user_id: chatType === 'dialog' ? userId : null },
-        body: { mid: `mid.cb.${this.state.nextMarker}`, seq: this.state.nextMarker, text: '', attachments: [] },
+        body: {
+          mid: under?.mid ?? `mid.cb.${this.state.nextMarker}`,
+          seq: this.state.nextMarker,
+          text: under?.text ?? '',
+          attachments: [],
+        },
       },
     });
   }

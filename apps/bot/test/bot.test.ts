@@ -18,7 +18,7 @@ import {
   type Transcriber,
 } from '@domovoy/app';
 import { LEGAL_VERSION, apartmentKeyParam, encodeTarget } from '@domovoy/domain';
-import { type MockPlatform, startMockPlatform } from '@maxkit/platform-mock';
+import { type MockPlatform, type SentMessage, startMockPlatform } from '@maxkit/platform-mock';
 import { MemoryMarkerStore, type MarkerStore } from '@maxkit/runtime';
 
 import { createDomovoyBot } from '../dist/index.js';
@@ -101,16 +101,18 @@ describe('чат-бот управляющей компании', () => {
   };
 
   /** Клавиатура следующего сообщения: кнопки приходят вложением к нему. */
+  /** Последнее, что человек видит: нажатие кнопки правит это сообщение на месте. */
+  const shownTo = (recipient: number): SentMessage | undefined =>
+    platform.outgoing.findLast((message) => message.userId === recipient || message.chatId === recipient);
+
   const waitForKeyboard = async (recipient: number, timeoutMs = 3000): Promise<unknown> => {
-    const seen = platform.outgoing.length;
+    const before = JSON.stringify(shownTo(recipient) ?? null);
     const deadline = Date.now() + timeoutMs;
 
     for (;;) {
-      const found = platform.outgoing
-        .slice(seen)
-        .find((message) => (message.userId === recipient || message.chatId === recipient) && message.attachments.length > 0);
+      const shown = shownTo(recipient);
 
-      if (found) return found.attachments;
+      if (shown && shown.attachments.length > 0 && JSON.stringify(shown) !== before) return shown.attachments;
       if (Date.now() > deadline) throw new Error(`Не дождались кнопок для ${recipient}`);
 
       await new Promise((resolve) => setTimeout(resolve, 25));
@@ -1905,12 +1907,57 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(3003, /Опишите/);
 
     platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Отменил/);
+    await waitForMessage(3003, /Что нужно сделать/);
 
     platform.userSends('Спасибо', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Что нужно сделать/);
 
     assert.equal((await bot.deps.repository.listRequests({})).length, 0);
+
+    await bot.stop();
+  });
+
+  it('хождение по меню правит одно сообщение, а не копит их', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.forgetOutgoing();
+
+    platform.userSends('/menu', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Что нужно сделать/);
+
+    const single = platform.outgoing.length;
+
+    platform.userPressesButton('group:money', { userId: 3003, chatId: 3003 });
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Квитанция/);
+
+    platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Оплата/);
+
+    assert.equal(platform.outgoing.length, single, 'переписка от хождения по меню не растёт');
+
+    await bot.stop();
+  });
+
+  it('отмена возвращает в ту группу меню, из которой начали', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/menu', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Что нужно сделать/);
+
+    platform.userPressesButton('group:house', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('menu:neighbours', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
+
+    const back = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(back, /Объявления/, 'вернулись в группу «Дом», а не на первый экран');
 
     await bot.stop();
   });
