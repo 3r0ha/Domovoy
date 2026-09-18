@@ -116,6 +116,40 @@ describe('сказанное человеком', () => {
     assert.deepEqual(asked, ['асдф']);
   });
 
+  it('очень длинный рассказ сокращается, а не отбивается отказом', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      digest: () => Promise.resolve('Течёт с потолка в ванной, намокла стена.'),
+    });
+
+    const created = await submitProblem(deps, {
+      resident: maria,
+      description: `Течёт с потолка. ${'Очень подробный рассказ жильца. '.repeat(120)}`,
+    });
+
+    assert.equal(created.kind, 'created');
+    assert.equal(
+      created.kind === 'created' ? created.request.description : '',
+      'Течёт с потолка в ванной, намокла стена.',
+    );
+  });
+
+  it('без модели длинный рассказ обрезается по целой фразе', async () => {
+    const deps = setup({ understand: () => Promise.resolve(undefined) });
+
+    const created = await submitProblem(deps, {
+      resident: maria,
+      description: `Течёт с потолка. ${'Очень подробный рассказ жильца. '.repeat(120)}`,
+    });
+
+    assert.equal(created.kind, 'created');
+
+    const saved = created.kind === 'created' ? created.request.description : '';
+
+    assert.ok(saved.length <= 2000, `осталось ${saved.length} знаков`);
+    assert.ok(saved.endsWith('.'), 'обрезали на полуслове');
+  });
+
   it('длинный рассказ до модели не доходит: он и так по делу', async () => {
     let asked = 0;
 

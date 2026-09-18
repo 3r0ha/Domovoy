@@ -23,6 +23,7 @@ import {
   isCompanyStaff,
   normalizeApartmentCode,
   requestNumberIn,
+  suggestCategory,
   METER_RULES,
   STATUS_TITLES,
   verificationState,
@@ -52,6 +53,9 @@ import { inApp } from './commands/in-app.js';
 import { freeHours } from './commands/visits.js';
 import { expect, forget, isChatter, QUIT, strong, type Awaiting, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
+
+/** Человек спрашивает, а не рассказывает: с вопросом это разговор, а не заявка. */
+const ASKING = /\?|^\s*(когда|почему|зачем|сколько|как|где|кто|что с|можно ли|подскажите|скажите)\b/iu;
 
 /** Что пришло от человека: текст, снимки или и то и другое. */
 export interface Said {
@@ -502,7 +506,15 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, said: Said)
   if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, said.text);
   if (waiting.kind === 'handoff') return recordAnswerFrom(kit, typed, waiting.handoffId, said.text);
   if (waiting.kind === 'code') return takeCode(kit, typed, said.text);
-  if (waiting.kind === 'assistant') return answerFromAssistant(kit, typed, said.text);
+  // Разговор с помощником не съедает рассказ о поломке: человек пришёл спросить,
+  // а по дороге увидел течь, и заявка ему нужнее продолжения разговора.
+  if (waiting.kind === 'assistant') {
+    if (suggestCategory(said.text) !== 'other' && !ASKING.test(said.text)) {
+      return describeProblem(kit, typed, undefined, said);
+    }
+
+    return answerFromAssistant(kit, typed, said.text);
+  }
 
   return explainTransition(kit, typed, waiting, said.text, said);
 };

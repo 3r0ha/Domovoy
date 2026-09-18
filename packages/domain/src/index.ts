@@ -80,6 +80,7 @@ export {
 export {
   MAX_TITLE_LENGTH,
   createRequest,
+  MAX_DESCRIPTION_LENGTH,
   formatRequestNumber,
   isBlockage,
   normLimitFor,

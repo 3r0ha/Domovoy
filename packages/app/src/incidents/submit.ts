@@ -8,6 +8,7 @@ import {
   isFinal,
   isSharedInfrastructure,
   joinRequest,
+  MAX_DESCRIPTION_LENGTH,
   OPEN_STATUSES,
   promoteToShared,
   reportersCount,
@@ -176,6 +177,26 @@ export const sectionFor = async (
   return asked && asked.screen !== 'new' ? asked : undefined;
 };
 
+/**
+ * Обращение по размеру заявки. Длинный рассказ не отбивается и не режется на
+ * полуслове: продукт просит модель пересказать его короче, а без модели
+ * оставляет начало до последней целой фразы. Заявка человеку нужнее отказа.
+ */
+const fitted = async (deps: AppDeps, text: string): Promise<string> => {
+  const said = text.trim();
+
+  if (said.length <= MAX_DESCRIPTION_LENGTH) return said;
+
+  const short = await deps.reasoner?.digest?.(said).catch(() => undefined);
+
+  if (short && short.trim().length > 0 && short.trim().length <= MAX_DESCRIPTION_LENGTH) return short.trim();
+
+  const cut = said.slice(0, MAX_DESCRIPTION_LENGTH);
+  const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+
+  return end > MAX_DESCRIPTION_LENGTH / 2 ? cut.slice(0, end + 1) : cut;
+};
+
 /** Человек спрашивает, а не рассказывает: вопросительный знак или вопросительное слово. */
 const ASKING = /\?|^\s*(когда|почему|отчего|зачем|сколько|как(ой|ая|ое|ие)?|где|кто|что с|будет ли|есть ли|можно ли|подскажите|скажите)\b/i;
 
@@ -193,14 +214,19 @@ const SHORT_ENOUGH = 40;
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
 
+  // Длинный рассказ не отбивается: продукт сокращает его сам, а человек
+  // остаётся с заявкой, а не с отказом по длине.
+  const said = await fitted(deps, command.description);
+  const sized: CreateRequestCommand = { ...command, description: said };
+
   // Сначала смотрим, не про раздел ли речь: «капитальный ремонт» и «оплатить»
   // это просьба открыть его, и отбраковывать такие слова как бессмысленные
   // нельзя. Только потом решается, есть ли в сказанном суть.
-  const elsewhere = await answerInstead(deps, command);
+  const elsewhere = await answerInstead(deps, sized);
 
   if (elsewhere) return elsewhere;
 
-  await assertSaid(deps, command.description, {
+  await assertSaid(deps, sized.description, {
     asked: 'что случилось в доме или в квартире',
     hint: 'Напишите словами, что случилось. Одного знака или цифры мало.',
     role: command.resident.role,
@@ -210,7 +236,7 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
   // Дом уходит в разбор вместе с текстом: по нему модель относит обращение
   // к настоящему лифту или домофону, а не к дому целиком.
   const house = deps.reasoner ? await houseFor(deps, command, buildingId).catch(() => undefined) : undefined;
-  const read = await understandRequest(command.description, deps.reasoner, house);
+  const read = await understandRequest(sized.description, deps.reasoner, house);
 
   // Объект из ответа модели становится адресом обращения, если человек не указал свой.
   const named =
@@ -224,7 +250,7 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
   const where = named ?? placed;
 
   const enriched: CreateRequestCommand = {
-    ...command,
+    ...sized,
     category: command.category ?? read.category,
     priority: command.priority ?? read.priority,
     ...(where ? { startParam: where } : {}),

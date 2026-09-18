@@ -30,7 +30,8 @@ export interface CreateRequestInput {
   timeZone?: string;
 }
 
-const MAX_DESCRIPTION_LENGTH = 2000;
+/** Докуда обращение читается человеком: дальше это документ, а не заявка. */
+export const MAX_DESCRIPTION_LENGTH = 2000;
 
 /** Длина заголовка. */
 export const MAX_TITLE_LENGTH = 60;
@@ -96,7 +97,7 @@ export const createRequest = (input: CreateRequestInput): ServiceRequest => {
   if (description.length > MAX_DESCRIPTION_LENGTH) {
     throw new DomainError(
       'description_too_long',
-      `Описание длиннее ${MAX_DESCRIPTION_LENGTH} символов, сократите или приложите файл`,
+      `Описание длиннее ${MAX_DESCRIPTION_LENGTH} знаков, напишите короче`,
     );
   }
 
