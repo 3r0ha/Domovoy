@@ -1979,6 +1979,53 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('на подсказке один выход: отмена, без второй кнопки', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Опишите/);
+
+    const shown = JSON.stringify(platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? []);
+
+    assert.match(shown, /Отмена/);
+    assert.doesNotMatch(shown, /Меню/, 'у отмены второго выхода нет');
+    assert.doesNotMatch(shown, /Назад/);
+
+    await bot.stop();
+  });
+
+  it('отмена возвращает туда, откуда пришли: в группу или на первый экран', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.userPressesButton('group:me', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('menu:support', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
+
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Мои данные/, 'вернулись в «Ещё»');
+
+    platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('menu:new', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
+
+    const root = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(root, /Спросить/, 'с первого экрана отмена возвращает на первый экран');
+    assert.doesNotMatch(root, /Мои данные/, 'а не в группу, где человек был раньше');
+
+    await bot.stop();
+  });
+
   it('с каждого экрана видно и шаг назад, и меню', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 

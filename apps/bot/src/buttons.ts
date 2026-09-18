@@ -71,7 +71,7 @@ import {
 import { inApp } from './commands/in-app.js';
 import { takeLegal } from './commands/legal.js';
 import { freeHours } from './commands/visits.js';
-import { groupFor, groupKeyboard, itemFor } from './menu.js';
+import { groupFor, groupKeyboard, groupWith, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
 import type { BotKit, Extra } from './kit.js';
@@ -118,9 +118,25 @@ const app: Button = async (kit, typed, [name]) => {
   await inApp(kit, typed, `${item.title}\n${item.app.about}`, item.app.screen);
 };
 
-/** Кнопка меню повторяет команду. */
+/**
+ * Кнопка меню повторяет команду. Заодно запоминается, откуда пришли: из группы
+ * или с первого экрана. По этому отмена и возвращает туда же, а не в меню.
+ */
 const menu: Button = async (kit, typed, [name]) => {
-  if (name && (await kit.run(name, typed))) return;
+  if (!name) {
+    await toast(typed, 'Этого раздела больше нет');
+    return;
+  }
+
+  const resident = await kit.residentOf(typed);
+  const where = groupWith(resident, name, { doors: Boolean(kit.deps.hub) });
+
+  typed.session ??= {};
+
+  if (where) typed.session.menu = where;
+  else delete typed.session.menu;
+
+  if (await kit.run(name, typed)) return;
 
   await toast(typed, 'Этого раздела больше нет');
 };

@@ -222,7 +222,11 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
   if (!rows) return extra;
 
   const has = exits(rows);
-  const added = [...(has.back ? [] : [BACK_BUTTON]), ...(has.menu ? [] : [MENU_BUTTON])];
+
+  // Где человек уже может выйти отменой, второй выход только мешает.
+  if (has.back) return extra;
+
+  const added = [BACK_BUTTON, ...(has.menu ? [] : [MENU_BUTTON])];
 
   if (added.length === 0) return extra;
 

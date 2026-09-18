@@ -266,6 +266,10 @@ const rows = (items: readonly MenuItem[]): ReturnType<typeof Keyboard.button.cal
   return built;
 };
 
+/** В какой группе лежит пункт. Пусто означает первый экран меню. */
+export const groupWith = (resident: Resident, command: string, offer: MenuOffer = {}): string | undefined =>
+  menuFor(resident, offer).groups.find((group) => group.items.some((item) => item.command === command))?.key;
+
 /** Пункт меню по имени: по нему собирается рассказ о разделе приложения. */
 export const itemFor = (resident: Resident, command: string, offer: MenuOffer = {}): MenuItem | undefined =>
   menuFor(resident, offer)
