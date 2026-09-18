@@ -48,6 +48,7 @@ import {
 } from './keyboards.js';
 import { answerFromAssistant } from './talk.js';
 import { thinking } from './thinking.js';
+import { inApp } from './commands/in-app.js';
 import { freeHours } from './commands/visits.js';
 import { expect, forget, isChatter, QUIT, strong, type Awaiting, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
@@ -221,13 +222,20 @@ const doneByWords = async (
   text: string,
 ): Promise<boolean> => {
   const to = await sectionFor(kit.deps, resident, text).catch(() => undefined);
-  const command = to?.command?.replace(/^\//, '');
 
-  if (!command) return false;
+  if (!to) return false;
 
   forget(typed);
 
-  return kit.run(command, typed);
+  const command = to.command?.replace(/^\//, '');
+
+  if (command && (await kit.run(command, typed))) return true;
+
+  // Раздел, которого в переписке нет: «капитальный ремонт», «план дома». Раньше
+  // такие слова уходили в заявку и упирались в отказ «напишите словами».
+  await inApp(kit, typed, `${strong(to.title)}\n${to.about}.`, to.screen, 'Смотреть');
+
+  return true;
 };
 
 const describeProblem = async (

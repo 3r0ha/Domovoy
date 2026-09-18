@@ -1205,6 +1205,20 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('название раздела словами открывает его, даже когда раздел живёт в приложении', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('капитальный ремонт', { userId: 3003, chatId: 3003 });
+
+    const said = await waitForMessage(3003, /Капитальный ремонт/);
+
+    assert.doesNotMatch(said, /Одного знака или цифры мало/, 'название раздела приняли за мусор');
+    assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-capital/);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'раздел стал заявкой');
+
+    await bot.stop();
+  });
+
   it('разговор с помощником продолжается без повторного нажатия', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
