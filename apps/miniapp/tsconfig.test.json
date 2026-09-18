@@ -19,7 +19,8 @@
     "outDir": "dist-test",
     "rootDir": "src",
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ]
   },
   "include": [

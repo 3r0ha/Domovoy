@@ -394,6 +394,14 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
       <main>
         <TopBar {...head} />
 
+        {/* Возврат виден на самой странице: системная кнопка клиента есть не
+            везде, и человек, который зашёл вглубь, оттуда не выбирается. */}
+        {screens.deep && screen !== 'request' && screen !== 'document' ? (
+          <button type="button" className="link back-link" onClick={context.back}>
+            <span aria-hidden="true">‹</span> {backTitle}
+          </button>
+        ) : null}
+
         {screenBody(screen, context)}
       </main>
 

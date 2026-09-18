@@ -11,6 +11,7 @@ import {
   type RoleView,
   type UnboundResidentView,
 } from '../api.js';
+import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
 import { More } from './More.js';
 import { ErrorText } from './ErrorText.js';
@@ -199,6 +200,9 @@ const People = ({
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [limit, setLimit] = useState(PEOPLE_PAGE);
+  // Отвязка квартиры и выборы старшего затрагивают человека и весь подъезд:
+  // их спрашивают отдельно, а не одним нажатием.
+  const [asked, setAsked] = useState<{ kind: 'unbind' | 'elect'; person: PersonView } | null>(null);
 
   const assign = async (id: string, role: RoleView): Promise<void> => {
     setBusy(id);
@@ -294,20 +298,8 @@ const People = ({
               onAssign={(role) => void assign(person.id, role)}
               onDuty={(value) => void duty(person.id, value)}
               onServe={(buildingId, served) => void serve(person, buildingId, served)}
-              onUnbind={() =>
-                void run(
-                  person.id,
-                  () => api.unbindResident(person.id, person.apartmentId),
-                  'Не удалось отвязать квартиру',
-                )
-              }
-              onElect={() =>
-                void run(
-                  person.id,
-                  () => api.startElderPoll(person.id, ELDER_POLL_DAYS),
-                  'Не удалось объявить выборы',
-                )
-              }
+              onUnbind={() => setAsked({ kind: 'unbind', person })}
+              onElect={() => setAsked({ kind: 'elect', person })}
             />
           ))}
 
@@ -316,6 +308,37 @@ const People = ({
           ) : null}
         </Group>
       ))}
+
+      {asked ? (
+        <Confirm
+          title={asked.kind === 'unbind' ? 'Жилец съехал?' : 'Объявить выборы старшего?'}
+          text={
+            asked.kind === 'unbind'
+              ? `${asked.person.displayName} потеряет доступ к квартире ${asked.person.apartmentNumber ?? ''}: ` +
+                'счётчики, квитанция и голос на собрании закроются.'
+              : `Соседи по подъезду будут голосовать за кандидата ${asked.person.displayName}. ` +
+                `Голосование идёт ${ELDER_POLL_DAYS} дней.`
+          }
+          confirmLabel={asked.kind === 'unbind' ? 'Отвязать квартиру' : 'Объявить выборы'}
+          busy={busy === asked.person.id}
+          danger={asked.kind === 'unbind'}
+          onCancel={() => setAsked(null)}
+          onConfirm={() => {
+            const { kind, person } = asked;
+
+            setAsked(null);
+
+            void run(
+              person.id,
+              () =>
+                kind === 'unbind'
+                  ? api.unbindResident(person.id, person.apartmentId)
+                  : api.startElderPoll(person.id, ELDER_POLL_DAYS),
+              kind === 'unbind' ? 'Не удалось отвязать квартиру' : 'Не удалось объявить выборы',
+            );
+          }}
+        />
+      ) : null}
     </>
   );
 };

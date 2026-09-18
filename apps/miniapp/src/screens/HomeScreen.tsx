@@ -168,8 +168,8 @@ export const HomeScreen = ({ api, staff, model, onCamera, onGuest, onJournal, on
     return (
       <Empty
         icon={<IconKey />}
-        title="Оборудования нет"
-        hint="Домофон и камеры не подключены"
+        title="Домофон не подключён"
+        hint="Когда управляющая компания подключит домофон и камеры, дверь будет открываться отсюда."
       />
     );
   }

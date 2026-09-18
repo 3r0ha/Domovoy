@@ -11,6 +11,7 @@ import {
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { useToast } from '../toast.js';
+import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -280,6 +281,8 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
   const [saved, setSaved] = useState<ReceptionView | null>(null);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  // Отмена записи касается жильца, который уже отпросился с работы: спрашиваем.
+  const [cancelling, setCancelling] = useState<{ id: string; title: string } | null>(null);
 
   if (visits.loading && !visits.data) return <Skeleton count={3} />;
 
@@ -360,12 +363,29 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
           <CellAction
             mode="secondary"
             disabled={busy === visit.id}
-            onClick={() => void run(visit.id, () => api.cancelVisit(visit.id), 'Запись отменена')}
+            onClick={() => setCancelling({ id: visit.id, title: `${visit.day}, ${visit.clock} · ${who(visit)}` })}
           >
             Отменить
           </CellAction>
         </CellList>
       ))}
+
+      {cancelling ? (
+        <Confirm
+          title="Отменить запись жильца?"
+          text={`${cancelling.title}. Жилец получит сообщение, что приём отменён.`}
+          confirmLabel="Отменить запись"
+          busy={busy === cancelling.id}
+          danger
+          onCancel={() => setCancelling(null)}
+          onConfirm={() => {
+            const { id } = cancelling;
+
+            setCancelling(null);
+            void run(id, () => api.cancelVisit(id), 'Запись отменена');
+          }}
+        />
+      ) : null}
     </section>
   );
 };

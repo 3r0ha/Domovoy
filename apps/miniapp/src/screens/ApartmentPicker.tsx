@@ -21,7 +21,11 @@ export const ApartmentPicker = ({ api, value, onChange }: ApartmentPickerProps) 
   const apartments = useBridgeRequest(() => api.ownApartments().catch(() => []), [api]);
   const all = Array.isArray(apartments.data) ? apartments.data : [];
 
-  if (all.length < 2) return null;
+  // Одна квартира выбора не требует, но человеку нужно видеть, о какой речь:
+  // вместо списка остаётся строка адреса.
+  if (all.length === 1) return <span className="building building-one">{title(all[0]!)}</span>;
+
+  if (all.length === 0) return null;
 
   const current = value ?? all.find((apartment) => apartment.current)?.id ?? '';
 

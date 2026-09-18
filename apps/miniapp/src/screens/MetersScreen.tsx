@@ -33,6 +33,8 @@ export interface MetersScreenProps {
   paymentsModel?: boolean;
   /** Куда идти, если квартира ещё не привязана: счётчики принадлежат ей. */
   onBind?: () => void;
+  /** Куда писать, если счётчики есть, а в продукте их нет. */
+  onSupport?: () => void;
 }
 
 /** Месяц и срок подачи. */
@@ -69,8 +71,8 @@ const silence = (meter: MeterView, now: Date): string | null => {
   if (months <= 1) return null;
 
   return months > AVERAGE_MONTHS
-    ? 'Показаний нет, начисляем по нормативу'
-    : 'Показаний нет, начисляем по среднему';
+    ? 'Показаний нет, считаем по средней норме'
+    : 'Показаний нет, считаем по прошлым месяцам';
 };
 
 /** Расход по месяцам столбиками. */
@@ -196,7 +198,7 @@ const MeterCard = ({
           expired ? (
             <span className="row-state">
               <span className="dot dot-bad" />
-              нужна поверка
+              истёк срок проверки
             </span>
           ) : (
             <span className="row-state">
@@ -218,13 +220,13 @@ const MeterCard = ({
 
       {expired ? (
         <p className="hint inset">
-          {meter.verifiedUntil ? `Поверка истекла ${formatDay(meter.verifiedUntil)}. ` : ''}
-          До новой поверки начисляют по нормативу
+          {meter.verifiedUntil ? `Срок проверки истёк ${formatDay(meter.verifiedUntil)}. ` : ''}
+          Пока счётчик не проверят, за услугу считают по средней норме
         </p>
       ) : null}
 
       {meter.verification === 'soon' && meter.verifiedUntil ? (
-        <p className="hint inset">Поверка до {formatDay(meter.verifiedUntil)}</p>
+        <p className="hint inset">Проверить счётчик нужно до {formatDay(meter.verifiedUntil)}</p>
       ) : null}
 
       {silent && !expired ? <p className="hint inset">{silent}</p> : null}
@@ -233,6 +235,10 @@ const MeterCard = ({
 
       {sent || expired ? null : (
         <>
+          {/* Подпись видимая, а не только для голосового помощника: по одному
+              полю человек не понимает, какие именно цифры от него ждут. */}
+          <p className="hint inset">Посмотрите на счётчик и напишите цифры, которые на нём сейчас.</p>
+
           <CellInput
             className="field-row"
             type="text"
@@ -304,7 +310,15 @@ const Together = ({ api, version }: { api: DomovoyApi; version: number }) => {
   );
 };
 
-export const MetersScreen = ({ api, readingWindow, photoSupported, payable, paymentsModel, onBind }: MetersScreenProps) => {
+export const MetersScreen = ({
+  api,
+  readingWindow,
+  photoSupported,
+  payable,
+  paymentsModel,
+  onBind,
+  onSupport,
+}: MetersScreenProps) => {
   const meters = useBridgeRequest(() => api.meters(), [api]);
   const [submitted, setSubmitted] = useState(0);
 
@@ -327,8 +341,12 @@ export const MetersScreen = ({ api, readingWindow, photoSupported, payable, paym
       <Empty
         icon={<IconMeters />}
         title="Счётчиков нет"
-        hint="За квартирой не числятся приборы учёта"
-      />
+        hint="За вашей квартирой счётчиков не записано. Если они есть, скажите об этом управляющей компании."
+      >
+        <Button type="button" onClick={onSupport}>
+          Написать в компанию
+        </Button>
+      </Empty>
     );
   }
 

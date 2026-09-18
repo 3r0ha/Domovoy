@@ -198,6 +198,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       payable={context.profile.payments !== false}
       paymentsModel={(context.profile.model ?? []).includes('payments')}
       onBind={() => context.open('bind')}
+      onSupport={() => context.open('support')}
     />
   ),
 

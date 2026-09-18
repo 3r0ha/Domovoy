@@ -16,7 +16,11 @@ export const BuildingPicker = ({ api, value, onChange }: BuildingPickerProps) =>
   const buildings = useBridgeRequest(() => api.buildings().catch(() => []), [api]);
   const all = buildings.data ?? [];
 
-  if (all.length < 2) return null;
+  // С одним домом выбирать нечего, но адрес на экране нужен: по нему видно,
+  // за какой дом идёт очередь и сводка.
+  if (all.length === 1) return <span className="building building-one">{title(all[0]!)}</span>;
+
+  if (all.length === 0) return null;
 
   const current = value ?? all.find((building) => building.current)?.id ?? '';
 

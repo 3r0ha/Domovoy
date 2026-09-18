@@ -1865,7 +1865,7 @@ describe('показания счётчиков', () => {
 
     const screen = await render(createElement(MetersScreen as never, { api } as never), bridge);
 
-    assert.match(screen.text, /Поверка до 17 октября/);
+    assert.match(screen.text, /Проверить счётчик нужно до 17 октября/);
     assert.equal(screen.findAll('.field-row input').length, 1);
 
     await screen.unmount();
@@ -1879,9 +1879,9 @@ describe('показания счётчиков', () => {
 
     const screen = await render(createElement(MetersScreen as never, { api } as never), bridge);
 
-    assert.match(screen.text, /нужна поверка/);
-    assert.match(screen.text, /Поверка истекла 1 июня/);
-    assert.match(screen.text, /начисляют по нормативу/);
+    assert.match(screen.text, /истёк срок проверки/);
+    assert.match(screen.text, /Срок проверки истёк 1 июня/);
+    assert.match(screen.text, /считают по средней норме/);
     assert.equal(screen.findAll('.field-row input').length, 0, 'поле обмануло бы: показание не примут');
 
     await screen.unmount();
@@ -2652,6 +2652,13 @@ describe('жильцы без квартиры', () => {
       .find((button) => button.textContent === 'В старшие подъезда') as HTMLButtonElement;
 
     await screen.act(() => elect.click());
+
+    // Выборы затрагивают весь подъезд: сначала подтверждение, потом запрос.
+    const confirm = screen
+      .findAll('button')
+      .find((button) => button.textContent === 'Объявить выборы') as HTMLButtonElement;
+
+    await screen.act(() => confirm.click());
 
     const post = calls.find((call) => call.path === '/api/polls/elder');
 
