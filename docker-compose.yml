@@ -85,6 +85,11 @@ services:
       # Канал передачи обращений смежным организациям: модельный при mock.
       HANDOFF: ${HANDOFF:-}
       HANDOFF_CHANNEL: ${HANDOFF_CHANNEL:-}
+      # Система общих собраний и программа капитального ремонта: те же заглушки.
+      MEETINGS: ${MEETINGS:-}
+      MEETINGS_TITLE: ${MEETINGS_TITLE:-}
+      CAPITAL_REPAIR: ${CAPITAL_REPAIR:-}
+      CAPITAL_REPAIR_TITLE: ${CAPITAL_REPAIR_TITLE:-}
       # Закрывает /metrics. Без токена страница открыта.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Проверка ролями: значение 1 включает примерку роли в боте и приложении.
