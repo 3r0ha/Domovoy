@@ -140,10 +140,23 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
   const shown = requests.slice(0, CARDS);
 
   // Каждая заявка идёт своим сообщением: под ней кнопки перехода и «Написать».
+  // Передача смежной организации стоит здесь же: раньше она была только на
+  // карточке по номеру заявки, и смена до неё не доходила.
   for (const request of shown) {
+    const passable =
+      isCompanyStaff(resident.role) &&
+      (await responsibilityOf(kit.deps, (await kit.deps.repository.findRequest(request.id))!)
+        .then((view) => view.targets.length > 0)
+        .catch(() => false));
+
     await typed.reply(
       await requestCard(kit, request, forStaff, zone),
-      actionKeyboard(actionsFor(request, resident), replyIfOpen(request), assignable(request, resident.role)),
+      actionKeyboard(
+        actionsFor(request, resident),
+        replyIfOpen(request),
+        assignable(request, resident.role),
+        passable ? request.id : undefined,
+      ),
     );
   }
 

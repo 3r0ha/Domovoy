@@ -274,11 +274,13 @@ const askSupportFrom = async (
     return;
   }
 
+  // Смена отвечает на выбранное обращение, у него есть номер. Без номера это
+  // её собственный вопрос как жильца: сотрудник тоже живёт в квартире.
+  const answering = isCompanyStaff(resident.role) && ticketId !== undefined;
+
   try {
-    const ticket = isCompanyStaff(resident.role)
-      ? ticketId
-        ? await answerSupport(kit.deps, { staff: resident, ticketId, text: said.text ?? '' })
-        : undefined
+    const ticket = answering
+      ? await answerSupport(kit.deps, { staff: resident, ticketId, text: said.text ?? '' })
       : await askSupport(kit.deps, {
           resident,
           text: said.text ?? '',
@@ -286,13 +288,8 @@ const askSupportFrom = async (
           ...(said.attachments.length ? { attachments: said.attachments } : {}),
         });
 
-    if (!ticket) {
-      await typed.reply('Выберите обращение кнопкой «Ответить» под вопросом жильца.', menuButton(typed));
-      return;
-    }
-
     await typed.reply(
-      isCompanyStaff(resident.role)
+      answering
         ? `Ответ отправлен жильцу по обращению «${ticket.subject}».`
         : ticketId
           ? 'Передал в управляющую организацию. Ответ придёт сюда.'

@@ -418,6 +418,7 @@ export const PRIVATE_COMMANDS = new Set([
   'duty',
   'broadcast',
   'report',
+  'queue',
   'legal',
 ]);
 
@@ -425,7 +426,7 @@ export const PRIVATE_COMMANDS = new Set([
 export const DIALOG_COMMANDS = new Set(['new', 'meters', 'support', 'broadcast']);
 
 /** Дела смены: ответ уходит в переписку молча, соседям в чате он не нужен. */
-export const QUIET_COMMANDS = new Set(['debts', 'report', 'duty']);
+export const QUIET_COMMANDS = new Set(['debts', 'report', 'duty', 'queue']);
 
 /** Вложение в том виде, в каком его приносит Bot API. */
 export interface MaxAttachment {

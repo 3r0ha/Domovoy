@@ -35,12 +35,26 @@ interface RoleMenu {
 const HOME_GROUP: MenuGroup = {
   key: 'home',
   title: '🏡 Моя квартира',
+  about: 'Ваши счета, счётчики и заявки по своей квартире.',
   items: [
     { title: '✍️ Новая заявка', command: 'new' },
     { title: '💧 Показания', command: 'meters' },
     { title: '🧾 Квитанция', command: 'bill' },
     { title: '🏢 Квартира', command: 'flat' },
+    { title: '✉️ Написать в компанию', command: 'support' },
+    { title: '🗓 Записаться на приём', command: 'visit' },
   ],
+};
+
+/**
+ * То же для сотрудника без привязки: без этого пункта привязать свою квартиру
+ * ему нечем, команда привязки живёт только внутри «Моей квартиры».
+ */
+const BIND_GROUP: MenuGroup = {
+  key: 'home',
+  title: '🏡 Моя квартира',
+  about: 'Если вы живёте в этом доме, привяжите квартиру по коду из квитанции.',
+  items: [{ title: '🏢 Указать свою квартиру', command: 'flat' }],
 };
 
 /** Помощник стоит первым экраном у всех: спросить словами проще, чем искать пункт. */
@@ -113,7 +127,21 @@ const CONTRACTOR: RoleMenu = {
     { title: '🗂 Мои данные', command: 'mydata' },
     ASK_ITEM,
   ],
-  groups: [],
+  groups: [
+    {
+      // Подрядчик приходит в дом со стороны, но дела дома ему тоже доступны:
+      // спросить управляющую компанию, посмотреть объявления, открыть дверь.
+      key: 'house',
+      title: '🏢 Дела дома',
+      about: 'Связь с управляющей компанией, объявления и двери подъездов.',
+      items: [
+        { title: '✉️ Написать в компанию', command: 'support' },
+        { title: '☎️ Контакты', command: 'contacts' },
+        { title: '📣 Объявления', command: 'news' },
+        { title: '🚪 Открыть дверь', command: 'door' },
+      ],
+    },
+  ],
 };
 
 const STAFF: RoleMenu = {
@@ -121,12 +149,15 @@ const STAFF: RoleMenu = {
     ASK_ITEM,
     { title: '🗂 Очередь дома', command: 'queue' },
     { title: '📋 Мои наряды', command: 'my' },
-    { title: '🌙 Дежурство', command: 'duty', roles: ['dispatcher', 'technician'] },
+    // Дежурят все свои: управляющий тоже берёт ночь на себя, и команда /duty
+    // ему это позволяет, поэтому пункт у него есть.
+    { title: '🌙 Дежурство', command: 'duty' },
   ],
   groups: [
     {
       key: 'people',
       title: '💬 Жильцы',
+      about: 'Вопросы жильцов, приём по записи и сообщения дому.',
       items: [
         { title: '💬 Вопросы жильцов', command: 'support' },
         { title: '🗓 Приём жильцов', command: 'visit' },
@@ -137,16 +168,39 @@ const STAFF: RoleMenu = {
     {
       key: 'house',
       title: '🏢 Дела дома',
+      about: 'Как дом закрывает сроки, долги, собрания и двери подъездов.',
       items: [
         { title: '📊 Сводка за месяц', command: 'report' },
-        { title: '💰 Долги дома', command: 'debts' },
+        // Рассылку должникам делают диспетчер и управляющий: мастеру суммы дома
+        // в работе не нужны, а писать он по ним всё равно не может.
+        { title: '💰 Долги дома', command: 'debts', roles: ['dispatcher', 'manager'] },
         { title: '🗳 Собрания', command: 'vote' },
         { title: '🚪 Открыть дверь', command: 'door' },
       ],
     },
     {
+      // Сотрудник тоже живёт в квартире и сам пишет в управляющую компанию:
+      // без этих пунктов ему пришлось бы вспоминать команды.
+      key: 'me',
+      title: '☎️ Связь и профиль',
+      about: 'Ваши данные, уведомления и связь с управляющей компанией как жильца.',
+      items: [
+        { title: '🗂 Мои данные', command: 'mydata' },
+        { title: '☎️ Контакты', command: 'contacts' },
+        {
+          title: '🔔 Уведомления',
+          command: 'notices',
+          app: {
+            screen: 'profile',
+            about: 'Что присылать и о чём молчать. Там же телефон и выгрузка своих данных.',
+          },
+        },
+      ],
+    },
+    {
       key: 'app',
       title: '📱 В приложении',
+      about: 'Экраны, которые в переписке не читаются: обходы, план дома, приборы.',
       items: [
         {
           title: '🔍 Осмотры',
@@ -182,6 +236,7 @@ const STAFF: RoleMenu = {
     {
       key: 'manage',
       title: '🗄 Управление домом',
+      about: 'Тарифы, карточка дома, адреса компании и журнал действий.',
       items: [
         {
           title: '💵 Тарифы',
@@ -254,7 +309,7 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
 
   const groups = [
     ...allowed,
-    ...(role !== 'resident' && apartmentsOf(resident).length > 0 ? [HOME_GROUP] : []),
+    ...(role === 'resident' ? [] : [apartmentsOf(resident).length > 0 ? HOME_GROUP : BIND_GROUP]),
   ].filter((group) => group.items.length > 0);
 
   const top = own.top.filter(

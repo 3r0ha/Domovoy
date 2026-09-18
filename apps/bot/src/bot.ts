@@ -147,32 +147,22 @@ const inChatRow = (section: string | undefined) => {
   return to ? [[Keyboard.button.callback(to.title, `menu:${to.command}`)]] : [];
 };
 
-/** Меню команд в клиенте MAX. */
+/**
+ * Меню команд в клиенте MAX. Список один на всех, ролей у него нет, поэтому в
+ * нём стоит только то, что нужно жильцу: дела смены он всё равно делает
+ * кнопками меню, а чужие команды в списке сбивают с толку. Сами команды смены
+ * работают по-прежнему, их просто не предлагают каждому.
+ */
 export const BOT_COMMANDS = [
-  { name: 'new', description: 'Новая заявка' },
+  { name: 'new', description: 'Сообщить о поломке' },
   { name: 'my', description: 'Свои заявки и наряды' },
-  { name: 'meters', description: 'Подать показания' },
-  { name: 'bill', description: 'Квитанция за месяц' },
-  { name: 'vote', description: 'Собрания и предложения' },
+  { name: 'meters', description: 'Отправить показания счётчиков' },
+  { name: 'bill', description: 'Сколько платить в этом месяце' },
+  { name: 'door', description: 'Открыть дверь подъезда' },
   { name: 'news', description: 'Объявления дома' },
-  { name: 'neighbours', description: 'О чём сообщили соседи' },
-  { name: 'door', description: 'Открыть домофон' },
-  { name: 'house', description: 'Как работает управляющая компания' },
+  { name: 'support', description: 'Написать в управляющую компанию' },
   { name: 'contacts', description: 'К кому обращаться по дому' },
-  { name: 'support', description: 'Вопрос в управляющую компанию' },
-  { name: 'visit', description: 'Записаться на приём' },
-  { name: 'stickers', description: 'Наклейка с кодом объекта' },
-  { name: 'queue', description: 'Очередь дома' },
-  { name: 'unhere', description: 'Отвязать чат дома' },
-  { name: 'duty', description: 'Принять или сдать дежурство' },
-  { name: 'report', description: 'Сводка по дому' },
-  { name: 'debts', description: 'Долги дома' },
-  { name: 'broadcast', description: 'Рассылка жильцам' },
-  { name: 'gzhi', description: 'Обращение в жилинспекцию' },
-  { name: 'flat', description: 'Выбрать свою квартиру' },
-  { name: 'mydata', description: 'Что о вас знает Домовой' },
-  { name: 'legal', description: 'Документы и согласие' },
-  { name: 'help', description: 'Что я умею' },
+  { name: 'help', description: 'Не знаю, куда нажать' },
 ];
 
 /** Команда проверки: её добавляют к меню только в режиме DEMO_ROLES. */

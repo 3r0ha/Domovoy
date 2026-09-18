@@ -29,6 +29,19 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
   queue: async (typed) => {
     const resident = await residentOf(typed);
 
+    // Очередь дома ведёт смена. Подрядчику и жильцу отвечаем про их дела, а не
+    // отказом про сводку: они спрашивали не о ней.
+    if (!isCompanyStaff(resident.role)) {
+      await typed.reply(
+        resident.role === 'contractor'
+          ? 'Очередь дома ведёт управляющая компания. Ваши наряды в разделе «Наряды».'
+          : 'Очередь дома ведёт управляющая компания. Ваши заявки в разделе «Мои обращения».',
+        oneKeyboard(resident.role === 'contractor' ? '📋 Наряды' : '📋 Мои обращения', 'menu:my'),
+      );
+
+      return;
+    }
+
     try {
       const report = await buildingReport(deps, resident);
       const { open, overdue } = report.summary;

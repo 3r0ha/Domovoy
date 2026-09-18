@@ -218,6 +218,7 @@ export const assignable = (
 export const assignKeyboard = (
   requestId: string,
   staff: readonly { id: string; displayName: string; role: string; load: number }[],
+  miniAppUrl?: string,
 ) =>
   keyboardOf([
     ...staff
@@ -228,6 +229,8 @@ export const assignKeyboard = (
           `assign:${requestId}:${person.id}`,
         ),
       ]),
+    // Шестого и дальше выбирают в очереди: кнопками они не помещаются.
+    ...(staff.length > ASSIGNEES_SHOWN ? appRow(miniAppUrl, 'Вся смена в приложении', 'queue') : []),
     [Keyboard.button.callback('✖️ Отмена', 'cancel')],
   ]);
 

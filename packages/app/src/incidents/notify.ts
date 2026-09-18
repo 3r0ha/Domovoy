@@ -25,8 +25,14 @@ export const notifyStaff = async (deps: AppDeps, request: ServiceRequest, report
     formatNewRequest(request, reporters) +
     (orphan ? `\n\nЗа домом ${building?.code ?? request.buildingId} никто не закреплён, назначьте сотрудника.` : '');
 
+  // Новую заявку принимает и назначает диспетчер или управляющий, у мастера
+  // действий по ней нет: ему приходит назначение, а не весь поток дома. Если
+  // принять её сейчас некому, будят всех, включая мастеров.
+  const takers = staff.some((person) => person.role !== 'technician' && person.id !== request.authorId);
+
   for (const person of staff) {
     if (person.id === request.authorId) continue;
+    if (takers && person.role === 'technician') continue;
 
     await notifyResident(notifier, person, text, actionsFor(request, person), request.id);
   }

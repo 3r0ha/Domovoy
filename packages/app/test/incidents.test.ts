@@ -404,8 +404,9 @@ describe('склейка обращений', () => {
     const toStaff = deps.notifier.sent.filter((item) => /Новая заявка/.test(item.text));
 
     assert.deepEqual(
-      toStaff.map((item) => item.maxUserId).sort(),
-      [dispatcher.maxUserId, technician.maxUserId].sort(),
+      toStaff.map((item) => item.maxUserId),
+      [dispatcher.maxUserId],
+      'новую заявку принимает диспетчер, мастеру приходит назначение',
     );
     assert.match(toStaff[0]?.text ?? '', /^АВАРИЯ\. /, 'срочность видна в первом слове');
   });
@@ -476,7 +477,7 @@ describe('склейка обращений', () => {
 
     const toStaff = deps.notifier.sent.filter((item) => /Новая заявка/.test(item.text));
 
-    assert.equal(toStaff.length, 2, 'диспетчер и мастер');
+    assert.equal(toStaff.length, 1, 'принять заявку может диспетчер');
     assert.match(toStaff[0]?.text ?? '', /Сообщили: 3/);
   });
 
@@ -1022,6 +1023,7 @@ describe('сообщение о нарушенном сроке', () => {
     assert.deepEqual(
       toStaff.map((item) => item.maxUserId).sort(),
       [dispatcher.maxUserId, technician.maxUserId].sort(),
+      'о нарушенном сроке знает вся смена',
     );
   });
 
@@ -1327,7 +1329,7 @@ describe('ночная смена', () => {
     );
   });
 
-  it('днём заявку видит вся смена', async () => {
+  it('днём заявку принимает тот, кто может её принять', async () => {
     const deps = setup();
 
     await deps.repository.saveResident({ ...technician, onDuty: true });
@@ -1337,9 +1339,23 @@ describe('ночная смена', () => {
     assert.deepEqual(
       deps.notifier.sent
         .filter((item) => /Новая заявка/.test(item.text))
-        .map((item) => item.maxUserId)
-        .sort(),
-      [dispatcher.maxUserId, technician.maxUserId].sort(),
+        .map((item) => item.maxUserId),
+      [dispatcher.maxUserId],
+    );
+  });
+
+  it('когда принять заявку некому, будят и мастеров', async () => {
+    const deps = setup();
+
+    await deps.repository.saveResident({ ...dispatcher, buildingId: 'b9', servesBuildingIds: ['b9'] });
+
+    asRequest(await submitProblem(deps, { resident: maria, description: 'Нет горячей воды' }));
+
+    assert.deepEqual(
+      deps.notifier.sent
+        .filter((item) => /Новая заявка/.test(item.text))
+        .map((item) => item.maxUserId),
+      [technician.maxUserId],
     );
   });
 
@@ -1348,7 +1364,7 @@ describe('ночная смена', () => {
 
     asRequest(await submitProblem(deps, { resident: maria, description: 'Нет горячей воды' }));
 
-    assert.equal(deps.notifier.sent.filter((item) => /Новая заявка/.test(item.text)).length, 2);
+    assert.equal(deps.notifier.sent.filter((item) => /Новая заявка/.test(item.text)).length, 1);
   });
 });
 

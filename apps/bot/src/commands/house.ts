@@ -1,4 +1,5 @@
 import {
+  apartmentsOf,
   contactsFor,
   devicesFor,
   formatContacts,
@@ -163,7 +164,15 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
 
     const shown = await showSupport(kit, typed);
 
-    if (isCompanyStaff(resident.role)) return;
+    // Сотрудник отвечает жильцам, но и сам живёт в квартире: свой вопрос он
+    // задаёт отдельной кнопкой, чтобы он не смешался с чужими.
+    if (isCompanyStaff(resident.role)) {
+      if (apartmentsOf(resident).length > 0) {
+        await typed.reply('Свой вопрос в управляющую компанию задаётся отдельно.', oneKeyboard('✉️ Свой вопрос', 'support:own'));
+      }
+
+      return;
+    }
 
     typed.session ??= {};
     expect(typed, { kind: 'support' });

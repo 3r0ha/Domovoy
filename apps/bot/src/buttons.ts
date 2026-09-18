@@ -57,6 +57,7 @@ import {
 import {
   actionKeyboard,
   afterError,
+  appRow,
   assignable,
   errorAction,
   assignKeyboard,
@@ -70,6 +71,7 @@ import {
   formatInitiative,
   guestKeyboard,
   handoffKeyboard,
+  keyboardOf,
   menuButton,
   oneKeyboard,
   passKeyboard,
@@ -520,6 +522,15 @@ const alarmAnswer =
 const support: Button = async (kit, typed, [requestId]) => {
   if (!requestId) return stale(typed, kit);
 
+  // Свой вопрос сотрудника: он идёт тем же путём, что и вопрос жильца.
+  if (requestId === 'own') {
+    expect(typed, { kind: 'support' });
+
+    await typed.reply('Напишите вопрос одним сообщением, передам управляющей компании.', cancelKeyboard());
+
+    return;
+  }
+
   try {
     const { request: updated, reporters } = await supportRequest(
       kit.deps,
@@ -762,11 +773,17 @@ const offerAssignees = async (
   const staff = await listAssignable(kit.deps, resident);
 
   if (staff.length === 0) {
-    await typed.reply('Некому поручить: в доме нет мастеров.', menuButton(typed));
+    await typed.reply(
+      'Некому поручить: в доме нет мастеров. Роли назначают в разделе «Люди дома».',
+      keyboardOf([...appRow(kit.miniAppUrl, 'Люди дома в приложении', 'residents')], typed),
+    );
     return;
   }
 
-  await typed.reply('Кому поручить? Рядом с именем, сколько нарядов уже на человеке.', assignKeyboard(requestId, staff));
+  await typed.reply(
+    'Кому поручить? Рядом с именем, сколько нарядов уже на человеке.',
+    assignKeyboard(requestId, staff, kit.miniAppUrl),
+  );
 };
 
 /** Кому поручить наряд: список смены с загрузкой, выбор одним нажатием. */
@@ -779,6 +796,15 @@ const assign: Button = async (kit, typed, [requestId, staffId]) => {
     if (!staffId) {
       await offerAssignees(kit, typed, requestId, resident);
       return;
+    }
+
+    // Новую заявку сначала принимают, и только принятую поручают. Иначе выбор
+    // мастера заканчивался отказом «из принята нельзя в выполняется», а работа
+    // диспетчера откатывалась в ноль.
+    const known = await kit.deps.repository.findRequest(requestId);
+
+    if (known?.status === 'new') {
+      await transitionRequest(kit.deps, { resident, requestId, to: 'accepted' });
     }
 
     const updated = await transitionRequest(kit.deps, {

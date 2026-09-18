@@ -66,14 +66,16 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
           const cards = await listVisitsFor(deps, resident);
 
           // Сетка часов, перенос и отмена записей это календарь: в переписке
-          // остаётся счёт, а ведут приём на экране.
+          // остаётся счёт, а ведут приём на экране. Своя запись сотрудника
+          // делается там же, где и у жильца: он тоже приходит по своим делам.
           await inApp(
             kit,
             typed,
-            cards.length === 0 ? 'Записей на приём нет.' : `Записано на приём: ${cards.length}.`,
+            cards.length === 0 ? 'Записей жильцов на приём нет.' : `Записано жильцов на приём: ${cards.length}.`,
             'visits',
             'Приём в приложении',
           );
+
           return;
         }
 

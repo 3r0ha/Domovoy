@@ -1786,7 +1786,43 @@ describe('чат-бот управляющей компании', () => {
     );
 
     assert.equal(/Сколько платить|Квитанция/.test(keyboard), false);
-    assert.equal(/Квартира/.test(keyboard), false);
+    assert.match(keyboard, /Моя квартира/, 'привязать свою квартиру сотруднику есть чем');
+
+    platform.userPressesButton('group:home', { userId: 7011, chatId: 7011 });
+
+    const own = JSON.stringify((await waitForKeyboard(7011)) ?? []);
+
+    assert.match(own, /Указать свою квартиру/);
+    assert.equal(/Показания/.test(own), false, 'счётчиков без квартиры нет');
+
+    await bot.stop();
+  });
+
+  it('сотрудник со своей квартирой задаёт вопрос в компанию как жилец', async () => {
+    const living: Resident = {
+      id: 'disp-own',
+      maxUserId: 7013,
+      displayName: 'Диспетчер',
+      role: 'dispatcher',
+      apartmentId: 'apt-3',
+      buildingId: BUILDING_ID,
+    };
+
+    const bot = await start([living]);
+
+    platform.userSends('/support', { userId: 7013, chatId: 7013 });
+    await waitForMessage(7013, /Свой вопрос/);
+
+    platform.userPressesButton('support:own', { userId: 7013, chatId: 7013 });
+    await waitForMessage(7013, /Напишите вопрос/);
+
+    platform.userSends('Когда сделают перерасчёт за горячую воду?', { userId: 7013, chatId: 7013 });
+    await waitForMessage(7013, /Вопрос принят/);
+
+    const tickets = await bot.deps.repository.listSupportTickets({ buildingId: BUILDING_ID });
+
+    assert.equal(tickets.length, 1, 'вопрос сотрудника не завёлся');
+    assert.equal(tickets[0]?.residentId, 'disp-own');
 
     await bot.stop();
   });
