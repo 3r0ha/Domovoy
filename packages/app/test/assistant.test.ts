@@ -197,7 +197,7 @@ describe('помощник смены', () => {
 
     assert.equal(answer.offTopic, undefined, 'мастеру отказали в вопросе о своей квартире');
     assert.equal(answer.screen, 'meters');
-    assert.equal(answer.command, '/meters', 'в разделе не на что нажать');
+    assert.equal(answer.command, '/bill', 'оплата открывается квитанцией, а не вводом показаний');
   });
 
   it('продолжение разговора отвечает по прошлому вопросу', async () => {

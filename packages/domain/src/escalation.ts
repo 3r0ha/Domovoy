@@ -1,5 +1,6 @@
 import { CATEGORY_RULES, isReactionOverdue, isResolutionOverdue } from './sla.js';
 import { describeTarget } from './audience.js';
+import { formatSpan } from './moment.js';
 import { isFinal } from './status.js';
 import { DEFAULT_TIME_ZONE, type RequestEvent, type Role, type ServiceRequest } from './types.js';
 
@@ -19,8 +20,10 @@ export const canEscalate = (request: ServiceRequest, now: Date): EscalationCheck
   }
 
   if (isReactionOverdue(request, now)) {
-    const late = Math.round((now.getTime() - request.reactionDueAt.getTime()) / 60_000);
-    return { possible: true, reason: `заявка не принята в работу, срок реакции нарушен на ${late} мин` };
+    return {
+      possible: true,
+      reason: `заявка не принята в работу, срок ответа нарушен на ${formatSpan(request.reactionDueAt, now)}`,
+    };
   }
 
   if (isResolutionOverdue(request, now)) {
@@ -29,10 +32,15 @@ export const canEscalate = (request: ServiceRequest, now: Date): EscalationCheck
     const spent = now.getTime() - request.createdAt.getTime();
 
     if (spent >= allowed * ESCALATION_OVERRUN_FACTOR) {
-      const hours = Math.round(spent / 3600_000);
+      // Сроки называются теми же словами, что и человеку в переписке: «двое
+      // суток» вместо «48 ч», иначе читающий считает часы в уме.
+      const due = new Date(request.createdAt.getTime() + rule.resolutionHours * 3600_000);
+
       return {
         possible: true,
-        reason: `работы не выполнены за ${hours} ч при назначенном сроке ${rule.resolutionHours} ч`,
+        reason:
+          `работы не выполнены за ${formatSpan(request.createdAt, now)} ` +
+          `при назначенном сроке ${formatSpan(request.createdAt, due)}`,
       };
     }
 

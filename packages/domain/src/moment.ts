@@ -1,4 +1,4 @@
-import { days } from './russian.js';
+import { days, plural } from './russian.js';
 import { DEFAULT_TIME_ZONE } from './types.js';
 
 /** Момент словами: «7 сентября, 09:38». */
@@ -30,12 +30,27 @@ export const formatWeekday = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): s
 export const formatClock = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string =>
   at.toLocaleTimeString('ru-RU', { timeZone, hour: '2-digit', minute: '2-digit' });
 
-/** Промежуток словами: «15 мин», «3 ч», «2 дня». */
+/**
+ * Промежуток словами: «15 минут», «3 часа», «2 дня», «полтора месяца». Человек
+ * не переводит в уме 355 минут в часы, поэтому крупные промежутки называются
+ * крупными единицами, а мелкие подробности отбрасываются.
+ */
 export const formatSpan = (from: Date, to: Date): string => {
   const minutes = Math.max(0, Math.round((to.getTime() - from.getTime()) / 60_000));
 
-  if (minutes < 60) return `${minutes} мин`;
-  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} ч`;
+  if (minutes < 60) return plural(minutes, 'минуту', 'минуты', 'минут');
 
-  return days(Math.round(minutes / (24 * 60)));
+  const hours = Math.round(minutes / 60);
+
+  if (hours < 24) return plural(hours, 'час', 'часа', 'часов');
+
+  const whole = Math.round(minutes / (24 * 60));
+
+  if (whole < 31) return days(whole);
+
+  const months = Math.round(whole / 30);
+
+  if (months < 12) return plural(months, 'месяц', 'месяца', 'месяцев');
+
+  return plural(Math.round(months / 12), 'год', 'года', 'лет');
 };

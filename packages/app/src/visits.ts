@@ -112,6 +112,7 @@ export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promi
   await assertSaid(deps, command.topic, {
     asked: 'с чем человек придёт в управляющую организацию',
     hint: 'Напишите, с чем придёте: так смена подготовится к разговору.',
+    role: command.resident.role,
   });
 
   const reception = await receptionFor(deps, command.resident, command.buildingId);

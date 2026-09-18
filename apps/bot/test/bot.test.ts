@@ -1082,7 +1082,7 @@ describe('чат-бот управляющей компании', () => {
 
     const said = await waitForMessage(3003, /Показания/);
 
-    assert.match(said, /квитанц/i);
+    assert.match(said, /счётчик/i);
     assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'вопрос не стал заявкой');
 
     const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);

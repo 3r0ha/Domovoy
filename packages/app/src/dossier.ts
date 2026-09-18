@@ -5,6 +5,7 @@ import {
   formatDay,
   formatMoment,
   formatMoney,
+  formatSpan,
   isConfirmedIncident,
   reportersCount,
   type ServiceRequest,
@@ -39,9 +40,10 @@ const requestLine = (request: ServiceRequest, now: Date): string =>
 
 /** Строка очереди для смены: кто ведёт, сколько осталось и что просрочено. */
 const queueLine = (request: ServiceRequest, now: Date): string => {
-  const left = request.resolutionDueAt.getTime() - now.getTime();
-  const hours = Math.round(Math.abs(left) / 3_600_000);
-  const due = left < 0 ? `просрочено ${hours} ч` : `осталось ${hours} ч`;
+  const late = request.resolutionDueAt.getTime() < now.getTime();
+  const due = late
+    ? `просрочено на ${formatSpan(request.resolutionDueAt, now)}`
+    : `осталось ${formatSpan(now, request.resolutionDueAt)}`;
 
   return (
     `${request.number}, ${request.title}: ${STATUS_TITLES[request.status]}, ` +

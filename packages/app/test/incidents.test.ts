@@ -824,7 +824,7 @@ describe('приёмка и автозакрытие', () => {
 
     assert.equal(message?.maxUserId, maria.maxUserId);
     assert.match(message?.text ?? '', /работа отмечена выполненной/);
-    assert.match(message?.text ?? '', /через 35 ч заявка закроется сама/);
+    assert.match(message?.text ?? '', /через 35 часов заявка закроется сама/);
     assert.deepEqual(
       message?.actions?.map((action) => action.to).sort(),
       ['confirmed', 'in_progress'],
@@ -856,7 +856,7 @@ describe('приёмка и автозакрытие', () => {
 
     await closeAcceptedBySilence(deps);
 
-    const closing = deps.notifier.sent.filter((item) => /закрыта: за 72 ч возражений/.test(item.text));
+    const closing = deps.notifier.sent.filter((item) => /закрыта: за 72 часа возражений/.test(item.text));
 
     assert.deepEqual(
       closing.map((item) => item.maxUserId).sort(),
@@ -1151,7 +1151,7 @@ describe('эскалация в жилинспекцию', () => {
     assert.equal(offer.possible, true);
     assert.match(offer.complaint ?? '', /ул\. Ленина, 15/);
     assert.match(offer.complaint ?? '', /Житель res-maria/);
-    assert.match(offer.complaint ?? '', /срок реакции нарушен/);
+    assert.match(offer.complaint ?? '', /срок ответа нарушен/);
 
     assert.match(offer.complaint ?? '', /ООО «УК Ленинская»/);
   });

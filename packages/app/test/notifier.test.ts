@@ -135,12 +135,12 @@ describe('тексты уведомлений', () => {
   it('напоминание о приёмке объясняет, что будет, если промолчать', () => {
     const text = formatAcceptanceReminder(request({ status: 'done' }), 24);
 
-    assert.match(text, /через 24 ч заявка закроется сама/);
+    assert.match(text, /через 24 часа заявка закроется сама/);
     assert.match(text, /верните её в работу/);
   });
 
   it('автозакрытие не выглядит отказом: старая заявка остаётся в истории', () => {
-    assert.match(formatAutoConfirmed(request(), 48), /за 48 ч возражений не поступило/);
+    assert.match(formatAutoConfirmed(request(), 48), /за 48 часов возражений не поступило/);
     assert.match(formatAutoConfirmed(request(), 48), /останется в истории объекта/);
   });
 
@@ -148,14 +148,14 @@ describe('тексты уведомлений', () => {
     const soon = formatDeadlineWarning(request(), 'reaction', new Date('2026-09-07T09:30:00Z'));
     const later = formatDeadlineWarning(request(), 'resolution', new Date('2026-09-08T03:00:00Z'));
 
-    assert.match(soon, /Осталось 30 мин\.$/);
-    assert.match(later, /Осталось 3 ч\.$/);
+    assert.match(soon, /Осталось 30 минут\.$/);
+    assert.match(later, /Осталось 3 часа\.$/);
   });
 
   it('просроченный срок не превращается в отрицательный остаток', () => {
     const late = formatDeadlineWarning(request(), 'reaction', new Date('2026-09-07T12:00:00Z'));
 
-    assert.match(late, /Осталось 0 мин\.$/);
+    assert.match(late, /Осталось 0 минут\.$/);
   });
 
   it('нарушение норматива управляющей компании напоминает о праве жильца', () => {

@@ -193,15 +193,19 @@ const SHORT_ENOUGH = 40;
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
 
+  // Сначала смотрим, не про раздел ли речь: «капитальный ремонт» и «оплатить»
+  // это просьба открыть его, и отбраковывать такие слова как бессмысленные
+  // нельзя. Только потом решается, есть ли в сказанном суть.
+  const elsewhere = await answerInstead(deps, command);
+
+  if (elsewhere) return elsewhere;
+
   await assertSaid(deps, command.description, {
     asked: 'что случилось в доме или в квартире',
     hint: 'Напишите словами, что случилось. Одного знака или цифры мало.',
+    role: command.resident.role,
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
   });
-
-  const answered = await answerInstead(deps, command);
-
-  if (answered) return answered;
 
   // Дом уходит в разбор вместе с текстом: по нему модель относит обращение
   // к настоящему лифту или домофону, а не к дому целиком.

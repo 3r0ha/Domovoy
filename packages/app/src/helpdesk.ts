@@ -50,6 +50,7 @@ export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Pro
   await assertSaid(deps, command.text, {
     asked: 'вопрос в управляющую организацию',
     hint: 'Напишите вопрос словами: так его смогут разобрать.',
+    role: command.resident.role,
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
   });
 

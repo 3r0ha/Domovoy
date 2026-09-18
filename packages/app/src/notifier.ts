@@ -10,6 +10,8 @@ import {
   formatClock,
   formatDay,
   formatMoment,
+  formatSpan,
+  plural,
   type Inspection,
   type PlannedWork,
   type RequestStatus,
@@ -258,12 +260,13 @@ export const formatWorksFinished = (work: PlannedWork): string =>
 export const formatAcceptanceReminder = (request: ServiceRequest, hoursLeft: number): string =>
   `Заявка ${request.number}: работа отмечена выполненной.\n` +
   `${describePlace(request)}.\n` +
-  `Если всё в порядке, ничего делать не нужно, через ${hoursLeft} ч заявка закроется сама.\n` +
+  `Если всё в порядке, ничего делать не нужно, через ${plural(hoursLeft, 'час', 'часа', 'часов')} ` +
+  'заявка закроется сама.\n' +
   'Если проблема осталась, верните её в работу, и мастер придёт снова.';
 
 /** Заявка закрылась без ответа жильца. */
 export const formatAutoConfirmed = (request: ServiceRequest, hours: number): string =>
-  `Заявка ${request.number} закрыта: за ${hours} ч возражений не поступило.\n` +
+  `Заявка ${request.number} закрыта: за ${plural(hours, 'час', 'часа', 'часов')} возражений не поступило.\n` +
   `${describePlace(request)}.\n` +
   'Если проблема осталась, создайте новую заявку, прежняя останется в истории объекта.';
 
@@ -274,8 +277,7 @@ export const formatDeadlineWarning = (
   now: Date,
 ): string => {
   const due = kind === 'reaction' ? request.reactionDueAt : request.resolutionDueAt;
-  const minutes = Math.max(0, Math.round((due.getTime() - now.getTime()) / 60_000));
-  const left = minutes < 60 ? `${minutes} мин` : `${Math.round(minutes / 60)} ч`;
+  const left = formatSpan(now, due);
 
   const what = kind === 'reaction' ? 'заявка не принята в работу' : 'работы не завершены';
 

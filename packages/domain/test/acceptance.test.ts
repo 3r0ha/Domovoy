@@ -310,7 +310,7 @@ describe('эскалация в жилинспекцию', () => {
     const check = canEscalate(request(), new Date(CREATED_AT.getTime() + 2 * HOUR));
 
     assert.equal(check.possible, true);
-    assert.match(check.reason, /срок реакции нарушен/);
+    assert.match(check.reason, /срок ответа нарушен/);
   });
 
   it('часовое опоздание по работам поводом не считается', () => {
@@ -324,7 +324,7 @@ describe('эскалация в жилинспекцию', () => {
     const check = canEscalate(accepted(), new Date(CREATED_AT.getTime() + 50 * HOUR));
 
     assert.equal(check.possible, true);
-    assert.match(check.reason, /при назначенном сроке 24 ч/);
+    assert.match(check.reason, /при назначенном сроке 1 день/);
   });
 
   it('обращение собирается из истории заявки', () => {
@@ -343,7 +343,7 @@ describe('эскалация в жилинспекцию', () => {
     assert.match(text, /ООО «УК Ленинская»/);
     assert.match(text, /зарегистрирована \(заявитель\)/);
     assert.match(text, /принята в работу \(диспетчер\)/);
-    assert.match(text, /при назначенном сроке 24 ч/);
+    assert.match(text, /при назначенном сроке 1 день/);
   });
 
   it('закрытая заявка поводом не является', () => {
