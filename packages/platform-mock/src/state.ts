@@ -68,6 +68,9 @@ export class PlatformState {
   /** Закреплённое сообщение по чатам: кто закрепил, видно по отправителю. */
   readonly pinned = new Map<number, { messageId: string; senderId: number }>();
 
+  /** Сообщения, которые бот убрал из переписки: для прогонов они не пропадают. */
+  readonly deleted: SentMessage[] = [];
+
   /** Нажатие: переписка и сообщение, под которым стояла кнопка. Ответ правит его. */
   readonly pressed = new Map<string, { chatId?: number; mid?: string }>();
   /** Права бота в чате. `null`, платформа их не сообщает. */
@@ -165,6 +168,22 @@ export class PlatformState {
     return sent;
   }
 
+  /** Удаление сообщения: бот убирает своё, и в переписке его больше нет. */
+  forgetMessage(mid: string): void {
+    const at = this.outgoing.findIndex((message) => message.mid === mid);
+
+    if (at < 0) return;
+
+    const [gone] = this.outgoing.splice(at, 1);
+
+    if (gone) this.deleted.push(gone);
+  }
+
+  /** Сколько бот отправил всего, вместе с тем, что потом убрал. */
+  get sentCount(): number {
+    return this.outgoing.length + this.deleted.length;
+  }
+
   /** Под каким сообщением стояла нажатая кнопка и в какой переписке. */
   bindPress(callbackId: string, press: { chatId?: number; mid?: string }): void {
     this.pressed.set(callbackId, press);
@@ -177,11 +196,13 @@ export class PlatformState {
   /** Сообщения, отправленные до этого момента, из истории убираются. */
   forgetOutgoing(): void {
     this.outgoing.length = 0;
+    this.deleted.length = 0;
   }
 
   reset(): void {
     this.updates.length = 0;
     this.outgoing.length = 0;
+    this.deleted.length = 0;
     this.answers.length = 0;
     this.uploads.length = 0;
     this.requests.length = 0;

@@ -59,7 +59,7 @@ import {
   nameOf,
   toast,
   toAttachments,
-  withBack,
+  screenKeeper,
   type BotContext,
   type DialogSession,
 } from './max.js';
@@ -74,19 +74,6 @@ const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more
  * а их правкой стирать нельзя.
  */
 const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'more', 'demo', 'door', 'guest', 'app']);
-
-/**
- * Возврат дописывается всем клавиатурам разом: иначе он рано или поздно
- * забывается на очередном экране, и человек остаётся в нём заперт.
- */
-const backEverywhere = async (context: never, next: () => Promise<void>): Promise<void> => {
-  const typed: BotContext = context;
-  const send = typed.reply.bind(typed);
-
-  typed.reply = (text: string, extra?: Record<string, unknown>) => send(text, withBack(extra, typed));
-
-  await next();
-};
 
 /** Нажатие кнопки: обработчик по приставке payload, остальное после двоеточий. */
 const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
@@ -324,7 +311,7 @@ export const createDomovoyBot = (
   bot.use(scenarioRecovery() as never);
   bot.use((options.sessionMiddleware ?? session({ store: new MemorySessionStore<DialogSession>() })) as never);
 
-  bot.use(backEverywhere as never);
+  bot.use(screenKeeper({ deleteMessage: (mid) => bot.api.deleteMessage(mid) }) as never);
 
   const residentOf = async (context: BotContext, buildingId?: string): Promise<Resident> => {
     const user = context.user ?? context.callback?.user ?? context.message?.sender;

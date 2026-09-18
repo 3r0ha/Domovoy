@@ -20,6 +20,9 @@ import {
 import type { NotificationAction } from '@domovoy/app';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { PROMPTS, SCREENS } from './max.js';
+import type { Extra } from './kit.js';
+
 /** Опрос соседа об аварии: два ответа и ни одного поля для ввода. */
 export const alertKeyboard = (requestId: string) => ({
   attachments: [
@@ -304,10 +307,20 @@ export const confirmKeyboard = (title: string, payload: string) => ({
   ],
 });
 
-/** Разговор, из которого нужно уметь выйти, не набирая команду. */
-export const cancelKeyboard = () => ({
-  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✖️ Отмена', 'cancel')]])],
-});
+/**
+ * Разговор, из которого нужно уметь выйти, не набирая команду. Такой экран
+ * помечается подсказкой: он живёт до ответа или отмены и потом убирается.
+ */
+export const cancelKeyboard = (): Extra => {
+  const built = {
+    attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✖️ Отмена', 'cancel')]])],
+  };
+
+  PROMPTS.add(built);
+  SCREENS.add(built);
+
+  return built;
+};
 
 /** Под вопросом о показании: пропустить прибор или выйти из подачи. */
 export const readingKeyboard = (meterId: string, canSkip: boolean) => ({

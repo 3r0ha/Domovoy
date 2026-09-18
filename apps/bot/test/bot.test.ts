@@ -1941,6 +1941,63 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('отменённая подсказка из переписки убирается', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+    platform.forgetOutgoing();
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Опишите/);
+
+    platform.userPressesButton('cancel', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Что нужно сделать/);
+
+    const left = platform.outgoing.filter((message) => /Опишите/.test(message.text));
+
+    assert.equal(left.length, 0, 'подсказка с «Отмена» в переписке не остаётся');
+
+    await bot.stop();
+  });
+
+  it('ответ на подсказку убирает её, а не копит', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Опишите/);
+
+    platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    assert.equal(
+      platform.outgoing.filter((message) => /Опишите, что случилось/.test(message.text)).length,
+      0,
+      'отвеченная подсказка убрана',
+    );
+
+    await bot.stop();
+  });
+
+  it('с каждого экрана видно и шаг назад, и меню', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.userPressesButton('group:me', { userId: 3003, chatId: 3003 });
+    await waitForKeyboard(3003);
+
+    platform.userPressesButton('menu:mydata', { userId: 3003, chatId: 3003 });
+
+    const shown = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(shown, /Назад/, 'шаг назад в «Ещё»');
+    assert.match(shown, /Меню/, 'и сразу на первый экран');
+
+    await bot.stop();
+  });
+
   it('дела приложения видны в меню бота и открываются кнопкой', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
@@ -2029,11 +2086,11 @@ describe('чат-бот управляющей компании', () => {
     platform.forgetOutgoing();
     platform.userSends('/my', { userId: 3003, chatId: 3003 });
 
-    const said = await waitForMessage(3003, /Ещё заявок/);
+    const said = await waitForMessage(3003, /Ваших заявок в работе/);
     const cards = platform.outgoing.filter((message) => /Не горит лампа/.test(message.text));
 
-    assert.match(said, /Ещё заявок: 4/);
-    assert.equal(cards.length, 3, 'в переписку ушёл весь список');
+    assert.match(said, /Ваших заявок в работе: 7/);
+    assert.equal(cards.length, 0, 'простыня карточек в переписку не уходит');
 
     const last = platform.outgoing.findLast((message) => message.chatId === 3003);
 

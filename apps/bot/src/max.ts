@@ -12,6 +12,10 @@ export interface DialogSession {
   where?: { requestId: string; options: { label: string; startParam: string }[] };
   /** Открытая группа меню: в неё возвращает отмена, а не в первый экран. */
   menu?: string;
+  /** Показанная подсказка «напишите…»: её убирают, когда она перестала ждать. */
+  prompt?: string;
+  /** Текущий экран разговора: его правят на месте, остальное не трогают. */
+  screen?: string;
 }
 
 /** Чего бот ждёт от следующего сообщения. Ожидание всегда одно. */
@@ -44,7 +48,7 @@ export type BotContext = {
   message?: {
     /** Кто написал: у комментария под постом отправитель есть только здесь. */
     sender?: { user_id?: number; first_name?: string; last_name?: string };
-    body?: { text?: string; attachments?: MaxAttachment[]; markup?: MaxMarkup[] | null };
+    body?: { mid?: string; text?: string; attachments?: MaxAttachment[]; markup?: MaxMarkup[] | null };
     /** Куда пришло сообщение: личная переписка, чат дома или канал. */
     recipient?: { chat_type?: string; post_id?: number | string | null };
     /** Сообщение, на которое ответили: в чате им и объясняют, о чём речь. */
@@ -86,8 +90,12 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
     .catch(() => undefined);
 };
 
-/** Кнопка возврата: с любого экрана переписки видно, как из него выйти. */
+/**
+ * Выход с экрана: шаг назад, туда откуда пришли, и первый экран меню.
+ * Одного «Назад» мало: из «Мои данные» человек хочет и в «Ещё», и в меню.
+ */
 const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
+const MENU_BUTTON = { type: 'callback', text: '🏠 Меню', payload: 'group:back' };
 
 /**
  * Первый экран меню: возвращаться с него некуда, и у подрядчика, у которого
@@ -95,15 +103,97 @@ const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'can
  */
 export const ROOT_MENUS = new WeakSet<object>();
 
+/**
+ * Подсказка, которая ждёт ответа сообщением. Такие экраны живут до ответа
+ * или отмены, а потом убираются: иначе в переписке остаётся ряд «Отмена»,
+ * по которым уже нечего отменять.
+ */
+export const PROMPTS = new WeakSet<object>();
+
+/**
+ * Экран разговора: меню, группа, подсказка и рассказ о разделе приложения.
+ * Такие сообщения переписываются на месте, а чек заявки или код гостя нет.
+ */
+export const SCREENS = new WeakSet<object>();
+
+/** Сообщение, под которым нажали кнопку. */
+export const pressedMid = (context: BotContext): string | undefined => context.message?.body?.mid;
+
+/** Номер отправленного сообщения: по нему его потом и убирают. */
+export const midOf = (sent: unknown): string | undefined =>
+  (sent as { body?: { mid?: string } } | undefined)?.body?.mid;
+
+/** Служба сообщений бота: правка и удаление идут через неё. */
+export interface Messages {
+  deleteMessage: (mid: string) => Promise<unknown>;
+}
+
+/**
+ * Прежняя подсказка убирается, как только появляется новая или человек ушёл:
+ * это и есть тот самый мусор из «Отмена», которым обрастает переписка.
+ */
+export const dropPrompt = async (context: BotContext, messages: Messages): Promise<void> => {
+  const mid = context.session?.prompt;
+
+  if (!mid) return;
+
+  delete context.session?.prompt;
+
+  await messages.deleteMessage(mid).catch(() => undefined);
+};
+
+/**
+ * Слежение за экраном разговора: подсказки не копятся, а выходы дописываются
+ * ко всему, что бот отправляет в переписку.
+ */
+export const screenKeeper =
+  (messages: Messages) =>
+  async (context: never, next: () => Promise<void>): Promise<void> => {
+    const typed: BotContext = context;
+    const send = typed.reply.bind(typed);
+
+    typed.reply = async (text: string, extra?: Record<string, unknown>): Promise<unknown> => {
+      const asking = extra !== undefined && PROMPTS.has(extra);
+
+      if (asking) await dropPrompt(typed, messages);
+
+      const sent = await send(text, withBack(extra, typed));
+
+      if (extra !== undefined && SCREENS.has(extra)) {
+        typed.session ??= {};
+        typed.session.screen = midOf(sent);
+      }
+
+      if (asking) {
+        typed.session ??= {};
+        typed.session.prompt = midOf(sent);
+      }
+
+      return sent;
+    };
+
+    await next();
+
+    // Подсказка, которая уже ничего не ждёт: на неё ответили или её отменили.
+    // Оставлять её в переписке значит копить ряды «Отмена» без дела.
+    if (typed.session?.prompt && !typed.session.awaiting) await dropPrompt(typed, messages);
+  };
+
 /** Ряды кнопок сообщения: у вложения клавиатуры они лежат в payload. */
 interface KeyboardAttachment {
   type?: string;
   payload?: { buttons?: { payload?: string }[][] };
 }
 
-/** Кнопка уже ведёт из этого экрана: второй такой не нужно. */
-const leads = (rows: { payload?: string }[][]): boolean =>
-  rows.some((row) => row.some((button) => button.payload === 'cancel' || button.payload?.startsWith('group:')));
+/** Что из выходов на экране уже есть: второй такой же кнопки не нужно. */
+const exits = (rows: { payload?: string }[][]): { back: boolean; menu: boolean } => {
+  const all = rows.flat();
+
+  return {
+    back: all.some((button) => button.payload === 'cancel'),
+    menu: all.some((button) => button.payload?.startsWith('group:')),
+  };
+};
 
 /**
  * Возврат дописывается к любой клавиатуре в переписке: человек всегда видит,
@@ -114,7 +204,9 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
 
   // Ответ вообще без кнопок это самый частый тупик: человеку нечего нажать,
   // и он уходит набирать команду заново.
-  if (!extra) return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[BACK_BUTTON]] } }] };
+  if (!extra) {
+    return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[BACK_BUTTON, MENU_BUTTON]] } }] };
+  }
 
   const attachments = extra['attachments'];
 
@@ -127,13 +219,18 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
 
   const rows = keyboard?.payload?.buttons;
 
-  if (!rows || leads(rows)) return extra;
+  if (!rows) return extra;
+
+  const has = exits(rows);
+  const added = [...(has.back ? [] : [BACK_BUTTON]), ...(has.menu ? [] : [MENU_BUTTON])];
+
+  if (added.length === 0) return extra;
 
   return {
     ...extra,
     attachments: attachments.map((attachment: KeyboardAttachment) =>
       attachment === keyboard
-        ? { ...attachment, payload: { ...attachment.payload, buttons: [...rows, [BACK_BUTTON]] } }
+        ? { ...attachment, payload: { ...attachment.payload, buttons: [...rows, added] } }
         : attachment,
     ),
   };
@@ -179,7 +276,21 @@ export const morphing = (context: BotContext): BotContext => {
     first = false;
 
     // Правка идёт мимо обычной отправки, поэтому возврат дописывается здесь же.
-    return (await replace(context, text, withBack(extra, context))) ? undefined : original(text, extra);
+    if (await replace(context, text, withBack(extra, context))) {
+      context.session ??= {};
+      context.session.screen = pressedMid(context);
+
+      // Подсказку переписали: убирать её теперь нельзя, на её месте новый экран.
+      if (context.session.prompt === context.session.screen) delete context.session.prompt;
+
+      // А если новый экран сам спрашивает, он и становится подсказкой:
+      // ответят на неё, и она уйдёт из переписки.
+      if (extra !== undefined && PROMPTS.has(extra)) context.session.prompt = context.session.screen;
+
+      return undefined;
+    }
+
+    return original(text, extra);
   };
 
   return context;

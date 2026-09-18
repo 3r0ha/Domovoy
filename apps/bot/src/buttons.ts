@@ -73,7 +73,7 @@ import { takeLegal } from './commands/legal.js';
 import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
-import { expect, forget, inChat, toast, type BotContext } from './max.js';
+import { expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
 import type { BotKit, Extra } from './kit.js';
 
 /** Нажатие кнопки: имя действия и его данные приходят одной строкой через двоеточие. */
@@ -167,7 +167,11 @@ const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; 
   return { title: chosen.title, extra: groupKeyboard(chosen) };
 };
 
-/** Отказ от начатого разговора: ожидание снимается, ничего не создаётся. */
+/**
+ * Отказ от начатого разговора: ожидание снимается, ничего не создаётся.
+ * Экран разговора переписывается на месте, а чек заявки или код гостя нет:
+ * их правкой стирать нельзя, поэтому возврат приходит отдельным сообщением.
+ */
 const cancel: Button = async (kit, typed) => {
   forget(typed);
 
@@ -177,8 +181,10 @@ const cancel: Button = async (kit, typed) => {
   }
 
   const back = await backTo(kit, typed);
+  const here = pressedMid(typed);
+  const onScreen = here !== undefined && here === typed.session?.screen;
 
-  await typed.reply(back.title, back.extra);
+  await (onScreen ? morphing(typed) : typed).reply(back.title, back.extra);
 };
 
 /** «Всё равно оставить заявку»: обращение, на которое ответили работами или советом. */

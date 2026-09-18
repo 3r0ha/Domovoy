@@ -163,7 +163,11 @@ export const handleRequest = async (
 
   if (method === 'GET' && path === 'messages') return ok({ messages: [] });
   if (method === 'PUT' && path === 'messages') return ok();
-  if (method === 'DELETE' && path === 'messages') return ok();
+  if (method === 'DELETE' && path === 'messages') {
+    state.forgetMessage(request.query['message_id'] ?? '');
+
+    return ok();
+  }
   if (method === 'POST' && path === 'answers') {
     state.recordAnswer({
       callbackId: request.query['callback_id'] ?? '',

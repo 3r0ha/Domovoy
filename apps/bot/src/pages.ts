@@ -58,6 +58,9 @@ const NEARBY = 2;
 /** Сколько заявок приходит карточками: остальное открывается списком в приложении. */
 const CARDS = 3;
 
+/** Со скольких заявок список в переписке перестаёт читаться. */
+const LIST_LIMIT = 2;
+
 /** Объявление занимает несколько строк, поэтому их в сообщении меньше. */
 const NEWS_PAGE = 3;
 
@@ -106,11 +109,34 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
   }
 
   const zone = await zoneOf(kit.deps, resident.buildingId);
-
-  // В переписке показывается то, что требует ответа сейчас. Остальное лежит
-  // списком в приложении: там фильтры, поиск и закрытые заявки.
-  const shown = requests.slice(0, CARDS);
   const forStaff = isCompanyStaff(resident.role) || resident.role === 'contractor';
+
+  // Длинный список в переписке не читается: вместо простыни идёт строка
+  // с числами и переход в раздел, где есть поиск, фильтры и закрытые заявки.
+  if (requests.length > LIST_LIMIT) {
+    const late = requests.filter((request) => request.resolutionDueAt < kit.deps.now()).length;
+
+    await typed.reply(
+      (forStaff ? `Нарядов на вас: ${requests.length}` : `Ваших заявок в работе: ${requests.length}`) +
+        (late > 0 ? `, просрочено ${late}` : '') +
+        '.',
+      keyboardOf(
+        [
+          ...appRow(
+            kit.miniAppUrl,
+            forStaff ? 'Очередь в приложении' : 'Заявки в приложении',
+            forStaff ? 'queue' : 'list',
+          ),
+        ],
+        typed,
+      ),
+    );
+
+    return;
+  }
+
+  // В переписке показывается то, что требует ответа сейчас.
+  const shown = requests.slice(0, CARDS);
 
   // Каждая заявка идёт своим сообщением: под ней кнопки перехода и «Написать».
   for (const request of shown) {
@@ -271,6 +297,19 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
   const cards = await describeTickets(kit.deps, tickets.slice(offset, offset + PAGE));
   const zone = await zoneOf(kit.deps, resident.buildingId);
   const now = kit.deps.now();
+
+  // Смене вопросов приходит десятками: в переписке идёт счёт и переход,
+  // а разбирают их на экране, где видно, кто ждёт дольше всех.
+  if (offset === 0 && isCompanyStaff(resident.role) && tickets.length > LIST_LIMIT) {
+    const waiting = cards.filter((card) => card.ticket.status !== 'closed').length;
+
+    await typed.reply(
+      `Вопросов жильцов: ${tickets.length}${waiting > 0 ? `, ждут ответа ${waiting}` : ''}.`,
+      keyboardOf([...appRow(kit.miniAppUrl, 'Вопросы в приложении', 'support')], typed),
+    );
+
+    return 0;
+  }
 
   for (const card of cards) {
     await typed.reply(

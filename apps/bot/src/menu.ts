@@ -2,7 +2,7 @@ import { apartmentsOf, type Resident } from '@domovoy/app';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import type { Extra } from './kit.js';
-import { ROOT_MENUS } from './max.js';
+import { ROOT_MENUS, SCREENS } from './max.js';
 
 export interface MenuItem {
   title: string;
@@ -289,13 +289,22 @@ export const menuKeyboard = (resident: Resident, miniAppUrl?: string, offer: Men
   const built = { attachments: [Keyboard.inlineKeyboard([...rows(menu.top), ...grouped, ...app])] };
 
   ROOT_MENUS.add(built);
+  SCREENS.add(built);
 
   return built;
 };
 
+/** Экран, который правится на месте: меню, группа, подсказка. */
+const screenOf = (extra: Extra): Extra => {
+  ROOT_MENUS.add(extra);
+  SCREENS.add(extra);
+
+  return extra;
+};
+
 /** Второй экран меню: пункты группы и возврат к первому. */
-export const groupKeyboard = (group: MenuGroup): Extra => ({
+export const groupKeyboard = (group: MenuGroup): Extra => screenOf({
   attachments: [
-    Keyboard.inlineKeyboard([...rows(group.items), [Keyboard.button.callback('⬅️ Назад', 'group:back')]]),
+    Keyboard.inlineKeyboard([...rows(group.items), [Keyboard.button.callback('🏠 Меню', 'group:back')]]),
   ],
 });

@@ -365,16 +365,20 @@ export class MockPlatform {
   async waitForOutgoing(count: number, timeoutMs = 2000): Promise<readonly SentMessage[]> {
     const deadline = Date.now() + timeoutMs;
 
-    while (this.state.outgoing.length < count) {
+    // Считается всё отправленное, включая убранные подсказки: прогон ждёт
+    // ответа бота, а не того, что осталось на экране.
+    while (this.state.sentCount < count) {
       if (Date.now() > deadline) {
         throw new Error(
-          `MockPlatform: бот отправил ${this.state.outgoing.length} сообщений из ожидаемых ${count} за ${timeoutMs} мс`,
+          `MockPlatform: бот отправил ${this.state.sentCount} сообщений из ожидаемых ${count} за ${timeoutMs} мс`,
         );
       }
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
 
-    return this.state.outgoing.slice(0, count);
+    return [...this.state.deleted, ...this.state.outgoing]
+      .sort((left, right) => left.at - right.at || left.mid.localeCompare(right.mid))
+      .slice(0, count);
   }
 
   reset(): void {
