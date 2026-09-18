@@ -70,8 +70,10 @@ const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more
 /**
  * Хождение по меню: такие нажатия переписывают сообщение, под которым стояла
  * кнопка. Дела, у которых остаётся след в переписке, отвечают новым сообщением.
+ * Возврата тут нет намеренно: он стоит и под чеком заявки, и под кодом гостя,
+ * а их правкой стирать нельзя.
  */
-const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'cancel', 'more', 'demo', 'page', 'door', 'guest', 'app']);
+const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'more', 'demo', 'door', 'guest', 'app']);
 
 /**
  * Возврат дописывается всем клавиатурам разом: иначе он рано или поздно
@@ -150,6 +152,7 @@ export const BOT_COMMANDS = [
   { name: 'support', description: 'Вопрос в управляющую компанию' },
   { name: 'visit', description: 'Записаться на приём' },
   { name: 'stickers', description: 'Наклейка с кодом объекта' },
+  { name: 'queue', description: 'Очередь дома' },
   { name: 'duty', description: 'Принять или сдать дежурство' },
   { name: 'report', description: 'Сводка по дому' },
   { name: 'debts', description: 'Долги дома' },

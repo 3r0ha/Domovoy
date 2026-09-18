@@ -310,6 +310,20 @@ const tellAboutTransition = async (
     );
   }
 
+  // Исполнитель, которого не меняли, о смене состояния тоже узнаёт: работу
+  // ему вернули или у него спросили, а он об этом молчит и ждёт.
+  if (!assignment && saved.assigneeId && saved.assigneeId !== command.resident.id) {
+    const worker = await deps.repository.findResident(saved.assigneeId);
+
+    await notifyResident(
+      notifier,
+      worker,
+      text,
+      worker ? actionsFor(saved, worker) : [],
+      OPEN_STATUSES.includes(saved.status) ? saved.id : undefined,
+    );
+  }
+
   if (!assignment || assignment.id === command.resident.id) return;
 
   const assignee = assignment.person;

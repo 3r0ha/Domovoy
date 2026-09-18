@@ -27,7 +27,7 @@ export const answerQuestion = async (
 
   remember(typed, description, startParam);
 
-  await typed.reply(answer.text, Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]]));
+  await typed.reply(answer.text, { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]])] });
 
   return true;
 };
@@ -68,7 +68,7 @@ export const announce = async (
 
     await typed.reply(
       `${result.explanation}\nЗаявка не нужна, если дело в этих работах.`,
-      Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]]),
+      { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]])] },
     );
     return;
   }
@@ -79,7 +79,7 @@ export const announce = async (
 
     await typed.reply(
       result.answer,
-      Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]]),
+      { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✍️ Оформить заявку', 'anyway')]])] },
     );
     return;
   }

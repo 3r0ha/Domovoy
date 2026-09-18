@@ -2,6 +2,7 @@ import { apartmentsOf, type Resident } from '@domovoy/app';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import type { Extra } from './kit.js';
+import { ROOT_MENUS } from './max.js';
 
 export interface MenuItem {
   title: string;
@@ -111,6 +112,7 @@ const CONTRACTOR: RoleMenu = {
 const STAFF: RoleMenu = {
   top: [
     { title: '📋 Заявки', command: 'my' },
+    { title: '🗂 Очередь', command: 'queue' },
     { title: '🌙 Дежурство', command: 'duty' },
     ASK_ITEM,
   ],
@@ -284,7 +286,11 @@ export const menuKeyboard = (resident: Resident, miniAppUrl?: string, offer: Men
 
   const app = miniAppUrl ? [[Keyboard.button.openApp('📱 Открыть приложение', miniAppUrl)]] : [];
 
-  return { attachments: [Keyboard.inlineKeyboard([...rows(menu.top), ...grouped, ...app])] };
+  const built = { attachments: [Keyboard.inlineKeyboard([...rows(menu.top), ...grouped, ...app])] };
+
+  ROOT_MENUS.add(built);
+
+  return built;
 };
 
 /** Второй экран меню: пункты группы и возврат к первому. */

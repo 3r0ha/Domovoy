@@ -89,6 +89,12 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
 /** Кнопка возврата: с любого экрана переписки видно, как из него выйти. */
 const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
 
+/**
+ * Первый экран меню: возвращаться с него некуда, и у подрядчика, у которого
+ * групп нет, «Назад» вело бы на него же.
+ */
+export const ROOT_MENUS = new WeakSet<object>();
+
 /** Ряды кнопок сообщения: у вложения клавиатуры они лежат в payload. */
 interface KeyboardAttachment {
   type?: string;
@@ -104,7 +110,11 @@ const leads = (rows: { payload?: string }[][]): boolean =>
  * как уйти с экрана. В общем чате его нет: меню там личное.
  */
 export const withBack = (extra: Record<string, unknown> | undefined, context: BotContext): typeof extra => {
-  if (!extra || inChat(context)) return extra;
+  if (inChat(context) || (extra && ROOT_MENUS.has(extra))) return extra;
+
+  // Ответ вообще без кнопок это самый частый тупик: человеку нечего нажать,
+  // и он уходит набирать команду заново.
+  if (!extra) return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[BACK_BUTTON]] } }] };
 
   const attachments = extra['attachments'];
 

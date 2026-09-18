@@ -85,6 +85,29 @@ describe('переписка по заявке', () => {
     );
   });
 
+  it('возврат работы доходит до мастера, которого не меняли', async () => {
+    const { deps, notifier } = setup();
+
+    const created = await submitProblem(deps, { resident: maria, description: 'Не горит лампа в подъезде' });
+
+    if (created.kind !== 'created') throw new Error('заявка не завелась');
+
+    const { id } = created.request;
+
+    await transitionRequest(deps, { resident: olga, requestId: id, to: 'accepted' });
+    await transitionRequest(deps, { resident: olga, requestId: id, to: 'in_progress', assigneeId: sergey.id });
+    await transitionRequest(deps, { resident: sergey, requestId: id, to: 'done', comment: 'Поменял лампу' });
+
+    notifier.sent.length = 0;
+
+    await transitionRequest(deps, { resident: maria, requestId: id, to: 'in_progress', comment: 'Так и не горит' });
+
+    assert.ok(
+      notifier.sent.some((message) => message.maxUserId === sergey.maxUserId),
+      'мастер узнаёт, что работу вернули',
+    );
+  });
+
   it('пока смена не писала, ответ жильца видит один исполнитель', async () => {
     const { deps, notifier } = setup();
 

@@ -21,6 +21,29 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
   const { bot, deps, residentOf, openApp } = kit;
 
   return {
+  /**
+   * Очередь дома одной строкой. Листать её в переписке нечем и незачем:
+   * сортировка по сроку, поиск и приём в работу живут на экране.
+   */
+  queue: async (typed) => {
+    const resident = await residentOf(typed);
+
+    try {
+      const report = await buildingReport(deps, resident);
+      const { open, overdue } = report.summary;
+
+      await typed.reply(
+        open === 0
+          ? 'Открытых заявок нет.'
+          : `Открыто заявок: ${open}${overdue > 0 ? `, просрочено ${overdue}` : ''}.`,
+        keyboardOf([...appRow(kit.miniAppUrl, 'Очередь в приложении', 'queue')], typed),
+      );
+    } catch (error) {
+      if (!(error instanceof DomainError)) throw error;
+      await typed.reply(error.message, afterError(error, typed));
+    }
+  },
+
   /** Сводка по дому для сотрудника. */
   report: async (typed) => {
     const resident = await residentOf(typed);
