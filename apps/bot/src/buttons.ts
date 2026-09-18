@@ -4,6 +4,7 @@ import {
   apartmentsOf,
   arrearsFor,
   chargesForResident,
+  devicesFor,
   exportPersonalData,
   formatPersonalData,
   homeOf,
@@ -29,6 +30,7 @@ import {
   payCharges,
   responsibilityOf,
   retargetRequest,
+  sendComplaint,
   sendSnapshot,
   submitProblem,
   supportInitiative,
@@ -62,6 +64,7 @@ import {
   COMMENT_PROMPTS,
   confirmKeyboard,
   copyKeyboard,
+  doorKeyboard,
   errorText,
   flatTitle,
   formatInitiative,
@@ -105,8 +108,20 @@ const explain = async (typed: BotContext, error: unknown, prefix = 'Не пол�
   await typed.reply(`${prefix}: ${errorText(error)}`, fix ?? menuButton(typed));
 };
 
-/** Кнопка из старого сообщения: в ней нет того, чем она была. */
-const stale = (typed: BotContext): Promise<void> => toast(typed, 'Кнопка устарела, откройте меню');
+/**
+ * Кнопка из старого сообщения. Всплывающее уведомление живёт пару секунд, и
+ * человек, который читает медленно, остаётся ни с чем: поэтому меню приходит
+ * сообщением, а не советом его открыть.
+ */
+const stale = async (typed: BotContext, kit?: BotKit): Promise<void> => {
+  await toast(typed, 'Эта кнопка уже не работает');
+
+  if (!kit || inChat(typed)) return;
+
+  const resident = await kit.residentOf(typed);
+
+  await typed.reply('Эта кнопка из старого сообщения. Вот с чего можно начать.', kit.menuKeyboard(resident));
+};
 
 /** «Рассылка должникам» из списка долгов: письмо собирается там же, где и остальные. */
 const cast: Button = async (kit, typed) => {
@@ -119,12 +134,12 @@ const cast: Button = async (kit, typed) => {
  * не узнает, а делать это в чате мучительно.
  */
 const app: Button = async (kit, typed, [name]) => {
-  if (!name) return stale(typed);
+  if (!name) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
   const item = itemFor(resident, name, { doors: Boolean(kit.deps.hub) });
 
-  if (!item?.app) return stale(typed);
+  if (!item?.app) return stale(typed, kit);
 
   await inApp(kit, typed, `${item.title}\n${item.app.about}`, item.app.screen);
 };
@@ -135,7 +150,7 @@ const app: Button = async (kit, typed, [name]) => {
  */
 const menu: Button = async (kit, typed, [name]) => {
   if (!name) {
-    await toast(typed, 'Этого раздела больше нет');
+    await stale(typed, kit);
     return;
   }
 
@@ -149,7 +164,7 @@ const menu: Button = async (kit, typed, [name]) => {
 
   if (await kit.run(name, typed)) return;
 
-  await toast(typed, 'Этого раздела больше нет');
+  await stale(typed, kit);
 };
 
 /** Группа меню: её пункты показываются вторым экраном, с возвратом назад. */
@@ -174,7 +189,7 @@ const group: Button = async (kit, typed, [key]) => {
 
   const chosen = groupFor(resident, key, { doors: Boolean(kit.deps.hub) });
 
-  if (!chosen) return stale(typed);
+  if (!chosen) return stale(typed, kit);
 
   // Группа запоминается: отмена начатого возвращает туда, откуда его начали.
   typed.session ??= {};
@@ -243,7 +258,7 @@ const cancel: Button = async (kit, typed) => {
  * стёрла бы сам разговор, а его человек может перечитать.
  */
 const talk: Button = async (kit, typed, [what]) => {
-  if (what !== 'stop') return stale(typed);
+  if (what !== 'stop') return stale(typed, kit);
 
   forget(typed);
   endTalk(typed);
@@ -257,7 +272,7 @@ const talk: Button = async (kit, typed, [what]) => {
 const starter: Button = async (kit, typed, [at]) => {
   const asked = await askStarter(kit, typed, Number(at));
 
-  if (asked === undefined) await stale(typed);
+  if (asked === undefined) await stale(typed, kit);
 };
 
 /** «Всё равно оставить заявку»: обращение, на которое ответили работами или советом. */
@@ -289,7 +304,7 @@ const anyway: Button = async (kit, typed) => {
 
 /** Голос на собрании. В чате виден результат, а сам голос уходит в переписку. */
 const ballot: Button = async (kit, typed, [pollId, choice]) => {
-  if (!pollId || !choice) return stale(typed);
+  if (!pollId || !choice) return stale(typed, kit);
 
   const voter = await kit.residentOf(typed);
 
@@ -317,7 +332,7 @@ const ballot: Button = async (kit, typed, [pollId, choice]) => {
 
 /** Выбор своей квартиры: по ней идут показания и квитанция. */
 const flat: Button = async (kit, typed, [apartmentId]) => {
-  if (!apartmentId) return stale(typed);
+  if (!apartmentId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -334,7 +349,7 @@ const flat: Button = async (kit, typed, [apartmentId]) => {
 
 /** Подпись под предложением соседа. */
 const sign: Button = async (kit, typed, [initiativeId]) => {
-  if (!initiativeId) return stale(typed);
+  if (!initiativeId) return stale(typed, kit);
 
   const signer = await kit.residentOf(typed);
 
@@ -405,14 +420,30 @@ const payDebt: Button = async (kit, typed, [step]) => {
 };
 
 const door: Button = async (kit, typed, [deviceId]) => {
-  if (!deviceId) return stale(typed);
+  if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
   try {
     const device = await openDevice(kit.deps, resident, deviceId);
+    const apartment = resident.apartmentId
+      ? await kit.deps.repository.findApartment(resident.apartmentId)
+      : undefined;
 
-    await typed.reply(`${device.title}: открыто.`, guestKeyboard(device.id));
+    // Двери остаются на экране: человек мог нажать не ту, и возвращаться
+    // за списком назад ему некогда, дверь уже закрывается.
+    const devices = await devicesFor(kit.deps, resident, apartment?.entrance).catch(() => []);
+
+    await typed.reply(
+      `${device.title}: открыто.`,
+      devices.length > 1
+        ? doorKeyboard(
+            devices.filter((item) => item.kind !== 'camera'),
+            devices.filter((item) => item.kind === 'camera'),
+            device.id,
+          )
+        : guestKeyboard(device.id),
+    );
   } catch (error) {
     await explain(typed, error);
   }
@@ -420,7 +451,7 @@ const door: Button = async (kit, typed, [deviceId]) => {
 
 /** Кадр с камеры приходит прямо в переписку: это проверка, а не работа с экраном. */
 const camera: Button = async (kit, typed, [deviceId]) => {
-  if (!deviceId) return stale(typed);
+  if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -434,7 +465,7 @@ const camera: Button = async (kit, typed, [deviceId]) => {
 };
 
 const guest: Button = async (kit, typed, [deviceId]) => {
-  if (!deviceId) return stale(typed);
+  if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -442,7 +473,8 @@ const guest: Button = async (kit, typed, [deviceId]) => {
     const issued = await inviteGuest(kit.deps, resident, deviceId);
 
     await typed.reply(
-      `Код для гостя: ${issued.code}\nДействует до ${formatClock(issued.expiresAt)}.`,
+      `Код для гостя: ${issued.code}\n` +
+        `Пусть наберёт его на домофоне у подъезда. Код работает сегодня до ${formatClock(issued.expiresAt)}.`,
       copyKeyboard('Скопировать код', issued.code),
     );
   } catch (error) {
@@ -454,7 +486,7 @@ const guest: Button = async (kit, typed, [deviceId]) => {
 const alarmAnswer =
   (affected: boolean): Button =>
   async (kit, typed, [requestId]) => {
-    if (!requestId) return stale(typed);
+    if (!requestId) return stale(typed, kit);
 
     const neighbour = await kit.residentOf(typed);
 
@@ -486,7 +518,7 @@ const alarmAnswer =
 
 /** «И у меня»: жилец присоединяется к заявке соседа. */
 const support: Button = async (kit, typed, [requestId]) => {
-  if (!requestId) return stale(typed);
+  if (!requestId) return stale(typed, kit);
 
   try {
     const { request: updated, reporters } = await supportRequest(
@@ -507,7 +539,7 @@ const support: Button = async (kit, typed, [requestId]) => {
 
 /** «Ответить» под обращением в поддержку: следующее сообщение уходит в него. */
 const ticket: Button = async (kit, typed, [ticketId]) => {
-  if (!ticketId) return stale(typed);
+  if (!ticketId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -541,7 +573,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
     return;
   }
 
-  if (!requestId || !option) return stale(typed);
+  if (!requestId || !option) return stale(typed, kit);
 
   try {
     const updated = await retargetRequest(kit.deps, { resident, requestId, startParam: option.startParam });
@@ -559,7 +591,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
 
 /** «Передать»: смена выбирает организацию из заведённых в доме. */
 const pass: Button = async (kit, typed, [requestId]) => {
-  if (!requestId) return stale(typed);
+  if (!requestId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -570,7 +602,7 @@ const pass: Button = async (kit, typed, [requestId]) => {
 
   const request = await getRequestFor(kit.deps, resident, requestId);
 
-  if (!request) return stale(typed);
+  if (!request) return stale(typed, kit);
 
   const view = await responsibilityOf(kit.deps, request);
 
@@ -590,7 +622,7 @@ const pass: Button = async (kit, typed, [requestId]) => {
 
 /** Организация выбрана: обращение уходит и срок ответа называется сразу. */
 const passTo: Button = async (kit, typed, [requestId, to]) => {
-  if (!requestId || !to || !isHandoffTarget(to)) return stale(typed);
+  if (!requestId || !to || !isHandoffTarget(to)) return stale(typed, kit);
 
   const staff = await kit.residentOf(typed);
 
@@ -607,8 +639,8 @@ const passTo: Button = async (kit, typed, [requestId, to]) => {
 };
 
 /** «Ответ получен»: текст ответа приходит следующим сообщением. */
-const handoffAnswer: Button = async (_kit, typed, [handoffId]) => {
-  if (!handoffId) return stale(typed);
+const handoffAnswer: Button = async (kit, typed, [handoffId]) => {
+  if (!handoffId) return stale(typed, kit);
 
   typed.session ??= {};
   expect(typed, { kind: 'handoff', handoffId });
@@ -620,7 +652,7 @@ const handoffAnswer: Button = async (_kit, typed, [handoffId]) => {
 const visit: Button = async (kit, typed, parts) => {
   const at = parts.join(':');
 
-  if (!at) return stale(typed);
+  if (!at) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -647,7 +679,7 @@ const visit: Button = async (kit, typed, parts) => {
 
 /** Отмена своей записи на приём. */
 const visitCancel: Button = async (kit, typed, [visitId]) => {
-  if (!visitId) return stale(typed);
+  if (!visitId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -660,8 +692,8 @@ const visitCancel: Button = async (kit, typed, [visitId]) => {
 };
 
 /** «Написать по заявке»: следующее сообщение уходит в переписку по ней. */
-const say: Button = async (_kit, typed, [requestId]) => {
-  if (!requestId) return stale(typed);
+const say: Button = async (kit, typed, [requestId]) => {
+  if (!requestId) return stale(typed, kit);
 
   typed.session ??= {};
   expect(typed, { kind: 'message', requestId });
@@ -669,13 +701,30 @@ const say: Button = async (_kit, typed, [requestId]) => {
   await typed.reply('Напишите ответ одним сообщением, передам по этой заявке.', cancelKeyboard());
 };
 
-/** Готовое обращение в жилинспекцию по конкретной заявке. */
-const complaint: Button = async (kit, typed, [requestId]) => {
-  if (!requestId) return stale(typed);
+/**
+ * Обращение в жилинспекцию по конкретной заявке. Текст продукт составляет сам
+ * и сам же отправляет каналом надзора: переписывать его в чужую форму жилец
+ * не должен. Отправка идёт по согласию, отдельной кнопкой.
+ */
+const complaint: Button = async (kit, typed, [requestId, what]) => {
+  if (!requestId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
   try {
+    if (what === 'send') {
+      const { handoff } = await sendComplaint(kit.deps, resident, requestId);
+
+      await typed.reply(
+        `Обращение отправлено: ${handoff.organization}.` +
+          `${handoff.externalId ? `\nНомер обращения ${handoff.externalId}.` : ''}\n` +
+          'Ответ придёт сюда, на него есть 30 дней.',
+        menuButton(typed),
+      );
+
+      return;
+    }
+
     const offer = await escalationFor(kit.deps, resident, requestId);
 
     if (!offer.possible || !offer.complaint) {
@@ -683,8 +732,21 @@ const complaint: Button = async (kit, typed, [requestId]) => {
       return;
     }
 
-    await typed.reply(`Основание: ${offer.reason}.\nПроверьте текст и отправьте в жилищную инспекцию.`);
-    await typed.reply(offer.complaint, menuButton(typed));
+    if (offer.sent) {
+      await typed.reply(
+        `Обращение по этой заявке уже отправлено: ${offer.sent.organization}.` +
+          `${offer.sent.externalId ? ` Номер ${offer.sent.externalId}.` : ''}`,
+        menuButton(typed),
+      );
+
+      return;
+    }
+
+    await typed.reply(`Основание: ${offer.reason}.\nВот текст обращения, прочитайте его.`);
+    await typed.reply(
+      offer.complaint,
+      oneKeyboard('📨 Отправить в инспекцию', `gzhi:${requestId}:send`),
+    );
   } catch (error) {
     await explain(typed, error);
   }
@@ -709,7 +771,7 @@ const offerAssignees = async (
 
 /** Кому поручить наряд: список смены с загрузкой, выбор одним нажатием. */
 const assign: Button = async (kit, typed, [requestId, staffId]) => {
-  if (!requestId) return stale(typed);
+  if (!requestId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -741,7 +803,7 @@ const assign: Button = async (kit, typed, [requestId, staffId]) => {
 const notice =
   (on: boolean): Button =>
   async (kit, typed, [kind]) => {
-    if (!kind) return stale(typed);
+    if (!kind) return stale(typed, kit);
 
     const resident = await kit.residentOf(typed);
 
@@ -771,7 +833,7 @@ const more: Button = async (kit, typed, [what, from]) => {
 
   const page = what ? pages[what] : undefined;
 
-  if (!page) return stale(typed);
+  if (!page) return stale(typed, kit);
 
   await page(kit, typed, Number.isFinite(offset) ? offset : 0);
 };
@@ -849,7 +911,7 @@ const demo: Button = async (kit, typed, [role]) => {
 
 /** Выгрузка своих данных: файл уходит по просьбе, а не сам собой. */
 const mydata: Button = async (kit, typed, [what]) => {
-  if (what !== 'file') return stale(typed);
+  if (what !== 'file') return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
   const data = await exportPersonalData(kit.deps, resident);
@@ -875,7 +937,7 @@ const mydata: Button = async (kit, typed, [what]) => {
 
 /** Оценка при приёмке: ноль означает «принять без оценки». */
 const rate: Button = async (kit, typed, [requestId, stars]) => {
-  if (!requestId || stars === undefined) return stale(typed);
+  if (!requestId || stars === undefined) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
   const rating = Number(stars);
@@ -899,12 +961,12 @@ const rate: Button = async (kit, typed, [requestId, stars]) => {
 
 /** Выбранный счётчик: бот спрашивает показание именно по нему. */
 const meter: Button = async (kit, typed, [meterId]) => {
-  if (!meterId) return stale(typed);
+  if (!meterId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
   const state = (await metersFor(kit.deps, resident)).find((item) => item.meter.id === meterId);
 
-  if (!state) return stale(typed);
+  if (!state) return stale(typed, kit);
 
   expect(typed, { kind: 'reading', meterId });
 
@@ -913,7 +975,7 @@ const meter: Button = async (kit, typed, [meterId]) => {
 
 /** Прибор пропускают: бот переходит к следующему, за который ещё не подали. */
 const meterSkip: Button = async (kit, typed, [meterId]) => {
-  if (!meterId) return stale(typed);
+  if (!meterId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -945,8 +1007,8 @@ const meterSkip: Button = async (kit, typed, [meterId]) => {
 };
 
 /** Переход, которому нужна причина: её спрашивают одним сообщением. */
-const ask: Button = async (_kit, typed, [requestId, to]) => {
-  if (!requestId || !to) return stale(typed);
+const ask: Button = async (kit, typed, [requestId, to]) => {
+  if (!requestId || !to) return stale(typed, kit);
 
   typed.session ??= {};
   expect(typed, { kind: 'comment', requestId, to });
@@ -991,7 +1053,7 @@ const move: Button = async (kit, typed, [requestId, to]) => {
 /** Кнопка по её имени. Имена те же, что стоят в `callback`. */
 /** Согласие с документами: дальше разговор идёт обычным порядком. */
 const legal: Button = async (kit, typed, [step]) => {
-  if (step !== 'accept') return stale(typed);
+  if (step !== 'accept') return stale(typed, kit);
 
   await takeLegal(kit, typed);
 };

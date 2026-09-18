@@ -63,7 +63,7 @@ const CARDS = 3;
 const LIST_LIMIT = 2;
 
 /** Объявление занимает несколько строк, поэтому их в сообщении меньше. */
-const NEWS_PAGE = 3;
+const NEWS_PAGE = 2;
 
 /** Кто ведёт работу: имя исполнителя видно и жильцу, и смене. */
 const workedBy = async (kit: BotKit, assigneeId?: string): Promise<string> => {
@@ -225,7 +225,11 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
   const announcements = await listAnnouncementsFor(kit.deps, resident);
 
   if (announcements.length === 0) {
-    await typed.reply('Объявлений пока нет.', menuButton(typed));
+    await typed.reply(
+      'Объявлений пока нет.\n' +
+        'Здесь появятся сообщения управляющей компании: отключения воды, уборка, ремонт.',
+      menuButton(typed),
+    );
     return;
   }
 
@@ -251,9 +255,9 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
   const rest = announcements.length - (offset + shown.length);
 
   await typed.reply(
-    lines.join('\n\n'),
+    `Объявления управляющей компании:\n\n${lines.join('\n\n')}`,
     rest > 0
-      ? moreKeyboard('news', offset + NEWS_PAGE)
+      ? moreKeyboard('news', offset + NEWS_PAGE, '⬇️ Ещё объявления')
       : keyboardOf([
           ...(inChat(typed) ? [] : [[Keyboard.button.callback('🏠 Меню', 'group:back')]]),
           ...appRow(kit.miniAppUrl, 'В приложении', 'news'),
@@ -267,13 +271,17 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
   const requests = await supportableFor(kit.deps, resident);
 
   if (requests.length === 0) {
-    await typed.reply('Соседи ни о чём не сообщали.', menuButton(typed));
+    await typed.reply(
+      'Соседи пока ни о чём не сообщали.\n' +
+        'Здесь появятся поломки в подъезде и во дворе, о которых написали соседи: их можно подтвердить кнопкой.',
+      menuButton(typed),
+    );
     return;
   }
 
-  // Список соседских обращений живёт на экране: в переписке остаётся свежее,
-  // чтобы подтвердить его одной кнопкой, а остальное открывается в приложении.
-  if (!inChat(typed) && requests.length > 1) {
+  // Карточки соседей читаются в переписке, пока их немного: строка «соседи
+  // сообщили о трёх проблемах» с одной кнопкой не говорит ни о чём.
+  if (!inChat(typed) && requests.length > NEARBY) {
     await typed.reply(
       `Соседи сообщили о ${requests.length} ${plural(requests.length, 'проблеме', 'проблемах', 'проблемах')}.`,
       keyboardOf([...appRow(kit.miniAppUrl, 'Заявки соседей в приложении', 'list')], typed),

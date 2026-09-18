@@ -97,22 +97,15 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
           return;
         }
 
-        // Часов на две недели вперёд десятки, и кнопками они не читаются:
-        // в переписке остаются ближайшие, а весь календарь на экране.
-        if (reception.slots.length > NEAREST_HOURS) {
-          await inApp(
-            kit,
-            typed,
-            `${reception.office ? `Приём: ${reception.office}.` : 'Приём по записи.'} Свободных часов: ${reception.slots.length}.`,
-            'visits',
-            'Выбрать время в приложении',
-          );
-          return;
-        }
+        // Часов на две недели вперёд десятки, и все кнопками не читаются. Но
+        // и уводить человека в приложение ради записи нельзя: ближайшие часы
+        // остаются кнопками здесь, а календарь целиком открывается рядом.
+        const many = reception.slots.length > NEAREST_HOURS;
 
         await typed.reply(
-          reception.office ? `Приём: ${reception.office}. Когда удобно?` : 'Когда удобно прийти?',
-          visitKeyboard(hours),
+          `${reception.office ? `Приём: ${reception.office}.` : 'Приём по записи.'}\n` +
+            (many ? `Ближайшее время, всего свободно часов: ${reception.slots.length}.` : 'Когда удобно прийти?'),
+          visitKeyboard(hours, many ? kit.miniAppUrl : undefined),
         );
       } catch (error) {
         await typed.reply(

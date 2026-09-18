@@ -24,6 +24,7 @@ import {
   initiativeKeyboard,
   keyboardOf,
   menuButton,
+  oneKeyboard,
   pollRow,
 } from '../keyboards.js';
 import { expect, inChat } from '../max.js';
@@ -72,7 +73,11 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       const [last] = polls.filter((view) => view.poll.closedAt);
 
       if (!last) {
-        await typed.reply('Открытых собраний нет.', menuButton(typed));
+        await typed.reply(
+          'Открытых собраний сейчас нет.\n' +
+            'Здесь появятся собрания собственников: голос подают кнопкой, решение считают по площади квартир.',
+          menuButton(typed),
+        );
         return;
       }
 
@@ -200,11 +205,20 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
 
       if (!offer?.possible || !offer.complaint) continue;
 
+      if (offer.sent) {
+        await typed.reply(
+          `Обращение по заявке ${request.number} уже отправлено: ${offer.sent.organization}.` +
+            `${offer.sent.externalId ? ` Номер ${offer.sent.externalId}.` : ''}`,
+          menuButton(typed),
+        );
+        return;
+      }
+
       await typed.reply(
         `По заявке ${request.number} есть основание для обращения: ${offer.reason}.\n` +
-          'Готовый текст ниже, проверьте и отправьте в жилищную инспекцию.',
+          'Вот текст обращения, прочитайте его. Отправлю сам, по кнопке.',
       );
-      await typed.reply(offer.complaint, menuButton(typed));
+      await typed.reply(offer.complaint, oneKeyboard('📨 Отправить в инспекцию', `gzhi:${request.id}:send`));
       return;
     }
 

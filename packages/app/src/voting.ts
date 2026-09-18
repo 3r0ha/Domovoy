@@ -358,7 +358,12 @@ export const formatPollResult = (view: PollView, options: PollTextOptions = {}):
   ];
 
   if (!result.quorum && !survey) {
-    lines.push(`Кворума пока нет: не хватает ${formatArea(view.areaToQuorum)} м².`);
+    // «Кворум» знают не все: то же самое говорится обычными словами.
+    lines.push(
+      `Проголосовали пока не все: чтобы решение состоялось, нужны голоса собственников ещё ${formatArea(
+        view.areaToQuorum,
+      )} м² квартир.`,
+    );
   }
 
   lines.push(

@@ -611,7 +611,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Приёмных часов на две недели десятки: календарь открывается в приложении');
     say(IVAN.name, '/visit');
     platform.userSends('/visit', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /Свободных часов/);
+    await expect(IVAN, /свободно часов/);
 
     const ivan = await bot.deps.repository.findResidentByMaxUserId(IVAN.maxUserId);
     const slot = ivan ? (await receptionFor(bot.deps, ivan)).slots[0] : undefined;

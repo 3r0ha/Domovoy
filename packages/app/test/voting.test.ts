@@ -216,7 +216,7 @@ describe('итоги словами', () => {
     const text = formatPollResult(view!);
 
     assert.match(text, /Участие: 17% площади дома/);
-    assert.match(text, /Кворума пока нет: не хватает 50 м²/);
+    assert.match(text, /нужны голоса собственников ещё 50 м²/);
     assert.match(text, /Голос квартиры: за/);
   });
 
@@ -236,7 +236,7 @@ describe('итоги словами', () => {
     const views = await listPollsFor(deps, anna);
     const text = formatPollResult(views.find((view) => view.poll.id === poll.id)!);
 
-    assert.match(text, /не хватает 50 м²/);
+    assert.match(text, /ещё 50 м²/);
   });
 
   it('после закрытия сообщают, принято решение или нет', async () => {

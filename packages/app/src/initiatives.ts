@@ -239,5 +239,5 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
 /** Сколько площади не хватает, словами для чата. */
 export const formatDemand = (view: InitiativeView): string =>
   view.standing.enough
-    ? 'Подписей достаточно для созыва собрания'
-    : `До требования о собрании не хватает ${formatArea(view.standing.areaToDemand)} м²`;
+    ? 'Подписей достаточно, чтобы потребовать собрание'
+    : `Чтобы собрание назначили, нужны подписи собственников ещё ${formatArea(view.standing.areaToDemand)} м²`;

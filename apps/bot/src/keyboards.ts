@@ -55,11 +55,14 @@ export const payRows = (month: number | undefined, debt: number | undefined): Bu
 export const doorKeyboard = (
   devices: readonly { id: string; title: string }[],
   cameras: readonly { id: string; title: string }[] = [],
+  guestFor?: string,
 ) => ({
   attachments: [
     Keyboard.inlineKeyboard([
       ...devices.map((device) => [Keyboard.button.callback(`🚪 ${device.title}`, `door:${device.id}`)]),
       ...cameras.map((device) => [Keyboard.button.callback(`📷 ${device.title}`, `camera:${device.id}`)]),
+      // Список дверей остаётся и после открытия: нажали не ту, открывают рядом.
+      ...(guestFor ? [[Keyboard.button.callback('🔑 Код гостю', `guest:${guestFor}`)]] : []),
     ]),
   ],
 });
@@ -94,9 +97,11 @@ export const demoKeyboard = (roles: readonly { role: string; title: string; curr
   ]);
 
 /** Свободные часы приёма: день и время на кнопке, по две в ряд. */
-export const visitKeyboard = (slots: readonly { at: string; title: string }[]) =>
+export const visitKeyboard = (slots: readonly { at: string; title: string }[], miniAppUrl?: string) =>
   keyboardOf([
     ...pairs(slots.map((slot) => Keyboard.button.callback(`🗓 ${slot.title}`, `visit:${slot.at}`))),
+    // Остальные дни открываются календарём: кнопками их два десятка.
+    ...appRow(miniAppUrl, 'Другие дни в приложении', 'visits'),
     [Keyboard.button.callback('🏠 Меню', 'group:back')],
   ]);
 
@@ -235,19 +240,23 @@ export const ACTION_TITLES: Record<string, string> = {
   in_progress: '🔧 В работу',
   needs_info: '❓ Уточнить',
   done: '🏁 Выполнена',
-  confirmed: '✅ Принять работу',
+  confirmed: '✅ Всё сделали, спасибо',
   rejected: '⛔ Отклонить',
-  withdrawn: '↩️ Отозвать заявку',
+  withdrawn: '✖️ Больше не нужно',
 };
 
 /**
  * Возврат сданной работы жилец видит своими словами, а не словами наряда.
  * Приёмку за жильца делает смена, и у неё это не «принять работу», а закрытие
- * заявки: такой переход требует объяснения, по нему их и различаем.
+ * заявки: такой переход требует объяснения, по нему их и различаем. Ответ на
+ * уточняющий вопрос тоже подписан по-разному: жилец отвечает, смена возвращает
+ * наряд в работу.
  */
 export const actionTitle = (from: string, to: string, explains = false): string => {
-  if (from === 'done' && to === 'in_progress') return '↩️ Вернуть';
+  if (from === 'done' && to === 'in_progress') return '↩️ Не сделано, вернуть';
   if (from === 'done' && to === 'confirmed' && explains) return '✅ Закрыть заявку';
+  // Заявка ждёт ответа жильца: «В работу» на этой кнопке не говорит ему ничего.
+  if (from === 'needs_info' && to === 'in_progress') return '💬 Ответить';
 
   return ACTION_TITLES[to] ?? to;
 };
@@ -318,9 +327,10 @@ export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuBut
 export const rateKeyboard = (requestId: string): Extra => ({
   attachments: [
     Keyboard.inlineKeyboard([
-      [1, 2, 3, 4, 5].map((stars) =>
-        Keyboard.button.callback('⭐'.repeat(stars), `rate:${requestId}:${stars}`),
-      ),
+      // Пять звёзд в один ряд сжимаются до нечитаемых: цифра рядом со значком
+      // понятнее, чем ряд из одинаковых картинок разной длины.
+      [1, 2, 3].map((stars) => Keyboard.button.callback(`${stars} ⭐`, `rate:${requestId}:${stars}`)),
+      [4, 5].map((stars) => Keyboard.button.callback(`${stars} ⭐`, `rate:${requestId}:${stars}`)),
       [Keyboard.button.callback('Принять без оценки', `rate:${requestId}:0`)],
     ]),
   ],
@@ -447,7 +457,9 @@ export const bindIfApartment = async (deps: AppDeps, resident: Resident, code: s
 /** Ряд бюллетеня: три ответа, как в бумажном бланке. */
 export const pollRow = (pollId: string): ButtonRows[number] =>
   (['for', 'against', 'abstain'] as const).map((choice) => {
-    const title = choiceTitle(choice);
+    // «Воздержался» на кнопке человек читает как отказ от голосования вообще:
+    // в протоколе слово остаётся прежним, а на кнопке говорится просто.
+    const title = choice === 'abstain' ? 'Не хочу решать' : choiceTitle(choice);
     const mark = choice === 'for' ? '✅' : choice === 'against' ? '❌' : '⚪';
 
     return Keyboard.button.callback(

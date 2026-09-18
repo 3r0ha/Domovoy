@@ -697,7 +697,7 @@ describe('чат-бот управляющей компании', () => {
       /clipboard/,
       'код кладётся в буфер обмена нажатием',
     );
-    assert.match(said, /Действует до \d{2}:\d{2}/);
+    assert.match(said, /работает сегодня до \d{2}:\d{2}/);
 
     await bot.stop();
   });
@@ -1365,6 +1365,18 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(complaint, /Д15-2609-0001/);
     assert.match(complaint, /Хронология:/);
+
+    // Отправляет продукт, а не жилец: переписывать текст в чужую форму не нужно.
+    const [request] = await bot.deps.repository.listRequests({});
+
+    platform.userPressesButton(`gzhi:${request!.id}:send`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Обращение отправлено/);
+
+    const sent = await bot.deps.repository.listHandoffs({ requestId: request!.id });
+
+    assert.equal(sent.length, 1, 'обращение не ушло в надзор');
+    assert.equal(sent[0]?.to, 'inspection');
+    assert.equal(sent[0]?.byResident, true);
 
     await bot.stop();
   });
@@ -2542,7 +2554,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/vote', { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForMessage(3003, /Открытых собраний нет/), /Открытых собраний нет/);
+    assert.match(await waitForMessage(3003, /Открытых собраний сейчас нет/), /Открытых собраний сейчас нет/);
 
     await bot.stop();
   });
@@ -3059,14 +3071,17 @@ describe('чат-бот управляющей компании', () => {
       await bot.stop();
     });
 
-    it('кнопка с неизвестным payload отвечает уведомлением', async () => {
+    it('кнопка из старого сообщения не оставляет человека ни с чем', async () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
 
       platform.userPressesButton('такой-кнопки-нет:1', { userId: 3003, chatId: 3003 });
-      await waitForToast(/Кнопка устарела/);
+      await waitForToast(/уже не работает/);
 
       platform.userPressesButton('menu:нет-такого-раздела', { userId: 3003, chatId: 3003 });
-      await waitForToast(/Этого раздела больше нет/);
+
+      // Уведомление живёт пару секунд: следом приходит меню, по которому видно,
+      // что делать дальше.
+      await waitForMessage(3003, /с чего можно начать/);
 
       await bot.stop();
     });
@@ -3119,7 +3134,7 @@ describe('чат-бот управляющей компании', () => {
       await bot.stop();
     });
 
-    it('когда часов много, выбор времени уходит в приложение', async () => {
+    it('когда часов много, ближайшие остаются кнопками, а календарь рядом', async () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
       const manager: Resident = {
         id: 'man-many',
@@ -3140,13 +3155,16 @@ describe('чат-бот управляющей компании', () => {
 
       platform.userSends('/visit', { userId: 3003, chatId: 3003 });
 
-      const said = await waitForMessage(3003, /Свободных часов/);
+      const said = await waitForMessage(3003, /свободно часов/);
 
       assert.match(said, /Приём: ул\. Ленина, 15, офис 1\./);
-      assert.match(
-        JSON.stringify(platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? []),
-        /Выбрать время в приложении/,
+
+      const keyboard = JSON.stringify(
+        platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? [],
       );
+
+      assert.match(keyboard, /visit:/, 'ближайшее время записывается прямо здесь');
+      assert.match(keyboard, /Другие дни в приложении/);
 
       await bot.stop();
     });
