@@ -112,10 +112,14 @@ const explain = async (typed: BotContext, error: unknown, prefix = 'Не пол�
 
   const fix = errorAction(error);
 
-  // Отказ на нажатие показывается уведомлением: исправлять его кнопкой обычно нечем.
+  // Отказ на нажатие показывается сразу уведомлением, а следом остаётся
+  // сообщением: всплывающее живёт пару секунд, и человек, который читает
+  // медленно, решает, что кнопка не сработала. В общем чате остаётся
+  // уведомление: разбирательство при соседях никому не нужно.
   if (!fix && typed.callback?.callback_id) {
     await toast(typed, `${prefix}: ${error.message}`);
-    return;
+
+    if (inChat(typed)) return;
   }
 
   await typed.reply(`${prefix}: ${errorText(error)}`, fix ?? menuButton(typed));
@@ -512,21 +516,33 @@ const alarmAnswer =
         affected,
       });
 
+      // Ответ виден сообщением, а не всплывающим уведомлением: его человек
+      // читает две секунды и решает, что нажатие не сработало.
       if (!counted) {
-        await toast(typed, `Вы уже отвечали по заявке ${updated.number}`);
+        await typed.reply(`Вы уже отвечали по заявке ${updated.number}.`, menuButton(typed));
         return;
       }
 
       if (!affected) {
-        await toast(typed, 'Спасибо, это важно: значит, причина не в общем стояке');
+        await typed.reply(
+          'Спасибо, это важно: значит, причина не в общем стояке, а в квартире соседа.',
+          menuButton(typed),
+        );
         return;
       }
 
       await typed.reply(
-        `Записал: у вас то же самое. Заявка ${updated.number}, об изменениях сообщу.`,
+        `Записал: у вас то же самое. Заявка ${strong(updated.number)}, об изменениях сообщу.`,
         actionKeyboard([], replyIfOpen(updated)),
       );
     } catch (error) {
+      // Заявку соседа могли уже закрыть: человеку это говорят словами, иначе
+      // нажатие выглядит сломанным.
+      if (error instanceof DomainError && error.code === 'request_closed') {
+        await typed.reply('Спасибо. По этой заявке работы уже закончены.', menuButton(typed));
+        return;
+      }
+
       await explain(typed, error);
     }
   };

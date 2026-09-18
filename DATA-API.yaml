@@ -89,13 +89,17 @@ checks:
       contentType: application/json
       required: [id, displayName, role, apartmentId]
 
+  # Проверка идёт по работающей установке, и заявка в ней настоящая. Поэтому
+  # описание взято такое, которое не поднимает весь стояк: о поломке общего
+  # имущества продукт спрашивает соседей, и на каждом прогоне им приходило бы
+  # «у вас то же самое?».
   - name: Заявка заводится описанием проблемы
     method: POST
     path: /api/requests
     role: resident
     request:
       body:
-        description: Течёт кран на кухне
+        description: Не вывезли мусор от подъезда
         startParam: apt_apt-1
     expect:
       status: [201]

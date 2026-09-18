@@ -809,7 +809,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(3004, /Авария: /);
 
     platform.userPressesButton(`fine:${request!.id}`, { userId: 3004, chatId: 3004 });
-    await waitForToast(/причина не в общем стояке/);
+    await waitForMessage(3004, /причина не в общем стояке/);
 
     const narrowed = await bot.deps.repository.findRequest(request!.id);
 
@@ -1067,6 +1067,28 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(keyboard, /menu:meters/, 'в раздел нечем перейти');
     assert.match(keyboard, /talk:stop/, 'из разговора нечем выйти');
+
+    await bot.stop();
+  });
+
+  it('кнопка под закрытой заявкой соседа отвечает словами, а не молчанием', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    const request = await createServiceRequest(bot.deps, {
+      resident: RESIDENT_WITH_FLAT,
+      description: 'Нет холодной воды во всём стояке',
+      category: 'plumbing',
+    });
+
+    const found = (await bot.deps.repository.findRequest(request.id))!;
+
+    await bot.deps.repository.saveRequest({ ...found, status: 'confirmed' });
+
+    platform.userPressesButton(`same:${request.id}`, { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /работы уже закончены/);
+
+    assert.match(answer, /Спасибо/);
 
     await bot.stop();
   });
