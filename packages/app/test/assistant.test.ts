@@ -202,10 +202,17 @@ describe('помощник смены', () => {
 
   it('продолжение разговора отвечает по прошлому вопросу', async () => {
     const said: string[] = [];
+    const checked: string[] = [];
 
     const deps = setup({
       understand: () => Promise.resolve(undefined),
-      onTopic: () => Promise.resolve(false),
+      // Тему проверяют парой «прошлый вопрос и новый»: «а если нет» само по себе
+      // выглядит посторонним, и без пары разговор обрывался бы на второй реплике.
+      onTopic: (text) => {
+        checked.push(text);
+
+        return Promise.resolve(/заплатить/.test(text));
+      },
       assist: (input) => {
         said.push(...(input.history ?? []).map((turn) => turn.asked));
 
@@ -218,6 +225,7 @@ describe('помощник смены', () => {
     ]);
 
     assert.deepEqual(said, ['Как заплатить за квартиру?'], 'модель не увидела прошлый вопрос');
+    assert.deepEqual(checked, ['Как заплатить за квартиру? а если нет?'], 'тему проверили без прошлого вопроса');
     assert.equal(answer.offTopic, undefined, 'продолжение разговора приняли за постороннее');
     assert.equal(answer.screen, 'meters');
   });
@@ -321,6 +329,19 @@ describe('помощник смены', () => {
 
     assert.equal(answer.by, 'keywords', 'придуманная сумма отбрасывает весь ответ');
     assert.doesNotMatch(answer.answer, /22 799/);
+  });
+
+  it('круглая сумма без копеек тоже сверяется с фактами', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(true),
+      assist: () => Promise.resolve({ answer: 'К оплате 5000 рублей.', screen: 'meters' }),
+    });
+
+    const answer = await askAssistant(deps, maria, 'Сколько платить?');
+
+    assert.equal(answer.by, 'keywords', 'число без копеек проходило мимо сверки');
+    assert.doesNotMatch(answer.answer, /5000/);
   });
 
   it('кавычки в ответе приводятся к одним', async () => {

@@ -311,7 +311,7 @@ const quoted = (text: string): string => text.replace(/["'`]([^"'`]{1,60})["'`]/
  * то обычным пробелом, то неразрывным, и одно и то же число иначе не совпадёт.
  */
 const money = (text: string): string[] =>
-  (text.replace(/\s/gu, '').match(/\d+[.,]\d{2}/g) ?? []).map((value) => value.replace('.', ','));
+  (text.replace(/\s/gu, '').match(/\d+[.,]\d{2}|\d{3,}/g) ?? []).map((value) => value.replace('.', ','));
 
 /**
  * Суммы в ответе сверяются с фактами. Складывать долг с начислением модели
@@ -526,10 +526,12 @@ export const askAssistant = async (
 
   // Сначала отдельным вопросом проверяется, о доме ли речь. Так посторонняя
   // просьба не доходит до подсказки и не тратит ни ответа, ни доверия.
-  // Продолжение разговора не проверяется: «а если нет» само по себе звучит
-  // посторонним, хотя относится к прошлому вопросу.
-  const about =
-    reasoner.onTopic && !answering ? await reasoner.onTopic(asked, staff).catch(() => undefined) : undefined;
+  // В разговоре проверяется пара «прошлый вопрос и новый»: «а если нет» само по
+  // себе звучит посторонним, а вместе с прошлым вопросом читается по делу.
+  // Иначе фильтр темы снимался бы одной строкой в истории.
+  const checked = answering ? `${history.at(-1)?.asked ?? ''} ${asked}`.trim() : asked;
+
+  const about = reasoner.onTopic ? await reasoner.onTopic(checked, staff).catch(() => undefined) : undefined;
 
   // Слова продукта перевешивают отказ модели: «что горит» и «кто на дежурстве»
   // звучат посторонним, а спрашивают про сроки и смену.
