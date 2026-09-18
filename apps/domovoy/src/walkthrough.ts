@@ -13,6 +13,7 @@ import {
   sendBroadcast,
   sendSticker,
   startPoll,
+  takeVisit,
   type AppDeps,
 } from '@domovoy/app';
 import { formatMoney } from '@domovoy/domain';
@@ -375,12 +376,20 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Заодно жилец подаёт показания счётчиков');
     say(IVAN.name, '/meters');
     platform.userSends('/meters', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
+    await expect(IVAN, /Выберите счётчик/);
+
+    const meters = await deps.repository.listMeters(
+      expectResident(await deps.repository.findResidentByMaxUserId(IVAN.maxUserId)).apartmentId ?? '',
+    );
+    const cold = meters.find((meter) => meter.kind === 'cold_water');
+
+    say(IVAN.name, 'выбирает холодную воду');
+    platform.userPressesButton(`meter:${cold?.id ?? ''}`, { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Отправьте показание числом/);
 
     say(IVAN.name, '140,2');
     platform.userSends('140,2', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Принято/);
-    await expect(IVAN, /Отправьте показание числом/);
 
     say('', 'По показаниям считается квитанция: сумма, срок и оплата в переписке');
     say(IVAN.name, '/bill');
@@ -497,9 +506,13 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userSends('/house', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Сейчас открыто заявок/);
 
-    say('', 'Выгрузка своих данных: состав и файл');
+    say('', 'Выгрузка своих данных: сначала состав, файл по кнопке');
     say(IVAN.name, '/mydata');
     platform.userSends('/mydata', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
+    await expect(IVAN, /О вас: /);
+
+    say(IVAN.name, 'нажимает «Выгрузить мои данные»');
+    platform.userPressesButton('mydata:file', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Ваши данные файлом/);
 
     say('', 'Вопрос о доме получает ответ данными, заявка не заводится');
@@ -591,22 +604,21 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     await expect(IVAN, /Сообщение управляющей компании/);
 
-    say('', 'Запись на приём идёт в той же переписке');
+    say('', 'Приёмных часов на две недели десятки: календарь открывается в приложении');
     say(IVAN.name, '/visit');
     platform.userSends('/visit', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-    await expect(IVAN, /Когда удобно/);
+    await expect(IVAN, /Свободных часов/);
 
     const ivan = await bot.deps.repository.findResidentByMaxUserId(IVAN.maxUserId);
     const slot = ivan ? (await receptionFor(bot.deps, ivan)).slots[0] : undefined;
 
     if (slot) {
-      say(IVAN.name, 'выбирает ближайший час');
-      platform.userPressesButton(`visit:${slot.toISOString()}`, { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-      await expect(IVAN, /С чем придёте/);
-
-      say(IVAN.name, 'Перерасчёт за горячую воду');
-      platform.userSends('Перерасчёт за горячую воду', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
-      await expect(IVAN, /Записал на приём/);
+      say('', 'Запись сделана в приложении, смена узнаёт о ней сразу');
+      await takeVisit(bot.deps, {
+        resident: expectResident(ivan),
+        at: slot,
+        topic: 'Перерасчёт за горячую воду',
+      });
       await expect(DISPATCHER, /Запись на приём/);
     }
 

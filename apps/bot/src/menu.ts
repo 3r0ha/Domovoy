@@ -32,7 +32,7 @@ interface RoleMenu {
 /** Дела своей квартиры: они есть и у сотрудника, если он живёт в обслуживаемом доме. */
 const HOME_GROUP: MenuGroup = {
   key: 'home',
-  title: '🏡 Своё',
+  title: '🏡 Моя квартира',
   items: [
     { title: '✍️ Новая заявка', command: 'new' },
     { title: '💧 Показания', command: 'meters' },
@@ -53,23 +53,27 @@ const RESIDENT: RoleMenu = {
   groups: [
     {
       key: 'money',
-      title: '💳 Оплата',
+      title: '💳 Счета и показания',
       items: [
-        { title: '🧾 Квитанция', command: 'bill' },
-        { title: '💧 Показания', command: 'meters' },
+        { title: '🧾 Квитанция за месяц', command: 'bill' },
+        { title: '💧 Передать показания', command: 'meters' },
       ],
     },
     {
+      key: 'doors',
+      title: '🚪 Открыть дверь',
+      items: [{ title: '🚪 Домофон и шлагбаум', command: 'door' }],
+    },
+    {
       key: 'house',
-      title: '🏢 Дом',
+      title: '📣 Новости дома',
       items: [
-        { title: '🚪 Дверь', command: 'door' },
         { title: '📣 Объявления', command: 'news' },
-        { title: '👥 Соседи', command: 'neighbours' },
         { title: '🗳 Собрания', command: 'vote' },
-        { title: '📊 Работа дома', command: 'house' },
+        { title: '👥 О чём сообщили соседи', command: 'neighbours' },
+        { title: '📊 Как работает компания', command: 'house' },
         {
-          title: '🏗 Капремонт',
+          title: '🏗 Капитальный ремонт',
           command: 'capital',
           app: {
             screen: 'capital',
@@ -80,7 +84,7 @@ const RESIDENT: RoleMenu = {
     },
     {
       key: 'me',
-      title: '👤 Ещё',
+      title: '👤 Мой профиль и связь с УК',
       items: [
         { title: '💬 Поддержка', command: 'support' },
         { title: '🗓 Приём', command: 'visit' },
@@ -111,20 +115,36 @@ const CONTRACTOR: RoleMenu = {
 
 const STAFF: RoleMenu = {
   top: [
-    { title: '📋 Заявки', command: 'my' },
-    { title: '🗂 Очередь', command: 'queue' },
-    { title: '🌙 Дежурство', command: 'duty' },
     ASK_ITEM,
+    { title: '🗂 Очередь дома', command: 'queue' },
+    { title: '📋 Мои наряды', command: 'my' },
+    { title: '🌙 Дежурство', command: 'duty', roles: ['dispatcher', 'technician'] },
   ],
   groups: [
     {
-      key: 'shift',
-      title: '🧰 Смена',
+      key: 'people',
+      title: '💬 Жильцы',
       items: [
-        { title: '💬 Поддержка', command: 'support' },
-        { title: '🗓 Приём', command: 'visit' },
-        { title: '📊 Сводка', command: 'report' },
-        { title: '🏷 Наклейки', command: 'stickers' },
+        { title: '💬 Вопросы жильцов', command: 'support' },
+        { title: '🗓 Приём жильцов', command: 'visit' },
+        { title: '✉️ Рассылка', command: 'broadcast' },
+        { title: '📣 Объявления', command: 'news' },
+      ],
+    },
+    {
+      key: 'house',
+      title: '🏢 Дела дома',
+      items: [
+        { title: '📊 Сводка за месяц', command: 'report' },
+        { title: '💰 Долги дома', command: 'debts' },
+        { title: '🗳 Собрания', command: 'vote' },
+        { title: '🚪 Открыть дверь', command: 'door' },
+      ],
+    },
+    {
+      key: 'app',
+      title: '📱 На экране приложения',
+      items: [
         {
           title: '🔍 Осмотры',
           command: 'inspections',
@@ -138,17 +158,6 @@ const STAFF: RoleMenu = {
           command: 'plan',
           app: { screen: 'plan', about: 'Подъезды и стояки с отметками, где сообщили о проблеме.' },
         },
-      ],
-    },
-    {
-      key: 'house',
-      title: '🏢 Дом',
-      items: [
-        { title: '📣 Объявления', command: 'news' },
-        { title: '✉️ Рассылка', command: 'broadcast' },
-        { title: '🗳 Собрания', command: 'vote' },
-        { title: '🚪 Дверь', command: 'door' },
-        { title: '💰 Долги', command: 'debts' },
         {
           title: '🛗 Оборудование',
           command: 'equipment',
@@ -164,11 +173,12 @@ const STAFF: RoleMenu = {
           command: 'residents',
           app: { screen: 'residents', about: 'Кто в смене, кто дежурит, кому какая роль, привязка квартиры жильцу.' },
         },
+        { title: '🏷 Наклейки', command: 'stickers' },
       ],
     },
     {
       key: 'manage',
-      title: '🗄 Управление',
+      title: '🗄 Управление домом',
       items: [
         {
           title: '💵 Тарифы',
@@ -189,7 +199,7 @@ const STAFF: RoleMenu = {
           roles: ['manager'],
         },
         {
-          title: '📜 Действия',
+          title: '📜 Журнал действий',
           command: 'audit',
           app: { screen: 'audit', about: 'Кто и что сделал по дому: заявки, роли, показания, рассылки.' },
           roles: ['manager'],
@@ -244,7 +254,9 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
     ...(role !== 'resident' && apartmentsOf(resident).length > 0 ? [HOME_GROUP] : []),
   ].filter((group) => group.items.length > 0);
 
-  const top = own.top.filter((item) => offered(item, offer));
+  const top = own.top.filter(
+    (item) => offered(item, offer) && (!item.roles || item.roles.includes(role)),
+  );
 
   return { top: offer.demo === true ? [...top, DEMO_ITEM] : top, groups };
 };

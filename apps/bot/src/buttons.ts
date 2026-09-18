@@ -2,7 +2,10 @@ import {
   actionsFor,
   answerAlert,
   apartmentsOf,
+  exportPersonalData,
+  formatPersonalData,
   homeOf,
+  personalDataSummary,
   roleTitle,
   takeDemoRole,
   forgetResident,
@@ -31,6 +34,7 @@ import {
   transitionRequest,
   useApartment,
   vote,
+  zoneOf,
 } from '@domovoy/app';
 import {
   DomainError,
@@ -778,6 +782,46 @@ const demo: Button = async (kit, typed, [role]) => {
   }
 };
 
+/** Выгрузка своих данных: файл уходит по просьбе, а не сам собой. */
+const mydata: Button = async (kit, typed, [what]) => {
+  if (what !== 'file') return stale(typed);
+
+  const resident = await kit.residentOf(typed);
+  const data = await exportPersonalData(kit.deps, resident);
+  const text = formatPersonalData(data, await zoneOf(kit.deps, resident.buildingId));
+
+  const sent =
+    resident.maxUserId !== undefined && kit.deps.notifier?.sendFile
+      ? await kit.deps.notifier
+          .sendFile({
+            maxUserId: resident.maxUserId,
+            as: 'document',
+            name: 'domovoy-data.txt',
+            contentType: 'text/plain; charset=utf-8',
+            content: text,
+            encoding: 'utf8',
+            text: `Ваши данные файлом. ${personalDataSummary(data)}`,
+          })
+          .catch(() => undefined)
+      : undefined;
+
+  if (!sent) await typed.reply(text, menuButton(typed));
+};
+
+/** Выбранный счётчик: бот спрашивает показание именно по нему. */
+const meter: Button = async (kit, typed, [meterId]) => {
+  if (!meterId) return stale(typed);
+
+  const resident = await kit.residentOf(typed);
+  const state = (await metersFor(kit.deps, resident)).find((item) => item.meter.id === meterId);
+
+  if (!state) return stale(typed);
+
+  expect(typed, { kind: 'reading', meterId });
+
+  await typed.reply(readingPrompt(state), readingKeyboard(meterId, false));
+};
+
 /** Прибор пропускают: бот переходит к следующему, за который ещё не подали. */
 const meterSkip: Button = async (kit, typed, [meterId]) => {
   if (!meterId) return stale(typed);
@@ -858,6 +902,8 @@ const legal: Button = async (kit, typed, [step]) => {
 
 export const BUTTONS: Record<string, Button> = {
   app,
+  meter,
+  mydata,
   legal,
   menu,
   group,

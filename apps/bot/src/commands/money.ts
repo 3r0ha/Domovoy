@@ -1,7 +1,16 @@
 import { arrearsFor, chargesForResident, formatDebtShort, metersFor } from '@domovoy/app';
 import { DomainError, formatMoney, METER_RULES, verificationState } from '@domovoy/domain';
 
-import { afterError, appRow, keyboardOf, menuButton, payRows, readingKeyboard, readingPrompt } from '../keyboards.js';
+import {
+  afterError,
+  appRow,
+  keyboardOf,
+  menuButton,
+  metersKeyboard,
+  payRows,
+  readingKeyboard,
+  readingPrompt,
+} from '../keyboards.js';
 import { expect } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
@@ -41,10 +50,22 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
         return;
       }
 
+      // Приборы идут списком: человек выбирает, с какого начать, и не обязан
+      // проходить их подряд, пропуская воду ради электричества.
+      if (pending.length > 1) {
+        const ready = meters.filter((state) => verificationState(state.meter, now) !== 'expired');
+
+        await typed.reply(
+          `Показания за этот месяц: подано ${ready.length - pending.length} из ${ready.length}. Выберите счётчик.`,
+          metersKeyboard(ready),
+        );
+        return;
+      }
+
       typed.session ??= {};
       expect(typed, { kind: 'reading', meterId: pending[0]!.meter.id });
 
-      await typed.reply(readingPrompt(pending[0]!), readingKeyboard(pending[0]!.meter.id, pending.length > 1));
+      await typed.reply(readingPrompt(pending[0]!), readingKeyboard(pending[0]!.meter.id, false));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
       await typed.reply(error.message, afterError(error, typed));

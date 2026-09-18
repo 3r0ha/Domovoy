@@ -897,10 +897,15 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/mydata', { userId: 3003, chatId: 3003 });
 
+    const profile = await waitForMessage(3003, /О вас: /);
+
+    assert.match(profile, /Заявок 8/, 'сначала видно, что о человеке известно');
+
+    platform.userPressesButton('mydata:file', { userId: 3003, chatId: 3003 });
+
     const said = await waitForMessage(3003, /Ваши данные файлом/);
 
-    assert.match(said, /Заявок 8/);
-    await waitForMessage(3003, /Что дальше с профилем/);
+    assert.match(said, /Заявок 8/, 'файл уходит по кнопке, а не сам собой');
 
     await bot.stop();
   });
@@ -909,8 +914,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     platform.userSends('/mydata', { userId: 3003, chatId: 3003 });
-    // Короткая выгрузка читается прямо в переписке.
-    await waitForMessage(3003, /Мария/);
+    await waitForMessage(3003, /О вас: /);
 
     platform.userPressesButton('leave:ask', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Отвязать квартиру\?/);
@@ -1639,16 +1643,16 @@ describe('чат-бот управляющей компании', () => {
     const forStaff = keyboardOf(7009);
 
     assert.match(forResident, /Новая заявка/);
-    assert.match(forResident, /Оплата/, 'частое кнопками, редкое группами');
+    assert.match(forResident, /Счета и показания/, 'частое кнопками, редкое группами');
     assert.equal(/Смена/.test(forResident), false);
-    assert.match(forStaff, /Смена/);
-    assert.equal(/Оплата/.test(forStaff), false, 'своей квартиры у этого управляющего нет');
+    assert.match(forStaff, /Жильцы/);
+    assert.equal(/Счета и показания/.test(forStaff), false, 'своей квартиры у этого управляющего нет');
 
     // Второй экран меню: пункты группы открываются нажатием.
     platform.userPressesButton('group:money', { userId: 3003, chatId: 3003 });
     assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Квитанция/);
 
-    platform.userPressesButton('group:shift', { userId: 7009, chatId: 7009 });
+    platform.userPressesButton('group:house', { userId: 7009, chatId: 7009 });
 
     const shift = JSON.stringify((await waitForKeyboard(7009)) ?? []);
 
@@ -1677,8 +1681,8 @@ describe('чат-бот управляющей компании', () => {
       platform.outgoing.findLast((message) => message.chatId === 7010)?.attachments ?? [],
     );
 
-    assert.match(keyboard, /Смена/);
-    assert.match(keyboard, /Своё/, 'квартирные дела собраны своей группой');
+    assert.match(keyboard, /Жильцы/);
+    assert.match(keyboard, /Моя квартира/, 'квартирные дела собраны своей группой');
 
     platform.userPressesButton('group:home', { userId: 7010, chatId: 7010 });
 
@@ -1859,6 +1863,9 @@ describe('чат-бот управляющей компании', () => {
     });
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Выберите счётчик/);
+
+    platform.userPressesButton('meter:cold-1', { userId: 3003, chatId: 3003 });
 
     const first = await waitForMessage(3003, /Холодная вода/);
 
@@ -1867,6 +1874,7 @@ describe('чат-бот управляющей компании', () => {
     platform.userSends('123,5', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Принято: 123.5 м³/);
 
+    platform.userPressesButton('meter:hot-1', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Горячая вода/);
 
     platform.userSends('45', { userId: 3003, chatId: 3003 });
@@ -1880,22 +1888,27 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
-  it('прибор пропускают кнопкой, разговор переходит к следующему', async () => {
+  it('счётчик выбирают из списка, а не идут по приборам подряд', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
     await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
-    await bot.repository.saveMeter({ id: 'hot-1', apartmentId: 'apt-1', kind: 'hot_water', serial: 'ГВС-1' });
+    await bot.repository.saveMeter({ id: 'power-1', apartmentId: 'apt-1', kind: 'electricity', serial: 'ЭЛ-1' });
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Холодная вода/);
 
-    platform.userPressesButton('meter-skip:cold-1', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Горячая вода/);
+    const list = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(list, /Холодная вода/);
+    assert.match(list, /Электричество/);
+
+    platform.userPressesButton('meter:power-1', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Электричество/);
 
     platform.userSends('45', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Принято: 45/);
 
-    assert.equal((await bot.repository.listReadings('cold-1')).length, 0, 'пропущенный прибор остался без показания');
+    assert.equal((await bot.repository.listReadings('power-1')).length, 1, 'показание ушло по выбранному прибору');
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 0, 'вода осталась нетронутой');
 
     await bot.stop();
   });
@@ -1934,7 +1947,7 @@ describe('чат-бот управляющей компании', () => {
     assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Квитанция/);
 
     platform.userPressesButton('group:back', { userId: 3003, chatId: 3003 });
-    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Оплата/);
+    assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Счета и показания/);
 
     assert.equal(platform.outgoing.length, single, 'переписка от хождения по меню не растёт');
 
@@ -2074,7 +2087,7 @@ describe('чат-бот управляющей компании', () => {
 
     const house = JSON.stringify((await waitForKeyboard(3003)) ?? []);
 
-    assert.match(house, /Капремонт/, 'о капремонте человек узнаёт из меню бота');
+    assert.match(house, /Капитальный ремонт/, 'о капремонте человек узнаёт из меню бота');
 
     platform.userPressesButton('app:capital', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Взнос, накопленное домом/);
@@ -2886,21 +2899,18 @@ describe('чат-бот управляющей компании', () => {
       };
 
       await bot.deps.repository.saveResident(manager);
+      // Одно короткое окно: ближайшие часы остаются кнопками в переписке.
       await updateBuilding(bot.deps, manager, {
-        reception: [
-          { weekday: 1, from: '15:00', to: '17:00' },
-          { weekday: 2, from: '15:00', to: '17:00' },
-          { weekday: 3, from: '15:00', to: '17:00' },
-          { weekday: 4, from: '15:00', to: '17:00' },
-          { weekday: 5, from: '15:00', to: '17:00' },
-        ],
+        reception: [{ weekday: 2, from: '15:00', to: '16:00' }],
         service: { office: 'ул. Ленина, 15, офис 1' },
       });
 
       platform.userSends('/visit', { userId: 3003, chatId: 3003 });
       await waitForMessage(3003, /Когда удобно/);
 
-      const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+      const buttons = JSON.stringify(
+        platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? [],
+      );
       const slot = /"payload":"(visit:[^"]+)"/.exec(buttons)?.[1];
 
       assert.ok(slot, 'в клавиатуре нет свободных часов');
@@ -2920,6 +2930,38 @@ describe('чат-бот управляющей компании', () => {
       await waitForToast(/Запись отменена/);
 
       assert.equal((await bot.deps.repository.listVisits({ statuses: ['booked'] })).length, 0);
+
+      await bot.stop();
+    });
+
+    it('когда часов много, выбор времени уходит в приложение', async () => {
+      const bot = await start([RESIDENT_WITH_FLAT]);
+      const manager: Resident = {
+        id: 'man-many',
+        maxUserId: 7008,
+        displayName: 'Нина',
+        role: 'manager',
+        buildingId: BUILDING_ID,
+      };
+
+      await bot.deps.repository.saveResident(manager);
+      await updateBuilding(bot.deps, manager, {
+        reception: [
+          { weekday: 1, from: '10:00', to: '18:00' },
+          { weekday: 3, from: '10:00', to: '18:00' },
+        ],
+        service: { office: 'ул. Ленина, 15, офис 1' },
+      });
+
+      platform.userSends('/visit', { userId: 3003, chatId: 3003 });
+
+      const said = await waitForMessage(3003, /Свободных часов/);
+
+      assert.match(said, /Приём: ул\. Ленина, 15, офис 1\./);
+      assert.match(
+        JSON.stringify(platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? []),
+        /Выбрать время в приложении/,
+      );
 
       await bot.stop();
     });

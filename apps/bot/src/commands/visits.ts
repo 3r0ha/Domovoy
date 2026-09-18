@@ -1,15 +1,10 @@
-import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident, type VisitCard } from '@domovoy/app';
+import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident } from '@domovoy/app';
 import { DomainError, isCompanyStaff } from '@domovoy/domain';
 
 import { menuButton, visitCancelKeyboard, visitKeyboard } from '../keyboards.js';
+import { inApp } from './in-app.js';
 import { inChat } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
-
-/** Кто записан: имя и квартира, если она известна. */
-const who = (card: VisitCard): string =>
-  [card.residentName ?? 'Жилец', card.apartment === undefined ? '' : `кв. ${card.apartment}`]
-    .filter(Boolean)
-    .join(', ');
 
 /** Сколько ближайших часов показывать кнопками: столько же, сколько строк в списках. */
 const SHOWN_SLOTS = 5;
@@ -51,6 +46,9 @@ export const freeHours = async (
 };
 
 /** Приём в управляющей организации: запись и отмена прямо в переписке. */
+/** Сколько часов приёма ещё читаются кнопками: дальше нужен календарь. */
+const NEAREST_HOURS = 6;
+
 export const visitCommands = (kit: BotKit): Record<string, Handler> => {
   const { deps, residentOf } = kit;
 
@@ -66,15 +64,15 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
       try {
         if (isCompanyStaff(resident.role)) {
           const cards = await listVisitsFor(deps, resident);
-          const zone = await zoneOf(deps, resident.buildingId ?? deps.defaultBuildingId);
 
-          await typed.reply(
-            cards.length === 0
-              ? 'Записей на приём нет.'
-              : ['Записаны на приём:', ...cards.map((card) => `${who(card)} ${formatVisit(card.visit, zone)}`)].join(
-                  '\n',
-                ),
-            menuButton(typed),
+          // Сетка часов, перенос и отмена записей это календарь: в переписке
+          // остаётся счёт, а ведут приём на экране.
+          await inApp(
+            kit,
+            typed,
+            cards.length === 0 ? 'Записей на приём нет.' : `Записано на приём: ${cards.length}.`,
+            'visits',
+            'Приём в приложении',
           );
           return;
         }
@@ -95,6 +93,19 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
               ? 'Приём по записи не ведётся. Напишите в поддержку, ответит смена.'
               : 'Свободных часов на ближайшие две недели нет.',
             menuButton(typed),
+          );
+          return;
+        }
+
+        // Часов на две недели вперёд десятки, и кнопками они не читаются:
+        // в переписке остаются ближайшие, а весь календарь на экране.
+        if (reception.slots.length > NEAREST_HOURS) {
+          await inApp(
+            kit,
+            typed,
+            `${reception.office ? `Приём: ${reception.office}.` : 'Приём по записи.'} Свободных часов: ${reception.slots.length}.`,
+            'visits',
+            'Выбрать время в приложении',
           );
           return;
         }

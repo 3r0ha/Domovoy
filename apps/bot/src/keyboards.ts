@@ -12,6 +12,7 @@ import {
 import {
   formatMeterValue,
   formatMoney,
+  type MeterKind,
   DomainError,
   METER_RULES,
   OPEN_STATUSES,
@@ -292,6 +293,7 @@ export const afterError = (error: unknown, context?: Parameters<typeof menuButto
 export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuButton>[0]) =>
   keyboardOf(
     [
+      [Keyboard.button.callback('📄 Выгрузить мои данные', 'mydata:file')],
       ...(bound ? [[Keyboard.button.callback('🚪 Отвязать квартиру', 'leave:ask')]] : []),
       [Keyboard.button.callback('🗑 Удалить профиль', 'forget:ask')],
       [Keyboard.button.callback('🏠 Меню', 'group:back')],
@@ -324,6 +326,25 @@ export const cancelKeyboard = (): Extra => {
 };
 
 /** Под вопросом о показании: пропустить прибор или выйти из подачи. */
+/**
+ * Список счётчиков: каждый своей кнопкой, поданные помечены. Так человек
+ * подаёт показание с любого прибора, а не идёт по ним подряд.
+ */
+export const metersKeyboard = (
+  states: readonly { meter: { id: string; kind: string; serial: string }; submittedThisMonth: boolean }[],
+): Extra => ({
+  attachments: [
+    Keyboard.inlineKeyboard(
+      states.map((state) => [
+        Keyboard.button.callback(
+          `${state.submittedThisMonth ? '✅' : '💧'} ${METER_RULES[state.meter.kind as MeterKind].title}`,
+          `meter:${state.meter.id}`,
+        ),
+      ]),
+    ),
+  ],
+});
+
 export const readingKeyboard = (meterId: string, canSkip: boolean) => ({
   attachments: [
     Keyboard.inlineKeyboard([

@@ -268,6 +268,15 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
 
   // Список соседских обращений живёт на экране: в переписке остаётся свежее,
   // чтобы подтвердить его одной кнопкой, а остальное открывается в приложении.
+  if (!inChat(typed) && requests.length > 1) {
+    await typed.reply(
+      `Соседи сообщили о ${requests.length} ${plural(requests.length, 'проблеме', 'проблемах', 'проблемах')}.`,
+      keyboardOf([...appRow(kit.miniAppUrl, 'Заявки соседей в приложении', 'list')], typed),
+    );
+
+    return;
+  }
+
   const shown = requests.slice(0, inChat(typed) ? 1 : NEARBY);
 
   for (const request of shown) {
