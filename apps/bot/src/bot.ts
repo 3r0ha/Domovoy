@@ -479,7 +479,10 @@ export const createDomovoyBot = (
 
     if (actions.has(name) || name === 'start' || inChat(typed)) return;
 
-    await typed.reply('Такой команды у меня нет. Что нужно сделать?', kit.menuKeyboard(await residentOf(typed)));
+    await typed.reply(
+      'Такой команды у меня нет. Можно написать словами, что нужно, я разберу.',
+      kit.menuKeyboard(await residentOf(typed)),
+    );
   };
 
   bot.on(

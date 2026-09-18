@@ -7,6 +7,7 @@ import {
   commentRequest,
   describeFromAttachments,
   metersFor,
+  sectionFor,
   submitProblem,
   submitReading,
   takeVisit,
@@ -208,6 +209,27 @@ const explainTransition = async (
 };
 
 /** Описание проблемы: из него заводится заявка либо получается ответ по дому. */
+/**
+ * Сделанное по словам: человек написал, что ему нужно, и продукт открывает
+ * нужный раздел сам. Так ботом управляют словами, а не только кнопками.
+ * @returns правда, если дело сделано и заявка не нужна.
+ */
+const doneByWords = async (
+  kit: BotKit,
+  typed: BotContext,
+  resident: Awaited<ReturnType<BotKit['residentOf']>>,
+  text: string,
+): Promise<boolean> => {
+  const to = await sectionFor(kit.deps, resident, text).catch(() => undefined);
+  const command = to?.command?.replace(/^\//, '');
+
+  if (!command) return false;
+
+  forget(typed);
+
+  return kit.run(command, typed);
+};
+
 const describeProblem = async (
   kit: BotKit,
   typed: BotContext,
@@ -234,6 +256,10 @@ const describeProblem = async (
 
       return;
     }
+
+    // Просьба сделать дело, а не рассказ о поломке: «открыть дверь», «оплатить
+    // счёт». Продукт выполняет её, а не заводит по ней заявку и не отказывает.
+    if (attachments.length === 0 && (await doneByWords(kit, typed, resident, description))) return;
 
     const result = await submitProblem(kit.deps, {
       resident,

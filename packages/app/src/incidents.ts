@@ -25,6 +25,7 @@ export {
 } from './incidents/reminders.js';
 export {
   asRequest,
+  sectionFor,
   JOIN_LOCK_PREFIX,
   REQUESTS_PER_HOUR,
   SAME_REQUEST_WINDOW_MS,

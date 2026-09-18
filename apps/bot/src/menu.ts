@@ -41,8 +41,8 @@ const HOME_GROUP: MenuGroup = {
     { title: '💧 Показания', command: 'meters' },
     { title: '🧾 Квитанция', command: 'bill' },
     { title: '🏢 Квартира', command: 'flat' },
-    { title: '✉️ Написать в компанию', command: 'support' },
-    { title: '🗓 Записаться на приём', command: 'visit' },
+    { title: '✉️ Вопрос компании', command: 'support' },
+    { title: '🗓 Приём в офисе', command: 'visit' },
   ],
 };
 
@@ -54,20 +54,16 @@ const BIND_GROUP: MenuGroup = {
   key: 'home',
   title: '🏡 Моя квартира',
   about: 'Если вы живёте в этом доме, привяжите квартиру по коду из квитанции.',
-  items: [{ title: '🏢 Указать свою квартиру', command: 'flat' }],
+  items: [{ title: '🏢 Моя квартира', command: 'flat' }],
 };
-
-/** Помощник стоит первым экраном у всех: спросить словами проще, чем искать пункт. */
-const ASK_ITEM: MenuItem = { title: '❓ Не знаю, куда нажать', command: 'help' };
 
 const RESIDENT: RoleMenu = {
   top: [
-    { title: '✍️ Сообщить о поломке', command: 'new' },
+    { title: '✍️ Что сломалось', command: 'new' },
     { title: '📋 Мои обращения', command: 'my' },
-    // Дверь открывают на ходу, стоя у подъезда: прятать её в группу значит
+    // Двери открывают на ходу, стоя у подъезда: прятать их в группу значит
     // заставить человека нажимать дважды, пока за ним закрывается домофон.
-    { title: '🚪 Открыть дверь', command: 'door' },
-    ASK_ITEM,
+    { title: '🚪 Двери и камеры', command: 'door' },
   ],
   groups: [
     {
@@ -76,7 +72,7 @@ const RESIDENT: RoleMenu = {
       about: 'Сколько платить в этом месяце и куда отправить цифры со счётчиков.',
       items: [
         { title: '🧾 Сколько платить', command: 'bill' },
-        { title: '💧 Отправить показания', command: 'meters' },
+        { title: '💧 Счётчики', command: 'meters' },
       ],
     },
     {
@@ -103,8 +99,8 @@ const RESIDENT: RoleMenu = {
       title: '☎️ Связь и профиль',
       about: 'Как связаться с управляющей компанией и что продукт о вас знает.',
       items: [
-        { title: '✉️ Написать в компанию', command: 'support' },
-        { title: '🗓 Записаться на приём', command: 'visit' },
+        { title: '✉️ Вопрос компании', command: 'support' },
+        { title: '🗓 Приём в офисе', command: 'visit' },
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '🏢 Квартира', command: 'flat' },
         { title: '🗂 Мои данные', command: 'mydata' },
@@ -125,7 +121,6 @@ const CONTRACTOR: RoleMenu = {
   top: [
     { title: '📋 Наряды', command: 'my' },
     { title: '🗂 Мои данные', command: 'mydata' },
-    ASK_ITEM,
   ],
   groups: [
     {
@@ -135,10 +130,10 @@ const CONTRACTOR: RoleMenu = {
       title: '🏢 Дела дома',
       about: 'Связь с управляющей компанией, объявления и двери подъездов.',
       items: [
-        { title: '✉️ Написать в компанию', command: 'support' },
+        { title: '✉️ Вопрос компании', command: 'support' },
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '📣 Объявления', command: 'news' },
-        { title: '🚪 Открыть дверь', command: 'door' },
+        { title: '🚪 Двери и камеры', command: 'door' },
       ],
     },
   ],
@@ -146,7 +141,6 @@ const CONTRACTOR: RoleMenu = {
 
 const STAFF: RoleMenu = {
   top: [
-    ASK_ITEM,
     { title: '🗂 Очередь дома', command: 'queue' },
     { title: '📋 Мои наряды', command: 'my' },
     // Дежурят все свои: управляющий тоже берёт ночь на себя, и команда /duty
@@ -175,7 +169,7 @@ const STAFF: RoleMenu = {
         // в работе не нужны, а писать он по ним всё равно не может.
         { title: '💰 Долги дома', command: 'debts', roles: ['dispatcher', 'manager'] },
         { title: '🗳 Собрания', command: 'vote' },
-        { title: '🚪 Открыть дверь', command: 'door' },
+        { title: '🚪 Двери и камеры', command: 'door' },
       ],
     },
     {
@@ -360,16 +354,10 @@ export const menuKeyboard = (resident: Resident, miniAppUrl?: string, offer: Men
 
   const app = miniAppUrl ? [[Keyboard.button.openApp('📱 Открыть приложение', miniAppUrl)]] : [];
 
-  // Помощник стоит отдельной строкой: он отвечает по всему продукту, а в паре
-  // с соседней кнопкой читается как ещё один раздел.
-  const ask = menu.top.filter((item) => item.command === ASK_ITEM.command);
-  const rest = menu.top.filter((item) => item.command !== ASK_ITEM.command);
-
   const built = {
     attachments: [
       Keyboard.inlineKeyboard([
-        ...ask.map((item) => [Keyboard.button.callback(item.title, `menu:${item.command}`)]),
-        ...rows(rest),
+        ...rows(menu.top),
         ...grouped,
         ...app,
       ]),

@@ -21,7 +21,7 @@ import {
 
 import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
-import { askAssistant, capabilitiesFor, findCapability } from '../assistant.js';
+import { askAssistant, capabilitiesFor, findCapability, type Capability } from '../assistant.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
@@ -131,7 +131,7 @@ const answerInstead = async (deps: AppDeps, command: CreateRequestCommand): Prom
  * продукт ведёт себя так же, только грубее.
  */
 const otherSection = async (deps: AppDeps, command: CreateRequestCommand): Promise<string | undefined> => {
-  const elsewhere = await routedElsewhere(deps, command);
+  const elsewhere = await sectionFor(deps, command.resident, command.description);
 
   if (!elsewhere) return undefined;
 
@@ -140,34 +140,40 @@ const otherSection = async (deps: AppDeps, command: CreateRequestCommand): Promi
   return help.answer;
 };
 
-/** Относится ли написанное к другому разделу, а не к поломке. */
-const routedElsewhere = async (deps: AppDeps, command: CreateRequestCommand): Promise<boolean> => {
-  const role = command.resident.role;
-  const sections = capabilitiesFor(role).map((item) => ({
-    screen: item.screen,
-    title: item.title,
-    about: item.about,
-  }));
+/**
+ * Раздел, о котором написал человек, если это не поломка. «Открыть дверь» и
+ * «оплатить счёт» это не обращение в управляющую компанию, а просьба сделать
+ * дело: продукт открывает нужный раздел, а не заводит по ним заявку.
+ * @returns раздел или `undefined`, если написанное про поломку.
+ */
+export const sectionFor = async (
+  deps: AppDeps,
+  resident: Resident,
+  text: string,
+): Promise<Capability | undefined> => {
+  const role = resident.role;
+  const own = capabilitiesFor(role);
+  const sections = own.map((item) => ({ screen: item.screen, title: item.title, about: item.about }));
 
-  const read = await deps.reasoner?.route?.({ text: command.description, sections }).catch(() => undefined);
+  const read = await deps.reasoner?.route?.({ text, sections }).catch(() => undefined);
 
-  if (read?.kind === 'breakdown') return false;
+  if (read?.kind === 'breakdown') return undefined;
 
   if (read?.kind === 'elsewhere') {
     // Раздела, которого у роли нет, модель не выбирает: ответ был бы в пустоту.
-    return sections.some((item) => item.screen === read.screen && item.screen !== 'new');
+    return own.find((item) => item.screen === read.screen && item.screen !== 'new');
   }
 
   // Модель промолчала: подбор по словам осторожнее её. Заявкой не становится
   // только короткое обращение, где нет ни слова о неисправности, а название
   // другого раздела есть.
-  if (suggestCategory(command.description) !== 'other') return false;
-  if (command.description.trim().length > SHORT_ENOUGH) return false;
-  if (TROUBLE.test(command.description)) return false;
+  if (suggestCategory(text) !== 'other') return undefined;
+  if (text.trim().length > SHORT_ENOUGH) return undefined;
+  if (TROUBLE.test(text)) return undefined;
 
-  const asked = findCapability(command.description, role);
+  const asked = findCapability(text, role);
 
-  return asked !== undefined && asked.screen !== 'new';
+  return asked && asked.screen !== 'new' ? asked : undefined;
 };
 
 /** Человек спрашивает, а не рассказывает: вопросительный знак или вопросительное слово. */
