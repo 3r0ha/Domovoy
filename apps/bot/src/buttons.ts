@@ -44,7 +44,6 @@ import {
   STATUS_TITLES,
   type NoticeKind,
 } from '@domovoy/domain';
-import { fmt } from '@maxkit/max-bot-api';
 
 import {
   actionKeyboard,
@@ -69,9 +68,10 @@ import {
   replyIfOpen,
   visitKeyboard,
 } from './keyboards.js';
+import { inApp } from './commands/in-app.js';
 import { takeLegal } from './commands/legal.js';
 import { freeHours } from './commands/visits.js';
-import { groupFor, groupKeyboard } from './menu.js';
+import { groupFor, groupKeyboard, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { expect, forget, inChat, toast, type BotContext } from './max.js';
 import type { BotKit, Extra } from './kit.js';
@@ -100,6 +100,22 @@ const stale = (typed: BotContext): Promise<void> => toast(typed, 'Кнопка �
 /** «Рассылка должникам» из списка долгов: письмо собирается там же, где и остальные. */
 const cast: Button = async (kit, typed) => {
   await kit.run('broadcast', typed);
+};
+
+/**
+ * Пункт меню, который живёт в приложении. В переписке он рассказывает, что там
+ * делают, и открывает нужный раздел: иначе о половине продукта человек
+ * не узнает, а делать это в чате мучительно.
+ */
+const app: Button = async (kit, typed, [name]) => {
+  if (!name) return stale(typed);
+
+  const resident = await kit.residentOf(typed);
+  const item = itemFor(resident, name, { doors: Boolean(kit.deps.hub) });
+
+  if (!item?.app) return stale(typed);
+
+  await inApp(kit, typed, `${item.title}\n${item.app.about}`, item.app.screen);
 };
 
 /** Кнопка меню повторяет команду. */
@@ -260,7 +276,7 @@ const payMonth: Button = async (kit, typed) => {
     const receipt = await payCharges(kit.deps, payer);
 
     await typed.reply(
-      `Оплачено ${fmt.bold(formatMoney(receipt.amount))}. Квитанция придёт в приложение.`,
+      `Оплачено ${formatMoney(receipt.amount)}. Квитанция придёт в приложение.`,
       menuButton(typed),
     );
   } catch (error) {
@@ -276,7 +292,7 @@ const payDebt: Button = async (kit, typed) => {
     const receipts = await payArrears(kit.deps, payer);
     const total = receipts.reduce((sum, receipt) => sum + receipt.amount, 0);
 
-    await typed.reply(`Долг погашен: ${fmt.bold(formatMoney(total))} за ${months(receipts.length)}.`, menuButton(typed));
+    await typed.reply(`Долг погашен: ${formatMoney(total)} за ${months(receipts.length)}.`, menuButton(typed));
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     await typed.reply(error.message, afterError(error, typed));
@@ -321,7 +337,7 @@ const guest: Button = async (kit, typed, [deviceId]) => {
     const issued = await inviteGuest(kit.deps, resident, deviceId);
 
     await typed.reply(
-      `Код для гостя: ${fmt.bold(issued.code)}\nДействует до ${formatClock(issued.expiresAt)}.`,
+      `Код для гостя: ${issued.code}\nДействует до ${formatClock(issued.expiresAt)}.`,
       copyKeyboard('Скопировать код', issued.code),
     );
   } catch (error) {
@@ -355,7 +371,7 @@ const alarmAnswer =
       }
 
       await typed.reply(
-        `Записал: у вас то же самое. Заявка ${fmt.bold(updated.number)}, об изменениях сообщу.`,
+        `Записал: у вас то же самое. Заявка ${updated.number}, об изменениях сообщу.`,
         actionKeyboard([], replyIfOpen(updated)),
       );
     } catch (error) {
@@ -375,7 +391,7 @@ const support: Button = async (kit, typed, [requestId]) => {
     );
 
     await typed.reply(
-      `Записал: у вас то же самое. Заявка ${fmt.bold(updated.number)}, ` +
+      `Записал: у вас то же самое. Заявка ${updated.number}, ` +
         `${plural(reporters, 'сообщил', 'сообщили', 'сообщили')}, об изменениях сообщу.`,
       actionKeyboard([], replyIfOpen(updated)),
     );
@@ -416,7 +432,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
     delete typed.session?.where;
 
     await typed.reply(
-      `Записал: ${describeTarget(updated.target)}. Заявка ${fmt.bold(updated.number)} уже у смены.`,
+      `Записал: ${describeTarget(updated.target)}. Заявка ${updated.number} уже у смены.`,
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated)),
     );
   } catch (error) {
@@ -597,7 +613,7 @@ const assign: Button = async (kit, typed, [requestId, staffId]) => {
     const master = (await listAssignable(kit.deps, resident)).find((person) => person.id === staffId);
 
     await typed.reply(
-      `Заявка ${fmt.bold(updated.number)} поручена: ${master?.displayName ?? 'исполнителю'}.`,
+      `Заявка ${updated.number} поручена: ${master?.displayName ?? 'исполнителю'}.`,
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated)),
     );
   } catch (error) {
@@ -794,6 +810,7 @@ const legal: Button = async (kit, typed, [step]) => {
 };
 
 export const BUTTONS: Record<string, Button> = {
+  app,
   legal,
   menu,
   group,

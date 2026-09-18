@@ -28,7 +28,6 @@ import {
   verificationState,
   type Attachment,
 } from '@domovoy/domain';
-import { fmt } from '@maxkit/max-bot-api';
 
 import { sayBound } from './greeting.js';
 import { showRequestByNumber } from './pages.js';
@@ -133,7 +132,7 @@ const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, sa
     });
 
     await typed.reply(
-      `Передал по заявке ${fmt.bold(updated.number)}.`,
+      `Передал по заявке ${updated.number}.`,
       actionKeyboard(actionsFor(updated, author), replyIfOpen(updated)),
     );
   } catch (error) {
@@ -164,8 +163,8 @@ const explainTransition = async (
     // отказала, нужны разные слова: у сдачи это отметка о работе, а не причина.
     const said =
       actor.role === 'resident'
-        ? `Заявка ${fmt.bold(updated.number)} снова в работе: передал ваши слова мастеру.`
-        : `Заявка ${fmt.bold(updated.number)}: ${STATUS_TITLES[updated.status]}. ${
+        ? `Заявка ${updated.number} снова в работе: передал ваши слова мастеру.`
+        : `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}. ${
             COMMENT_DONE[waiting.to] ?? 'Причину увидит жилец.'
           }`;
 

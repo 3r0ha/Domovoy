@@ -6,6 +6,13 @@ import type { Extra } from './kit.js';
 export interface MenuItem {
   title: string;
   command: string;
+  /**
+   * Дело живёт в мини-приложении: в переписке оно было бы мучительным.
+   * Пункт остаётся в меню, чтобы человек о нём узнал, и открывает раздел.
+   */
+  app?: { screen: string; about: string };
+  /** Кому пункт показывать. Пусто означает всем, кому досталось это меню. */
+  roles?: readonly string[];
 }
 
 export interface MenuGroup {
@@ -60,6 +67,14 @@ const RESIDENT: RoleMenu = {
         { title: '👥 Соседи', command: 'neighbours' },
         { title: '🗳 Собрания', command: 'vote' },
         { title: '📊 Работа дома', command: 'house' },
+        {
+          title: '🏗 Капремонт',
+          command: 'capital',
+          app: {
+            screen: 'capital',
+            about: 'Взнос, накопленное домом и годы работ по региональной программе.',
+          },
+        },
       ],
     },
     {
@@ -71,6 +86,14 @@ const RESIDENT: RoleMenu = {
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '🏢 Квартира', command: 'flat' },
         { title: '🗂 Мои данные', command: 'mydata' },
+        {
+          title: '🔔 Уведомления',
+          command: 'notices',
+          app: {
+            screen: 'profile',
+            about: 'Что присылать и о чём молчать. Там же телефон и выгрузка своих данных.',
+          },
+        },
       ],
     },
   ],
@@ -100,6 +123,19 @@ const STAFF: RoleMenu = {
         { title: '🗓 Приём', command: 'visit' },
         { title: '📊 Сводка', command: 'report' },
         { title: '🏷 Наклейки', command: 'stickers' },
+        {
+          title: '🔍 Осмотры',
+          command: 'inspections',
+          app: {
+            screen: 'inspections',
+            about: 'Обход по чек-листу: пункты отмечаются на месте, найденное сразу становится заявкой.',
+          },
+        },
+        {
+          title: '🗺 План дома',
+          command: 'plan',
+          app: { screen: 'plan', about: 'Подъезды и стояки с отметками, где сообщили о проблеме.' },
+        },
       ],
     },
     {
@@ -111,6 +147,51 @@ const STAFF: RoleMenu = {
         { title: '🗳 Собрания', command: 'vote' },
         { title: '🚪 Дверь', command: 'door' },
         { title: '💰 Долги', command: 'debts' },
+        {
+          title: '🛗 Оборудование',
+          command: 'equipment',
+          app: { screen: 'equipment', about: 'Что отказывает чаще и что скоро потребует ремонта.' },
+        },
+        {
+          title: '💧 Узел учёта',
+          command: 'house-meters',
+          app: { screen: 'house-meters', about: 'Общедомовой расход по месяцам, туда же вводят показания.' },
+        },
+        {
+          title: '👥 Люди дома',
+          command: 'residents',
+          app: { screen: 'residents', about: 'Кто в смене, кто дежурит, кому какая роль, привязка квартиры жильцу.' },
+        },
+      ],
+    },
+    {
+      key: 'manage',
+      title: '🗄 Управление',
+      items: [
+        {
+          title: '💵 Тарифы',
+          command: 'tariffs',
+          app: { screen: 'tariffs', about: 'Ставки, из которых складывается квитанция дома.' },
+          roles: ['manager'],
+        },
+        {
+          title: '🏠 Карточка дома',
+          command: 'card',
+          app: { screen: 'import', about: 'Контакты, приёмные часы, квартиры и оборудование дома.' },
+          roles: ['manager'],
+        },
+        {
+          title: '🏘 Дома компании',
+          command: 'buildings',
+          app: { screen: 'buildings', about: 'Все адреса компании: переключиться или завести новый.' },
+          roles: ['manager'],
+        },
+        {
+          title: '📜 Действия',
+          command: 'audit',
+          app: { screen: 'audit', about: 'Кто и что сделал по дому: заявки, роли, показания, рассылки.' },
+          roles: ['manager'],
+        },
       ],
     },
   ],
@@ -149,7 +230,10 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
   const allowed = own.groups.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) => offered(item, offer) && !(role === 'technician' && FOR_MANAGEMENT.has(item.command)),
+      (item) =>
+        offered(item, offer) &&
+        (!item.roles || item.roles.includes(role)) &&
+        !(role === 'technician' && FOR_MANAGEMENT.has(item.command)),
     ),
   }));
 
@@ -167,15 +251,24 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
 export const groupFor = (resident: Resident, key: string, offer: MenuOffer = {}): MenuGroup | undefined =>
   menuFor(resident, offer).groups.find((group) => group.key === key);
 
+/** Пункт, который живёт в приложении, нажимается иначе: он о нём и рассказывает. */
+const payloadOf = (item: MenuItem): string => (item.app ? `app:${item.command}` : `menu:${item.command}`);
+
 const rows = (items: readonly MenuItem[]): ReturnType<typeof Keyboard.button.callback>[][] => {
   const built: ReturnType<typeof Keyboard.button.callback>[][] = [];
 
   for (let at = 0; at < items.length; at += 2) {
-    built.push(items.slice(at, at + 2).map((item) => Keyboard.button.callback(item.title, `menu:${item.command}`)));
+    built.push(items.slice(at, at + 2).map((item) => Keyboard.button.callback(item.title, payloadOf(item))));
   }
 
   return built;
 };
+
+/** Пункт меню по имени: по нему собирается рассказ о разделе приложения. */
+export const itemFor = (resident: Resident, command: string, offer: MenuOffer = {}): MenuItem | undefined =>
+  menuFor(resident, offer)
+    .groups.flatMap((group) => group.items)
+    .find((item) => item.command === command);
 
 /**
  * Первый экран меню: частые дела кнопками, остальное группами. Так в чате

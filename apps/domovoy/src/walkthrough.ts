@@ -106,15 +106,17 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
   bot.bot.botInfo = await bot.bot.api.getMyInfo();
   void bot.supervisor.start();
 
-  const shown = new Set<string>();
+  // Что уже показано: нажатие кнопки переписывает сообщение на месте,
+  // поэтому помнится не только его номер, но и текст.
+  const shown = new Map<string, string>();
   const everyone = [IVAN, ANNA, PETR, DISPATCHER, TECHNICIAN, MANAGER, NEWCOMER];
 
-  /** Выводит всё, что бот отправил с прошлого раза, в порядке отправки. */
+  /** Выводит всё, что бот отправил или переписал с прошлого раза, по порядку. */
   const flush = (): void => {
     for (const message of platform.outgoing) {
-      if (shown.has(message.mid)) continue;
+      if (shown.get(message.mid) === message.text) continue;
 
-      shown.add(message.mid);
+      shown.set(message.mid, message.text);
 
       if (message.chatId === HOUSE_CHAT) {
         say('бот → чат дома', message.text);

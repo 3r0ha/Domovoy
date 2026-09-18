@@ -267,7 +267,7 @@ describe('чат-бот управляющей компании', () => {
     const messages = await platform.waitForOutgoing(2, 3000);
 
     const confirmation = messages[1]?.text ?? '';
-    assert.match(confirmation, /Заявка \*\*Д15-2609-0001\*\* принята/);
+    assert.match(confirmation, /Заявка Д15-2609-0001 принята/);
     assert.match(confirmation, /Лифт, оборудование lift-2/);
     assert.match(confirmation, /Ответим до /);
     assert.match(confirmation, /Срок выполнения: до /);
@@ -491,7 +491,7 @@ describe('чат-бот управляющей компании', () => {
 
     const listing = messages[1]?.text ?? '';
 
-    assert.match(listing, /\*\*Собрание\*\*, весь дом/);
+    assert.match(listing, /Собрание, весь дом/);
     assert.equal(/Отключение воды/.test(listing), false, 'чужой стояк жильцу не показывается');
 
     await bot.stop();
@@ -1941,6 +1941,62 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('дела приложения видны в меню бота и открываются кнопкой', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.userPressesButton('group:house', { userId: 3003, chatId: 3003 });
+
+    const house = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(house, /Капремонт/, 'о капремонте человек узнаёт из меню бота');
+
+    platform.userPressesButton('app:capital', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Взнос, накопленное домом/);
+
+    const shown = JSON.stringify(platform.outgoing.findLast((message) => message.chatId === 3003)?.attachments ?? []);
+
+    assert.match(shown, /startapp=go-capital/, 'кнопка ведёт прямо в раздел приложения');
+    assert.match(shown, /Назад/, 'из рассказа есть выход');
+
+    await bot.stop();
+  });
+
+  it('дела управляющего мастеру в меню не показывают', async () => {
+    const manager: Resident = {
+      id: 'mgr-menu',
+      maxUserId: 7031,
+      displayName: 'Нина',
+      role: 'manager',
+      buildingId: BUILDING_ID,
+      legalVersion: LEGAL_VERSION,
+    };
+
+    const technician: Resident = {
+      id: 'tech-menu',
+      maxUserId: 7032,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+      legalVersion: LEGAL_VERSION,
+    };
+
+    const bot = await start([manager, technician]);
+
+    platform.userSends('/start', { userId: 7031, chatId: 7031 });
+    const forManager = JSON.stringify((await waitForKeyboard(7031)) ?? []);
+
+    platform.userSends('/start', { userId: 7032, chatId: 7032 });
+    const forTechnician = JSON.stringify((await waitForKeyboard(7032)) ?? []);
+
+    assert.match(forManager, /Управление/);
+    assert.equal(/Управление/.test(forTechnician), false, 'мастеру эти дела не поручены');
+
+    await bot.stop();
+  });
+
   it('отмена возвращает в ту группу меню, из которой начали', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
@@ -3003,7 +3059,7 @@ describe('чат-бот управляющей компании', () => {
 
       const said = await waitForMessage(HOUSE_CHAT, /Срок выполнения/);
 
-      assert.match(said, /Заявка \*\*Д15-2609-0001\*\* принята/);
+      assert.match(said, /Заявка Д15-2609-0001 принята/);
 
       const [request] = await bot.deps.repository.listRequests({});
 
@@ -3110,7 +3166,7 @@ describe('чат-бот управляющей компании', () => {
       await waitForMessage(HOUSE_CHAT, /Собрание/);
 
       platform.chatSends('/news', { userId: 4004, chatId: HOUSE_CHAT });
-      const listing = await waitForMessage(HOUSE_CHAT, /\*\*Собрание\*\*/);
+      const listing = await waitForMessage(HOUSE_CHAT, /Собрание, весь дом/);
 
       assert.match(listing, /В четверг во дворе/);
 
@@ -3170,7 +3226,7 @@ describe('чат-бот управляющей компании', () => {
 
       const answer = platform.outgoing.find((message) => message.postId === 'mid.post.7');
 
-      assert.match(answer?.text ?? '', /Заявка \*\*Д15-2609-0001\*\* принята/);
+      assert.match(answer?.text ?? '', /Заявка Д15-2609-0001 принята/);
 
       const [request] = await bot.deps.repository.listRequests({});
 

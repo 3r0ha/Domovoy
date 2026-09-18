@@ -1,6 +1,5 @@
 import { arrearsFor, chargesForResident, formatDebtShort, metersFor } from '@domovoy/app';
 import { DomainError, formatMoney, METER_RULES, verificationState } from '@domovoy/domain';
-import { fmt } from '@maxkit/max-bot-api';
 
 import { afterError, appRow, keyboardOf, menuButton, payRows, readingKeyboard, readingPrompt } from '../keyboards.js';
 import { expect } from '../max.js';
@@ -72,8 +71,8 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(
         [
           left > 0
-            ? `К оплате ${fmt.bold(formatMoney(left))} до ${charges.dueDay} числа`
-            : `Начислено ${fmt.bold(formatMoney(charges.total))}, за этот месяц всё оплачено`,
+            ? `К оплате ${formatMoney(left)} до ${charges.dueDay} числа`
+            : `Начислено ${formatMoney(charges.total)}, за этот месяц всё оплачено`,
           debt,
           'Из чего сложилось и за что, смотрите в приложении.',
         ]

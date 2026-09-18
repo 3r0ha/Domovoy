@@ -13,7 +13,6 @@ import {
   servedBy,
 } from '@domovoy/app';
 import { DomainError, isCompanyStaff, sectionParam } from '@domovoy/domain';
-import { fmt } from '@maxkit/max-bot-api';
 
 import {
   afterError,
@@ -175,7 +174,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       if (!offer?.possible || !offer.complaint) continue;
 
       await typed.reply(
-        `По заявке ${fmt.bold(request.number)} есть основание для обращения: ${offer.reason}.\n` +
+        `По заявке ${request.number} есть основание для обращения: ${offer.reason}.\n` +
           'Готовый текст ниже, проверьте и отправьте в жилищную инспекцию.',
       );
       await typed.reply(offer.complaint, menuButton(typed));

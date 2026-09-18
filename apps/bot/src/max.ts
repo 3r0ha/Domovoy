@@ -86,6 +86,49 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
     .catch(() => undefined);
 };
 
+/** Кнопка возврата: с любого экрана переписки видно, как из него выйти. */
+const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
+
+/** Ряды кнопок сообщения: у вложения клавиатуры они лежат в payload. */
+interface KeyboardAttachment {
+  type?: string;
+  payload?: { buttons?: { payload?: string }[][] };
+}
+
+/** Кнопка уже ведёт из этого экрана: второй такой не нужно. */
+const leads = (rows: { payload?: string }[][]): boolean =>
+  rows.some((row) => row.some((button) => button.payload === 'cancel' || button.payload?.startsWith('group:')));
+
+/**
+ * Возврат дописывается к любой клавиатуре в переписке: человек всегда видит,
+ * как уйти с экрана. В общем чате его нет: меню там личное.
+ */
+export const withBack = (extra: Record<string, unknown> | undefined, context: BotContext): typeof extra => {
+  if (!extra || inChat(context)) return extra;
+
+  const attachments = extra['attachments'];
+
+  if (!Array.isArray(attachments)) return extra;
+
+  const rowsOf = (attachment: KeyboardAttachment): { payload?: string }[][] | undefined =>
+    attachment.type === 'inline_keyboard' ? attachment.payload?.buttons : undefined;
+
+  const keyboard = (attachments as KeyboardAttachment[]).find((attachment) => rowsOf(attachment) !== undefined);
+
+  const rows = keyboard?.payload?.buttons;
+
+  if (!rows || leads(rows)) return extra;
+
+  return {
+    ...extra,
+    attachments: attachments.map((attachment: KeyboardAttachment) =>
+      attachment === keyboard
+        ? { ...attachment, payload: { ...attachment.payload, buttons: [...rows, [BACK_BUTTON]] } }
+        : attachment,
+    ),
+  };
+};
+
 /**
  * Ответ на нажатие с новым содержимым: сообщение с кнопками переписывается
  * на месте. Переписка от хождения по меню не растёт, а прежний экран исчезает
@@ -125,7 +168,8 @@ export const morphing = (context: BotContext): BotContext => {
 
     first = false;
 
-    return (await replace(context, text, extra)) ? undefined : original(text, extra);
+    // Правка идёт мимо обычной отправки, поэтому возврат дописывается здесь же.
+    return (await replace(context, text, withBack(extra, context))) ? undefined : original(text, extra);
   };
 
   return context;

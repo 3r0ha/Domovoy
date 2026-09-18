@@ -1,6 +1,6 @@
 import { answerAboutHouse, clarifyTarget, type Resident, type SubmitResult } from '@domovoy/app';
 import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
-import { Keyboard, fmt } from '@maxkit/max-bot-api';
+import { Keyboard } from '@maxkit/max-bot-api';
 
 import { cancelKeyboard, whereKeyboard } from './keyboards.js';
 import { expect, inChat, type BotContext } from './max.js';
@@ -89,7 +89,7 @@ export const announce = async (
 
   if (result.kind === 'joined') {
     await typed.reply(
-      `О такой проблеме уже сообщили: заявка ${fmt.bold(created.number)}, ` +
+      `О такой проблеме уже сообщили: заявка ${created.number}, ` +
         `${STATUS_TITLES[created.status]}.\n` +
         `${rule.title}, ${describeTarget(created.target)}.\n` +
         `Вы ${result.reporters}-й, кто написал об этом. Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.\n` +
@@ -102,7 +102,7 @@ export const announce = async (
   const hint = emergencyHint(created.category, created.priority);
 
   await typed.reply(
-    `Заявка ${fmt.bold(created.number)} принята.\n` +
+    `Заявка ${created.number} принята.\n` +
       `${rule.title}, ${describeTarget(created.target)}.\n` +
       `Ответим до ${formatMoment(created.reactionDueAt)}.\n` +
       `Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.` +

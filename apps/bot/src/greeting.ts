@@ -1,6 +1,5 @@
 import { describeContext, legalAccepted, objectPassport, type BindResult, type Building } from '@domovoy/app';
 import { DomainError, STATUS_TITLES, formatDate, isCompanyStaff, reportersCount, type Role } from '@domovoy/domain';
-import { fmt } from '@maxkit/max-bot-api';
 
 import { bindIfApartment, cancelKeyboard } from './keyboards.js';
 import { expect, inChat, type BotContext } from './max.js';
@@ -66,7 +65,7 @@ const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Pro
   const open = passport?.open[0];
 
   const known = open
-    ? `\nОб этом уже сообщили: заявка ${fmt.bold(open.number)}, ` +
+    ? `\nОб этом уже сообщили: заявка ${open.number}, ` +
       `${STATUS_TITLES[open.status]}.` +
       `${reportersCount(open) > 1 ? ` Обращений: ${reportersCount(open)}.` : ''}` +
       '\nЕсли проблема та же, просто опишите её, я добавлю вас к этой заявке.'

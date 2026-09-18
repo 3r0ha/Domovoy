@@ -31,7 +31,7 @@ import {
   reportersCount,
   statusTitle,
 } from '@domovoy/domain';
-import { Keyboard, fmt } from '@maxkit/max-bot-api';
+import { Keyboard } from '@maxkit/max-bot-api';
 
 import {
   actionKeyboard,
@@ -82,7 +82,7 @@ const requestCard = async (
     : `\nСрок: до ${formatMoment(request.resolutionDueAt, zone)}`;
 
   return (
-    `${fmt.bold(request.title)}\n` +
+    `${request.title}\n` +
     `${statusTitle(request.status, forStaff)} · ${describePlace(request)}\n` +
     `${request.number}${due}${await workedBy(kit, request.assigneeId)}`
   );
@@ -212,7 +212,7 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
     const until = work ? `\n${CATEGORY_RULES[work.category].title}: ${state}${describeUntil(work, now)}` : '';
 
     return (
-      `${fmt.bold(announcement.title)}, ${describeAudience(announcementAudience(announcement))}\n` +
+      `${announcement.title}, ${describeAudience(announcementAudience(announcement))}\n` +
       `${formatMoment(announcement.createdAt)}\n${announcement.body}${until}`
     );
   });
@@ -246,7 +246,7 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
 
   for (const request of shown) {
     await typed.reply(
-      `${fmt.bold(request.title)}\n` +
+      `${request.title}\n` +
         `${describeTarget(request.target)} · ${plural(reportersCount(request), 'сосед сообщил', 'соседа сообщили', 'соседей сообщили')}\n` +
         `${request.number}`,
       alsoKeyboard(request.id),

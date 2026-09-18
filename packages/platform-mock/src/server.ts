@@ -184,7 +184,7 @@ export class MockPlatform {
     // на нажатие его и правят, поэтому нажатие с ним и связывается.
     const under = [...this.state.outgoing].reverse().find((message) => message.chatId === chatId);
 
-    if (under) this.state.bindPress(callbackId, under.mid);
+    this.state.bindPress(callbackId, { chatId, ...(under ? { mid: under.mid } : {}) });
 
     return this.pushUpdate({
       update_type: 'message_callback',

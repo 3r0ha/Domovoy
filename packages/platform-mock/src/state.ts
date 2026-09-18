@@ -68,8 +68,8 @@ export class PlatformState {
   /** Закреплённое сообщение по чатам: кто закрепил, видно по отправителю. */
   readonly pinned = new Map<number, { messageId: string; senderId: number }>();
 
-  /** Нажатие и сообщение, под которым стояла кнопка: ответ правит именно его. */
-  readonly pressed = new Map<string, string>();
+  /** Нажатие: переписка и сообщение, под которым стояла кнопка. Ответ правит его. */
+  readonly pressed = new Map<string, { chatId?: number; mid?: string }>();
   /** Права бота в чате. `null`, платформа их не сообщает. */
   botPermissions: string[] | null = [...DEFAULT_PERMISSIONS];
 
@@ -137,26 +137,37 @@ export class PlatformState {
 
     // Ответ с сообщением переписывает то, под которым стояла кнопка: так это
     // работает на платформе, и история переписки от нажатий не растёт.
-    const mid = this.pressed.get(sent.callbackId);
+    const press = this.pressed.get(sent.callbackId);
     const replacement = sent.body['message'] as Record<string, unknown> | undefined;
 
-    if (mid && replacement) {
-      const target = this.outgoing.find((message) => message.mid === mid);
+    if (!replacement) return sent;
 
-      if (target) {
-        if (typeof replacement['text'] === 'string') target.text = replacement['text'];
-        if (Array.isArray(replacement['attachments'])) target.attachments = replacement['attachments'];
+    const target = press?.mid ? this.outgoing.find((message) => message.mid === press.mid) : undefined;
 
-        target.body = { ...target.body, ...replacement };
-      }
+    if (target) {
+      if (typeof replacement['text'] === 'string') target.text = replacement['text'];
+      if (Array.isArray(replacement['attachments'])) target.attachments = replacement['attachments'];
+
+      target.body = { ...target.body, ...replacement };
+
+      return sent;
     }
+
+    // Править нечего: на платформе у кнопки всегда есть своё сообщение,
+    // а в прогоне нажатие может быть первым. Тогда ответ виден новым.
+    this.recordSent({
+      ...(press?.chatId === undefined ? {} : { chatId: press.chatId }),
+      text: typeof replacement['text'] === 'string' ? replacement['text'] : '',
+      attachments: Array.isArray(replacement['attachments']) ? replacement['attachments'] : [],
+      body: replacement,
+    });
 
     return sent;
   }
 
-  /** Под каким сообщением стояла нажатая кнопка. */
-  bindPress(callbackId: string, mid: string): void {
-    this.pressed.set(callbackId, mid);
+  /** Под каким сообщением стояла нажатая кнопка и в какой переписке. */
+  bindPress(callbackId: string, press: { chatId?: number; mid?: string }): void {
+    this.pressed.set(callbackId, press);
   }
 
   log(entry: RequestLogEntry): void {
