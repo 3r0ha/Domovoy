@@ -53,6 +53,7 @@ import {
   addressed,
   DIALOG_COMMANDS,
   forget,
+  formatted,
   inChat,
   morphing,
   PRIVATE_COMMANDS,
@@ -203,28 +204,26 @@ export const createBotNotifier = (
 ): Notifier => ({
   async send({ maxUserId, text, actions, replyTo, askAbout, signAbout, answerAbout, section, mutable, complaintFor }) {
     try {
-      await bot.api.sendMessageToUser(
-        maxUserId,
-        text,
-        askAbout
-          ? alertKeyboard(askAbout)
-          : signAbout
-            ? initiativeKeyboard(signAbout)
-            : answerAbout
-              ? supportKeyboard(answerAbout)
-              : section || complaintFor
-                ? keyboardOf([
-                    ...(complaintFor
-                      ? [[Keyboard.button.callback('📄 Жилинспекция', `gzhi:${complaintFor}`)]]
-                      : []),
-                    ...inChatRow(section),
-                    ...(section
-                      ? appRow(miniAppUrl, SECTION_TITLES[section] ?? 'Открыть приложение', section)
-                      : []),
-                    ...(mutable ? [[Keyboard.button.callback('🔕 Уведомления', `mute:${mutable}`)]] : []),
-                  ], PERSONAL)
-                : actionKeyboard(actions, replyTo),
-      );
+      const keyboard = askAbout
+        ? alertKeyboard(askAbout)
+        : signAbout
+          ? initiativeKeyboard(signAbout)
+          : answerAbout
+            ? supportKeyboard(answerAbout)
+            : section || complaintFor
+              ? keyboardOf([
+                  ...(complaintFor
+                    ? [[Keyboard.button.callback('📄 Жилинспекция', `gzhi:${complaintFor}`)]]
+                    : []),
+                  ...inChatRow(section),
+                  ...(section
+                    ? appRow(miniAppUrl, SECTION_TITLES[section] ?? 'Открыть приложение', section)
+                    : []),
+                  ...(mutable ? [[Keyboard.button.callback('🔕 Уведомления', `mute:${mutable}`)]] : []),
+                ], PERSONAL)
+              : actionKeyboard(actions, replyTo);
+
+      await bot.api.sendMessageToUser(maxUserId, text, formatted(text, keyboard));
     } catch (error) {
       onError?.(error);
     }

@@ -13,7 +13,7 @@ import {
   readingKeyboard,
   readingPrompt,
 } from '../keyboards.js';
-import { expect } from '../max.js';
+import { expect, strong } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /**
@@ -112,7 +112,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(
         [
           left > 0
-            ? `Заплатить ${formatMoney(left)} до ${dueDate(deps.now(), charges.dueDay)}`
+            ? `Заплатить ${strong(formatMoney(left))} до ${strong(dueDate(deps.now(), charges.dueDay))}`
             : `Начислено ${formatMoney(charges.total)}, за этот месяц всё оплачено`,
           debt,
           'Из чего сложилось и за что, смотрите в приложении.',

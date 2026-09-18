@@ -247,7 +247,8 @@ describe('демонстрационные данные', () => {
 describe('сквозной прогон', () => {
   it('играет сценарий целиком через настоящего бота', async () => {
     const lines = await runWalkthrough({ log: () => undefined });
-    const transcript = lines.map((line) => `${line.who}: ${line.text}`).join('\n');
+    // Знаки разметки в расшифровке не проверяются: человек видит начертание.
+    const transcript = lines.map((line) => `${line.who}: ${line.text}`).join('\n').replace(/\*\*/gu, '');
 
     assert.match(transcript, /вы обратились по объекту: подъезд 1, стояк 2/);
     assert.match(transcript, /бот → Ольга Титова, диспетчер: Новая заявка/);

@@ -70,6 +70,12 @@ describe('чат-бот управляющей компании', () => {
     running.clear();
   });
 
+  /**
+   * Текст без знаков разметки: жирное человек видит начертанием, а проверять
+   * сообщения удобнее по словам, а не по звёздочкам вокруг них.
+   */
+  const said = (text: string): string => text.replace(/\*\*/gu, '');
+
   /** Ждёт сообщение по смыслу, а не по порядковому номеру. */
   const waitForMessage = async (recipient: number, pattern: RegExp, timeoutMs = 6000): Promise<string> => {
     const deadline = Date.now() + timeoutMs;
@@ -77,10 +83,10 @@ describe('чат-бот управляющей компании', () => {
     for (;;) {
       const found = platform.outgoing.filter(
         (message) =>
-          (message.userId === recipient || message.chatId === recipient) && pattern.test(message.text),
+          (message.userId === recipient || message.chatId === recipient) && pattern.test(said(message.text)),
       );
 
-      if (found.length > 0) return found.at(-1)!.text;
+      if (found.length > 0) return said(found.at(-1)!.text);
 
       if (Date.now() > deadline) {
         // В ошибку идёт то, что бот сказал на самом деле: иначе причина
@@ -1061,6 +1067,29 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(keyboard, /menu:meters/, 'в раздел нечем перейти');
     assert.match(keyboard, /talk:stop/, 'из разговора нечем выйти');
+
+    await bot.stop();
+  });
+
+  it('важное в сообщении выделено, и разметка помечена форматом', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Напишите, что случилось/);
+
+    // Подсказка без выделений: пометки формата у неё нет, иначе звёздочка
+    // и подчёркивание в тексте жильца превратились бы в разметку.
+    const prompt = platform.outgoing.findLast((message) => message.chatId === 3003);
+
+    assert.equal(prompt?.body?.['format'], undefined);
+
+    platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    const receipt = platform.outgoing.findLast((message) => /принята/.test(message.text));
+
+    assert.match(receipt?.text ?? '', /Заявка \*\*Д15-2609-0001\*\* принята/, 'номер заявки не выделен');
+    assert.equal(receipt?.body?.['format'], 'markdown', 'без пометки разметка придёт звёздочками');
 
     await bot.stop();
   });
@@ -3657,7 +3686,7 @@ describe('чат-бот управляющей компании', () => {
 
       const answer = platform.outgoing.find((message) => message.postId === 'mid.post.7');
 
-      assert.match(answer?.text ?? '', /Заявка Д15-2609-0001 принята/);
+      assert.match(said(answer?.text ?? ''), /Заявка Д15-2609-0001 принята/);
 
       const [request] = await bot.deps.repository.listRequests({});
 

@@ -88,7 +88,18 @@ import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard, groupWith, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { askStarter } from './talk.js';
-import { endTalk, expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
+import {
+  endTalk,
+  expect,
+  forget,
+  inChat,
+  morphing,
+  plain,
+  pressedMid,
+  strong,
+  toast,
+  type BotContext,
+} from './max.js';
 import type { Resident } from '@domovoy/app';
 import type { BotKit, Extra } from './kit.js';
 
@@ -219,11 +230,10 @@ export const menuTitle = async (kit: BotKit, resident: Resident): Promise<string
   const who = resident.role === 'resident' ? '' : roleTitle(resident.role);
 
   return [
-    `Домовой${where ? `: ${where}` : ''}${who ? ` · ${who}` : ''}`,
+    strong(`Домовой${where ? `: ${plain(where)}` : ''}${who ? ` · ${who}` : ''}`),
     // Кнопки это короткий путь, а не единственный: словами делается то же самое,
     // и человеку проще написать «открыть дверь», чем искать её в меню.
     'Можно написать словами: «открыть дверь», «сколько платить», «течёт кран».',
-    'Можно выбрать кнопкой.',
   ].join('\n');
 };
 
@@ -478,7 +488,7 @@ const guest: Button = async (kit, typed, [deviceId]) => {
     const issued = await inviteGuest(kit.deps, resident, deviceId);
 
     await typed.reply(
-      `Код для гостя: ${issued.code}\n` +
+      `Код для гостя: ${strong(issued.code)}\n` +
         `Пусть наберёт его на домофоне у подъезда. Код работает сегодня до ${formatClock(issued.expiresAt)}.`,
       copyKeyboard('Скопировать код', issued.code),
     );

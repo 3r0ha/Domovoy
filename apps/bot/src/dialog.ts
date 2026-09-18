@@ -49,7 +49,7 @@ import {
 import { answerFromAssistant } from './talk.js';
 import { thinking } from './thinking.js';
 import { freeHours } from './commands/visits.js';
-import { expect, forget, isChatter, QUIT, type Awaiting, type BotContext } from './max.js';
+import { expect, forget, isChatter, QUIT, strong, type Awaiting, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Что пришло от человека: текст, снимки или и то и другое. */
@@ -98,7 +98,7 @@ const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text
     const rule = meter ? METER_RULES[meter.meter.kind] : undefined;
 
     await typed.reply(
-      `Принято: ${decimal(result.reading.value)}${rule ? ` ${rule.unit}` : ''}.` +
+      `Принято: ${strong(`${decimal(result.reading.value)}${rule ? ` ${rule.unit}` : ''}`)}.` +
         (result.consumption > 0
           ? ` Расход за период: ${decimal(result.consumption)}${rule ? ` ${rule.unit}` : ''}.`
           : '') +

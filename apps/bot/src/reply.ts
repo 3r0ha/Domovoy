@@ -3,7 +3,7 @@ import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMom
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { cancelKeyboard, whereKeyboard } from './keyboards.js';
-import { expect, inChat, type BotContext } from './max.js';
+import { expect, inChat, plain, strong, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Обращение откладывается до кнопки: жилец решит, нужна ли заявка. */
@@ -142,10 +142,10 @@ export const announce = async (
   const hint = emergencyHint(created.category, created.priority);
 
   const receipt =
-    `Заявка ${created.number} принята. Номер пригодится, если будете звонить.\n` +
-    `Что: ${rule.title.toLowerCase()}, ${describeTarget(created.target)}.\n` +
+    `Заявка ${strong(created.number)} принята. Номер пригодится, если будете звонить.\n` +
+    `Что: ${rule.title.toLowerCase()}, ${plain(describeTarget(created.target))}.\n` +
     `Ответим до ${formatMoment(created.reactionDueAt, zone)}.\n` +
-    `Починят до ${formatMoment(created.resolutionDueAt, zone)}.` +
+    `Починят до ${strong(formatMoment(created.resolutionDueAt, zone))}.` +
     (hint ? `\n\n${hint}` : '');
 
   // Где случилось, спрашивается кнопками: набирать адрес руками пожилому человеку

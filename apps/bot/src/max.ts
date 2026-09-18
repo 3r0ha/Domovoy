@@ -45,6 +45,22 @@ export const forget = (context: { session?: DialogSession }): void => {
   if (context.session) delete context.session.awaiting;
 };
 
+/**
+ * Жирным выделяется главное в сообщении: номер заявки, сумма, срок. Разметка
+ * включается только там, где она есть: в обычном тексте звёздочка и нижнее
+ * подчёркивание жильца остаются самими собой.
+ */
+export const strong = (text: string): string => `**${text}**`;
+
+/** Чужой текст внутри размеченного сообщения: знаки разметки в нём обезвреживаются. */
+export const plain = (text: string): string => text.replace(/([*_~`[\]()>#])/gu, '\\$1');
+
+/** Разметка включается по самому тексту: так она не портит обычные сообщения. */
+export const formatted = (
+  text: string,
+  extra: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined => (text.includes('**') ? { ...(extra ?? {}), format: 'markdown' } : extra);
+
 /** Сколько реплик помощник держит в голове: дальше разговор уходит в сторону. */
 export const TALK_DEPTH = 6;
 
@@ -207,7 +223,7 @@ export const screenKeeper =
 
       if (asking) await dropPrompt(typed, messages);
 
-      const sent = await send(text, withBack(extra, typed));
+      const sent = await send(text, formatted(text, withBack(extra, typed)));
 
       if (extra !== undefined && SCREENS.has(extra)) {
         typed.session ??= {};
