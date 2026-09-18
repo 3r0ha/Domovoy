@@ -76,6 +76,23 @@ describe('чат-бот управляющей компании', () => {
    */
   const said = (text: string): string => text.replace(/\*\*/gu, '');
 
+  /** Ждёт, пока сообщение уберут из переписки: удаление идёт после ответа. */
+  const untilGone = async (pattern: RegExp, timeoutMs = 6000): Promise<void> => {
+    const deadline = Date.now() + timeoutMs;
+
+    for (;;) {
+      const left = platform.outgoing.filter((message) => pattern.test(said(message.text)));
+
+      if (left.length === 0) return;
+
+      if (Date.now() > deadline) {
+        throw new Error(`«${pattern.source}» осталось в переписке: ${left.length}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  };
+
   /** Ждёт сообщение по смыслу, а не по порядковому номеру. */
   const waitForMessage = async (recipient: number, pattern: RegExp, timeoutMs = 6000): Promise<string> => {
     const deadline = Date.now() + timeoutMs;
@@ -2188,11 +2205,9 @@ describe('чат-бот управляющей компании', () => {
     platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
-    assert.equal(
-      platform.outgoing.filter((message) => /Опишите|Напишите, что случилось/.test(message.text)).length,
-      0,
-      'отвеченная подсказка убрана',
-    );
+    // Подсказку убирают после ответа, уже за пределами самого ответа: ждём,
+    // пока это дойдёт, а не сверяем в ту же миллисекунду.
+    await untilGone(/Опишите|Напишите, что случилось/);
 
     await bot.stop();
   });
