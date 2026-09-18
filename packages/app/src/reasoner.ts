@@ -86,6 +86,11 @@ export interface Reasoner {
    * Роль важна: у смены свой словарь, и «что горит» у неё про сроки заявок.
    */
   onTopic?(question: string, forStaff?: boolean): Promise<boolean | undefined>;
+  /**
+   * По делу ли сказанное. Пусто означает «проверить нечем»: тогда доверяем
+   * человеку. Спрашивается только о коротких ответах вроде «6» и «не знаю».
+   */
+  meaningful?(input: { asked: string; text: string }): Promise<boolean | undefined>;
   /** Уточняющий вопрос об адресе обращения и варианты кнопками. */
   clarify?(input: ClarifyInput): Promise<ClarifyFields | undefined>;
   /** Поломка это или дело другого раздела. Модель может метод не поддерживать. */

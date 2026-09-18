@@ -22,6 +22,7 @@ import { recordAction } from './audit.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
+import { assertSaid } from './said.js';
 import { zoneOf } from './zone.js';
 
 /** Приём в управляющей организации: окна, свободные часы и своя запись. */
@@ -108,6 +109,11 @@ const isSlotClash = (error: unknown): boolean =>
 
 /** Запись на приём. Смена узнаёт о ней уведомлением. @throws {DomainError} */
 export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promise<Visit> => {
+  await assertSaid(deps, command.topic, {
+    asked: 'с чем человек придёт в управляющую организацию',
+    hint: 'Напишите, с чем придёте: так смена подготовится к разговору.',
+  });
+
   const reception = await receptionFor(deps, command.resident, command.buildingId);
 
   if (reception.windows.length === 0) {

@@ -8,6 +8,7 @@ import type { FastifyError, FastifyInstance, FastifyReply } from 'fastify';
 export const STATUS_BY_CODE = {
   // не приняли данные
   assignee_required: 400,
+  text_empty: 400,
   bad_works: 400,
   candidate_elsewhere: 400,
   code_not_apartment: 400,

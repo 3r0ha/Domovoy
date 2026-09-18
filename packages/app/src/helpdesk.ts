@@ -22,6 +22,7 @@ import { assertServes, homeBuildingOf } from './buildings.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import { rememberResidents } from './people.js';
 import type { Resident } from './repository.js';
+import { assertSaid } from './said.js';
 import type { AppDeps } from './use-cases.js';
 import { zoneOf } from './zone.js';
 
@@ -46,6 +47,12 @@ const staffOf = async (deps: AppDeps, buildingId: string): Promise<Resident[]> =
 
 /** Вопрос в управляющую компанию: новое обращение или реплика в открытом. @throws {DomainError} */
 export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Promise<SupportTicket> => {
+  await assertSaid(deps, command.text, {
+    asked: 'вопрос в управляющую организацию',
+    hint: 'Напишите вопрос словами: так его смогут разобрать.',
+    ...(command.attachments?.length ? { attachments: command.attachments } : {}),
+  });
+
   const { resident } = command;
   const buildingId = await homeBuildingOf(deps, resident);
   const now = deps.now();

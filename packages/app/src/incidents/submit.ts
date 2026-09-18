@@ -25,6 +25,7 @@ import { askAssistant, capabilitiesFor, findCapability } from '../assistant.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
+import { assertSaid } from '../said.js';
 import { createServiceRequest, targetOf, type AppDeps, type CreateRequestCommand } from '../use-cases.js';
 import { zoneOf } from '../zone.js';
 import { confirmIncident, notifyStaff } from './notify.js';
@@ -185,6 +186,12 @@ const SHORT_ENOUGH = 40;
 /** Обращение жильца: новая заявка либо подтверждение уже открытой. */
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
+
+  await assertSaid(deps, command.description, {
+    asked: 'что случилось в доме или в квартире',
+    hint: 'Напишите словами, что случилось. Одного знака или цифры мало.',
+    ...(command.attachments?.length ? { attachments: command.attachments } : {}),
+  });
 
   const answered = await answerInstead(deps, command);
 

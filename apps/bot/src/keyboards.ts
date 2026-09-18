@@ -11,6 +11,7 @@ import {
 } from '@domovoy/app';
 import {
   formatMeterValue,
+  formatMoney,
   DomainError,
   METER_RULES,
   OPEN_STATUSES,
@@ -42,9 +43,9 @@ export const decimal = (value: number): string => value.toLocaleString('ru-RU', 
 
 
 /** Ряды оплаты: месяц и долг за прошлые месяцы платят отдельно. */
-export const payRows = (payable: boolean, debt: boolean): ButtonRows => [
-  ...(payable ? [[Keyboard.button.callback('💳 Оплатить', 'pay')]] : []),
-  ...(debt ? [[Keyboard.button.callback('💰 Погасить', 'pay-debt')]] : []),
+export const payRows = (month: number | undefined, debt: number | undefined): ButtonRows => [
+  ...(month === undefined ? [] : [[Keyboard.button.callback(`💳 За месяц: ${formatMoney(month)}`, 'pay')]]),
+  ...(debt === undefined ? [] : [[Keyboard.button.callback(`💰 Долг: ${formatMoney(debt)}`, 'pay-debt')]]),
 ];
 
 /** Каждая дверь своей кнопкой. */

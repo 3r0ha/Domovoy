@@ -30,6 +30,7 @@ import {
 } from '@domovoy/domain';
 
 import { sayBound } from './greeting.js';
+import { menuTitle } from './buttons.js';
 import { showRequestByNumber } from './pages.js';
 import {
   actionKeyboard,
@@ -118,6 +119,20 @@ const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text
   }
 };
 
+/**
+ * Сказанного мало: вопрос повторяется тем же экраном, а ожидание остаётся.
+ * Так человек дописывает ответ, а не начинает разговор заново.
+ */
+const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting): Promise<boolean> => {
+  if (!(error instanceof DomainError) || error.code !== 'text_empty') return false;
+
+  expect(typed, waiting);
+
+  await typed.reply(error.message, cancelKeyboard());
+
+  return true;
+};
+
 /** Ответ по заявке: он уходит тому, кого заявка касается. */
 const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, said: Said): Promise<void> => {
   const author = await kit.residentOf(typed);
@@ -136,6 +151,7 @@ const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, sa
       actionKeyboard(actionsFor(updated, author), replyIfOpen(updated)),
     );
   } catch (error) {
+    if (await askAgain(typed, error, { kind: 'message', requestId })) return;
     if (!(error instanceof DomainError)) throw error;
     await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
   }
@@ -170,6 +186,7 @@ const explainTransition = async (
 
     await typed.reply(said, actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated)));
   } catch (error) {
+    if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to })) return;
     if (!(error instanceof DomainError)) throw error;
     await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
   }
@@ -210,6 +227,7 @@ const describeProblem = async (
 
     await kit.announce(typed, result, description, startParam, !said.text?.trim() && unheardVoice(attachments));
   } catch (error) {
+    if (await askAgain(typed, error, { kind: 'description', ...(startParam ? { target: startParam } : {}) })) return;
     if (!(error instanceof DomainError)) throw error;
 
     await typed.reply(
@@ -231,7 +249,7 @@ const askSupportFrom = async (
 
   // Вежливое «спасибо» после команды обращением не становится: иначе оно уйдёт всей смене.
   if (!ticketId && said.attachments.length === 0 && isChatter(said.text ?? '')) {
-    await typed.reply('Что нужно сделать?', kit.menuKeyboard(resident));
+    await typed.reply(await menuTitle(kit, resident), kit.menuKeyboard(resident));
     return;
   }
 
@@ -258,6 +276,7 @@ const askSupportFrom = async (
         : `Вопрос принят: «${ticket.subject}». Ответ придёт сюда.`,
     );
   } catch (error) {
+    if (await askAgain(typed, error, { kind: 'support', ...(ticketId ? { ticketId } : {}) })) return;
     if (!(error instanceof DomainError)) throw error;
     await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
   }
@@ -319,7 +338,9 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   }
 
   if (said.text && said.attachments.length === 0 && isChatter(said.text)) {
-    await typed.reply('Что нужно сделать?', kit.menuKeyboard(await kit.residentOf(typed)));
+    const who = await kit.residentOf(typed);
+
+    await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
     return;
   }
 
@@ -382,6 +403,7 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
 
     await typed.reply(`Записал на приём, ${formatVisit(visit, zone)}`, visitCancelKeyboard(visit.id));
   } catch (error) {
+    if (await askAgain(typed, error, { kind: 'visit', at })) return;
     if (!(error instanceof DomainError)) throw error;
 
     // Час мог уйти, пока человек писал тему: возвращать некуда, поэтому часы свежие.

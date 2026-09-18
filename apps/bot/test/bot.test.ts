@@ -623,7 +623,7 @@ describe('чат-бот управляющей компании', () => {
     const menu = platform.outgoing.findLast((message) => message.chatId === 3003);
     const buttons = JSON.stringify(menu?.attachments ?? []);
 
-    assert.match(buttons, /Оплатить/);
+    assert.match(buttons, /За месяц: /, 'на кнопке видно, за что платят');
     assert.match(buttons, /Квитанция в приложении/);
 
     platform.userPressesButton('pay', { userId: 3003, chatId: 3003 });
@@ -1937,6 +1937,25 @@ describe('чат-бот управляющей компании', () => {
     assert.match(JSON.stringify((await waitForKeyboard(3003)) ?? []), /Оплата/);
 
     assert.equal(platform.outgoing.length, single, 'переписка от хождения по меню не растёт');
+
+    await bot.stop();
+  });
+
+  it('заявка из одного знака не заводится, бот просит сказать словами', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/new', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Опишите/);
+
+    platform.userSends('6', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Напишите словами/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'заявка из знака не заводится');
+
+    platform.userSends('Не горит лампа на площадке', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 1, 'сказанное словами становится заявкой');
 
     await bot.stop();
   });

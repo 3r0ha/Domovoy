@@ -197,6 +197,7 @@ export type ErrorCode =
   | 'inspection_finished'
   | 'nothing_to_pay'
   | 'nothing_to_remind'
+  | 'text_empty'
   | 'nothing_to_send'
   | 'poll_closed'
   | 'poll_not_open'

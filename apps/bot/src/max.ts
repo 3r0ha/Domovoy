@@ -142,6 +142,33 @@ export const dropPrompt = async (context: BotContext, messages: Messages): Promi
   await messages.deleteMessage(mid).catch(() => undefined);
 };
 
+/** Ряды кнопок сообщения: у вложения клавиатуры они лежат в payload. */
+interface KeyboardAttachment {
+  type?: string;
+  payload?: { buttons?: { payload?: string }[][] };
+}
+
+/** Ряды кнопок сообщения, если они там есть. */
+const rowsIn = (extra: Record<string, unknown> | undefined): { payload?: string }[][] => {
+  const attachments = extra?.['attachments'];
+
+  if (!Array.isArray(attachments)) return [];
+
+  const keyboard = (attachments as KeyboardAttachment[]).find(
+    (attachment) => attachment.type === 'inline_keyboard',
+  );
+
+  return keyboard?.payload?.buttons ?? [];
+};
+
+/**
+ * Экран, который ждёт ответа сообщением: под ним всегда есть отмена. Такими
+ * оказываются и подсказка, и вопрос о показании, и подтверждение удаления.
+ */
+const asksAnswer = (extra: Record<string, unknown> | undefined): boolean =>
+  extra !== undefined &&
+  (PROMPTS.has(extra) || rowsIn(extra).some((row) => row.some((button) => button.payload === 'cancel')));
+
 /**
  * Слежение за экраном разговора: подсказки не копятся, а выходы дописываются
  * ко всему, что бот отправляет в переписку.
@@ -151,9 +178,14 @@ export const screenKeeper =
   async (context: never, next: () => Promise<void>): Promise<void> => {
     const typed: BotContext = context;
     const send = typed.reply.bind(typed);
+    const waited = typed.session?.awaiting;
+
+    // Экран с отменой становится подсказкой, только если бот и правда ждёт
+    // ответа словами. Подтверждение «Удалить профиль?» ждёт кнопки и остаётся.
+    let asked: string | undefined;
 
     typed.reply = async (text: string, extra?: Record<string, unknown>): Promise<unknown> => {
-      const asking = extra !== undefined && PROMPTS.has(extra);
+      const asking = asksAnswer(extra);
 
       if (asking) await dropPrompt(typed, messages);
 
@@ -164,26 +196,26 @@ export const screenKeeper =
         typed.session.screen = midOf(sent);
       }
 
-      if (asking) {
-        typed.session ??= {};
-        typed.session.prompt = midOf(sent);
-      }
+      if (asking) asked = midOf(sent);
 
       return sent;
     };
 
     await next();
 
+    if (typed.session?.awaiting && asked) typed.session.prompt = asked;
+
     // Подсказка, которая уже ничего не ждёт: на неё ответили или её отменили.
     // Оставлять её в переписке значит копить ряды «Отмена» без дела.
     if (typed.session?.prompt && !typed.session.awaiting) await dropPrompt(typed, messages);
-  };
 
-/** Ряды кнопок сообщения: у вложения клавиатуры они лежат в payload. */
-interface KeyboardAttachment {
-  type?: string;
-  payload?: { buttons?: { payload?: string }[][] };
-}
+    // Ответ на подсказку тоже убирается: «6» и «-» в переписке не нужны,
+    // а сказанное по делу видно в самой заявке. Платформа может не разрешить.
+    const answered = waited !== undefined && typed.session?.awaiting === undefined;
+    const mid = pressedMid(typed);
+
+    if (answered && mid && !typed.callback) await messages.deleteMessage(mid).catch(() => undefined);
+  };
 
 /** Что из выходов на экране уже есть: второй такой же кнопки не нужно. */
 const exits = (rows: { payload?: string }[][]): { back: boolean; menu: boolean } => {

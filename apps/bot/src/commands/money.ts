@@ -66,7 +66,8 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
 
       // В переписке остаётся то, ради чего её открыли: сумма, срок и долг.
       // Разбор по строкам, история и оспаривание начисления, работа для экрана.
-      const debt = formatDebtShort(await arrearsFor(deps, resident));
+      const arrears = await arrearsFor(deps, resident);
+      const debt = formatDebtShort(arrears);
 
       await typed.reply(
         [
@@ -81,7 +82,12 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
         keyboardOf(
           [
             // Кнопка оплаты нужна только там, где платёжный шлюз подключён.
-            ...payRows(Boolean(deps.payments) && (left > 0 || Boolean(debt)), Boolean(deps.payments) && Boolean(debt)),
+            // Сумма стоит на самой кнопке: «оплатить» и «погасить» в переписке
+            // читаются одинаково, а месяц и долг платятся по-разному.
+            ...payRows(
+              deps.payments && left > 0 ? left : undefined,
+              deps.payments && arrears.total + arrears.penalty > 0 ? arrears.total + arrears.penalty : undefined,
+            ),
             ...appRow(kit.miniAppUrl, 'Квитанция в приложении', 'meters'),
           ],
           typed,

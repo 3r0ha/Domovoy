@@ -2,6 +2,7 @@ import {
   actionsFor,
   answerAlert,
   apartmentsOf,
+  homeOf,
   roleTitle,
   takeDemoRole,
   forgetResident,
@@ -74,6 +75,7 @@ import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard, groupWith, itemFor } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { expect, forget, inChat, morphing, pressedMid, toast, type BotContext } from './max.js';
+import type { Resident } from '@domovoy/app';
 import type { BotKit, Extra } from './kit.js';
 
 /** Нажатие кнопки: имя действия и его данные приходят одной строкой через двоеточие. */
@@ -157,7 +159,7 @@ const group: Button = async (kit, typed, [key]) => {
     typed.session ??= {};
     delete typed.session.menu;
 
-    await typed.reply('Что нужно сделать?', kit.menuKeyboard(resident));
+    await typed.reply(await menuTitle(kit, resident), kit.menuKeyboard(resident));
     return;
   }
 
@@ -172,13 +174,36 @@ const group: Button = async (kit, typed, [key]) => {
   await typed.reply(chosen.title, groupKeyboard(chosen));
 };
 
+/**
+ * Первый экран: кто я, чей это дом и чья квартира. Без этого человек видит
+ * набор кнопок и не понимает, куда попал и за какой адрес отвечает бот.
+ */
+export const menuTitle = async (kit: BotKit, resident: Resident): Promise<string> => {
+  const home = await homeOf(kit.deps, resident).catch(() => undefined);
+  const building = home ? await kit.deps.repository.findBuilding(home) : undefined;
+  const apartment = resident.apartmentId
+    ? await kit.deps.repository.findApartment(resident.apartmentId).catch(() => undefined)
+    : undefined;
+
+  const where = [building?.address, apartment ? `кв. ${apartment.number}` : '']
+    .filter(Boolean)
+    .join(', ');
+
+  const who = resident.role === 'resident' ? '' : roleTitle(resident.role);
+
+  return [
+    `Домовой${where ? `: ${where}` : ''}${who ? ` · ${who}` : ''}`,
+    'Что нужно сделать? Можно просто написать словами.',
+  ].join('\n');
+};
+
 /** Экран, с которого человек ушёл в разговор: группа меню либо первый экран. */
 const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; extra: Extra | undefined }> => {
   const resident = await kit.residentOf(typed);
   const key = typed.session?.menu;
   const chosen = key ? groupFor(resident, key, { doors: Boolean(kit.deps.hub) }) : undefined;
 
-  if (!chosen) return { title: 'Что нужно сделать?', extra: kit.menuKeyboard(resident) };
+  if (!chosen) return { title: await menuTitle(kit, resident), extra: kit.menuKeyboard(resident) };
 
   return { title: chosen.title, extra: groupKeyboard(chosen) };
 };

@@ -82,7 +82,21 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       return;
     }
 
-    // В бюллетене остаётся главное и три ответа: счёт по долям читается в приложении.
+    // Собраний бывает несколько разом, у каждого свои доли и кворум. Бюллетень
+    // приходит уведомлением по каждому, а списком их читают на экране.
+    if (open.length > 1 || collecting.length > 1) {
+      const said = [
+        open.length > 0 ? `Открытых собраний: ${open.length}` : '',
+        collecting.length > 0 ? `предложений соседей: ${collecting.length}` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      await inApp(kit, typed, `${said}.`, 'polls', 'Собрания в приложении');
+      return;
+    }
+
+    // Одно собрание остаётся в переписке: проголосовать можно тут же.
     for (const view of open) {
       await typed.reply(
         shorten(formatPollResult(view, { personal: !inChat(typed) }), 'Счёт голосов в приложении.'),

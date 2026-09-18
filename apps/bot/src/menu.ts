@@ -42,7 +42,7 @@ const HOME_GROUP: MenuGroup = {
 };
 
 /** Помощник стоит первым экраном у всех: спросить словами проще, чем искать пункт. */
-const ASK_ITEM: MenuItem = { title: '❓ Спросить', command: 'help' };
+const ASK_ITEM: MenuItem = { title: '❓ Спросить помощника', command: 'help' };
 
 const RESIDENT: RoleMenu = {
   top: [
@@ -290,7 +290,21 @@ export const menuKeyboard = (resident: Resident, miniAppUrl?: string, offer: Men
 
   const app = miniAppUrl ? [[Keyboard.button.openApp('📱 Открыть приложение', miniAppUrl)]] : [];
 
-  const built = { attachments: [Keyboard.inlineKeyboard([...rows(menu.top), ...grouped, ...app])] };
+  // Помощник стоит отдельной строкой: он отвечает по всему продукту, а в паре
+  // с соседней кнопкой читается как ещё один раздел.
+  const ask = menu.top.filter((item) => item.command === ASK_ITEM.command);
+  const rest = menu.top.filter((item) => item.command !== ASK_ITEM.command);
+
+  const built = {
+    attachments: [
+      Keyboard.inlineKeyboard([
+        ...ask.map((item) => [Keyboard.button.callback(item.title, `menu:${item.command}`)]),
+        ...rows(rest),
+        ...grouped,
+        ...app,
+      ]),
+    ],
+  };
 
   ROOT_MENUS.add(built);
   SCREENS.add(built);
