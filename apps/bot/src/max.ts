@@ -20,6 +20,8 @@ export interface DialogSession {
   proved?: { requestId: string; code: string };
   /** Разговор с помощником: прошлые реплики, чтобы вопрос читался в контексте. */
   talk?: { asked: string; said: string }[];
+  /** Дело, названное словами: ждёт подтверждения кнопкой. */
+  doing?: { to: string; comment: string };
 }
 
 /** Чего бот ждёт от следующего сообщения. Ожидание всегда одно. */

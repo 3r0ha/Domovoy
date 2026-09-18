@@ -179,6 +179,7 @@ export {
 export { raiseSensorAlarm } from './sensors.js';
 export { AHEAD_DAYS, houseAhead, houseNow, type HouseEvent, type HouseNow } from './now.js';
 export { announceIncident, announceResolved } from './broadcast.js';
+export { doingFor, type Doing } from './doing.js';
 export { supportRequest, supportableFor, type SupportResult } from './support.js';
 export {
   SUPPORT_PAGE,

@@ -47,6 +47,7 @@ import {
   visitCancelKeyboard,
   visitKeyboard,
 } from './keyboards.js';
+import { offerDoing } from './doing.js';
 import { answerFromAssistant } from './talk.js';
 import { thinking } from './thinking.js';
 import { inApp } from './commands/in-app.js';
@@ -269,6 +270,15 @@ const describeProblem = async (
       return;
     }
 
+    // Дело по уже открытой заявке: «починил трубу», «работу принял», «отзываю
+    // заявку». Продукт показывает, что понял, и ждёт нажатия: закрывать заявку
+    // по одной фразе нельзя, а переспрашивать обо всём подряд мучительно.
+    if (attachments.length === 0 && (await offerDoing(kit, typed, description))) {
+      forget(typed);
+
+      return;
+    }
+
     // Просьба сделать дело, а не рассказ о поломке: «открыть дверь», «оплатить
     // счёт». Продукт выполняет её, а не заводит по ней заявку и не отказывает.
     if (attachments.length === 0 && (await doneByWords(kit, typed, resident, description))) return;
@@ -402,6 +412,10 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
     );
     return;
   }
+
+  // Дело по открытой заявке разбирается раньше вежливости: «всё сделали,
+  // спасибо» это приёмка работы, а не разговор ни о чём.
+  if (said.text && said.attachments.length === 0 && (await offerDoing(kit, typed, said.text))) return;
 
   if (said.text && said.attachments.length === 0 && isChatter(said.text)) {
     const who = await kit.residentOf(typed);

@@ -1078,6 +1078,42 @@ const ask: Button = async (kit, typed, [requestId, to]) => {
 };
 
 /** Перевод заявки в другое состояние прямо из сообщения. */
+/**
+ * Дело, названное словами и подтверждённое кнопкой. Слова человека уходят
+ * отчётом о работе или причиной перехода: писать то же самое второй раз
+ * ради формы незачем.
+ */
+const doIt: Button = async (kit, typed, [to, requestId]) => {
+  if (!to || !requestId) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+  const said = typed.session?.doing;
+
+  delete typed.session?.doing;
+
+  try {
+    const updated = await transitionRequest(kit.deps, {
+      resident,
+      requestId,
+      to: to as never,
+      ...(said?.comment ? { comment: said.comment } : {}),
+    });
+
+    await typed.reply(
+      `Заявка ${strong(updated.number)}: ${STATUS_TITLES[updated.status]}.` +
+        (said?.comment ? `\nЗаписал: ${plain(said.comment)}` : ''),
+      actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), assignable(updated, resident.role)),
+    );
+  } catch (error) {
+    if (error instanceof DomainError && error.code === 'assignee_required') {
+      await offerAssignees(kit, typed, requestId, resident);
+      return;
+    }
+
+    await explain(typed, error);
+  }
+};
+
 const move: Button = async (kit, typed, [requestId, to]) => {
   if (!requestId || !to) {
     await toast(typed, 'Кнопка устарела, откройте заявку');
@@ -1162,4 +1198,5 @@ export const BUTTONS: Record<string, Button> = {
   forget: forgetMe,
   talk,
   starter,
+  do: doIt,
 };

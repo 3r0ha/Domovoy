@@ -28,6 +28,22 @@ import { menuFor } from '../dist/menu.js';
 
 const MINI_APP = 'https://domovoy.homes/app';
 
+/** Диспетчер для проверок «дел словами»: он ведёт заявку до сдачи работы. */
+const DISPATCHER_FOR_WORDS: Resident = {
+  id: 'disp-for-words',
+  maxUserId: 5033,
+  displayName: 'Ольга',
+  role: 'dispatcher',
+  buildingId: 'b1',
+};
+
+/** Заявка доведена до сдачи работы: дальше её принимает жилец. */
+const untilDoneBy = async (deps: AppDeps, staff: Resident, id: string): Promise<void> => {
+  await transitionRequest(deps, { resident: staff, requestId: id, to: 'accepted' });
+  await transitionRequest(deps, { resident: staff, requestId: id, to: 'in_progress', assigneeId: staff.id });
+  await transitionRequest(deps, { resident: staff, requestId: id, to: 'done', comment: 'Лампа заменена' });
+};
+
 const TOKEN = 'domovoy-bot-token';
 const BUILDING_ID = 'b1';
 
@@ -1719,6 +1735,130 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(5021, /поручена/);
 
     assert.equal((await bot.deps.repository.findRequest(request!.id))?.assigneeId, 'tech-need');
+
+    await bot.stop();
+  });
+
+  it('мастер сдаёт работу словами: продукт уточняет и записывает отчёт', async () => {
+    const master: Resident = {
+      id: 'tech-words',
+      maxUserId: 5030,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+    };
+
+    const dispatcher: Resident = {
+      id: 'disp-words',
+      maxUserId: 5031,
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      buildingId: BUILDING_ID,
+    };
+
+    const bot = await start([RESIDENT_WITH_FLAT, master, dispatcher]);
+
+    const request = await createServiceRequest(bot.deps, {
+      resident: RESIDENT_WITH_FLAT,
+      description: 'Течёт труба под раковиной',
+      category: 'plumbing',
+      startParam: 'apt_apt-1',
+    });
+
+    await transitionRequest(bot.deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
+    await transitionRequest(bot.deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'in_progress',
+      assigneeId: master.id,
+    });
+
+    platform.userSends('починил трубу, заменил гибкую подводку', { userId: 5030, chatId: 5030 });
+
+    const asked = await waitForMessage(5030, /Понял: сдать работу/);
+
+    assert.match(asked, /Д15-2609-0001/, 'не видно, о каком наряде речь');
+    assert.match(asked, /Записать как «починил трубу/, 'слова мастера не попали в отчёт');
+    assert.equal(
+      (await bot.deps.repository.findRequest(request.id))?.status,
+      'in_progress',
+      'работа сдана без подтверждения',
+    );
+
+    platform.userPressesButton(`do:done:${request.id}`, { userId: 5030, chatId: 5030 });
+    await waitForMessage(5030, /выполнена/);
+
+    const closed = await bot.deps.repository.findRequest(request.id);
+
+    assert.equal(closed?.status, 'done');
+    assert.match(closed?.history.at(-1)?.comment ?? '', /гибкую подводку/, 'отчёт не записан');
+
+    await bot.stop();
+  });
+
+  it('жилец принимает работу словами, а не поиском кнопки', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT, DISPATCHER_FOR_WORDS]);
+
+    const request = await createServiceRequest(bot.deps, {
+      resident: RESIDENT_WITH_FLAT,
+      description: 'Не горит лампа на площадке',
+      category: 'electricity',
+    });
+
+    await untilDoneBy(bot.deps, DISPATCHER_FOR_WORDS, request.id);
+
+    platform.userSends('всё сделали, спасибо', { userId: 3003, chatId: 3003 });
+
+    const asked = await waitForMessage(3003, /Понял: принять работу/);
+
+    assert.match(asked, /Д15-2609-0001/);
+
+    platform.userPressesButton(`do:confirmed:${request.id}`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята жильцом|закрыта/);
+
+    assert.equal((await bot.deps.repository.findRequest(request.id))?.status, 'confirmed');
+
+    await bot.stop();
+  });
+
+  it('когда нарядов несколько, продукт спрашивает, по какому дело', async () => {
+    const master: Resident = {
+      id: 'tech-many',
+      maxUserId: 5032,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+    };
+
+    const bot = await start([RESIDENT_WITH_FLAT, master, DISPATCHER_FOR_WORDS]);
+
+    for (const description of ['Течёт труба в подвале', 'Не работает свет в подъезде']) {
+      const request = await createServiceRequest(bot.deps, {
+        resident: RESIDENT_WITH_FLAT,
+        description,
+        category: 'plumbing',
+      });
+
+      await transitionRequest(bot.deps, {
+        resident: DISPATCHER_FOR_WORDS,
+        requestId: request.id,
+        to: 'accepted',
+      });
+      await transitionRequest(bot.deps, {
+        resident: DISPATCHER_FOR_WORDS,
+        requestId: request.id,
+        to: 'in_progress',
+        assigneeId: master.id,
+      });
+    }
+
+    platform.userSends('сделал', { userId: 5032, chatId: 5032 });
+
+    const asked = await waitForMessage(5032, /По какой заявке/);
+    const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(asked, /Понял: сдать работу/);
+    assert.equal((buttons.match(/do:done:/g) ?? []).length, 2, 'выбор из двух нарядов не предложен');
 
     await bot.stop();
   });
