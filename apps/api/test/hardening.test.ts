@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { InMemoryRepository, createCollectingNotifier, type Resident } from '@domovoy/app';
+import {
+  InMemoryRepository,
+  createCollectingNotifier,
+  type CapitalRepairPlan,
+  type CapitalRepairWork,
+  type Resident,
+} from '@domovoy/app';
 import { signInitData } from '@maxkit/bridge';
 
 import { buildServer, SERVICE_STATUS, STATUS_BY_CODE } from '../dist/index.js';
@@ -484,14 +490,25 @@ describe('схемы параметров пути', () => {
 });
 
 describe('капитальный ремонт', () => {
+  const works = (list: CapitalRepairWork[]): CapitalRepairPlan => ({
+    fund: 'regional',
+    contribution: 11.9,
+    works: list,
+  });
+
   const plan = {
     title: 'Региональный оператор',
-    planFor: () => Promise.resolve({ works: [{ title: 'Кровля', year: 2030, state: 'planned' }] }),
+    model: true,
+    planFor: () => Promise.resolve(works([{ title: 'Кровля', year: 2030, state: 'planned' }])),
   };
 
   it('отказ источника отличим от дома вне программы', async () => {
     const { app, login } = await setup([maria], {
-      capitalRepair: { title: 'Региональный оператор', planFor: () => Promise.reject(new Error('источник молчит')) },
+      capitalRepair: {
+        title: 'Региональный оператор',
+        model: true,
+        planFor: () => Promise.reject(new Error('источник молчит')),
+      },
     });
 
     const response = await app.inject({
@@ -508,7 +525,7 @@ describe('капитальный ремонт', () => {
 
   it('дом вне программы отвечает пустым списком работ', async () => {
     const { app, login } = await setup([maria], {
-      capitalRepair: { title: 'Региональный оператор', planFor: () => Promise.resolve(undefined) },
+      capitalRepair: { title: 'Региональный оператор', model: true, planFor: () => Promise.resolve(undefined) },
     });
 
     const response = await app.inject({
@@ -538,13 +555,17 @@ describe('капитальный ремонт', () => {
   });
 
   it('список работ источника ответом не переставляется', async () => {
-    const works = [
+    const mixed: CapitalRepairWork[] = [
       { title: 'Лифт', year: 2032, state: 'planned' },
       { title: 'Кровля', year: 2030, state: 'planned' },
     ];
 
     const { app, login } = await setup([maria], {
-      capitalRepair: { title: 'Региональный оператор', planFor: () => Promise.resolve({ works }) },
+      capitalRepair: {
+        title: 'Региональный оператор',
+        model: true,
+        planFor: () => Promise.resolve(works(mixed)),
+      },
     });
 
     const response = await app.inject({
@@ -559,7 +580,7 @@ describe('капитальный ремонт', () => {
       'в ответе работы по годам',
     );
     assert.deepEqual(
-      works.map((work) => work.title),
+      mixed.map((work) => work.title),
       ['Лифт', 'Кровля'],
       'список источника остался прежним',
     );
