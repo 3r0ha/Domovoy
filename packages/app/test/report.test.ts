@@ -91,7 +91,7 @@ const untilDone = async (deps: Deps, id: string): Promise<void> => {
     to: 'in_progress',
     assigneeId: technician.id,
   });
-  await transitionRequest(deps, { resident: technician, requestId: id, to: 'done' });
+  await transitionRequest(deps, { resident: technician, requestId: id, to: 'done', comment: 'Работа сдана' });
 };
 
 describe('сводка для управляющей компании', () => {
@@ -413,9 +413,19 @@ describe('сводка для управляющей компании', () => {
 
     // Заявка закрывается уже после срока: доля «в срок» перестаёт быть стопроцентной.
     await transitionRequest(deps, { resident: dispatcher, requestId: late.request.id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: late.request.id, to: 'in_progress' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: late.request.id,
+      to: 'in_progress',
+      assigneeId: technician.id,
+    });
     deps.advance(5 * 24 * 60 * 60 * 1000);
-    await transitionRequest(deps, { resident: dispatcher, requestId: late.request.id, to: 'done' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: late.request.id,
+      to: 'done',
+      comment: 'Заменил лампу',
+    });
     await transitionRequest(deps, { resident: maria, requestId: late.request.id, to: 'confirmed' });
 
     const report = await buildingReport(deps, dispatcher);

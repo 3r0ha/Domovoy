@@ -24,11 +24,26 @@ export interface RequestWithRisk {
   reporters: number;
 }
 
+/** За сколько дней берётся история закрытых заявок для прогноза по категории. */
+export const STATS_DAYS = 180;
+
 /** Очередь с прогнозом. */
 export const assessQueue = async (deps: AppDeps, requests: readonly ServiceRequest[]): Promise<RequestWithRisk[]> => {
-  const history = await deps.repository.listRequests({ statuses: ['done', 'confirmed'] });
-  const stats = collectCategoryStats(history);
   const now = deps.now();
+
+  if (requests.length === 0) return [];
+
+  // Прогноз строится по своему дому за полгода: чужая история о сроках здесь ничего не говорит.
+  const houses = [...new Set(requests.map((request) => request.buildingId))];
+  const since = new Date(now.getTime() - STATS_DAYS * 24 * 3600_000);
+
+  const history = await Promise.all(
+    houses.map((buildingId) =>
+      deps.repository.listRequests({ buildingId, statuses: ['done', 'confirmed'], createdAfter: since }),
+    ),
+  );
+
+  const stats = collectCategoryStats(history.flat());
 
   return requests.map((request) => ({
     request,

@@ -1,8 +1,30 @@
-import { dropVisit, listVisitsFor, markVisitDone, receptionFor, takeVisit, zoneOf } from '@domovoy/app';
-import { TOPIC_MAX_LENGTH, formatClock, formatReception, formatWeekday, type Visit } from '@domovoy/domain';
+import {
+  dropVisit,
+  listVisitsFor,
+  markVisitDone,
+  receptionFor,
+  recordVisit,
+  setReception,
+  takeVisit,
+  zoneOf,
+} from '@domovoy/app';
+import {
+  TOPIC_MAX_LENGTH,
+  VISIT_MINUTES_RANGE,
+  formatClock,
+  formatReception,
+  formatWeekday,
+  type Visit,
+} from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 
-import { buildingIdSchema, receptionSchema, visitSchema } from '../serialize.js';
+import {
+  buildingQuerySchema,
+  idParamsSchema,
+  receptionSchema,
+  receptionWindowsSchema,
+  visitSchema,
+} from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
 /**
@@ -30,7 +52,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
     '/api/reception',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: { 200: receptionSchema },
       },
     },
@@ -43,6 +65,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         buildingId: reception.buildingId,
         minutes: reception.minutes,
         hours: formatReception(reception.windows),
+        windows: reception.windows,
         ...(reception.office ? { office: reception.office } : {}),
         // У часа приёма стоит день недели: приём идёт по вторникам и четвергам,
         // и по одной дате человек не поймёт, когда именно прийти.
@@ -56,12 +79,97 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
     },
   );
 
+  /** Приёмные часы дома: задаёт смена своего дома. */
+  scope.post<{
+    Querystring: { buildingId?: string };
+    Body: { windows: { weekday: number; from: string; to: string }[]; minutes?: number };
+  }>(
+    '/api/reception',
+    {
+      schema: {
+        querystring: buildingQuerySchema,
+        body: {
+          type: 'object',
+          required: ['windows'],
+          additionalProperties: false,
+          properties: {
+            windows: receptionWindowsSchema,
+            minutes: { type: 'integer', minimum: VISIT_MINUTES_RANGE.min, maximum: VISIT_MINUTES_RANGE.max },
+          },
+        },
+        response: { 200: receptionSchema },
+      },
+    },
+    async (request) => {
+      const resident = await currentResident(request.max.userId, request.query.buildingId);
+
+      const reception = await setReception(deps, {
+        staff: resident,
+        windows: request.body.windows,
+        ...(request.body.minutes === undefined ? {} : { minutes: request.body.minutes }),
+        ...(request.query.buildingId ? { buildingId: request.query.buildingId } : {}),
+      });
+
+      const zone = await zoneOf(deps, reception.buildingId);
+
+      return {
+        buildingId: reception.buildingId,
+        minutes: reception.minutes,
+        hours: formatReception(reception.windows),
+        windows: reception.windows,
+        ...(reception.office ? { office: reception.office } : {}),
+        slots: reception.slots.map((at) => ({
+          at: at.toISOString(),
+          day: formatWeekday(at, zone),
+          clock: formatClock(at, zone),
+        })),
+      };
+    },
+  );
+
+  /** Пришедшего без записи записывает сотрудник. */
+  scope.post<{
+    Querystring: { buildingId?: string };
+    Body: { residentId: string; topic: string; at?: string };
+  }>(
+    '/api/visits/record',
+    {
+      schema: {
+        querystring: buildingQuerySchema,
+        body: {
+          type: 'object',
+          required: ['residentId', 'topic'],
+          additionalProperties: false,
+          properties: {
+            residentId: { type: 'string', minLength: 1, maxLength: 128 },
+            topic: { type: 'string', minLength: 1, maxLength: TOPIC_MAX_LENGTH },
+            at: { type: 'string', format: 'date-time' },
+          },
+        },
+        response: { 201: visitSchema },
+      },
+    },
+    async (request, reply) => {
+      const resident = await currentResident(request.max.userId, request.query.buildingId);
+
+      const visit = await recordVisit(deps, {
+        staff: resident,
+        residentId: request.body.residentId,
+        topic: request.body.topic,
+        ...(request.body.at ? { at: new Date(request.body.at) } : {}),
+        ...(request.query.buildingId ? { buildingId: request.query.buildingId } : {}),
+      });
+
+      return reply.code(201).send(serialize(visit, await zoneOf(deps, visit.buildingId)));
+    },
+  );
+
   /** Записи на приём: смене по дому, жильцу свои. */
   scope.get<{ Querystring: { buildingId?: string } }>(
     '/api/visits',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: { 200: { type: 'array', items: visitSchema } },
       },
     },
@@ -78,10 +186,11 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
     '/api/visits',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         body: {
           type: 'object',
           required: ['at', 'topic'],
+          additionalProperties: false,
           properties: {
             at: { type: 'string', format: 'date-time' },
             topic: { type: 'string', minLength: 1, maxLength: TOPIC_MAX_LENGTH },
@@ -106,7 +215,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
 
   scope.post<{ Params: { id: string } }>(
     '/api/visits/:id/cancel',
-    { schema: { response: { 200: visitSchema } } },
+    { schema: { params: idParamsSchema, response: { 200: visitSchema } } },
     async (request) => {
       const resident = await currentResident(request.max.userId);
       const visit = await dropVisit(deps, resident, request.params.id);
@@ -118,7 +227,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
   /** Приём состоялся: отмечает смена. */
   scope.post<{ Params: { id: string } }>(
     '/api/visits/:id/done',
-    { schema: { response: { 200: visitSchema } } },
+    { schema: { params: idParamsSchema, response: { 200: visitSchema } } },
     async (request) => {
       const resident = await currentResident(request.max.userId);
       const visit = await markVisitDone(deps, resident, request.params.id);

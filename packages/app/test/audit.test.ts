@@ -124,6 +124,63 @@ describe('журнал действий', () => {
     assert.equal(entry?.details, 'Это зона ответственности собственника');
   });
 
+  it('помнит работу по заявке: смену состояния и назначение исполнителя', async () => {
+    const deps = await setup();
+    const request = await createServiceRequest(deps, { resident: maria, description: 'Течёт кран на кухне' });
+
+    await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'in_progress',
+      assigneeId: manager.id,
+    });
+
+    const entries = await listAudit(deps, manager);
+
+    assert.deepEqual(
+      entries.map((entry) => `${entry.action}:${entry.subject ?? ''}`).sort(),
+      [
+        `request_assigned:${request.number}`,
+        `request_status:${request.number}`,
+        `request_status:${request.number}`,
+      ].sort(),
+    );
+
+    assert.equal(
+      entries.find((entry) => entry.action === 'request_assigned')?.details,
+      'Нина',
+      'в журнале видно, кому поручили',
+    );
+
+    assert.deepEqual(
+      entries
+        .filter((entry) => entry.action === 'request_status')
+        .map((entry) => entry.details)
+        .sort(),
+      ['выполняется', 'принята в работу'].sort(),
+    );
+  });
+
+  it('заявку сотрудника журнал помнит, а заявку жильца, нет', async () => {
+    const deps = await setup();
+
+    await createServiceRequest(deps, { resident: maria, description: 'Течёт кран' });
+
+    const byStaff = await createServiceRequest(deps, {
+      resident: dispatcher,
+      description: 'Не горит лампа в подъезде',
+      apartmentId: 'apt-1',
+    });
+
+    const entries = await listAudit(deps, manager);
+
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.action, 'request_created');
+    assert.equal(entries[0]?.subject, byStaff.number);
+    assert.equal(entries[0]?.actorName, 'Ольга');
+  });
+
   it('свои действия жильца в служебный журнал не идут', async () => {
     const deps = await setup();
 

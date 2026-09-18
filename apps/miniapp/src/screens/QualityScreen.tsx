@@ -34,7 +34,7 @@ const lines = (quality: QualityView): Line[] => {
     own.push({
       title: 'Уложились в срок',
       value: `${Math.round(quality.inTimeRate * 100)}%`,
-      ...(was === undefined ? {} : { hint: `месяцем раньше ${Math.round(was * 100)}%` }),
+      ...(was === undefined ? {} : { hint: `периодом раньше ${Math.round(was * 100)}%` }),
     });
   }
 
@@ -44,7 +44,7 @@ const lines = (quality: QualityView): Line[] => {
     own.push({
       title: 'Среднее время работы',
       value: hours(quality.averageHours),
-      ...(was === undefined || was === 0 ? {} : { hint: `месяцем раньше ${hours(was)}` }),
+      ...(was === undefined || was === 0 ? {} : { hint: `периодом раньше ${hours(was)}` }),
     });
   }
 
@@ -72,9 +72,13 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
   }
 
   const data = quality.data;
+  const period = data.days === undefined ? 'За период' : `За ${plural(data.days, 'день', 'дня', 'дней')}`;
 
   return (
     <div className="list">
+      {/* Числа считаются по дому квартиры, а он не всегда тот, который человек ведёт. */}
+      {data.address ? <p className="hint aside">{data.address}</p> : null}
+
       <Group title="Сейчас в доме">
         <CellSimple
           title="Открытых заявок"
@@ -91,7 +95,7 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
         />
       </Group>
 
-      <Group title="За месяц">
+      <Group title={period}>
         {lines(data).map((line, index) => (
           <CellSimple
             key={line.title}

@@ -1,4 +1,5 @@
 import {
+  DomainError,
   createRequest,
   hasReported,
   isCompanyStaff,
@@ -413,6 +414,20 @@ export class InMemoryRepository implements Repository {
   }
 
   async saveVisit(visit: Visit): Promise<Visit> {
+    // Уникальный индекс занятого времени, как в базе (миграция 047):
+    // отменённые и состоявшиеся записи время не держат.
+    const taken =
+      visit.status === 'booked' &&
+      [...this.visits.values()].some(
+        (other) =>
+          other.id !== visit.id &&
+          other.status === 'booked' &&
+          other.buildingId === visit.buildingId &&
+          other.at.getTime() === visit.at.getTime(),
+      );
+
+    if (taken) throw new DomainError('slot_taken', 'Это время уже занято');
+
     this.visits.set(visit.id, visit);
     return visit;
   }

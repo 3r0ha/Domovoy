@@ -14,6 +14,7 @@ import {
   provesPresence,
   reporterIds,
   selectAudience,
+  statusTitle,
   suggestCategory,
   suggestPriority,
   type Apartment,
@@ -125,7 +126,7 @@ export const createServiceRequest = async (deps: AppDeps, command: CreateRequest
   const code = (await deps.repository.buildingCode(buildingId)) ?? 'Д';
   const sequence = await deps.repository.nextRequestSequence(buildingId, createdAt);
 
-  return deps.repository.createRequest({
+  const created = await deps.repository.createRequest({
     id: deps.createId(),
     buildingId,
     buildingCode: code,
@@ -139,6 +140,18 @@ export const createServiceRequest = async (deps: AppDeps, command: CreateRequest
     createdAt,
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
   });
+
+  // Заявку по звонку, с осмотра или от датчика заводит смена: в журнале дома
+  // видно, кто её завёл. Заявки жильцов сюда не попадают.
+  await recordAction(deps, {
+    actor: resident,
+    action: 'request_created',
+    subject: created.number,
+    buildingId: created.buildingId,
+    details: created.title,
+  });
+
+  return created;
 };
 
 export interface TransitionCommand {
@@ -187,17 +200,11 @@ export const transitionRequest = async (deps: AppDeps, command: TransitionComman
 
   const saved = await deps.repository.saveRequest(updated);
 
-  if (saved.status === 'rejected') {
-    await recordAction(deps, {
-      actor: command.resident,
-      action: 'request_rejected',
-      subject: saved.number,
-      buildingId: saved.buildingId,
-      ...(command.comment ? { details: command.comment } : {}),
-    });
-  }
+  const assignment = await assignmentOf(deps, command, found, saved);
 
-  await tellAboutTransition(deps, command, found, saved);
+  await auditTransition(deps, command, found, saved, assignment);
+
+  await tellAboutTransition(deps, command, found, saved, assignment);
 
   if (found.status === 'new' && saved.status === 'accepted') {
     await askNeighbours(deps, saved);
@@ -210,12 +217,76 @@ export const transitionRequest = async (deps: AppDeps, command: TransitionComman
   return saved;
 };
 
+/** Исполнитель, назначенный этим переходом. */
+interface Assignment {
+  id: string;
+  /** Профиль исполнителя, если он в доме известен. */
+  person?: Resident;
+}
+
+/** Кого назначили переходом. Читается один раз: имя нужно и журналу, и уведомлению. */
+const assignmentOf = async (
+  deps: AppDeps,
+  command: TransitionCommand,
+  before: ServiceRequest,
+  saved: ServiceRequest,
+): Promise<Assignment | undefined> => {
+  const id = saved.assigneeId;
+
+  if (!id || id === before.assigneeId) return undefined;
+  if (id === command.resident.id) return { id, person: command.resident };
+
+  const person = await deps.repository.findResident(id);
+
+  return { id, ...(person ? { person } : {}) };
+};
+
+/**
+ * Работа по заявке в журнале дома: смена состояния и назначение исполнителя.
+ * Действия жильца журнал пропускает сам.
+ */
+const auditTransition = async (
+  deps: AppDeps,
+  command: TransitionCommand,
+  before: ServiceRequest,
+  saved: ServiceRequest,
+  assignment: Assignment | undefined,
+): Promise<void> => {
+  const comment = command.comment?.trim();
+
+  if (saved.status !== before.status) {
+    const details =
+      saved.status === 'rejected'
+        ? comment
+        : [statusTitle(saved.status, true), comment].filter(Boolean).join(': ');
+
+    await recordAction(deps, {
+      actor: command.resident,
+      action: saved.status === 'rejected' ? 'request_rejected' : 'request_status',
+      subject: saved.number,
+      buildingId: saved.buildingId,
+      ...(details ? { details } : {}),
+    });
+  }
+
+  if (!assignment) return;
+
+  await recordAction(deps, {
+    actor: command.resident,
+    action: 'request_assigned',
+    subject: saved.number,
+    buildingId: saved.buildingId,
+    details: assignment.person?.displayName ?? assignment.id,
+  });
+};
+
 /** Кому уходит смена статуса: заявителям, старшему по подъезду и новому исполнителю. */
 const tellAboutTransition = async (
   deps: AppDeps,
   command: TransitionCommand,
   before: ServiceRequest,
   saved: ServiceRequest,
+  assignment: Assignment | undefined,
 ): Promise<void> => {
   const text = formatStatusChange(saved);
   const notifier = deps.notifier ?? noopNotifier;
@@ -239,9 +310,9 @@ const tellAboutTransition = async (
     );
   }
 
-  if (!saved.assigneeId || saved.assigneeId === before.assigneeId || saved.assigneeId === command.resident.id) return;
+  if (!assignment || assignment.id === command.resident.id) return;
 
-  const assignee = await deps.repository.findResident(saved.assigneeId);
+  const assignee = assignment.person;
 
   await notifyResident(
     notifier,
@@ -314,10 +385,16 @@ const notifyAboutMessage = async (deps: AppDeps, request: ServiceRequest, comman
     return;
   }
 
+  // Ответ жильца получает исполнитель и тот из смены, кто уже писал по заявке:
+  // диспетчер спрашивает про доступ в квартиру и должен увидеть ответ сам.
+  const talked = request.history
+    .filter((event) => event.kind === 'message' && event.role !== 'resident')
+    .map((event) => event.actorId);
+
+  const staff = [...(request.assigneeId ? [request.assigneeId] : []), ...talked];
+
   await send(
-    request.assigneeId
-      ? [request.assigneeId]
-      : (await deps.repository.listStaff(request.buildingId)).map((person) => person.id),
+    staff.length > 0 ? staff : (await deps.repository.listStaff(request.buildingId)).map((person) => person.id),
     'Жилец',
   );
 
@@ -341,7 +418,7 @@ const askNeighbours = async (deps: AppDeps, request: ServiceRequest): Promise<vo
   for (const resident of residents) {
     if (known.has(resident.id)) continue;
 
-    await notifyResident(deps.notifier ?? noopNotifier, resident, text, [], undefined, request.id);
+    await notifyResident(deps.notifier ?? noopNotifier, resident, text, [], { askAbout: request.id });
   }
 };
 

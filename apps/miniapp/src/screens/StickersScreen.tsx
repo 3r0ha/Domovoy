@@ -189,7 +189,7 @@ const Sticker = ({
   return (
     <section className="card sticker">
       <h2>{object.caption}</h2>
-      <p className="hint">Код ведёт в переписку с управляющей компанией: объект в ней уже известен.</p>
+      <p className="hint">Скан открывает заявку по этому объекту</p>
 
       {svg ? (
         <div className="sticker-paper">
@@ -275,13 +275,13 @@ const Sheet = ({ api }: { api: DomovoyApi }) => {
   return (
     <section className="card">
       <h2>Лист для печати</h2>
-      <p className="hint">Все коды дома на одной странице: распечатать и разнести по подъездам.</p>
+      <p className="hint">Все коды дома на одной странице. Придёт файлом в переписку с ботом.</p>
 
       {error ? <ErrorText>{error}</ErrorText> : null}
       {said ? <p className="done">{said}</p> : null}
 
-      <Button type="button" stretched variant="secondary" disabled={busy} onClick={() => void order()}>
-        {busy ? 'Готовим…' : 'Прислать лист'}
+      <Button type="button" stretched disabled={busy} onClick={() => void order()}>
+        {busy ? 'Готовим…' : 'Прислать лист в переписку'}
       </Button>
     </section>
   );
@@ -337,6 +337,7 @@ export const StickersScreen = ({ api, staff }: StickersScreenProps) => {
           id="stickers-search"
           type="search"
           aria-label="Поиск объекта"
+          withClearButton
           value={query}
           placeholder="Подъезд, лифт или номер квартиры"
           onChange={(event) => {

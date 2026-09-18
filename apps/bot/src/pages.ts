@@ -88,20 +88,10 @@ const requestCard = async (
   );
 };
 
-/** Заявки и наряды человека страницами. Закрытые читаются отдельным списком. */
-export const showRequests = async (
-  kit: BotKit,
-  typed: BotContext,
-  offset = 0,
-  scope: RequestScope = 'mine',
-): Promise<void> => {
+/** Заявки и наряды человека. Закрытые читаются отдельным списком в приложении. */
+export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const resident = await kit.residentOf(typed);
-  const requests = await listRequestsFor(kit.deps, resident, scope);
-
-  if (scope === 'closed' && requests.length === 0) {
-    await typed.reply('Закрытых заявок пока нет.', menuButton(typed));
-    return;
-  }
+  const requests = await listRequestsFor(kit.deps, resident, 'mine');
 
   if (requests.length === 0) {
     const empty =
@@ -119,12 +109,7 @@ export const showRequests = async (
 
   // В переписке показывается то, что требует ответа сейчас. Остальное лежит
   // списком в приложении: там фильтры, поиск и закрытые заявки.
-  const shown = requests.slice(offset, offset + CARDS);
-
-  if (shown.length === 0) {
-    await typed.reply('Это все заявки.', menuButton(typed));
-    return;
-  }
+  const shown = requests.slice(0, CARDS);
   const forStaff = isCompanyStaff(resident.role) || resident.role === 'contractor';
 
   // Каждая заявка идёт своим сообщением: под ней кнопки перехода и «Написать».
@@ -135,7 +120,7 @@ export const showRequests = async (
     );
   }
 
-  const rest = requests.length - (offset + shown.length);
+  const rest = requests.length - shown.length;
 
   if (rest > 0) {
     await typed.reply(
@@ -150,8 +135,6 @@ export const showRequests = async (
   }
 
   // Закрытое лежит отдельно: в переписке его не листают, оно нужно как архив.
-  if (scope !== 'mine') return;
-
   const closed = await listRequestsFor(kit.deps, resident, 'closed', { limit: 1 });
 
   if (closed.length === 0) return;
@@ -248,7 +231,7 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
 };
 
 /** Заявки соседей по общему имуществу: их поддерживают кнопкой «И у меня». */
-export const showNeighbours = async (kit: BotKit, typed: BotContext, offset = 0): Promise<void> => {
+export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const requests = await supportableFor(kit.deps, resident);
 
@@ -259,13 +242,7 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext, offset = 0)
 
   // Список соседских обращений живёт на экране: в переписке остаётся свежее,
   // чтобы подтвердить его одной кнопкой, а остальное открывается в приложении.
-  const size = inChat(typed) ? 1 : NEARBY;
-  const shown = requests.slice(offset, offset + size);
-
-  if (shown.length === 0) {
-    await typed.reply('Это все обращения соседей.', menuButton(typed));
-    return;
-  }
+  const shown = requests.slice(0, inChat(typed) ? 1 : NEARBY);
 
   for (const request of shown) {
     await typed.reply(
@@ -276,7 +253,7 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext, offset = 0)
     );
   }
 
-  const rest = requests.length - (offset + shown.length);
+  const rest = requests.length - shown.length;
 
   if (rest === 0) return;
 
@@ -340,7 +317,7 @@ export const showDebtors = async (kit: BotKit, typed: BotContext): Promise<void>
         ? menuButton(typed)
         : keyboardOf(
             [
-              ...(mayWrite ? [[Keyboard.button.callback('✉️ Написать', 'cast:debtors')]] : []),
+              ...(mayWrite ? [[Keyboard.button.callback('✉️ Рассылка должникам', 'cast:debtors')]] : []),
               ...appRow(kit.miniAppUrl, 'Должники в приложении', 'debtors'),
             ],
             typed,

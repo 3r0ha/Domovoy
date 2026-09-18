@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  applyTransition,
   audienceForTarget,
   buildBotDeepLink,
   buildDeepLink,
   compareByUrgency,
   createRequest,
+  timeToDeadline,
   describeAudience,
   describeTarget,
   isInAudience,
@@ -106,6 +108,28 @@ describe('порядок очереди при равных условиях', (
     assert.deepEqual(
       sorted.map((item) => item.id),
       ['soon', 'later'],
+    );
+  });
+
+  it('непринятая заявка меряется сроком ответа, а принятая сроком работ', () => {
+    const now = new Date(CREATED_AT.getTime() + 60_000);
+    // Уборка: четыре часа на ответ и трое суток на работу.
+    const fresh = request({ id: 'fresh', category: 'cleaning' });
+
+    const accepted = applyTransition(request({ id: 'accepted', category: 'cleaning' }), {
+      to: 'accepted',
+      role: 'dispatcher',
+      actorId: 'd1',
+      at: CREATED_AT,
+    });
+
+    assert.ok(timeToDeadline(fresh, now) < timeToDeadline(accepted, now), 'у непринятой срок ближе');
+
+    const sorted = [accepted, fresh].sort((left, right) => compareByUrgency(left, right, now));
+
+    assert.deepEqual(
+      sorted.map((item) => item.id),
+      ['fresh', 'accepted'],
     );
   });
 

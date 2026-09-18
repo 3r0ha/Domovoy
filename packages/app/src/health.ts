@@ -1,4 +1,4 @@
-import { DomainError, encodeTarget, isCompanyStaff, isWearDue, wearOf, type ServiceRequest } from '@domovoy/domain';
+import { DomainError, encodeTarget, isCompanyStaff, isWearDue, wearOf } from '@domovoy/domain';
 
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -23,7 +23,7 @@ export interface EquipmentHealth {
 const OPEN = ['new', 'accepted', 'in_progress', 'needs_info', 'done'];
 
 /** За сколько дней до расчётной поломки о ней стоит сказать смене. */
-export const WEAR_WARNING_DAYS = 7;
+const WEAR_WARNING_DAYS = 7;
 
 /** Что скоро сломается по своей истории. Уже сломанное сюда не входит. */
 export const dueSoon = (health: readonly EquipmentHealth[]): EquipmentHealth[] =>
@@ -41,35 +41,38 @@ export const equipmentHealth = async (deps: AppDeps, resident: Resident): Promis
 /** То же самое по дому целиком, без проверки прав. */
 export const equipmentHealthOf = async (deps: AppDeps, buildingId: string): Promise<EquipmentHealth[]> => {
   const equipment = await deps.repository.listEquipment(buildingId);
+
+  // Без наклеек на оборудовании считать нечего, и история заявок дома не нужна.
+  if (equipment.length === 0) return [];
+
   const requests = await deps.repository.listRequests({ buildingId });
   const now = deps.now();
 
-  const byEquipment = new Map<string, ServiceRequest[]>();
+  const byEquipment = new Map<string, { moments: Date[]; broken: boolean }>();
 
   for (const request of requests) {
     if (request.target.kind !== 'equipment') continue;
 
-    const list = byEquipment.get(request.target.equipmentId) ?? [];
+    const own = byEquipment.get(request.target.equipmentId) ?? { moments: [], broken: false };
 
-    list.push(request);
-    byEquipment.set(request.target.equipmentId, list);
+    own.moments.push(request.createdAt);
+    own.broken ||= OPEN.includes(request.status);
+    byEquipment.set(request.target.equipmentId, own);
   }
 
   const health = equipment.map((item) => {
-    const own = (byEquipment.get(item.code) ?? []).sort(
-      (left, right) => left.createdAt.getTime() - right.createdAt.getTime(),
-    );
-    const moments = own.map((request) => request.createdAt);
+    const own = byEquipment.get(item.code) ?? { moments: [], broken: false };
+    const moments = [...own.moments].sort((left, right) => left.getTime() - right.getTime());
     const last = moments.at(-1);
 
     return {
       code: item.code,
       startParam: encodeTarget({ kind: 'equipment', buildingId, equipmentId: item.code, title: item.title }),
       title: item.title,
-      failures: own.length,
+      failures: moments.length,
       ...(last ? { lastAt: last } : {}),
       ...wearOf(moments, now),
-      broken: own.some((request) => OPEN.includes(request.status)),
+      broken: own.broken,
     };
   });
 

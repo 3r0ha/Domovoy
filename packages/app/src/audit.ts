@@ -20,18 +20,25 @@ export const AUDIT_ACTIONS = {
   poll_started: 'Объявлено собрание',
   tariff_changed: 'Изменён тариф',
   request_rejected: 'Отклонена заявка',
+  request_created: 'Заявка заведена сотрудником',
+  request_status: 'Состояние заявки',
+  request_assigned: 'Назначен исполнитель',
   request_passed: 'Обращение передано смежной организации',
+  inspection_checked: 'Отметка осмотра',
+  reception_changed: 'Часы приёма',
+  visit_recorded: 'Записан пришедший',
   data_exported: 'Выгрузка данных',
   data_imported: 'Заведён дом',
   building_updated: 'Изменена карточка дома',
   building_added: 'Заведён новый дом',
+  building_handed_over: 'Дом передан другой управляющей организации',
   visit_booked: 'Запись на приём',
   visit_cancelled: 'Отменена запись на приём',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;
 
-export interface RecordInput {
+interface RecordInput {
   actor: Resident;
   action: AuditAction;
   /** Над чем действие: заявка, человек или прибор. */
@@ -59,7 +66,7 @@ export const recordAction = async (deps: AppDeps, input: RecordInput): Promise<v
 /** Сколько записей журнала отдаём за раз. */
 export const AUDIT_PAGE = 50;
 
-export interface AuditPage {
+interface AuditPage {
   limit?: number;
   before?: Date;
 }

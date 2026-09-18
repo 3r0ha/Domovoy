@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  ACCEPTANCE_REMINDER_SHARE,
+  AUTO_CONFIRM_AFTER_HOURS,
+  acceptanceReminderCrossedIn,
   allowedTransitions,
   applyTransition,
   assessDeadlineRisk,
@@ -11,6 +14,7 @@ import {
   collectCategoryStats,
   createRequest,
   deadlineCrossedIn,
+  findTransition,
   isAutoConfirmDue,
   isOverdue,
   type ServiceRequest,
@@ -44,7 +48,7 @@ const untilDone = (value: ServiceRequest, doneAt = CREATED_AT): ServiceRequest =
       applyTransition(value, { to: 'accepted', role: 'dispatcher', actorId: 'disp', at: CREATED_AT }),
       { to: 'in_progress', role: 'technician', actorId: 'tech', at: CREATED_AT },
     ),
-    { to: 'done', role: 'technician', actorId: 'tech', at: doneAt },
+    { to: 'done', role: 'technician', actorId: 'tech', at: doneAt, comment: 'Заменил смеситель' },
   );
 
 describe('приёмка работы жильцом', () => {
@@ -52,7 +56,11 @@ describe('приёмка работы жильцом', () => {
     const done = untilDone(request());
 
     assert.deepEqual(allowedTransitions('done', 'resident'), ['confirmed', 'in_progress']);
-    assert.deepEqual(allowedTransitions('done', 'dispatcher'), [], 'сама себе работу УК не принимает');
+    // Жилец не всегда нажимает кнопку: он говорит о приёмке по телефону,
+    // и смена закрывает заявку за него, объяснив, откуда знает.
+    assert.deepEqual(allowedTransitions('done', 'dispatcher'), ['confirmed', 'in_progress']);
+    assert.equal(findTransition('done', 'confirmed', 'dispatcher')?.requiresComment, true);
+    assert.equal(findTransition('done', 'confirmed', 'resident')?.requiresComment, undefined);
 
     const confirmed = applyTransition(done, {
       to: 'confirmed',
@@ -84,6 +92,19 @@ describe('приёмка работы жильцом', () => {
     assert.equal(reopened.history.at(-1)?.comment, 'Вода так и не появилась');
   });
 
+  it('возврат по звонку мастера в счётчик непринятых работ не идёт', () => {
+    const returned = applyTransition(untilDone(request()), {
+      to: 'in_progress',
+      role: 'dispatcher',
+      actorId: 'disp',
+      at: CREATED_AT,
+      comment: 'Мастер позвонил: задвижку надо менять целиком',
+    });
+
+    assert.equal(returned.status, 'in_progress');
+    assert.equal(returned.reopenCount, 0, 'счётчик означает, что работу не принял жилец');
+  });
+
   it('переоткрытие без объяснения не принимается', () => {
     assert.throws(
       () =>
@@ -110,6 +131,33 @@ describe('приёмка работы жильцом', () => {
     assert.equal(isAutoConfirmDue(done, new Date(CREATED_AT.getTime() + 71 * HOUR)), false);
     assert.equal(isAutoConfirmDue(done, new Date(CREATED_AT.getTime() + 73 * HOUR)), true);
     assert.equal(isAutoConfirmDue(request(), new Date(CREATED_AT.getTime() + 73 * HOUR)), false);
+  });
+});
+
+describe('напоминание о приёмке', () => {
+  const done = untilDone(request());
+  const reminder = new Date(
+    CREATED_AT.getTime() + AUTO_CONFIRM_AFTER_HOURS * ACCEPTANCE_REMINDER_SHARE * HOUR,
+  );
+
+  it('момент на стыке двух окон достаётся первому', () => {
+    assert.equal(acceptanceReminderCrossedIn(done, new Date(reminder.getTime() - HOUR), reminder), true);
+    assert.equal(
+      acceptanceReminderCrossedIn(done, reminder, new Date(reminder.getTime() + HOUR)),
+      false,
+      'напоминание уже ушло, второй раз не надо',
+    );
+  });
+
+  it('до середины срока и после закрытия напоминать нечего', () => {
+    const early = new Date(CREATED_AT.getTime() + HOUR);
+
+    assert.equal(acceptanceReminderCrossedIn(done, CREATED_AT, early), false);
+    assert.equal(
+      acceptanceReminderCrossedIn(request(), CREATED_AT, new Date(reminder.getTime() + HOUR)),
+      false,
+      'работа не сдана, приёмки не ждут',
+    );
   });
 });
 

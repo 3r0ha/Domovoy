@@ -180,7 +180,13 @@ describe('план дома', () => {
     });
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: PEOPLE.staff!, requestId: kitchen.id, to });
+      await transitionRequest(deps, {
+        resident: PEOPLE.staff!,
+        requestId: kitchen.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: PEOPLE.staff!.id } : {}),
+        ...(to === 'done' ? { comment: 'Заменил кран' } : {}),
+      });
     }
 
     await transitionRequest(deps, { resident: PEOPLE.ivan!, requestId: kitchen.id, to: 'confirmed' });

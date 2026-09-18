@@ -187,6 +187,9 @@ const zip = (files: { name: string; content: string }[]): Buffer => {
   return Buffer.concat([...parts, ...directory, end]);
 };
 
+/** Тип книги в ответе: по нему клиент открывает файл в таблицах. */
+export const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 /** Книга из готовых строк: первая строка листа считается шапкой таблицы. */
 export const buildXlsx = (sheets: Sheet[]): Buffer =>
   zip([

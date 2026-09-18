@@ -52,6 +52,7 @@ import type { BotKit, Extra } from './kit.js';
 import {
   addressed,
   DIALOG_COMMANDS,
+  forget,
   inChat,
   PRIVATE_COMMANDS,
   nameOf,
@@ -61,12 +62,21 @@ import {
   type DialogSession,
 } from './max.js';
 
+/** Кнопки, которые ничего не меняют: их нажимают и до согласия с документами. */
+const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more']);
+
 /** Нажатие кнопки: обработчик по приставке payload, остальное после двоеточий. */
 const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const [name, ...args] = (typed.callback?.payload ?? '').split(':');
   const button = name ? BUTTONS[name] : undefined;
 
-  if (button) {
+  if (name && button) {
+    // Кнопка меняет данные так же, как команда, поэтому и согласие спрашивается так же.
+    if (!inChat(typed) && !WITHOUT_LEGAL_BUTTONS.has(name) && (await needsLegal(kit, typed))) {
+      await toast(typed);
+      return;
+    }
+
     await button(kit, typed, args);
 
     // Нажатие закрывается в любом случае: иначе кнопка у нажавшего висит в ожидании.
@@ -120,6 +130,8 @@ export const BOT_COMMANDS = [
   { name: 'visit', description: 'Записаться на приём' },
   { name: 'stickers', description: 'Наклейка с кодом объекта' },
   { name: 'duty', description: 'Принять или сдать дежурство' },
+  { name: 'report', description: 'Сводка по дому' },
+  { name: 'debts', description: 'Долги дома' },
   { name: 'broadcast', description: 'Рассылка жильцам' },
   { name: 'gzhi', description: 'Обращение в жилинспекцию' },
   { name: 'flat', description: 'Выбрать свою квартиру' },
@@ -348,6 +360,10 @@ export const createDomovoyBot = (
 
   const command = (name: string, run: (typed: BotContext) => Promise<void>): void => {
     const dispatch = guarded(async (typed: BotContext): Promise<void> => {
+      // Команда отменяет начатый разговор: иначе следующее сообщение уходит
+      // в прежнее ожидание, а человек уже говорит о другом.
+      forget(typed);
+
       // До согласия с документами продукт делает только то, что без обработки
       // данных обойтись не может: здоровается, объясняет себя и даёт контакты.
       if (!inChat(typed) && !WITHOUT_LEGAL.has(name) && (await needsLegal(kit, typed, name))) return undefined;

@@ -17,16 +17,18 @@ import { fmt } from '@maxkit/max-bot-api';
 
 import {
   afterError,
+  appRow,
   cancelKeyboard,
   doorKeyboard,
   formatInitiative,
   initiativeKeyboard,
+  keyboardOf,
   menuButton,
-  pollKeyboard,
+  pollRow,
 } from '../keyboards.js';
 import { expect, inChat } from '../max.js';
 import { showNeighbours, showNews, showSupport } from '../pages.js';
-import { inApp } from './in-app.js';
+import { inApp, shorten } from './in-app.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Дела дома: двери, собрания, объявления, соседи и работа компании. */
@@ -69,15 +71,24 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     if (open.length === 0 && collecting.length === 0) {
       const [last] = polls.filter((view) => view.poll.closedAt);
 
+      if (!last) {
+        await typed.reply('Открытых собраний нет.', menuButton(typed));
+        return;
+      }
+
       await typed.reply(
-        last ? await pollProtocol(deps, resident, last.poll.id) : 'Открытых собраний нет.',
-        menuButton(typed),
+        shorten(await pollProtocol(deps, resident, last.poll.id), 'Протокол целиком в приложении.'),
+        keyboardOf([...appRow(kit.miniAppUrl, 'Собрания в приложении', 'polls')], typed),
       );
       return;
     }
 
+    // В бюллетене остаётся главное и три ответа: счёт по долям читается в приложении.
     for (const view of open) {
-      await typed.reply(formatPollResult(view, { personal: !inChat(typed) }), pollKeyboard(view.poll.id));
+      await typed.reply(
+        shorten(formatPollResult(view, { personal: !inChat(typed) }), 'Счёт голосов в приложении.'),
+        keyboardOf([pollRow(view.poll.id), ...appRow(kit.miniAppUrl, 'Собрание в приложении', 'polls')], typed),
+      );
     }
 
     for (const view of collecting) {
@@ -112,7 +123,10 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     const resident = await residentOf(typed);
 
     try {
-      await typed.reply(formatContacts(await contactsFor(deps, resident)), openApp(sectionParam('support'), typed));
+      await typed.reply(
+        shorten(formatContacts(await contactsFor(deps, resident)), 'Остальные контакты в приложении.'),
+        openApp(sectionParam('support'), typed),
+      );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
       await typed.reply(error.message, afterError(error, typed));
@@ -151,9 +165,14 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     }
 
     for (const request of own) {
-      const offer = await escalationFor(deps, resident, request.id);
+      // Наряд подрядчика чужой: обращение по нему составляет заявитель, а не исполнитель.
+      const offer = await escalationFor(deps, resident, request.id).catch((error: unknown) => {
+        if (error instanceof DomainError) return undefined;
 
-      if (!offer.possible || !offer.complaint) continue;
+        throw error;
+      });
+
+      if (!offer?.possible || !offer.complaint) continue;
 
       await typed.reply(
         `По заявке ${fmt.bold(request.number)} есть основание для обращения: ${offer.reason}.\n` +

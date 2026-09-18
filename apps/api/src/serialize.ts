@@ -1,4 +1,7 @@
+import type { FastifyReply } from 'fastify';
+
 import type { RoutesDeps } from './context.js';
+import { ServiceError } from './errors.js';
 import {
   announcementAudience,
   lastMonth,
@@ -16,9 +19,14 @@ import {
 import {
   BASIS,
   CATEGORY_RULES,
+  PLAIN,
+  basisFor,
   deadlineBasisFor,
+  normLimitFor,
   HANDOFF_BASIS,
   HANDOFF_STATUS_TITLES,
+  HANDOFF_TITLES,
+  type HandoffTarget,
   INSPECTION_RULES,
   isHandoffOverdue,
   type Handoff,
@@ -149,8 +157,11 @@ export const serializeRequest = (
   dueAt: (request.status === 'new' ? request.reactionDueAt : request.resolutionDueAt).toISOString(),
   overdue: isOverdue(request, now),
   reactionOverdue: isReactionOverdue(request, now),
-  // Откуда взялся срок: регламент организации, а не решение продукта.
-  deadlineBasis: deadlineBasisFor(request.priority),
+  // Откуда взялся срок, нужно смене: она отвечает за регламент. Жильцу хватает
+  // самого срока, норма в его карточке только мешает читать.
+  ...(viewer && viewer.role !== 'resident'
+    ? { deadlineBasis: deadlineBasisFor(request.priority, normLimitFor(request.description, request.priority)) }
+    : {}),
   ...(autoConfirmAt(request) ? { autoConfirmAt: autoConfirmAt(request)?.toISOString() } : {}),
   reporters: reportersCount(request),
   ...(request.knockedAt ? { knocked: true } : {}),
@@ -159,6 +170,13 @@ export const serializeRequest = (
   // Совет по аварии нужен, пока её не устранили: в закрытой заявке он ни к чему.
   ...(OPEN_STATUSES.includes(request.status) && emergencyHint(request.category, request.priority)
     ? { hint: emergencyHint(request.category, request.priority) }
+    : {}),
+  // Памятка идёт исполнителю: это его обязанность, а не забота жильца.
+  ...(viewer &&
+  (viewer.role === 'technician' || viewer.role === 'contractor') &&
+  request.target.kind === 'apartment' &&
+  (request.status === 'accepted' || request.status === 'in_progress')
+    ? { workerNote: BASIS.workerAtHome }
     : {}),
   reopenCount: request.reopenCount,
   ...(request.assigneeId ? { assigneeId: request.assigneeId } : {}),
@@ -202,7 +220,7 @@ export const autoConfirmAt = (request: ServiceRequest): Date | undefined => {
 export const buildingIdSchema = { type: 'string', maxLength: 128 } as const;
 
 /** Обращение в поддержку для клиента: переписка с подписями сторон. */
-export const serializeTicket = (card: TicketCard, viewerId: string) => {
+export const serializeTicket = (card: TicketCard, viewerId: string, staff = false) => {
   const { ticket } = card;
 
   return {
@@ -217,7 +235,12 @@ export const serializeTicket = (card: TicketCard, viewerId: string) => {
     ...(card.authorName ? { authorName: card.authorName } : {}),
     ...(card.apartment === undefined ? {} : { apartment: card.apartment }),
     ...(card.waitingSince ? { waitingSince: card.waitingSince.toISOString() } : {}),
-    ...(card.answerDueAt ? { answerDueAt: card.answerDueAt.toISOString(), basis: BASIS.supportAnswer } : {}),
+    ...(card.answerDueAt
+      ? {
+          answerDueAt: card.answerDueAt.toISOString(),
+          ...(basisFor('supportAnswer', staff) ? { basis: basisFor('supportAnswer', staff) } : {}),
+        }
+      : {}),
     ...(card.overdue ? { overdue: true } : {}),
     messages: ticket.messages.map((message) => ({
       at: message.at.toISOString(),
@@ -310,6 +333,19 @@ export const receptionSchema = {
     minutes: { type: 'integer' },
     hours: { type: 'string' },
     office: { type: 'string' },
+    // Окна идут рядом со строкой часов: смена правит заданное, а не вводит заново.
+    windows: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['weekday', 'from', 'to'],
+        properties: {
+          weekday: { type: 'integer' },
+          from: { type: 'string' },
+          to: { type: 'string' },
+        },
+      },
+    },
     slots: {
       type: 'array',
       items: {
@@ -499,7 +535,7 @@ export const attachmentsBodySchema = {
 } as const;
 
 /** Переданное обращение для клиента: срок и основание приходят рядом с состоянием. */
-export const serializeHandoff = (handoff: Handoff, now: Date) => ({
+export const serializeHandoff = (handoff: Handoff, now: Date, staff = true) => ({
   id: handoff.id,
   requestId: handoff.requestId,
   to: handoff.to,
@@ -508,7 +544,8 @@ export const serializeHandoff = (handoff: Handoff, now: Date) => ({
   status: handoff.status,
   statusTitle: HANDOFF_STATUS_TITLES[handoff.status],
   dueAt: handoff.dueAt.toISOString(),
-  basis: HANDOFF_BASIS[handoff.to],
+  // Срок ответа принимающей стороны смене нужен с нормой, жильцу с датой.
+  ...(staff ? { basis: HANDOFF_BASIS[handoff.to] } : {}),
   overdue: isHandoffOverdue(handoff, now),
   createdAt: handoff.createdAt.toISOString(),
   ...(handoff.externalId ? { externalId: handoff.externalId } : {}),
@@ -518,7 +555,7 @@ export const serializeHandoff = (handoff: Handoff, now: Date) => ({
 
 export const handoffSchema = {
   type: 'object',
-  required: ['id', 'requestId', 'to', 'organization', 'channel', 'status', 'statusTitle', 'dueAt', 'basis', 'overdue', 'createdAt'],
+  required: ['id', 'requestId', 'to', 'organization', 'channel', 'status', 'statusTitle', 'dueAt', 'overdue', 'createdAt'],
   properties: {
     id: { type: 'string' },
     requestId: { type: 'string' },
@@ -534,6 +571,35 @@ export const handoffSchema = {
     externalId: { type: 'string' },
     answer: { type: 'string' },
     answeredAt: { type: 'string' },
+  },
+} as const;
+
+/** Кому можно передать обращение: список берётся из правил домена. */
+export const HANDOFF_TARGETS = Object.keys(HANDOFF_TITLES) as HandoffTarget[];
+
+/** Кому обращение можно передать: одна строка списка адресатов. */
+export const handoffTargetSchema = {
+  type: 'object',
+  required: ['to', 'organization', 'basis'],
+  properties: {
+    to: { type: 'string' },
+    organization: { type: 'string' },
+    basis: { type: 'string' },
+  },
+} as const;
+
+/** Кто отвечает за заявку, кому её можно передать и что уже передано. */
+export const responsibilitySchema = {
+  type: 'object',
+  required: ['kind', 'title', 'basis', 'targets', 'handoffs'],
+  properties: {
+    kind: { type: 'string' },
+    title: { type: 'string' },
+    basis: { type: 'string' },
+    next: { type: 'string' },
+    organization: { type: 'string' },
+    targets: { type: 'array', items: handoffTargetSchema },
+    handoffs: { type: 'array', items: handoffSchema },
   },
 } as const;
 
@@ -578,6 +644,7 @@ export const requestSchema = {
     overdue: { type: 'boolean' },
     reactionOverdue: { type: 'boolean' },
     deadlineBasis: { type: 'string' },
+    workerNote: { type: 'string' },
     autoConfirmAt: { type: 'string' },
     reporters: { type: 'integer' },
     incident: { type: 'boolean' },
@@ -617,30 +684,6 @@ export const requestSchema = {
     },
     risk: { type: 'string' },
     riskReason: { type: 'string' },
-    responsible: {
-      type: 'object',
-      required: ['kind', 'title', 'basis'],
-      properties: {
-        kind: { type: 'string' },
-        title: { type: 'string' },
-        basis: { type: 'string' },
-        next: { type: 'string' },
-        organization: { type: 'string' },
-      },
-    },
-    handoffs: { type: 'array', items: handoffSchema },
-    targets: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['to', 'organization', 'basis'],
-        properties: {
-          to: { type: 'string' },
-          organization: { type: 'string' },
-          basis: { type: 'string' },
-        },
-      },
-    },
     history: {
       type: 'array',
       items: {
@@ -837,8 +880,6 @@ export const reportSchema = {
       },
     },
     daily: { type: 'array', items: { type: 'integer' } },
-    digest: { type: 'string' },
-    digestBasis: { type: 'string' },
     handoffs: { type: 'array', items: handoffSchema },
   },
 } as const;
@@ -847,6 +888,9 @@ export const reportSchema = {
 export const serializePoll = (view: PollView) => ({
   id: view.poll.id,
   kind: view.poll.kind,
+  mode: view.poll.mode ?? 'meeting',
+  ...(view.poll.noticeId ? { noticeId: view.poll.noticeId } : {}),
+  ...(view.poll.protocolId ? { protocolId: view.poll.protocolId } : {}),
   kindTitle: POLL_RULES[view.poll.kind].title,
   title: view.poll.title,
   question: view.poll.question,
@@ -862,9 +906,12 @@ export const serializePoll = (view: PollView) => ({
   quorumShare: POLL_RULES[view.poll.kind].quorum,
   shares: view.result.shares,
   support: view.result.support,
-  basis: view.poll.kind === 'qualified' ? BASIS.qualified : BASIS.quorum,
+  // Собрание читают жильцы: им идёт правило словами, а не номер статьи.
+  basis: view.poll.kind === 'qualified' ? PLAIN.qualified : PLAIN.quorum,
   ...(view.poll.closedAt ? { closedAt: view.poll.closedAt.toISOString() } : {}),
   ...(view.myChoice ? { myChoice: view.myChoice } : {}),
+  // Голос подал сосед по квартире: человек должен знать, что заменит его.
+  ...(view.votedBy ? { votedBy: view.votedBy } : {}),
 });
 
 export const serializeInitiative = (view: InitiativeView) => ({
@@ -877,7 +924,7 @@ export const serializeInitiative = (view: InitiativeView) => ({
   signatures: view.signatures,
   share: view.standing.share,
   demandShare: INITIATIVE_SHARE,
-  basis: BASIS.initiative,
+  basis: PLAIN.initiative,
   areaToDemand: view.standing.areaToDemand,
   enough: view.standing.enough,
   mine: view.mine,
@@ -930,6 +977,10 @@ export const pollSchema = {
     support: { type: 'number' },
     basis: { type: 'string' },
     myChoice: { type: 'string' },
+    votedBy: { type: 'string' },
+    mode: { type: 'string' },
+    noticeId: { type: 'string' },
+    protocolId: { type: 'string' },
     shares: {
       type: 'object',
       properties: {
@@ -1014,7 +1065,8 @@ export const meterSchema = {
   },
 } as const;
 
-export const CATEGORIES: RequestCategory[] = ['plumbing', 'heating', 'electricity', 'elevator', 'cleaning', 'yard', 'other'];
+/** Категории заявок: список берётся из правил домена, а не выписывается заново. */
+export const CATEGORIES = Object.keys(CATEGORY_RULES) as RequestCategory[];
 export const STATUSES: RequestStatus[] = [
   'new',
   'accepted',
@@ -1035,15 +1087,97 @@ export const noticeSchema = {
   },
 } as const;
 
+/** Насколько длинный период отдаётся за один запрос. */
+export const RANGE_MAX_DAYS = 365;
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Границы периода из строки запроса. Схема проверяет каждую дату по
+ * отдельности, а порядок и длину пары, кроме неё, проверить негде.
+ * @throws {ServiceError}
+ */
+export const rangeOf = (query: { from?: string; to?: string }): { from: Date; to: Date } | undefined => {
+  if (!query.from || !query.to) return undefined;
+
+  const from = new Date(query.from);
+  const to = new Date(query.to);
+
+  if (to.getTime() <= from.getTime()) {
+    throw new ServiceError('range_invalid', 'Конец периода должен быть позже начала');
+  }
+
+  if (to.getTime() - from.getTime() > RANGE_MAX_DAYS * DAY_MS) {
+    throw new ServiceError('range_invalid', `За один запрос отдаётся не больше ${RANGE_MAX_DAYS} дней`);
+  }
+
+  return { from, to };
+};
+
 /** Календарный период запроса, а без него, прошедший месяц дома. */
 export const periodFrom = async (
   deps: RoutesDeps,
   query: { from?: string; to?: string },
   buildingId: string,
 ): Promise<{ from: Date; to: Date }> =>
-  query.from && query.to
-    ? { from: new Date(query.from), to: new Date(query.to) }
-    : lastMonth(deps.now(), await zoneOf(deps, buildingId));
+  rangeOf(query) ?? lastMonth(deps.now(), await zoneOf(deps, buildingId));
+
+/**
+ * Идентификатор в адресе: длину видно до похода в хранилище. Предел тот же,
+ * что у самого Fastify (`maxParamLength`), иначе схема до него не доходит.
+ */
+const pathIdSchema = { type: 'string', minLength: 1, maxLength: 100 } as const;
+
+export const idParamsSchema = {
+  type: 'object',
+  required: ['id'],
+  properties: { id: pathIdSchema },
+} as const;
+
+/** Пункт осмотра адресуется парой: осмотр и его порядковый номер. */
+export const idIndexParamsSchema = {
+  type: 'object',
+  required: ['id', 'index'],
+  properties: { id: pathIdSchema, index: { type: 'integer', minimum: 0 } },
+} as const;
+
+/** Код объекта с наклейки в адресе. */
+export const startParamParamsSchema = {
+  type: 'object',
+  required: ['startParam'],
+  properties: { startParam: { type: 'string', minLength: 1, maxLength: 512 } },
+} as const;
+
+/** Гостевой код в адресе. */
+export const codeParamsSchema = {
+  type: 'object',
+  required: ['code'],
+  properties: { code: { type: 'string', minLength: 1, maxLength: 32 } },
+} as const;
+
+/** Строка запроса, в которой сотрудник выбирает дом. */
+export const buildingQuerySchema = { type: 'object', properties: { buildingId: buildingIdSchema } } as const;
+
+/** Квартира, к которой привязали жильца. */
+export const boundApartmentSchema = {
+  type: 'object',
+  required: ['apartmentId', 'number', 'alreadyBound'],
+  properties: {
+    apartmentId: { type: 'string' },
+    number: { type: 'integer' },
+    alreadyBound: { type: 'boolean' },
+  },
+} as const;
+
+/** Заявка после изменения: имена исполнителей подтягиваются к ней же. */
+export const requestView = async (deps: RoutesDeps, request: ServiceRequest, viewer?: Resident) =>
+  serializeRequest(request, deps.now(), await staffNames(deps, [request]), viewer);
+
+/** Заголовки выгрузки: имя файла кириллицей понимают все клиенты. */
+export const asAttachment = (reply: FastifyReply, name: string, contentType: string): FastifyReply =>
+  reply
+    .type(contentType)
+    .header('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
 
 /** Тарифы дома. */
 export const tariffSchema = {
@@ -1071,6 +1205,8 @@ export const serializeTariff = (view: TariffView) => ({
   own: view.own,
   ...(view.since ? { since: view.since.toISOString() } : {}),
   // Откуда значение: заданное организацией от умолчания продукта не отличить иначе.
-  basis: view.own ? (view.kind === 'key_rate' ? BASIS.keyRate : undefined) : BASIS.defaultTariff,
+  // Ключевая ставка приходит от Банка России в любом случае: организация её вносит,
+  // а не назначает, поэтому «тариф не задан» к ней не относится.
+  basis: view.kind === 'key_rate' ? BASIS.keyRate : view.own ? undefined : BASIS.defaultTariff,
 });
 

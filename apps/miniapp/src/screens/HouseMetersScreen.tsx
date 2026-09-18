@@ -89,7 +89,7 @@ const HouseMeterCard = ({
           ) : (
             <span className="row-state">
               <span className={meter.submittedThisMonth ? 'dot dot-good' : 'dot dot-muted'} />
-              {meter.submittedThisMonth ? 'снято' : 'ждём'}
+              {meter.submittedThisMonth ? 'подано' : 'ждём'}
             </span>
           )
         }
@@ -107,7 +107,7 @@ const HouseMeterCard = ({
       {expired ? (
         <p className="hint inset">
           {meter.verifiedUntil ? `Поверка истекла ${formatDay(meter.verifiedUntil)}. ` : ''}
-          Общедомовое по этому прибору не начисляется
+          Прибор не считается
         </p>
       ) : null}
 
@@ -145,7 +145,7 @@ const HouseMeterCard = ({
 
           {value.trim().length > 0 || sending ? (
             <CellAction mode="primary" disabled={sending} onClick={() => void submit()}>
-              {sending ? 'Отправляем…' : 'Снять показание'}
+              {sending ? 'Отправляем…' : 'Подать'}
             </CellAction>
           ) : null}
         </>
@@ -278,8 +278,10 @@ const ExportReadings = ({ api, toChat }: { api: DomovoyApi; toChat: boolean }) =
     <CellList mode="island">
       {toChat ? (
         <CellSimple
-          title={busy ? 'Собираем выгрузку…' : 'Прислать в чат'}
-          subtitle={error ? <span className="error">{error}</span> : 'Все квартиры за прошлый месяц'}
+          title={busy ? 'Собираем выгрузку…' : 'Прислать в переписку с ботом'}
+          subtitle={
+            error ? <span className="error">{error}</span> : 'Все квартиры за прошлый месяц, файлом'
+          }
           showChevron={!busy}
           height="compact"
           onClick={() => void send()}

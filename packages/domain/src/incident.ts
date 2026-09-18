@@ -49,6 +49,22 @@ export const audiencesOverlap = (left: AnnouncementAudience, right: Announcement
   return left.riser === right.riser;
 };
 
+/**
+ * Входит ли адрес нового обращения в зону уже открытой заявки. Пересечения
+ * мало: заявка о доме целиком накрыла бы собой первую попавшуюся заявку
+ * подъезда, хотя речь о разных местах.
+ */
+export const audienceCovers = (wide: AnnouncementAudience, narrow: AnnouncementAudience): boolean => {
+  if (wide.buildingId !== narrow.buildingId) return false;
+  if (wide.kind === 'building') return true;
+  if (narrow.kind === 'building') return false;
+  if (wide.entrance !== narrow.entrance) return false;
+  if (wide.kind === 'entrance') return true;
+  if (narrow.kind === 'entrance') return false;
+
+  return wide.riser === narrow.riser;
+};
+
 export interface JoinCandidate {
   category: RequestCategory;
   audience: AnnouncementAudience | null;
@@ -74,9 +90,12 @@ export const findJoinable = (
     if (request.authorId === candidate.authorId) return false;
     if (hasReported(request, candidate.authorId)) return false;
     if (!audience || !candidate.audience) return false;
-    if (!audiencesOverlap(audience, candidate.audience)) return false;
+    if (!audienceCovers(audience, candidate.audience)) return false;
 
-    return candidate.at.getTime() - request.createdAt.getTime() <= windowMs;
+    // Обращение, датированное раньше самой заявки, о ней говорить не может.
+    const age = candidate.at.getTime() - request.createdAt.getTime();
+
+    return age >= 0 && age <= windowMs;
   });
 
   return matches.sort((left, right) => left.request.createdAt.getTime() - right.request.createdAt.getTime())[0]

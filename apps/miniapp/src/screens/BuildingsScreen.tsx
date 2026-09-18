@@ -13,6 +13,8 @@ export interface BuildingsScreenProps {
   api: DomovoyApi;
   /** Переключить рабочий дом: дальше все списки идут по нему. */
   onPick: (buildingId: string) => void;
+  /** Что открывает адрес: карточку дома или его очередь. */
+  opens?: 'card' | 'queue';
   /** Управляющий заводит новые адреса сам. */
   canAdd?: boolean;
   /** Заведённый дом пустой: следом заводят список квартир. */
@@ -34,7 +36,7 @@ const summary = (line: BuildingLineView): string => {
 };
 
 /** Дома компании в одном списке. */
-export const BuildingsScreen = ({ api, onPick, onAdd, canAdd = false }: BuildingsScreenProps) => {
+export const BuildingsScreen = ({ api, onPick, onAdd, opens = 'queue', canAdd = false }: BuildingsScreenProps) => {
   const report = useBridgeRequest(() => api.buildingsReport(), [api]);
   const [card, setCard] = useState<{ code: string; address: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -80,6 +82,12 @@ export const BuildingsScreen = ({ api, onPick, onAdd, canAdd = false }: Building
             height="compact"
           />
         </Group>
+      ) : null}
+
+      {lines.length > 0 ? (
+        <p className="hint aside">
+          {opens === 'card' ? 'Адрес открывает карточку дома' : 'Адрес переключает работу на этот дом'}
+        </p>
       ) : null}
 
       {lines.length > 0 ? (

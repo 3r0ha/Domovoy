@@ -133,12 +133,38 @@ describe('поддержать заявку соседа', () => {
     const request = await aboutEntrance(deps);
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to });
+      await transitionRequest(deps, {
+        resident: dispatcher,
+        requestId: request.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: dispatcher.id } : {}),
+        ...(to === 'done' ? { comment: 'Сделано' } : {}),
+      });
     }
 
     await transitionRequest(deps, { resident: maria, requestId: request.id, to: 'confirmed' });
 
     await assert.rejects(supportRequest(deps, ivan, request.id), /уже закрыта/);
+  });
+
+  it('заявка чужого подъезда и чужого дома в поддержку не принимается', async () => {
+    const { deps } = setup();
+
+    const request = await aboutEntrance(deps);
+    const alien: Resident = {
+      id: 'res-9',
+      maxUserId: 1090,
+      displayName: 'Житель другого дома',
+      role: 'resident',
+      buildingId: 'b2',
+    };
+
+    await assert.rejects(supportRequest(deps, other, request.id), /не про ваш дом/, 'другой подъезд');
+    await assert.rejects(supportRequest(deps, alien, request.id), /не про ваш дом/, 'другой дом');
+
+    const kept = await deps.repository.findRequest(request.id);
+
+    assert.deepEqual(kept?.joinedBy, [], 'посторонний не стал заявителем');
   });
 
   it('чужую квартиру поддержать нельзя', async () => {

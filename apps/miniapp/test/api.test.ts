@@ -6,6 +6,7 @@ import {
   DomovoyApi,
   actionTitle,
   formatDeadline,
+  formatLeft,
   formatPublished,
   formatSince,
   statusTitle,
@@ -81,6 +82,22 @@ describe('вход', () => {
 
     assert.equal(calls[0]?.headers['authorization'], 'Bearer saved-token');
   });
+
+  it('новая ссылка на клиент работает в той же сессии и в том же доме', async () => {
+    const { client, calls } = api([{ status: 200, body: [] }]);
+
+    client.useToken('saved-token');
+    client.useBuilding('b2');
+
+    const again = client.reread();
+
+    assert.notEqual(again, client, 'ссылка должна быть новой: по ней экраны перечитывают данные');
+
+    await again.listRequests('queue');
+
+    assert.equal(calls[0]?.headers['authorization'], 'Bearer saved-token');
+    assert.match(calls[0]?.url ?? '', /buildingId=b2/);
+  });
 });
 
 describe('ошибки', () => {
@@ -102,6 +119,33 @@ describe('ошибки', () => {
     await assert.rejects(client.me(), (error: unknown) => {
       assert.ok(error instanceof ApiError);
       assert.equal(error.isUnauthorized, true);
+      return true;
+    });
+  });
+
+  it('страница ошибки от прокси остаётся отказом сервера, а не обрывом связи', async () => {
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      fetch: () =>
+        Promise.resolve(new Response('<html><body>502 Bad Gateway</body></html>', { status: 502 })),
+    });
+
+    await assert.rejects(client.transition('req-1', 'accepted'), (error: unknown) => {
+      assert.ok(error instanceof ApiError, 'разбор тела не должен подменять ошибку сервера обрывом связи');
+      assert.equal(error.status, 502);
+      return true;
+    });
+  });
+
+  it('неразобранный успешный ответ тоже отказ, а не пустые данные', async () => {
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      fetch: () => Promise.resolve(new Response('<html>вход на портал</html>', { status: 200 })),
+    });
+
+    await assert.rejects(client.me(), (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.code, 'bad_response');
       return true;
     });
   });
@@ -240,11 +284,20 @@ describe('человеческие подписи', () => {
     assert.match(formatPublished('2026-09-03T10:30:00Z'), /3 сентября/);
   });
 
-  it('просрочка называется просрочкой', () => {
+  it('просрочка называется просрочкой теми же словами, что и в списках', () => {
     const now = new Date('2026-09-03T10:00:00Z');
 
-    assert.equal(formatDeadline('2026-09-03T09:30:00Z', now), 'просрочено на 30 мин');
-    assert.equal(formatDeadline('2026-09-03T07:00:00Z', now), 'просрочено на 3 ч');
+    assert.equal(formatDeadline('2026-09-03T09:30:00Z', now), 'просрочено 30 мин');
+    assert.equal(formatDeadline('2026-09-03T07:00:00Z', now), 'просрочено 3 ч');
+    assert.equal(formatDeadline('2026-08-31T10:00:00Z', now), 'просрочено 3 дня');
+  });
+
+  it('неразобранная дата не превращается в «NaN мин»', () => {
+    const now = new Date('2026-09-03T10:00:00Z');
+
+    assert.equal(formatDeadline('', now), '');
+    assert.equal(formatLeft('не дата', now), '');
+    assert.equal(formatSince('не дата', now), '');
   });
 });
 

@@ -41,7 +41,7 @@ export const bindApartment = async (deps: AppDeps, resident: Resident, code: str
   if (!apartment) {
     await deps.repository.saveBindAttempt({ residentId: resident.id, at: now, ok: false });
 
-    throw new DomainError('apartment_unknown', 'Код не подошёл. Проверьте его в квитанции');
+    throw new DomainError('apartment_unknown', 'Код не подошёл. Проверьте его в квитанции.');
   }
 
   await deps.repository.saveBindAttempt({ residentId: resident.id, at: now, ok: true });

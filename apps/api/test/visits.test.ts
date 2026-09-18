@@ -231,6 +231,90 @@ describe('запись на приём по HTTP', () => {
   });
 });
 
+describe('приём глазами смены', () => {
+  it('смена задаёт часы приёма и записывает пришедшего', async () => {
+    const { app, login } = await setup();
+    const staff = await login(2003, 'Нина');
+    const resident = await login(1001, 'Мария');
+
+    const hours = await app.inject({
+      method: 'POST',
+      url: '/api/reception',
+      headers: authed(staff),
+      payload: { windows: [{ weekday: 2, from: '15:00', to: '17:00' }], minutes: 30 },
+    });
+
+    assert.equal(hours.statusCode, 200, hours.body);
+
+    const reception = hours.json<{ hours: string; slots: Slot[] }>();
+
+    assert.equal(reception.hours, 'вторник 15:00-17:00');
+    assert.ok(reception.slots.length > 0);
+
+    const walkIn = await app.inject({
+      method: 'POST',
+      url: '/api/visits/record',
+      headers: authed(staff),
+      payload: { residentId: RESIDENT.id, topic: 'Принесла показания на бумаге' },
+    });
+
+    assert.equal(walkIn.statusCode, 201, walkIn.body);
+    assert.equal(walkIn.json<{ status: string }>().status, 'done');
+
+    const planned = await app.inject({
+      method: 'POST',
+      url: '/api/visits/record',
+      headers: authed(staff),
+      payload: { residentId: RESIDENT.id, at: reception.slots[0]!.at, topic: 'Перерасчёт' },
+    });
+
+    assert.equal(planned.statusCode, 201, planned.body);
+    assert.equal(planned.json<{ status: string }>().status, 'booked');
+
+    const visits = (
+      await app.inject({ method: 'GET', url: '/api/visits', headers: authed(staff) })
+    ).json<{ residentName: string; apartment: number }[]>();
+
+    assert.deepEqual(
+      visits.map((item) => `${item.residentName}, кв. ${item.apartment}`),
+      ['Мария, кв. 1'],
+    );
+
+    const mine = (
+      await app.inject({ method: 'GET', url: '/api/reception', headers: authed(resident) })
+    ).json<{ mine?: { topic: string } }>();
+
+    assert.equal(mine.mine?.topic, 'Перерасчёт', 'жилец видит запись, сделанную за него');
+
+    await app.close();
+  });
+
+  it('жилец часы приёма не задаёт и никого не записывает', async () => {
+    const { app, login } = await setup();
+    const resident = await login(1001, 'Мария');
+
+    const hours = await app.inject({
+      method: 'POST',
+      url: '/api/reception',
+      headers: authed(resident),
+      payload: { windows: [{ weekday: 2, from: '15:00', to: '17:00' }] },
+    });
+
+    assert.equal(hours.statusCode, 403, hours.body);
+
+    const recorded = await app.inject({
+      method: 'POST',
+      url: '/api/visits/record',
+      headers: authed(resident),
+      payload: { residentId: OTHER.id, topic: 'Перерасчёт' },
+    });
+
+    assert.equal(recorded.statusCode, 403, recorded.body);
+
+    await app.close();
+  });
+});
+
 describe('выгрузка файлом в переписку', () => {
   it('жильцу реестр заявок не отдают', async () => {
     const { app, login } = await setup();

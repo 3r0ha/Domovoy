@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { Profile } from './views.js';
 
@@ -21,6 +21,7 @@ export type Screen =
   | 'audit'
   | 'tariffs'
   | 'house-meters'
+  | 'capital'
   | 'debtors'
   | 'import'
   | 'queue'
@@ -41,6 +42,8 @@ export type Screen =
 export interface Screens {
   /** Верхний экран стопки; пустая стопка означает «показать стартовый». */
   top: Screen | undefined;
+  /** Экран под верхним: туда и вернёт «назад». */
+  under: Screen | undefined;
   deep: boolean;
   open: (screen: Screen) => void;
   /** `base` кладётся под низ, если стопка ещё пуста: с неё и начинали. */
@@ -54,14 +57,22 @@ export interface Screens {
 export const useScreens = (): Screens => {
   const [stack, setStack] = useState<Screen[]>([]);
 
-  return {
-    top: stack.at(-1),
-    deep: stack.length > 1,
-    open: (next) => setStack([next]),
-    push: (next, base) => setStack((current) => (current.length > 0 ? [...current, next] : [base, next])),
-    back: () => setStack((current) => current.slice(0, -1)),
-    seed: (next) => setStack((current) => (current.length > 0 ? current : next)),
-  };
+  // Переходы держатся за одну ссылку: иначе эффекты, которые на них смотрят, идут заново каждый рендер.
+  const open = useCallback((next: Screen) => setStack([next]), []);
+
+  const push = useCallback(
+    (next: Screen, base: Screen) =>
+      setStack((current) => (current.length > 0 ? [...current, next] : [base, next])),
+    [],
+  );
+
+  const back = useCallback(() => setStack((current) => current.slice(0, -1)), []);
+  const seed = useCallback((next: Screen[]) => setStack((current) => (current.length > 0 ? current : next)), []);
+
+  return useMemo(
+    () => ({ top: stack.at(-1), under: stack.at(-2), deep: stack.length > 1, open, push, back, seed }),
+    [stack, open, push, back, seed],
+  );
 };
 
 /** С чего человек начинает: сотрудник со смены, жилец со своих заявок. */
@@ -111,7 +122,9 @@ const LINKED: readonly Screen[] = [
   'audit',
   'tariffs',
   'house-meters',
+  'capital',
   'buildings',
+  'import',
   'quality',
   'broadcast',
   'visits',

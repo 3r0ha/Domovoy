@@ -46,7 +46,7 @@ export const explainingWork = (
     (work) => work.category === category && isUnderway(work, now) && audiencesOverlap(work.audience, where),
   );
 
-const HOUR_MS = 3600_000;
+const DAY_MS = 24 * 3600_000;
 
 /** Календарный день в заданном поясе: по нему решается, нужна ли дата. */
 const dayIn = (at: Date, timeZone: string): string =>
@@ -55,12 +55,13 @@ const dayIn = (at: Date, timeZone: string): string =>
 /** Сколько ещё продлится, словами. */
 export const describeUntil = (work: PlannedWork, now: Date, timeZone: string = DEFAULT_TIME_ZONE): string => {
   const time = work.until.toLocaleTimeString('ru-RU', { timeZone, hour: '2-digit', minute: '2-digit' });
+  const until = dayIn(work.until, timeZone);
 
-  if (dayIn(work.until, timeZone) === dayIn(now, timeZone)) return `до ${time}`;
+  if (until === dayIn(now, timeZone)) return `до ${time}`;
 
-  const left = Math.round((work.until.getTime() - now.getTime()) / HOUR_MS);
-
-  if (left < 48) return `до ${time} завтра`;
+  // «Завтра» это следующий календарный день дома: в 30 часах от вечера
+  // понедельника лежит среда, и назвать её завтрашней нельзя.
+  if (until === dayIn(new Date(now.getTime() + DAY_MS), timeZone)) return `до ${time} завтра`;
 
   return `до ${work.until.toLocaleDateString('ru-RU', { timeZone, day: 'numeric', month: 'long' })}, ${time}`;
 };

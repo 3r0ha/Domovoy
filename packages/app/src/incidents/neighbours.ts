@@ -97,7 +97,7 @@ export const knockUpstairs = async (deps: AppDeps, command: KnockCommand): Promi
   const notifier = deps.notifier ?? noopNotifier;
 
   for (const neighbour of neighbours) {
-    await notifyResident(notifier, neighbour, formatKnock(saved), [], undefined, saved.id);
+    await notifyResident(notifier, neighbour, formatKnock(saved), [], { askAbout: saved.id });
   }
 
   return saved;

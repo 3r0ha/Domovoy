@@ -76,10 +76,13 @@ const Chips = ({
   onPick: (id: string) => void;
 }) => {
   const chosen = useRef<HTMLButtonElement | null>(null);
+  const picked = useRef(false);
 
   // Выбранное подтягивается в видимую часть: ряд шире экрана и прокручивается.
+  // Первый показ пропускается, иначе экран прокручивается сам при открытии.
   useEffect(() => {
-    chosen.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (picked.current) chosen.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    else picked.current = true;
   }, [value]);
 
   return (
@@ -267,7 +270,7 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
 
     if (aimError) return aimError;
     if (counting || !aim) return 'Считаем охват…';
-    if (aim.recipients === 0) return 'Получателей нет: никто из них не пользуется MAX';
+    if (aim.recipients === 0) return 'Никто из них не в MAX';
 
     const silent = aim.people - aim.recipients;
 

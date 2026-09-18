@@ -96,16 +96,18 @@ export const formatDigest = (counts: DigestCounts): string | undefined => {
 const wearing = async (deps: AppDeps, buildingId: string): Promise<string[]> =>
   dueSoon(await equipmentHealthOf(deps, buildingId)).map((item) => item.title);
 
-/** Утренняя сводка смене. */
-export const sendMorningDigest = async (deps: AppDeps, buildingId: string): Promise<Resident[]> => {
-  const now = deps.now();
+/** Сводка по дому и смена, которой она уходит. Пусто, когда говорить не о чем. */
+const digestFor = async (
+  deps: AppDeps,
+  buildingId: string,
+  now: Date,
+): Promise<{ text: string; staff: Resident[] } | undefined> => {
   const requests = await deps.repository.listRequests({ buildingId });
   const inspections = await deps.repository.listInspections(buildingId);
   const text = formatDigest({ ...countForDigest(requests, now, inspections), soon: await wearing(deps, buildingId) });
 
-  if (!text) return [];
+  if (!text) return undefined;
 
-  const notifier = deps.notifier ?? noopNotifier;
   const staff = onCall(
     await deps.repository.listStaff(buildingId),
     now,
@@ -113,9 +115,20 @@ export const sendMorningDigest = async (deps: AppDeps, buildingId: string): Prom
     await zoneOf(deps, buildingId),
   );
 
-  for (const person of staff) await notifyResident(notifier, person, text);
+  return { text, staff };
+};
 
-  return staff;
+/** Утренняя сводка смене. */
+export const sendMorningDigest = async (deps: AppDeps, buildingId: string): Promise<Resident[]> => {
+  const digest = await digestFor(deps, buildingId, deps.now());
+
+  if (!digest) return [];
+
+  const notifier = deps.notifier ?? noopNotifier;
+
+  for (const person of digest.staff) await notifyResident(notifier, person, digest.text);
+
+  return digest.staff;
 };
 
 /** Утренняя сводка по всем домам компании. */
@@ -125,23 +138,14 @@ export const sendMorningDigests = async (deps: AppDeps): Promise<number> => {
   const buildings = await deps.repository.listBuildings();
 
   for (const building of buildings) {
-    const requests = await deps.repository.listRequests({ buildingId: building.id });
-    const inspections = await deps.repository.listInspections(building.id);
-    const text = formatDigest({ ...countForDigest(requests, now, inspections), soon: await wearing(deps, building.id) });
+    const digest = await digestFor(deps, building.id, now);
 
-    if (!text) continue;
+    if (!digest) continue;
 
-    const staff = onCall(
-      await deps.repository.listStaff(building.id),
-      now,
-      WORKING_HOURS,
-      await zoneOf(deps, building.id),
-    );
-
-    for (const person of staff) {
+    for (const person of digest.staff) {
       const own = byPerson.get(person.id) ?? { person, lines: [] };
 
-      own.lines.push(buildings.length > 1 ? `${building.code}\n${withoutGreeting(text)}` : text);
+      own.lines.push(buildings.length > 1 ? `${building.code}\n${withoutGreeting(digest.text)}` : digest.text);
       byPerson.set(person.id, own);
     }
   }

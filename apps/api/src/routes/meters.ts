@@ -17,14 +17,17 @@ import {
 } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import {
+  asAttachment,
   buildingIdSchema,
+  buildingQuerySchema,
+  idParamsSchema,
   METER_KINDS,
   meterSchema,
   periodFrom,
   serializeHouseMeter,
   serializeMeter,
 } from '../serialize.js';
-import { buildXlsx } from '../xlsx.js';
+import { buildXlsx, XLSX_TYPE } from '../xlsx.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
 /** Приборы учёта: квартирные, общедомовые и выгрузки. */
@@ -63,7 +66,13 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/meters/:id/photo',
       {
         schema: {
-          body: { type: 'object', required: ['token'], properties: { token: { type: 'string', maxLength: 512 } } },
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            required: ['token'],
+            additionalProperties: false,
+            properties: { token: { type: 'string', minLength: 1, maxLength: 512 } },
+          },
           response: {
             200: { type: 'object', properties: { value: { type: 'number' } } },
           },
@@ -86,9 +95,11 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/meters/:id/readings',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['value'],
+            additionalProperties: false,
             properties: { value: { type: 'number', minimum: 0 } },
           },
           response: {
@@ -127,6 +138,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/meters/:id/history',
       {
         schema: {
+          params: idParamsSchema,
           response: {
             200: {
               type: 'array',
@@ -160,7 +172,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/house-meters',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: { type: 'array', items: meterSchema } },
         },
       },
@@ -180,14 +192,16 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/house-meters',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['kind', 'serial'],
+            additionalProperties: false,
             properties: {
               kind: { type: 'string', enum: METER_KINDS },
               serial: { type: 'string', minLength: 1, maxLength: 64 },
-              verifiedUntil: { type: 'string' },
+              // Дата поверки: без формата сюда проходит любая строка, а из неё выходит Invalid Date.
+              verifiedUntil: { type: 'string', format: 'date-time' },
             },
           },
           response: { 201: meterSchema },
@@ -214,7 +228,13 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/house-meters/:id/readings',
       {
         schema: {
-          body: { type: 'object', required: ['value'], properties: { value: { type: 'number', minimum: 0 } } },
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            required: ['value'],
+            additionalProperties: false,
+            properties: { value: { type: 'number', minimum: 0 } },
+          },
           response: {
             201: {
               type: 'object',
@@ -269,10 +289,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const buildingId = resident.buildingId ?? deps.defaultBuildingId;
         const exported = await readingsCsv(deps, buildingId, await periodFrom(deps, request.query, buildingId));
 
-        return reply
-          .type('text/csv; charset=utf-8')
-          .header('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(exported.filename)}`)
-          .send(exported.csv);
+        return asAttachment(reply, exported.filename, 'text/csv; charset=utf-8').send(exported.csv);
       },
     );
 
@@ -281,7 +298,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/export/readings/send',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
@@ -320,13 +337,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const table = await readingsTable(deps, buildingId, await periodFrom(deps, request.query, buildingId));
         const book = buildXlsx([{ name: 'Показания', rows: [table.columns, ...table.rows] }]);
 
-        return reply
-          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-          .header(
-            'content-disposition',
-            `attachment; filename*=UTF-8''${encodeURIComponent(`${table.name}.xlsx`)}`,
-          )
-          .send(book);
+        return asAttachment(reply, `${table.name}.xlsx`, XLSX_TYPE).send(book);
       },
     );
 

@@ -21,6 +21,7 @@ export type Awaiting =
   | { kind: 'comment'; requestId: string; to: string }
   | { kind: 'visit'; at: string }
   | { kind: 'handoff'; handoffId: string }
+  | { kind: 'code' }
   | { kind: 'assistant' };
 
 /** Новое ожидание вытесняет прежнее. */
@@ -137,6 +138,7 @@ export const isChatter = (text: string): boolean =>
 
 /** Команды, ответ на которые виден только спрашивающему. */
 export const PRIVATE_COMMANDS = new Set([
+  'new',
   'my',
   'meters',
   'bill',
@@ -149,10 +151,12 @@ export const PRIVATE_COMMANDS = new Set([
   'stickers',
   'duty',
   'broadcast',
+  'report',
+  'legal',
 ]);
 
 /** Команды с продолжением: бот спрашивает, человек отвечает. Из чата уводятся в переписку. */
-export const DIALOG_COMMANDS = new Set(['meters', 'support', 'broadcast']);
+export const DIALOG_COMMANDS = new Set(['new', 'meters', 'support', 'broadcast']);
 
 /** Вложение в том виде, в каком его приносит Bot API. */
 export interface MaxAttachment {

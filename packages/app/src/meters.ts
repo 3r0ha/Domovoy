@@ -11,6 +11,7 @@ import {
   formatMeterValue,
   isSameMonth,
   isSpike,
+  NEIGHBOURS_FOR_COMPARISON,
   verificationState,
   type Meter,
   type Reading,
@@ -170,26 +171,35 @@ export const submitReading = async (deps: AppDeps, command: SubmitReadingCommand
   });
 
   const spike = isSpike(rest, saved);
+  const spent = consumption(previous, saved);
+  // Расход прошлого периода этой же квартиры: он уже прочитан вместе с историей.
+  const before = previous ? consumption(rest[1], previous) : 0;
 
   if (spike) await warnAboutSpike(deps, meter, saved, previous);
-  else await warnAboutNeighbours(deps, meter, consumption(previous, saved), command.resident);
+  // Сравнение с соседями стоит трёх запросов по всему дому, поэтому его делаем,
+  // только когда расход вырос: о неизменившемся жильцу уже говорили в прошлый раз.
+  else if (spent > before) await warnAboutNeighbours(deps, meter, spent, flat?.buildingId, command.resident);
 
-  return { reading: saved, consumption: consumption(previous, saved), spike };
+  return { reading: saved, consumption: spent, spike };
 };
 
-/** Расход заметно выше соседского. */
+/** Расход заметно выше соседского. Дом берётся у квартиры прибора, а не у подавшего. */
 const warnAboutNeighbours = async (
   deps: AppDeps,
   meter: Meter,
   spent: number,
+  buildingId: string | undefined,
   resident: Resident,
 ): Promise<void> => {
-  if (spent <= 0 || !resident.buildingId) return;
+  if (spent <= 0 || !buildingId) return;
 
   const rule = METER_RULES[meter.kind];
-  const apartments = await deps.repository.listApartments(resident.buildingId);
+  const apartments = await deps.repository.listApartments(buildingId);
   const meters = await deps.repository.listMetersByApartments(apartments.map((apartment) => apartment.id));
   const same = meters.filter((item) => item.kind === meter.kind && item.id !== meter.id);
+
+  if (same.length < NEIGHBOURS_FOR_COMPARISON) return;
+
   const readings = await deps.repository.listReadingsFor(same.map((item) => item.id));
 
   const neighbours = same.flatMap((item) => {

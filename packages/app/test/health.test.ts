@@ -64,8 +64,13 @@ const setup = async () => {
     if (close) {
       clock += 2 * 60 * 60 * 1000;
       await transitionRequest(deps, { resident: STAFF, requestId: request.id, to: 'accepted' });
-      await transitionRequest(deps, { resident: STAFF, requestId: request.id, to: 'in_progress' });
-      await transitionRequest(deps, { resident: STAFF, requestId: request.id, to: 'done' });
+      await transitionRequest(deps, {
+        resident: STAFF,
+        requestId: request.id,
+        to: 'in_progress',
+        assigneeId: STAFF.id,
+      });
+      await transitionRequest(deps, { resident: STAFF, requestId: request.id, to: 'done', comment: 'Починили' });
       await transitionRequest(deps, { resident: RESIDENT, requestId: request.id, to: 'confirmed' });
     }
 

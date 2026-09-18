@@ -12,6 +12,8 @@ export interface Responsibility {
   title: string;
   /** Чем граница установлена: норма, а не решение продукта. */
   basis: string;
+  /** То же словами жильца: ему нужна не статья, а кто чинит. */
+  plain: string;
   /** Что делать дальше, если отвечает не управляющая организация. */
   next?: string;
 }
@@ -54,6 +56,7 @@ export const responsibilityFor = (
       kind: 'contractor',
       title: RESPONSIBLE_TITLES.contractor,
       basis: SPECIALIZED,
+      plain: 'Лифт обслуживает специализированная организация',
       next: 'Заявку ведёт управляющая организация: она передаёт её обслуживающей лифты компании.',
     };
   }
@@ -63,6 +66,7 @@ export const responsibilityFor = (
       kind: 'owner',
       title: RESPONSIBLE_TITLES.owner,
       basis: INSIDE_FLAT,
+      plain: 'Оборудование внутри квартиры чинит собственник',
       next: 'Управляющая организация выполняет такие работы по отдельной заявке, обычно платно.',
     };
   }
@@ -72,11 +76,17 @@ export const responsibilityFor = (
       kind: 'management',
       title: RESPONSIBLE_TITLES.management,
       basis: COMMON_PROPERTY,
+      plain: 'Двор дома содержит управляющая организация',
       next: `Если место за границей участка дома, обращение уходит в муниципальную службу. ${OUTSIDE_LAND}`,
     };
   }
 
-  return { kind: 'management', title: RESPONSIBLE_TITLES.management, basis: COMMON_PROPERTY };
+  return {
+    kind: 'management',
+    title: RESPONSIBLE_TITLES.management,
+    basis: COMMON_PROPERTY,
+    plain: 'Это общее имущество дома, его содержит управляющая организация',
+  };
 };
 
 /** Куда обращение передают, когда отвечает не управляющая организация. */
@@ -134,6 +144,8 @@ export interface Handoff {
   /** Номер во внешней системе, если канал его вернул. */
   externalId?: string;
   status: HandoffStatus;
+  /** Обращение отправил жилец, а не смена: это его жалоба, а не передача работы. */
+  byResident?: boolean;
   /** До какого момента ждём ответ принимающей стороны. */
   dueAt: Date;
   answer?: string;

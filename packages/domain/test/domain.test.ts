@@ -18,9 +18,11 @@ import {
   describeAudience,
   describeTarget,
   encodeTarget,
+  findTransition,
   formatRequestNumber,
   isConfirmedIncident,
   isOverdue,
+  isSameTarget,
   joinRequest,
   MAX_TITLE_LENGTH,
   summarizeDescription,
@@ -166,7 +168,7 @@ describe('сроки', () => {
         applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT },
       ),
-      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT },
+      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT, comment: 'Заменил кран' },
     );
 
     assert.equal(isOverdue(done, new Date('2027-01-01T00:00:00Z')), false);
@@ -196,7 +198,7 @@ describe('сроки', () => {
         applyTransition(request, { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT },
       ),
-      { to: 'done', role: 'technician', actorId: 't1', at: late },
+      { to: 'done', role: 'technician', actorId: 't1', at: late, comment: 'Заменил кран' },
     );
 
     assert.equal(isOverdue(closed, late), false);
@@ -226,14 +228,20 @@ describe('сроки', () => {
           applyTransition(request, { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
           { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT },
         ),
-        { to: 'done', role: 'technician', actorId: 't1', at: inTime },
+        { to: 'done', role: 'technician', actorId: 't1', at: inTime, comment: 'Заменил кран' },
       ),
       { to: 'in_progress', role: 'resident', actorId: 'user-1', at: inTime, comment: 'Всё так же течёт' },
     );
 
     assert.equal(settledAt(reopened), undefined);
 
-    const again = applyTransition(reopened, { to: 'done', role: 'technician', actorId: 't1', at: late });
+    const again = applyTransition(reopened, {
+      to: 'done',
+      role: 'technician',
+      actorId: 't1',
+      at: late,
+      comment: 'Переделал',
+    });
 
     assert.equal(settledAt(again)?.getTime(), late.getTime());
     assert.equal(missedResolution(again, late), true);
@@ -341,7 +349,14 @@ describe('сроки', () => {
 
     const done = ['accepted', 'in_progress', 'done'].reduce(
       (request, to) =>
-        applyTransition(request, { to: to as never, role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
+        applyTransition(request, {
+          to: to as never,
+          role: 'dispatcher',
+          actorId: 'd1',
+          at: CREATED_AT,
+          assigneeId: 'tech-1',
+          comment: 'Заменил кран',
+        }),
       makeRequest({ id: 'req-done' }),
     );
 
@@ -363,11 +378,105 @@ describe('жизненный цикл заявки', () => {
       at: CREATED_AT,
       assigneeId: 'tech-7',
     });
-    request = applyTransition(request, { to: 'done', role: 'technician', actorId: 'tech-7', at: CREATED_AT });
+    request = applyTransition(request, {
+      to: 'done',
+      role: 'technician',
+      actorId: 'tech-7',
+      at: CREATED_AT,
+      comment: 'Заменил кран',
+    });
 
     assert.equal(request.status, 'done');
     assert.equal(request.assigneeId, 'tech-7');
     assert.equal(request.history.length, 4);
+  });
+
+  it('в работу заявка уходит с исполнителем, а мастер берёт её на себя', () => {
+    const accepted = applyTransition(makeRequest(), {
+      to: 'accepted',
+      role: 'dispatcher',
+      actorId: 'd1',
+      at: CREATED_AT,
+    });
+
+    assert.throws(
+      () => applyTransition(accepted, { to: 'in_progress', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
+      (error: unknown) => {
+        assert.ok(error instanceof DomainError);
+        assert.equal(error.code, 'assignee_required');
+        return true;
+      },
+    );
+
+    const taken = applyTransition(accepted, {
+      to: 'in_progress',
+      role: 'technician',
+      actorId: 'tech-7',
+      at: CREATED_AT,
+    });
+
+    assert.equal(taken.assigneeId, 'tech-7', 'мастер записал наряд на себя');
+
+    // Ответ жильца возвращает заявку в работу и исполнителя не требует.
+    const asked = applyTransition(accepted, {
+      to: 'needs_info',
+      role: 'dispatcher',
+      actorId: 'd1',
+      at: CREATED_AT,
+      comment: 'Когда вы дома?',
+    });
+
+    const answered = applyTransition(asked, {
+      to: 'in_progress',
+      role: 'resident',
+      actorId: 'user-1',
+      at: CREATED_AT,
+      comment: 'После 18:00',
+    });
+
+    assert.equal(answered.assigneeId, undefined);
+  });
+
+  it('работа сдаётся с отметкой о сделанном', () => {
+    const inProgress = applyTransition(
+      applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
+      { to: 'in_progress', role: 'technician', actorId: 'tech-7', at: CREATED_AT },
+    );
+
+    assert.equal(findTransition('in_progress', 'done', 'technician')?.requiresComment, true);
+
+    assert.throws(
+      () => applyTransition(inProgress, { to: 'done', role: 'technician', actorId: 'tech-7', at: CREATED_AT }),
+      (error: unknown) => {
+        assert.ok(error instanceof DomainError);
+        assert.equal(error.code, 'comment_required');
+        assert.match(error.message, /что сделано/);
+        return true;
+      },
+    );
+
+    assert.throws(
+      () =>
+        applyTransition(inProgress, {
+          to: 'done',
+          role: 'technician',
+          actorId: 'tech-7',
+          at: CREATED_AT,
+          comment: '   ',
+        }),
+      /что сделано/,
+    );
+
+    // Мастер сдаёт работу с телефона: длины от отметки не требуется.
+    const done = applyTransition(inProgress, {
+      to: 'done',
+      role: 'technician',
+      actorId: 'tech-7',
+      at: CREATED_AT,
+      comment: 'Заменил кран',
+    });
+
+    assert.equal(done.history.at(-1)?.comment, 'Заменил кран');
   });
 
   it('жилец не может принять свою заявку', () => {
@@ -446,7 +555,8 @@ describe('жизненный цикл заявки', () => {
   it('подсказывает доступные действия по роли', () => {
     assert.deepEqual(allowedTransitions('new', 'dispatcher'), ['accepted', 'rejected']);
     assert.deepEqual(allowedTransitions('new', 'resident'), ['withdrawn']);
-    assert.deepEqual(allowedTransitions('done', 'manager'), []);
+    // Управляющий закрывает сданную работу за жильца, объяснив, откуда знает.
+    assert.deepEqual(allowedTransitions('done', 'manager'), ['confirmed', 'in_progress']);
   });
 
   it('снимок результата остаётся при том переходе, к которому приложен', () => {
@@ -463,6 +573,7 @@ describe('жизненный цикл заявки', () => {
       role: 'technician',
       actorId: 't1',
       at: CREATED_AT,
+      comment: 'Заменил кран',
       attachments: [{ kind: 'photo', token: 'file:after' }],
     });
 
@@ -480,7 +591,13 @@ describe('жизненный цикл заявки', () => {
     });
 
     request = applyTransition(request, { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT });
-    request = applyTransition(request, { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT });
+    request = applyTransition(request, {
+      to: 'done',
+      role: 'technician',
+      actorId: 't1',
+      at: CREATED_AT,
+      comment: 'Заменил кран',
+    });
     request = applyTransition(request, {
       to: 'confirmed',
       role: 'resident',
@@ -513,7 +630,7 @@ describe('жизненный цикл заявки', () => {
         applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT },
       ),
-      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT },
+      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT, comment: 'Заменил кран' },
     );
 
     for (const rating of [0, 6, 4.5]) {
@@ -530,7 +647,7 @@ describe('жизненный цикл заявки', () => {
         applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't1', at: CREATED_AT },
       ),
-      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT },
+      { to: 'done', role: 'technician', actorId: 't1', at: CREATED_AT, comment: 'Заменил кран' },
     );
 
     const confirmed = applyTransition(done, {
@@ -620,7 +737,13 @@ describe('переписка по заявке', () => {
         applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't1', at: new Date(CREATED_AT.getTime() + HOUR) },
       ),
-      { to: 'done', role: 'technician', actorId: 't1', at: new Date(CREATED_AT.getTime() + 2 * HOUR) },
+      {
+        to: 'done',
+        role: 'technician',
+        actorId: 't1',
+        at: new Date(CREATED_AT.getTime() + 2 * HOUR),
+        comment: 'Заменил кран',
+      },
     );
 
     const said = addMessage(done, {
@@ -721,6 +844,57 @@ describe('коды объектов для наклеек', () => {
     assert.equal(provesPresence(lift, 'eqp_b1_lift-1'), false);
     assert.equal(provesPresence(lift, 'ent_b1_1'), false, 'подъезд, не тот же объект, что лифт в нём');
     assert.equal(provesPresence(lift, 'мусор'), false);
+  });
+
+  it('один и тот же объект в разных домах, это разные объекты', () => {
+    const pairs = [
+      [
+        { kind: 'entrance', buildingId: 'b1', entrance: 1 },
+        { kind: 'entrance', buildingId: 'b2', entrance: 1 },
+      ],
+      [
+        { kind: 'riser', buildingId: 'b1', entrance: 1, riser: 2 },
+        { kind: 'riser', buildingId: 'b2', entrance: 1, riser: 2 },
+      ],
+      [
+        { kind: 'equipment', buildingId: 'b1', equipmentId: 'lift-1' },
+        { kind: 'equipment', buildingId: 'b2', equipmentId: 'lift-1' },
+      ],
+      [
+        { kind: 'building', buildingId: 'b1' },
+        { kind: 'building', buildingId: 'b2' },
+      ],
+    ] as const;
+
+    for (const [left, right] of pairs) {
+      assert.equal(isSameTarget(left, right), false, `${left.kind} сошёлся с чужим домом`);
+      assert.equal(isSameTarget(left, left), true, `${left.kind} не сошёлся сам с собой`);
+    }
+  });
+
+  it('квартира сверяется по своему коду, дом в нём уже есть', () => {
+    assert.equal(
+      isSameTarget({ kind: 'apartment', apartmentId: 'apt-3' }, { kind: 'apartment', apartmentId: 'apt-3' }),
+      true,
+    );
+    assert.equal(
+      isSameTarget({ kind: 'apartment', apartmentId: 'apt-3' }, { kind: 'apartment', apartmentId: 'apt-4' }),
+      false,
+    );
+  });
+
+  it('подъезд и дом целиком одним объектом не считаются', () => {
+    assert.equal(
+      isSameTarget({ kind: 'entrance', buildingId: 'b1', entrance: 1 }, { kind: 'building', buildingId: 'b1' }),
+      false,
+    );
+    assert.equal(
+      isSameTarget(
+        { kind: 'riser', buildingId: 'b1', entrance: 1, riser: 2 },
+        { kind: 'entrance', buildingId: 'b1', entrance: 1 },
+      ),
+      false,
+    );
   });
 
   it('идентификатор с подчёркиванием не кодируется', () => {

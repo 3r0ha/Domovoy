@@ -34,7 +34,14 @@ const DEVICES: Device[] = [
 
 const setup = () => {
   const hub = createMockHub({ devices: DEVICES, now: () => NOW, createCode: () => '123456' });
-  const repository = new InMemoryRepository();
+  const repository = new InMemoryRepository({
+    buildings: [{ id: BUILDING_ID, code: 'Д15', address: 'ул. Ленина, 15' }],
+    apartments: [
+      { id: 'apt-1', buildingId: BUILDING_ID, number: 1, entrance: 1, riser: 1 },
+      { id: 'apt-2', buildingId: BUILDING_ID, number: 2, entrance: 1, riser: 2 },
+      { id: 'apt-20', buildingId: BUILDING_ID, number: 20, entrance: 2, riser: 1 },
+    ],
+  });
   const sent: Notification[] = [];
 
   return {
@@ -126,6 +133,23 @@ describe('оборудование дома', () => {
     await assert.rejects(openDevice(deps, resident(), 'alien'), /не найдено/);
   });
 
+  it('соседний подъезд жильцу закрыт, даже если он знает идентификатор', async () => {
+    const { deps } = setup();
+    const mine = resident();
+    const neighbour = resident({ id: 'res-3', maxUserId: 1020, apartmentId: 'apt-20' });
+
+    await assert.rejects(openDevice(deps, mine, 'intercom-2'), /не найдено/);
+    await assert.rejects(viewDevice(deps, neighbour, 'camera-1'), /не найдено/);
+    await assert.rejects(inviteGuest(deps, mine, 'intercom-2'), /не найдено/);
+
+    assert.equal((await openDevice(deps, neighbour, 'intercom-2')).id, 'intercom-2', 'свой подъезд открывается');
+    assert.equal((await openDevice(deps, mine, 'barrier-1')).id, 'barrier-1', 'общедомовое общее');
+
+    const staff = resident({ id: 'tech-1', maxUserId: 2002, role: 'technician', apartmentId: undefined });
+
+    assert.equal((await openDevice(deps, staff, 'intercom-2')).id, 'intercom-2', 'смене открыт весь дом');
+  });
+
   it('кадр приходит картинкой, а не ссылкой на чужой хост', async () => {
     const { deps } = setup();
 
@@ -207,13 +231,7 @@ describe('оборудование дома', () => {
   it('просроченный код дверь не открывает', async () => {
     let now = NOW;
     const hub = createMockHub({ devices: DEVICES, now: () => now, createCode: () => '654321' });
-    const deps: AppDeps = {
-      hub,
-      now: () => now,
-      repository: new InMemoryRepository(),
-      createId: () => 'id-1',
-      defaultBuildingId: 'b1',
-    };
+    const deps: AppDeps = { ...setup().deps, hub, now: () => now };
 
     const issued = await inviteGuest(deps, resident(), 'intercom-1');
 

@@ -89,7 +89,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
 
         {/* Долг называет своя строка ниже: в подписи к сумме месяца он только путает. */}
         <p className="hint">
-          {left > 0 ? `за месяц, к оплате до ${bill.dueDay} числа` : `за ${period(bill.period)}`}
+          {left > 0 ? `до ${bill.dueDay} числа` : `за ${period(bill.period)}`}
         </p>
 
         {left > 0 && payable ? (
@@ -99,7 +99,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
         ) : null}
 
         {payable && model ? (
-          <p className="hint aside">Оплата на модельном подключении: деньги никуда не уходят</p>
+          <p className="hint aside">Оплата показана для примера: деньги со счёта не спишутся</p>
         ) : null}
 
         {(bill.bases ?? []).map((basis) => (

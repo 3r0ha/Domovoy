@@ -20,23 +20,26 @@ export const preparePhoto = async (file: File): Promise<PreparedPhoto> => {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
 
-    if (scale === 1 && file.size <= 700_000) return original;
+    try {
+      if (scale === 1 && file.size <= 700_000) return original;
 
-    const canvas = document.createElement('canvas');
+      const canvas = document.createElement('canvas');
 
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
+      canvas.width = Math.round(bitmap.width * scale);
+      canvas.height = Math.round(bitmap.height * scale);
 
-    const context = canvas.getContext('2d');
+      const context = canvas.getContext('2d');
 
-    if (!context) return original;
+      if (!context) return original;
 
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 
-    const encoded = canvas.toDataURL('image/jpeg', QUALITY);
+      const encoded = canvas.toDataURL('image/jpeg', QUALITY);
 
-    return { contentType: 'image/jpeg', data: encoded.slice(encoded.indexOf(',') + 1) };
+      return { contentType: 'image/jpeg', data: encoded.slice(encoded.indexOf(',') + 1) };
+    } finally {
+      bitmap.close();
+    }
   } catch {
     return original;
   }

@@ -18,7 +18,7 @@ import { commonNeedsShare, knownForCommon, type KnownForCommon } from './house-m
 import { noopNotifier, notifyResident } from './notifier.js';
 import { tariffsAt } from './tariffs.js';
 import { apartmentsOf } from './apartments.js';
-import { houseHint } from './buildings.js';
+import { houseHintFor } from './buildings.js';
 import { zoneOf } from './zone.js';
 import type { Resident, TariffRecord } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -76,14 +76,12 @@ export const knownForDebt = async (
   const meters = await deps.repository.listMetersByApartments(apartments.map((apartment) => apartment.id));
   const readings = await deps.repository.listReadingsFor(meters.map((meter) => meter.id));
 
-  return {
-    zone,
-    tariffs: await deps.repository.listTariffs(buildingId),
-    apartments,
-    meters,
-    readings,
-    common: await knownForCommon(deps, buildingId, { zone, apartments, meters, readings }),
-  };
+  const [tariffs, common] = await Promise.all([
+    deps.repository.listTariffs(buildingId),
+    knownForCommon(deps, buildingId, { zone, apartments, meters, readings }),
+  ]);
+
+  return { zone, tariffs, apartments, meters, readings, common };
 };
 
 /** Долг по прошлым месяцам: срок по текущему ещё не наступил. @throws {DomainError} */
@@ -118,8 +116,16 @@ export const arrearsFor = async (
   const periods: DebtPeriod[] = [];
   const common = known?.common ?? (await knownForCommon(deps, buildingId));
 
-  for (let back = months; back >= 1; back -= 1) {
-    const period = shiftMonth(current, back);
+  const wanted: string[] = [];
+
+  for (let back = months; back >= 1; back -= 1) wanted.push(shiftMonth(current, back));
+
+  // Шлюз спрашивают сразу обо всех месяцах: ответы друг от друга не зависят.
+  const payments = deps.payments
+    ? await Promise.all(wanted.map((period) => paying(deps, (gateway) => gateway.paid(inHouse, period))))
+    : wanted.map(() => 0);
+
+  for (const [index, period] of wanted.entries()) {
     const consumption = periodConsumption({
       meters,
       readings,
@@ -137,7 +143,7 @@ export const arrearsFor = async (
       consumption,
       ...(share.length > 0 ? { common: share } : {}),
       tariffs: tariffsAt(tariffs, endOfPeriod(period, zone)),
-      paid: deps.payments ? await paying(deps, (gateway) => gateway.paid(inHouse, period)) : 0,
+      paid: payments[index] ?? 0,
     });
 
     const left = roundMoney(charges.total - charges.paid);
@@ -163,7 +169,7 @@ export const arrearsFor = async (
 };
 
 /** До какого момента платят за месяц: десятое число следующего. */
-const dueAt = (period: string): Date => {
+export const dueAt = (period: string): Date => {
   const [year, month] = period.split('-').map(Number);
 
   return new Date(Date.UTC(year!, month ?? 1, PAYMENT_DUE_DAY));
@@ -299,13 +305,15 @@ export const remindAboutDebt = async (deps: AppDeps, buildingId: string): Promis
   const residents = await deps.repository.listResidentsByApartments(known.apartments.map((flat) => flat.id));
   const notifier = deps.notifier ?? noopNotifier;
   const reminded: Resident[] = [];
+  // Дом и его квартиры для подсказки с адресом читаются один раз на всю рассылку.
+  const hintOf = houseHintFor(deps, buildingId, known.apartments);
 
   for (const resident of residents) {
     const text = formatDebt(await arrearsFor(deps, resident, DEBT_MONTHS, known));
 
     if (!text) continue;
 
-    const house = await houseHint(deps, resident, buildingId);
+    const house = await hintOf(resident);
 
     await notifyResident(
       notifier,

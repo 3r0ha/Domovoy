@@ -32,24 +32,31 @@ export const TopBar = ({
   onAssistant,
 }: TopBarProps) => (
   <header className={scrolled ? 'topbar topbar-scrolled' : 'topbar'}>
-    <h1 className="screen-title">{title}</h1>
+    <div className="topbar-line">
+      <h1 className="screen-title">{title}</h1>
 
-    {building ? <BuildingPicker api={api} value={building.value} onChange={building.onChange} /> : null}
+      {offline ? (
+        <span className="badge badge-offline" role="status">
+          нет связи
+        </span>
+      ) : null}
 
-    {apartment ? <ApartmentPicker api={api} value={apartment.value} onChange={apartment.onChange} /> : null}
+      <div className="topbar-acts">
+        {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
 
-    {offline ? (
-      <span className="badge badge-offline" role="status">
-        нет связи
-      </span>
-    ) : null}
-
-    <div className="topbar-acts">
-      {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
-
-      <button type="button" className="refresh" aria-label="Обновить" onClick={onRefresh}>
-        <IconRefresh />
-      </button>
+        <button type="button" className="refresh" aria-label="Обновить" onClick={onRefresh}>
+          <IconRefresh />
+        </button>
+      </div>
     </div>
+
+    {/* Дом и квартира идут своей строкой: адрес длинный, а название экрана
+        и помощник не должны из-за него ужиматься. */}
+    {building || apartment ? (
+      <div className="topbar-pickers">
+        {building ? <BuildingPicker api={api} value={building.value} onChange={building.onChange} /> : null}
+        {apartment ? <ApartmentPicker api={api} value={apartment.value} onChange={apartment.onChange} /> : null}
+      </div>
+    ) : null}
   </header>
 );

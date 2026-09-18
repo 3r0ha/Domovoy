@@ -1029,7 +1029,7 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
-  it('категорию от разбора текста бот называет предположением', async () => {
+  it('в ответе жильцу нет служебных пометок о разборе текста', async () => {
     const bot = await start([RESIDENT_WITH_FLAT], {
       reasoner: {
         understand: () => Promise.resolve({ category: 'plumbing', priority: 'normal', title: 'Течёт кран' }),
@@ -1040,7 +1040,10 @@ describe('чат-бот управляющей компании', () => {
 
     const said = await waitForMessage(3003, /принята/);
 
-    assert.match(said, /Категорию предложил разбор текста/);
+    // Жильцу в ответе нужны категория, срок и номер: служебная пометка о том,
+    // откуда взялась категория, ему ничего не даёт.
+    assert.doesNotMatch(said, /разбор текста/);
+    assert.match(said, /Водоснабжение и канализация/);
 
     await bot.stop();
   });
@@ -1172,18 +1175,23 @@ describe('чат-бот управляющей компании', () => {
     const [request] = await bot.deps.repository.listRequests({});
     const id = request!.id;
 
-    const steps = [
-      { to: 'accepted', userId: 5007 },
-      { to: 'in_progress', userId: 5007 },
-      { to: 'done', userId: 6006 },
-    ];
+    platform.userPressesButton(`req:${id}:accepted`, { userId: 5007, chatId: 5007 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
 
-    for (const step of steps) {
-      platform.userPressesButton(`req:${id}:${step.to}`, { userId: step.userId, chatId: step.userId });
-      await new Promise((resolve) => setTimeout(resolve, 120));
-    }
+    // В работу заявка уходит с исполнителем, поэтому диспетчер поручает её мастеру.
+    platform.userPressesButton(`assign:${id}:${technician.id}`, { userId: 5007, chatId: 5007 });
+    await new Promise((resolve) => setTimeout(resolve, 120));
 
-    assert.equal((await bot.deps.repository.findRequest(id))?.status, 'done');
+    // Сдача работы требует отметки о сделанном: бот спрашивает её отдельным сообщением.
+    platform.userPressesButton(`ask:${id}:done`, { userId: 6006, chatId: 6006 });
+    await waitForMessage(6006, /Что сделано/);
+    platform.userSends('Заменил смеситель', { userId: 6006, chatId: 6006 });
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const reported = await bot.deps.repository.findRequest(id);
+
+    assert.equal(reported?.status, 'done');
+    assert.equal(reported?.history.at(-1)?.comment, 'Заменил смеситель');
 
     platform.userPressesButton(`ask:${id}:in_progress`, { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Что именно не сделано/);
@@ -1432,6 +1440,46 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('«В работу» без мастера не отказывает, а спрашивает, кому поручить', async () => {
+    const dispatcher: Resident = {
+      id: 'disp-need',
+      maxUserId: 5021,
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      buildingId: BUILDING_ID,
+    };
+
+    const technician: Resident = {
+      id: 'tech-need',
+      maxUserId: 4021,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+    };
+
+    const bot = await start([RESIDENT_WITH_FLAT, dispatcher, technician]);
+
+    platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
+    await waitForMessage(5021, /Новая заявка/);
+
+    const [request] = await bot.deps.repository.listRequests({});
+
+    platform.userPressesButton(`req:${request!.id}:accepted`, { userId: 5021, chatId: 5021 });
+    await waitForMessage(5021, /принята/);
+
+    platform.userPressesButton(`req:${request!.id}:in_progress`, { userId: 5021, chatId: 5021 });
+    assert.match(await waitForMessage(5021, /Кому поручить/), /сколько нарядов/);
+
+    assert.equal((await bot.deps.repository.findRequest(request!.id))?.status, 'accepted', 'без мастера заявка на месте');
+
+    platform.userPressesButton(`assign:${request!.id}:tech-need`, { userId: 5021, chatId: 5021 });
+    await waitForMessage(5021, /поручена/);
+
+    assert.equal((await bot.deps.repository.findRequest(request!.id))?.assigneeId, 'tech-need');
+
+    await bot.stop();
+  });
+
   it('диспетчер поручает наряд мастеру прямо из переписки', async () => {
     const dispatcher: Resident = {
       id: 'disp-assign',
@@ -1603,7 +1651,7 @@ describe('чат-бот управляющей компании', () => {
     const shift = JSON.stringify((await waitForKeyboard(7009)) ?? []);
 
     assert.match(shift, /Сводка/);
-    assert.match(shift, /Чат дома/, 'управляющему, и только ему');
+    assert.equal(/Чат дома/.test(shift), false, 'чат дома привязывают командой в самом чате');
 
     await bot.stop();
   });
@@ -1929,8 +1977,18 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('примерно сто', { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForMessage(3003, /Не похоже на число/), /например 123.456/);
+    const said = await waitForMessage(3003, /Не похоже на число/);
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(said, /например 123.456/);
+    assert.match(keyboard, /cancel/, 'из подачи показаний нечем выйти');
     assert.equal((await bot.repository.listReadings('cold-1')).length, 0);
+
+    // Ожидание осталось: следующее число подаётся тем же разговором.
+    platform.userSends('130', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято/);
+
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 1);
 
     await bot.stop();
   });
@@ -1942,7 +2000,7 @@ describe('чат-бот управляющей компании', () => {
     await bot.repository.saveReading({
       id: 'r-old',
       meterId: 'cold-1',
-      value: 120,
+      value: 120.5,
       at: new Date('2026-08-22T10:00:00Z'),
       submittedBy: RESIDENT_WITH_FLAT.id,
     });
@@ -1952,7 +2010,16 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('100', { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForMessage(3003, /не принято/), /не может показать меньше/);
+    const refused = await waitForMessage(3003, /не принято/);
+
+    assert.match(refused, /не может показать меньше/);
+    assert.match(refused, /120,5/, 'числа в переписке везде с запятой');
+
+    // После отказа показание повторяют тем же вводом: ожидание не снято.
+    platform.userSends('130', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято/);
+
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 2);
 
     await bot.stop();
   });
@@ -2036,11 +2103,11 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userPressesButton(`vote:${poll.id}:for`, { userId: 3003, chatId: 3003 });
 
-    const result = await waitForMessage(3003, /Ваш голос/);
+    const result = await waitForMessage(3003, /Голос квартиры/);
 
     assert.match(result, /Участие: 75% площади дома/);
     assert.match(result, /За: 75%/);
-    assert.match(result, /Ваш голос: за/);
+    assert.match(result, /Голос квартиры: за/);
     assert.equal((await bot.repository.listVotes(poll.id)).length, 1);
 
     await bot.stop();
@@ -2727,6 +2794,103 @@ describe('чат-бот управляющей компании', () => {
     });
   });
 
+  describe('разговор без тупиков', () => {
+    it('команда снимает прежнее ожидание, и рассказ о поломке становится заявкой', async () => {
+      const bot = await start([RESIDENT_WITH_FLAT]);
+
+      platform.userSends('/help', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /Спросите словами/);
+
+      platform.userSends('/my', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /Заявок пока нет/);
+
+      platform.userSends('Течёт кран на кухне, вода капает постоянно', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /принята/);
+
+      assert.equal((await bot.deps.repository.listRequests({})).length, 1, 'сообщение ушло помощнику');
+
+      await bot.stop();
+    });
+
+    it('вежливое «спасибо» после поддержки обращением не становится', async () => {
+      const bot = await start([RESIDENT_WITH_FLAT]);
+
+      platform.userSends('/support', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /Напишите вопрос/);
+
+      platform.userSends('спасибо', { userId: 3003, chatId: 3003 });
+      await waitForMessage(3003, /Что нужно сделать/);
+
+      assert.equal((await bot.deps.repository.listSupportTickets({ buildingId: BUILDING_ID })).length, 0);
+
+      await bot.stop();
+    });
+
+    it('без квартиры бот ждёт код и объясняет неподходящий ввод', async () => {
+      const newcomer: Resident = {
+        id: 'res-9',
+        maxUserId: 3010,
+        displayName: 'Пётр',
+        role: 'resident',
+        buildingId: BUILDING_ID,
+      };
+
+      const bot = await start([newcomer]);
+
+      platform.userSends('/flat', { userId: 3010, chatId: 3010 });
+      await waitForMessage(3010, /код из квитанции/);
+
+      platform.userSends('не помню', { userId: 3010, chatId: 3010 });
+      await waitForMessage(3010, /Код не подошёл/);
+
+      platform.userSends(FLAT_CODE, { userId: 3010, chatId: 3010 });
+      await waitForMessage(3010, /привязаны к квартире 1/);
+
+      assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'ввод кода стал заявкой');
+
+      await bot.stop();
+    });
+
+    it('из списка долгов кнопка ведёт в рассылку, а не устаревает', async () => {
+      const manager: Resident = {
+        id: 'mgr-debts',
+        maxUserId: 7020,
+        displayName: 'Нина',
+        role: 'manager',
+        buildingId: BUILDING_ID,
+      };
+
+      const bot = await start([manager]);
+
+      platform.userPressesButton('cast:debtors', { userId: 7020, chatId: 7020 });
+      await waitForMessage(7020, /Рассылка собирается в приложении/);
+
+      await bot.stop();
+    });
+
+    it('чат дома привязывают в самом чате, а в переписке остаётся меню', async () => {
+      const manager: Resident = {
+        id: 'mgr-here',
+        maxUserId: 7021,
+        displayName: 'Нина',
+        role: 'manager',
+        buildingId: BUILDING_ID,
+      };
+
+      const bot = await start([manager]);
+
+      platform.userSends('/here', { userId: 7021, chatId: 7021 });
+
+      const said = await waitForMessage(7021, /в чате дома/);
+      const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+      assert.match(said, /\/here/);
+      assert.match(keyboard, /group:back/, 'ответ без кнопок оставляет человека ни с чем');
+
+      await bot.stop();
+    });
+  });
+
   describe('общий чат дома', () => {
     const HOUSE_CHAT = 5500;
 
@@ -2872,6 +3036,16 @@ describe('чат-бот управляющей компании', () => {
       await bot.stop();
     });
 
+    it('новую заявку из общего чата уводит в переписку', async () => {
+      const bot = await withHouseChat([RESIDENT_WITH_FLAT]);
+
+      platform.chatSends('/new', { userId: 3003, chatId: HOUSE_CHAT });
+
+      assert.match(await waitForMessage(HOUSE_CHAT, /личные сообщения/), /\/new/);
+
+      await bot.stop();
+    });
+
     it('показания из общего чата уводит в переписку целиком', async () => {
       const bot = await withHouseChat([RESIDENT_WITH_FLAT]);
 
@@ -2919,8 +3093,8 @@ describe('чат-бот управляющей компании', () => {
 
       const inHouseChat = await waitForMessage(HOUSE_CHAT, /За: /);
 
-      assert.equal(/Ваш голос/.test(inHouseChat), false, 'голос соседа виден всему чату');
-      assert.match(await waitForMessage(3003, /Ваш голос/), /за/);
+      assert.equal(/Голос квартиры/.test(inHouseChat), false, 'голос соседа виден всему чату');
+      assert.match(await waitForMessage(3003, /Голос квартиры/), /за/);
 
       await bot.stop();
     });

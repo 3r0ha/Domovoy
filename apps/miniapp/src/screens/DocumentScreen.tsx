@@ -77,7 +77,7 @@ export const DocumentScreen = ({ text, onBack }: DocumentScreenProps) => {
 
       {copied ? (
         <p className="hint aside" role="status">
-          Текст в буфере обмена, вставьте его, куда нужно
+          Скопировано
         </p>
       ) : null}
 

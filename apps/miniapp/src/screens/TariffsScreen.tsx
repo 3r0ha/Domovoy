@@ -19,7 +19,7 @@ const number = (value: number): string => value.toLocaleString('ru-RU', { maximu
 const shown = (tariff: TariffView): string =>
   tariff.kind === 'key_rate' ? `${number(tariff.value * 100)}%` : number(tariff.value);
 
-/** Свой тариф подписан датой, базовый ничем. */
+/** Свой тариф подписан датой, базовый только единицей: про них говорит сноска. */
 const since = (tariff: TariffView): string =>
   tariff.own && tariff.since ? `${tariff.unit} · с ${formatDay(tariff.since)}` : tariff.unit;
 
@@ -80,7 +80,7 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
                 }}
               />
               <Button className="tariff-save" type="button" size="small" disabled={busy} onClick={() => void save(tariff)}>
-                {busy ? '…' : 'Готово'}
+                {busy ? '…' : 'Сохранить'}
               </Button>
             </div>
           ) : (

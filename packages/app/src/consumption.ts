@@ -121,14 +121,3 @@ export const periodConsumption = (input: ConsumptionInput): PeriodConsumption[] 
       basis: estimate.basis,
     };
   });
-
-/**
- * Расход для текущей квитанции. Показания за этот месяц подают в окне с 20-го,
- * и до него счёт считается по прошлому месяцу, но только по нему.
- */
-export const currentConsumption = (input: ConsumptionInput): PeriodConsumption[] => {
-  const thisMonth = periodConsumption(input);
-  const lastMonth = periodConsumption({ ...input, period: monthBefore(input.period) });
-
-  return thisMonth.map((item, index) => (item.basis === 'meter' ? item : (lastMonth[index] ?? item)));
-};

@@ -30,11 +30,9 @@ export {
   BROADCAST_FLATS_LIMIT,
   BROADCAST_KINDS,
   BROADCAST_MAX_LENGTH,
-  BROADCAST_TITLES,
   broadcastText,
   describeScope,
   noticeForScope,
-  parseFlatNumbers,
   scopeAudience,
   type BroadcastKind,
   type BroadcastScope,
@@ -48,7 +46,14 @@ export {
   legalDocument,
   type LegalDocument,
 } from './legal.js';
-export { BASIS, BASIS_KIND_TITLES, deadlineBasisFor, type BasisKey, type BasisKind } from './basis.js';
+export {
+  BASIS,
+  PLAIN,
+  basisFor,
+  deadlineBasisFor,
+  type BasisKey,
+  type BasisKind,
+} from './basis.js';
 export {
   APARTMENT_CODE_ALPHABET,
   APARTMENT_CODE_LENGTH,
@@ -69,7 +74,6 @@ export {
   encodeTarget,
   isSameTarget,
   isValidStartParam,
-  sectionOf,
   sectionParam,
   provesPresence,
 } from './deep-link.js';
@@ -77,6 +81,8 @@ export {
   MAX_TITLE_LENGTH,
   createRequest,
   formatRequestNumber,
+  isBlockage,
+  normLimitFor,
   requestNumberIn,
   suggestCategory,
   suggestPriority,
@@ -97,6 +103,7 @@ export {
   LOCAL_EVIDENCE_ANSWERS,
   SHARED_INFRASTRUCTURE,
   audienceAsTarget,
+  audienceCovers,
   audiencesOverlap,
   findJoinable,
   hasAnswered,
@@ -114,6 +121,20 @@ export {
   type Spread,
   type SpreadView,
 } from './incident.js';
+export {
+  NOTICE_TO_ADMIN_DAYS,
+  NOTICE_TO_OWNERS_DAYS,
+  PAPER_CUTOFF_HOURS,
+  PROTOCOL_STORAGE_YEARS,
+  PROTOCOL_TO_INSPECTION_DAYS,
+  PROTOCOL_TO_MANAGEMENT_DAYS,
+  PUBLISH_HOURS,
+  VOTING_MAX_DAYS,
+  VOTING_MIN_DAYS,
+  meetingSchedule,
+  type MeetingSchedule,
+  type MeetingScheduleInput,
+} from './meeting.js';
 export { houseMood, type HouseMood } from './mood.js';
 export { isWearDue, wearOf, type Wear } from './wear.js';
 export {
@@ -136,6 +157,7 @@ export {
   type InitiativeStanding,
   type Poll,
   type PollKind,
+  type PollMode,
   type PollResult,
   type PollRule,
   type Signature,
@@ -170,6 +192,9 @@ export {
 export { formatClock, formatDate, formatDay, formatMoment, formatSpan, formatWeekday } from './moment.js';
 export {
   CATEGORY_RULES,
+  NORM_BLOCKAGE_HOURS,
+  NORM_EMERGENCY_HOURS,
+  NORM_LOCALIZATION_MINUTES,
   PRIORITY_FACTOR,
   assessDeadlineRisk,
   assigneeLoad,
@@ -186,6 +211,7 @@ export {
   missedResolution,
   reactedAt,
   settledAt,
+  timeToDeadline,
   timeToResolution,
   warningCrossedIn,
   WARNING_SHARE,
@@ -193,6 +219,7 @@ export {
   type CategoryStats,
   type DeadlineRisk,
   type Deadlines,
+  type NormLimit,
   type RiskAssessment,
 } from './sla.js';
 export {
@@ -234,6 +261,7 @@ export {
   AVERAGE_MONTHS,
   AVERAGE_WINDOW,
   NORM_FACTOR,
+  NORM_FACTOR_KINDS,
   NORM_PER_AREA,
   NORM_PER_PERSON,
   estimateConsumption,
@@ -288,6 +316,7 @@ export {
   DomainError,
   NOTICE_KINDS,
   NOTICE_TITLES,
+  ROLES,
   isCompanyStaff,
   type NoticeKind,
   FINAL_STATUSES,
@@ -345,10 +374,12 @@ export {
   RECEPTION_HORIZON_DAYS,
   TOPIC_MAX_LENGTH,
   VISIT_MINUTES,
+  VISIT_MINUTES_RANGE,
   WEEKDAY_TITLES,
   bookVisit,
   cancelVisit,
   checkReception,
+  checkVisitMinutes,
   completeVisit,
   formatReception,
   isActiveVisit,
@@ -356,9 +387,11 @@ export {
   momentIn,
   partsIn,
   receptionSlots,
+  writeVisit,
   type ReceptionWindow,
   type Visit,
   type VisitStatus,
+  type WriteVisitInput,
 } from './reception.js';
 export {
   HANDOFF_BASIS,

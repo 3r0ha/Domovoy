@@ -9,10 +9,6 @@ export const SECTION_PREFIX = 'go-';
 /** Параметр запуска, открывающий раздел приложения. */
 export const sectionParam = (screen: string): string => `${SECTION_PREFIX}${screen}`;
 
-/** Раздел из параметра запуска. Пусто, если параметр не о разделе. */
-export const sectionOf = (payload: string | null | undefined): string | null =>
-  payload && payload.startsWith(SECTION_PREFIX) ? payload.slice(SECTION_PREFIX.length) : null;
-
 export const isValidStartParam = (payload: string): boolean => START_PARAM_PATTERN.test(payload);
 
 const assertPart = (value: string, field: string): string => {
@@ -85,15 +81,26 @@ export const decodeTarget = (payload: string): RequestTarget | null => {
 export const isSameTarget = (left: RequestTarget, right: RequestTarget): boolean => {
   if (left.kind !== right.kind) return false;
 
+  // Дом сверяется везде: подъезд 1 одного дома и подъезд 1 другого, это разные
+  // места, а от совпадения зависит, засчитан ли выезд мастера.
   switch (left.kind) {
     case 'apartment':
       return right.kind === 'apartment' && left.apartmentId === right.apartmentId;
     case 'equipment':
-      return right.kind === 'equipment' && left.equipmentId === right.equipmentId;
+      return (
+        right.kind === 'equipment' &&
+        left.buildingId === right.buildingId &&
+        left.equipmentId === right.equipmentId
+      );
     case 'riser':
-      return right.kind === 'riser' && left.entrance === right.entrance && left.riser === right.riser;
+      return (
+        right.kind === 'riser' &&
+        left.buildingId === right.buildingId &&
+        left.entrance === right.entrance &&
+        left.riser === right.riser
+      );
     case 'entrance':
-      return right.kind === 'entrance' && left.entrance === right.entrance;
+      return right.kind === 'entrance' && left.buildingId === right.buildingId && left.entrance === right.entrance;
     case 'building':
       return right.kind === 'building' && left.buildingId === right.buildingId;
   }

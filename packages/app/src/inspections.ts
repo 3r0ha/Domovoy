@@ -13,6 +13,7 @@ import {
   type RequestTarget,
 } from '@domovoy/domain';
 
+import { recordAction } from './audit.js';
 import { servedBy } from './buildings.js';
 import { submitProblem } from './incidents.js';
 import { formatInspection, noopNotifier, notifyAbout } from './notifier.js';
@@ -20,6 +21,9 @@ import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Отметка пункта словами журнала. */
+const ITEM_STATE_TITLES: Record<ItemState, string> = { ok: 'в порядке', problem: 'недостаток' };
 
 /** Сколько подъездов обходить, если дом заведён без квартир. */
 const guessEntrances = async (deps: AppDeps, buildingId: string): Promise<number[]> => {
@@ -194,6 +198,16 @@ export const checkInspectionItem = async (
     at: deps.now(),
     ...(command.comment === undefined ? {} : { comment: command.comment }),
     ...(command.attachments === undefined ? {} : { attachments: command.attachments }),
+  });
+
+  const checked = updated.items[command.index];
+
+  await recordAction(deps, {
+    actor: command.resident,
+    action: 'inspection_checked',
+    subject: INSPECTION_RULES[updated.kind].title,
+    buildingId: updated.buildingId,
+    details: [checked?.title, ITEM_STATE_TITLES[command.state], command.comment?.trim()].filter(Boolean).join(': '),
   });
 
   if (command.state === 'ok') {

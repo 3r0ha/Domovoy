@@ -46,11 +46,18 @@ export const apartmentIn = async (
   return undefined;
 };
 
-/** Где находится объект: квартира превращается в свой стояк, течь общая. */
-export const locateTarget = async (deps: AppDeps, target: RequestTarget): Promise<AnnouncementAudience | null> => {
+/**
+ * Где находится объект: квартира превращается в свой стояк, течь общая.
+ * Уже прочитанные квартиры дома передаются в `known`, тогда чтения не будет.
+ */
+export const locateTarget = async (
+  deps: AppDeps,
+  target: RequestTarget,
+  known?: ReadonlyMap<string, Apartment>,
+): Promise<AnnouncementAudience | null> => {
   if (target.kind !== 'apartment') return audienceForTarget(target);
 
-  const apartment = await deps.repository.findApartment(target.apartmentId);
+  const apartment = known?.get(target.apartmentId) ?? (await deps.repository.findApartment(target.apartmentId));
 
   if (!apartment) return null;
 

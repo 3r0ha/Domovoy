@@ -12,6 +12,9 @@ import {
 import type { FastifyPluginAsync } from 'fastify';
 import {
   buildingIdSchema,
+  buildingQuerySchema,
+  codeParamsSchema,
+  idParamsSchema,
   JOURNAL_LIMIT,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
@@ -23,7 +26,7 @@ export const deviceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
     /** Жильцу, его подъезд и общедомовое, сотруднику, всё оборудование дома. */
     scope.get<{ Querystring: { buildingId?: string } }>(
       '/api/devices',
-      { schema: { querystring: { type: 'object', properties: { buildingId: buildingIdSchema } } } },
+      { schema: { querystring: buildingQuerySchema } },
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
@@ -33,33 +36,45 @@ export const deviceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
     );
 
     /** Открыть дверь: домофон или шлагбаум. */
-    scope.post<{ Params: { id: string } }>('/api/devices/:id/open', async (request) => {
-      const resident = await currentResident(request.max.userId);
-      const device = await openDevice(deps, resident, request.params.id);
+    scope.post<{ Params: { id: string } }>(
+      '/api/devices/:id/open',
+      { schema: { params: idParamsSchema } },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const device = await openDevice(deps, resident, request.params.id);
 
-      return { id: device.id, title: device.title };
-    });
+        return { id: device.id, title: device.title };
+      },
+    );
 
     /** Кадр с камеры прямо сейчас. */
-    scope.get<{ Params: { id: string } }>('/api/devices/:id/snapshot', async (request) => {
-      const resident = await currentResident(request.max.userId);
-      const shot = await viewDevice(deps, resident, request.params.id);
+    scope.get<{ Params: { id: string } }>(
+      '/api/devices/:id/snapshot',
+      { schema: { params: idParamsSchema } },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const shot = await viewDevice(deps, resident, request.params.id);
 
-      return { deviceId: shot.deviceId, at: shot.at.toISOString(), image: shot.image };
-    });
+        return { deviceId: shot.deviceId, at: shot.at.toISOString(), image: shot.image };
+      },
+    );
 
     /** Одноразовый код для гостя. */
-    scope.post<{ Params: { id: string } }>('/api/devices/:id/guest', async (request) => {
-      const resident = await currentResident(request.max.userId);
-      const issued = await inviteGuest(deps, resident, request.params.id);
+    scope.post<{ Params: { id: string } }>(
+      '/api/devices/:id/guest',
+      { schema: { params: idParamsSchema } },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const issued = await inviteGuest(deps, resident, request.params.id);
 
-      return { code: issued.code, deviceId: issued.deviceId, expiresAt: issued.expiresAt.toISOString() };
-    });
+        return { code: issued.code, deviceId: issued.deviceId, expiresAt: issued.expiresAt.toISOString() };
+      },
+    );
 
     /** Датчики дома и когда каждый выходил на связь. */
     scope.get<{ Querystring: { buildingId?: string } }>(
       '/api/devices/sensors',
-      { schema: { querystring: { type: 'object', properties: { buildingId: buildingIdSchema } } } },
+      { schema: { querystring: buildingQuerySchema } },
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const now = deps.now();
@@ -86,13 +101,17 @@ export const deviceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
     });
 
     /** Отозвать выданный код, не дожидаясь истечения. */
-    scope.post<{ Params: { code: string } }>('/api/devices/guest-codes/:code/revoke', async (request, reply) => {
-      const resident = await currentResident(request.max.userId);
+    scope.post<{ Params: { code: string } }>(
+      '/api/devices/guest-codes/:code/revoke',
+      { schema: { params: codeParamsSchema } },
+      async (request, reply) => {
+        const resident = await currentResident(request.max.userId);
 
-      await revokeGuestCode(deps, resident, request.params.code);
+        await revokeGuestCode(deps, resident, request.params.code);
 
-      return reply.code(204).send();
-    });
+        return reply.code(204).send();
+      },
+    );
 
     /** Журнал открытий: кто и когда открывал двери дома. */
     scope.get<{ Querystring: { before?: string; limit?: number; buildingId?: string } }>(

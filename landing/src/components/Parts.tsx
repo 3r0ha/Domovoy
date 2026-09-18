@@ -35,24 +35,19 @@ const ROLES: Record<string, string> = {
   survey: 'Экран мастера',
   inspections: 'Экран мастера',
   queue: 'Экран диспетчера',
-  'staff-home': 'Экран диспетчера',
   'staff-news': 'Экран диспетчера',
   'support-staff': 'Экран диспетчера',
   'shift-more': 'Экран диспетчера',
-  broadcast: 'Экран диспетчера',
   clarify: 'Экран диспетчера',
   confirm: 'Экран диспетчера',
-  joined: 'Экран диспетчера',
   plan: 'Экран управляющей компании',
   equipment: 'Экран управляющей компании',
   report: 'Экран управляющей компании',
   people: 'Экран управляющей компании',
   audit: 'Экран управляющей компании',
   debtors: 'Экран управляющей компании',
-  tariffs: 'Экран управляющей компании',
   'house-meters': 'Экран управляющей компании',
   buildings: 'Экран управляющей компании',
-  import: 'Экран управляющей компании',
 };
 
 /** Мокап телефона: корпус, строка состояния, боковые клавиши. */
@@ -75,9 +70,14 @@ export const Shot = ({ name, alt, className }: { name: string; alt: string; clas
   </figure>
 );
 
+/** Куда ведёт кнопка, пока адрес бота не задан на сборке. */
+const MAX_LINK = 'https://max.ru';
+
+/** Ссылка на бота в MAX: задаётся на сборке переменной VITE_BOT_LINK. */
+export const BOT_LINK: string =
+  (import.meta.env as { VITE_BOT_LINK?: string }).VITE_BOT_LINK?.trim() || MAX_LINK;
+
 /** Шапка с разделами страницы. */
-/** Ссылка на бота в MAX: задаётся на сборке, без неё кнопки нет. */
-export const BOT_LINK: string = (import.meta.env as { VITE_BOT_LINK?: string }).VITE_BOT_LINK ?? '';
 
 export const Top = ({ current }: { current?: string }) => {
   const [open, setOpen] = useState(false);
@@ -143,11 +143,10 @@ export const Top = ({ current }: { current?: string }) => {
           ))}
         </nav>
 
-        {BOT_LINK ? (
-          <a className="top-open-max" href={BOT_LINK} rel="noreferrer">
-            Открыть в MAX
-          </a>
-        ) : null}
+        <a className="top-open-max" href={BOT_LINK} rel="noreferrer" aria-label="Открыть в MAX">
+          <span className="top-max-long">Открыть в MAX</span>
+          <span className="top-max-short">В MAX</span>
+        </a>
 
         <button
           type="button"
@@ -198,9 +197,13 @@ export const Foot = () => (
         ))}
       </nav>
 
+      <a className="foot-max" href={BOT_LINK} rel="noreferrer">
+        Открыть в MAX
+      </a>
+
       <div className="foot-brand">
         <Ink src="/bezslavie-logo.svg" className="foot-logo" when="seen" label="БЕЗЪСЛАВИЕ" pace={0.32} />
-        <p className="foot-note">Команда antihype для платформы MAX, 2026</p>
+        <p className="foot-note">Команда БЕЗЪСЛАВИЕ для платформы MAX, 2026</p>
       </div>
     </div>
   </footer>

@@ -58,7 +58,9 @@ export const dailyLoad = (requests: readonly ServiceRequest[], period: Period): 
   for (const request of requests) {
     const passed = request.createdAt.getTime() - period.from.getTime();
 
-    if (passed < 0) continue;
+    // Заявка позже конца периода не сваливается в последний столбец: иначе
+    // будущее выглядело бы всплеском в последние сутки.
+    if (passed < 0 || request.createdAt.getTime() > period.to.getTime()) continue;
 
     const index = Math.min(days - 1, Math.floor(passed / DAY_MS));
 
@@ -335,7 +337,11 @@ export interface IncidentSummary {
   reporters: number;
 }
 
-/** Аварии, о которых сообщили несколько жильцов: их разбирают первыми. */
+/**
+ * Аварии, о которых сообщил не один человек: их разбирают первыми. Порог здесь
+ * ниже, чем у подтверждённой аварии (`isConfirmedIncident`): в сводку смена
+ * смотрит, чтобы заметить проблему раньше, а не чтобы объявить её дому.
+ */
 export const confirmedIncidents = (requests: readonly ServiceRequest[]): IncidentSummary[] =>
   requests
     .filter((request) => reportersCount(request) > 1 && !isFinal(request.status))

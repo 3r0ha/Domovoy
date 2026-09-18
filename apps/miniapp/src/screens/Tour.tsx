@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /** Шаг тура: что подсвечиваем и что об этом говорим. */
 export interface TourStep {
@@ -49,21 +49,31 @@ export const Tour = ({ steps, onDone }: TourProps) => {
   const [hole, setHole] = useState<Hole | null>(null);
 
   const step = steps[index];
+  // Эффект держится за якорь и за ссылку на обработчик: иначе он уходил бы заново каждый рендер.
+  const anchor = step?.anchor;
+  const done = useRef(onDone);
+
+  done.current = onDone;
 
   useEffect(() => {
-    if (!step) {
-      onDone();
-      return;
+    if (anchor === undefined) {
+      done.current();
+      return undefined;
     }
 
-    const measure = (): void => setHole(holeFor(step.anchor));
+    const measure = (): void => setHole(holeFor(anchor));
 
     measure();
 
     globalThis.addEventListener('resize', measure);
+    // Подсветка держится за элементом: страница под ней прокручивается.
+    globalThis.addEventListener('scroll', measure, { passive: true });
 
-    return () => globalThis.removeEventListener('resize', measure);
-  }, [step, onDone]);
+    return () => {
+      globalThis.removeEventListener('resize', measure);
+      globalThis.removeEventListener('scroll', measure);
+    };
+  }, [anchor]);
 
   if (!step) return null;
 

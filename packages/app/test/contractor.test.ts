@@ -114,7 +114,12 @@ describe('подрядчик', () => {
     const request = await assignedLift(deps);
 
     const started = await transitionRequest(deps, { resident: lifts, requestId: request.id, to: 'in_progress' });
-    const done = await transitionRequest(deps, { resident: lifts, requestId: started.id, to: 'done' });
+    const done = await transitionRequest(deps, {
+      resident: lifts,
+      requestId: started.id,
+      to: 'done',
+      comment: 'Заменил тросы',
+    });
 
     assert.equal(done.status, 'done');
   });

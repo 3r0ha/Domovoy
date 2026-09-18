@@ -2,7 +2,7 @@ import { drawSticker, sendSticker, sendStickerSheet, stickerStyles, stickersFor 
 import { STICKER_NOTE_MAX_LENGTH, describeTarget } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 
-import { buildingIdSchema, sentStickerSchema, stickersSchema } from '../serialize.js';
+import { buildingIdSchema, buildingQuerySchema, sentStickerSchema, stickersSchema } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
 /** Длина кода объекта в ссылке: он же имя файла наклейки. */
@@ -22,7 +22,7 @@ export const stickerRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/stickers',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: { 200: stickersSchema },
       },
     },
@@ -82,10 +82,11 @@ export const stickerRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/stickers/send',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         body: {
           type: 'object',
           required: ['payload'],
+          additionalProperties: false,
           properties: {
             payload: { type: 'string', minLength: 1, maxLength: PAYLOAD_MAX_LENGTH },
             as: { type: 'string', enum: ['image', 'document'] },
@@ -123,7 +124,7 @@ export const stickerRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/stickers/sheet',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: {
           200: {
             type: 'object',

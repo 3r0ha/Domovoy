@@ -9,6 +9,10 @@ export interface ApartmentPickerProps {
   onChange: (apartmentId: string) => void;
 }
 
+/**
+ * Подпись выбора: номер квартиры и адрес дома. Одного номера мало, первая
+ * квартира бывает в каждом доме, а человеку нужно понять, о каком он смотрит.
+ */
 const title = (apartment: ApartmentView): string =>
   apartment.address ? `кв. ${apartment.number} · ${apartment.address}` : `кв. ${apartment.number}`;
 

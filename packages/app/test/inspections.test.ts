@@ -194,6 +194,33 @@ describe('осмотры общего имущества', () => {
     assert.match(request?.description ?? '', /Перила расшатаны/);
   });
 
+  it('отметка осмотра попадает в журнал дома', async () => {
+    const { deps, repository } = await setup();
+
+    await repository.saveResident({
+      id: 'staff-2',
+      maxUserId: 2003,
+      displayName: 'Нина',
+      role: 'manager',
+      buildingId: BUILDING_ID,
+    });
+
+    const [round] = (await planInspections(deps, BUILDING_ID)).filter(
+      (item) => item.kind === 'entrance' && item.entrance === 1,
+    );
+
+    await checkInspectionItem(deps, { resident: TECHNICIAN, inspectionId: round!.id, index: 0, state: 'ok' });
+
+    const entries = (await repository.listAudit(BUILDING_ID, { limit: 10 })).filter(
+      (entry) => entry.action === 'inspection_checked',
+    );
+
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0]?.actorName, 'Сергей');
+    assert.equal(entries[0]?.subject, INSPECTION_RULES.entrance.title);
+    assert.match(entries[0]?.details ?? '', /в порядке$/);
+  });
+
   it('недостаток без объяснения не принимается', async () => {
     const { deps } = await setup();
 

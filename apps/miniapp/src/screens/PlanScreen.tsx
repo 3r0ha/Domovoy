@@ -42,9 +42,12 @@ const Cell = ({ flat, onOpen }: { flat: Flat; onOpen: (id: string) => void }) =>
 
 const Alerts = ({ alerts, onOpen }: { alerts: PlanAlertView[]; onOpen: (id: string) => void }) =>
   alerts.map((alert) => (
-    <button key={alert.id} type="button" className="now-row" onClick={() => onOpen(alert.id)}>
+    <button key={alert.id} type="button" className="now-row now-row-open" onClick={() => onOpen(alert.id)}>
       <span className={alert.emergency ? 'dot dot-bad' : 'dot'} />
       <span>{alert.title}</span>
+      <span className="now-chevron" aria-hidden="true">
+        ›
+      </span>
     </button>
   ));
 
@@ -83,7 +86,7 @@ export const PlanScreen = ({ api, onOpen }: PlanScreenProps) => {
         </span>
       </p>
 
-      <p className="aside hint">Красная линия у стояка означает отказ общего имущества, а не поломку в квартире.</p>
+      <p className="aside hint">Красная полоса: отказ на стояке</p>
 
       {entrances.map((entrance) => (
         <section key={entrance.entrance} className="block">
@@ -92,16 +95,19 @@ export const PlanScreen = ({ api, onOpen }: PlanScreenProps) => {
           <p className="hint">Квартиры по стоякам, первый этаж внизу</p>
 
           <div className="cut">
-            {entrance.risers.map((riser) => (
-              <div key={riser.riser} className={riser.alerts.length > 0 ? 'riser pipe pipe-alert' : 'riser pipe'}>
-                <div className="flats">
-                  {[...riser.flats].reverse().map((flat) => (
-                    <Cell key={flat.number} flat={flat} onOpen={onOpen} />
-                  ))}
+            {/* Стояк без помещений рисовать нечем: пустая колонка читается как потерянные квартиры. */}
+            {entrance.risers
+              .filter((riser) => riser.flats.length > 0)
+              .map((riser) => (
+                <div key={riser.riser} className={riser.alerts.length > 0 ? 'riser pipe pipe-alert' : 'riser pipe'}>
+                  <div className="flats">
+                    {[...riser.flats].reverse().map((flat) => (
+                      <Cell key={flat.number} flat={flat} onOpen={onOpen} />
+                    ))}
+                  </div>
+                  <span className="riser-title">Стояк {riser.riser}</span>
                 </div>
-                <span className="riser-title">Стояк {riser.riser}</span>
-              </div>
-            ))}
+              ))}
           </div>
 
           <Alerts

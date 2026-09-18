@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   InMemoryRepository,
+  buildingReport,
   createServiceRequest,
   formatQuality,
   houseQuality,
@@ -37,7 +38,7 @@ const setup = (): AppDeps & { setNow: (at: Date) => void } => {
 
   const deps = {
     repository: new InMemoryRepository({
-      buildings: [{ id: BUILDING_ID, code: 'Д15' }],
+      buildings: [{ id: BUILDING_ID, code: 'Д15', address: 'ул. Ленина, 15' }],
       apartments: [{ id: 'apt-1', buildingId: BUILDING_ID, number: 1, entrance: 1, riser: 1 }],
       residents: [maria, dispatcher],
     }),
@@ -54,8 +55,13 @@ const closed = async (deps: AppDeps, description: string, rating?: number): Prom
   const request = await createServiceRequest(deps, { resident: maria, description });
 
   await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
-  await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'in_progress' });
-  await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'done' });
+  await transitionRequest(deps, {
+    resident: dispatcher,
+    requestId: request.id,
+    to: 'in_progress',
+    assigneeId: dispatcher.id,
+  });
+  await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'done', comment: 'Сделано' });
   await transitionRequest(deps, {
     resident: maria,
     requestId: request.id,
@@ -80,6 +86,34 @@ describe('как работает управляющая компания', () =
     assert.equal(quality.inTimeRate, 1);
     assert.equal(quality.rated, 2);
     assert.equal(quality.averageRating, 4);
+  });
+
+  it('числа подписаны домом и длиной периода: у сотрудника это его дом, а не дом смены', async () => {
+    const deps = setup();
+
+    await closed(deps, 'Течёт кран');
+    await createServiceRequest(deps, { resident: maria, description: 'Скрипит дверь' });
+
+    const own = await houseQuality(deps, maria);
+
+    assert.equal(own.days, 30);
+    assert.equal(own.address, 'ул. Ленина, 15');
+
+    // Диспетчер живёт в другом доме: его числа про тот дом, и по адресу видно,
+    // почему они расходятся со сводкой по дому смены.
+    const living: Resident = { ...dispatcher, apartmentId: 'apt-9' };
+
+    await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Ленина, 17' });
+    await deps.repository.saveApartment({ id: 'apt-9', buildingId: 'b2', number: 9, entrance: 1, riser: 1 });
+    await deps.repository.saveResident(living);
+
+    const quality = await houseQuality(deps, living);
+    const report = await buildingReport(deps, living);
+
+    assert.equal(quality.buildingId, 'b2');
+    assert.equal(quality.address, 'ул. Ленина, 17');
+    assert.equal(report.buildingId, BUILDING_ID, 'сводка считает дом смены');
+    assert.notEqual(quality.created, report.period.created);
   });
 
   it('сравнивать не с чем, пока прошлого месяца у дома нет', async () => {

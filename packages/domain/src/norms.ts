@@ -12,6 +12,11 @@ export const AVERAGE_WINDOW = 6;
 /** Повышающий коэффициент к нормативу: прибор есть, а показаний по нему нет. */
 export const NORM_FACTOR = 1.5;
 
+/** Коэффициент применяется к воде и электричеству; к отоплению и газу нет. */
+export const NORM_FACTOR_KINDS: readonly MeterKind[] = ['cold_water', 'hot_water', 'electricity'];
+
+const factorFor = (kind: MeterKind): number => (NORM_FACTOR_KINDS.includes(kind) ? NORM_FACTOR : 1);
+
 /** Норматив на человека в месяц. Числа типовые: норматив утверждает регион. */
 export const NORM_PER_PERSON: Readonly<Record<MeterKind, number>> = {
   cold_water: 4.85,
@@ -42,7 +47,7 @@ const round = (value: number): number => Math.round(value * 1000) / 1000;
 /** Норматив потребления за месяц с повышающим коэффициентом. */
 export const normFor = ({ kind, residents, area }: NormInput): number =>
   round(
-    (NORM_PER_PERSON[kind] * Math.max(1, residents) + NORM_PER_AREA[kind] * Math.max(0, area)) * NORM_FACTOR,
+    (NORM_PER_PERSON[kind] * Math.max(1, residents) + NORM_PER_AREA[kind] * Math.max(0, area)) * factorFor(kind),
   );
 
 export interface EstimateInput {

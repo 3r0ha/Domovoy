@@ -4,7 +4,7 @@
  */
 
 export { describeFromAttachments, unheardVoice, type Transcriber } from './incidents/attachments.js';
-export { escalationFor, type EscalationOffer } from './incidents/escalation.js';
+export { escalationFor, sendComplaint, type EscalationOffer } from './incidents/escalation.js';
 export {
   answerAlert,
   canKnockUpstairs,

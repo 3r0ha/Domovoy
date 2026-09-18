@@ -2,6 +2,16 @@ import { appRow, keyboardOf } from '../keyboards.js';
 import type { BotContext } from '../max.js';
 import type { BotKit } from '../kit.js';
 
+/** Сколько строк ответа читаются в переписке: человеку нужен срок и следующее действие. */
+export const CHAT_LINES = 5;
+
+/** Длинный ответ в переписке обрезается: целиком он лежит в приложении. */
+export const shorten = (text: string, note: string): string => {
+  const lines = text.split('\n');
+
+  return lines.length <= CHAT_LINES ? text : [...lines.slice(0, CHAT_LINES - 1), note].join('\n');
+};
+
 /**
  * Дело, которое в переписке делать неудобно. В чате остаётся одна строка сути,
  * а работа идёт в приложении: списком, формой и сравнением там, где для этого

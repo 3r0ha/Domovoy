@@ -35,10 +35,23 @@ export interface ElderCandidate {
   residentId: string;
 }
 
+/**
+ * Что это: собрание собственников по закону или опрос жильцов для управляющей
+ * организации. У собрания есть сроки, кворум и протокол, у опроса, только
+ * мнение: юридической силы он не имеет и этим отличается прямо в интерфейсе.
+ */
+export type PollMode = 'meeting' | 'survey';
+
 export interface Poll {
   id: string;
   buildingId: string;
   kind: PollKind;
+  /** Собрание или опрос. Пусто означает собрание: так было до появления опросов. */
+  mode?: PollMode;
+  /** Номер сообщения о собрании в системе, если оно туда ушло. */
+  noticeId?: string;
+  /** Номер протокола в системе. */
+  protocolId?: string;
   title: string;
   /** Формулировка вопроса: её увидят в бюллетене и в протоколе. */
   question: string;
@@ -109,12 +122,14 @@ export interface CastVoteInput {
   residentId: string;
   choice: VoteChoice;
   at: Date;
-  /** Голос этой квартиры, если он уже был подан. */
-  previous?: Vote;
 }
 
 /** Принимает голос. @throws {DomainError} */
 export const castVote = (input: CastVoteInput): Vote => {
+  if (input.poll.closedAt) {
+    throw new DomainError('poll_closed', 'Итоги подведены, голос принять нельзя');
+  }
+
   if (input.at.getTime() < input.poll.opensAt.getTime()) {
     throw new DomainError('poll_not_open', 'Голосование ещё не началось');
   }
@@ -186,22 +201,25 @@ export const countVotes = (
     shares[vote.choice] += area;
   }
 
-  const share = (value: number): number => (totalArea === 0 ? 0 : round(value / totalArea));
-  const turnout = share(votedArea);
+  // Округление идёт только в отчёт: сравнивать с порогом округлённую долю
+  // нельзя, иначе недобранные две трети становятся принятым решением.
+  const exact = (value: number): number => (totalArea === 0 ? 0 : value / totalArea);
+  const turnout = exact(votedArea);
   const quorum = turnout > rule.quorum;
 
   const support =
-    rule.base === 'building' ? share(shares.for) : votedArea === 0 ? 0 : round(shares.for / votedArea);
+    rule.base === 'building' ? exact(shares.for) : votedArea === 0 ? 0 : shares.for / votedArea;
 
   const enough = rule.strict ? support > rule.threshold : support >= rule.threshold;
+  const share = (value: number): number => round(exact(value));
 
   return {
     totalArea: round(totalArea),
     votedArea: round(votedArea),
-    turnout,
+    turnout: round(turnout),
     quorum,
     shares: { for: share(shares.for), against: share(shares.against), abstain: share(shares.abstain) },
-    support,
+    support: round(support),
     passed: quorum && enough,
   };
 };
@@ -211,8 +229,13 @@ const areaOf = (apartment: Apartment): number => apartment.area ?? 0;
 
 const round = (value: number): number => Number(value.toFixed(4));
 
-/** Сколько площади не хватает до кворума. Ноль, кворум уже есть. */
+/**
+ * Сколько площади не хватает до кворума. Ноль, кворум уже есть. Кворум берётся
+ * строго больше порога, поэтому ровно половина площади его не даёт.
+ */
 export const areaToQuorum = (poll: Poll, result: PollResult): number => {
+  if (result.quorum) return 0;
+
   const needed = POLL_RULES[poll.kind].quorum * result.totalArea;
 
   return Math.max(0, round(needed - result.votedArea));

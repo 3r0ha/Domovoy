@@ -1,3 +1,4 @@
+import { useBridgeRequest } from '@maxkit/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
@@ -14,8 +15,6 @@ export interface AssistantProps {
   onClose: () => void;
 }
 
-/** С чего начинают те, кто не знает, что спросить. */
-const STARTERS = ['Как сообщить о поломке?', 'Где передать показания?', 'Что с моей заявкой?', 'Как открыть подъезд?'];
 
 /** Одна реплика разговора: вопрос человека или ответ помощника. */
 interface Line {
@@ -27,10 +26,14 @@ interface Line {
   title?: string;
 }
 
-/** Кнопка помощника: она в шапке любого экрана, поэтому спросить можно всегда. */
+/**
+ * Кнопка помощника: она в шапке любого экрана и подписана словом. Значок без
+ * подписи человек, который редко берёт телефон в руки, просто не замечает.
+ */
 export const AssistantButton = ({ onOpen }: { onOpen: () => void }) => (
-  <button type="button" className="refresh" data-guide="assistant" aria-label="Помощник" onClick={onOpen}>
+  <button type="button" className="ask" data-guide="assistant" aria-label="Спросить помощника" onClick={onOpen}>
     <IconHelp />
+    Спросить
   </button>
 );
 
@@ -48,9 +51,17 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
   const tail = useRef<HTMLDivElement>(null);
   const field = useFit(question);
 
-  // Свежая реплика всегда на виду: разговор прокручивается сам.
+  // Подсказки зависят от роли, поэтому приходят с сервера. Без них помощник работает.
+  const opening = useBridgeRequest(() => api.assistantStarters().catch(() => ({ starters: [] })), [api]);
+  const starters = opening.data?.starters ?? [];
+
+  // Свежая реплика всегда на виду: разговор прокручивается сам. Первый показ
+  // пропускается, иначе открытие помощника утягивает страницу под накладкой.
+  const talked = useRef(false);
+
   useEffect(() => {
-    tail.current?.scrollIntoView({ block: 'end' });
+    if (talked.current) tail.current?.scrollIntoView({ block: 'end' });
+    else talked.current = true;
   }, [lines, busy]);
 
   useEffect(() => {
@@ -104,7 +115,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
 
           <div>
             <h2>Чем помочь?</h2>
-            <p className="hint">Спросите словами, я подскажу и открою нужный раздел.</p>
+            <p className="hint">Отвечу и открою нужный раздел</p>
           </div>
 
           <button type="button" className="assistant-close" aria-label="Закрыть" onClick={onClose}>
@@ -140,7 +151,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
 
           {lines.length === 0 && !busy ? (
             <div className="assistant-starters">
-              {STARTERS.map((starter) => (
+              {starters.map((starter) => (
                 <button key={starter} type="button" className="chip" onClick={() => void ask(starter)}>
                   {starter}
                 </button>

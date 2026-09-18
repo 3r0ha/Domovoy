@@ -101,7 +101,7 @@ describe('поиск заявки, о которой уже сообщили', (
         applyTransition(request(), { to: 'accepted', role: 'dispatcher', actorId: 'd', at: CREATED_AT }),
         { to: 'in_progress', role: 'technician', actorId: 't', at: CREATED_AT },
       ),
-      { to: 'done', role: 'technician', actorId: 't', at: CREATED_AT },
+      { to: 'done', role: 'technician', actorId: 't', at: CREATED_AT, comment: 'Заменил кран' },
     );
 
     const confirmed = applyTransition(done, {

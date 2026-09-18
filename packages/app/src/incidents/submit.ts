@@ -23,7 +23,7 @@ import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
 import { askAssistant, capabilitiesFor, findCapability } from '../assistant.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
-import { understandRequest, type HouseContext } from '../reasoner.js';
+import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
 import { createServiceRequest, targetOf, type AppDeps, type CreateRequestCommand } from '../use-cases.js';
 import { zoneOf } from '../zone.js';
@@ -78,6 +78,49 @@ const houseFor = async (deps: AppDeps, command: CreateRequestCommand, buildingId
     entrances: [...new Set(apartments.map((apartment) => apartment.entrance))].sort((left, right) => left - right),
     ...(own ? { apartment: own.number } : {}),
   };
+};
+
+/**
+ * Адрес обращения по тому, о какой части дома написал человек. Считается только
+ * там, где адрес не назван ни кодом с наклейки, ни выбором квартиры: иначе
+ * заявка о подъезде досталась бы квартире автора.
+ */
+const placeParam = async (
+  deps: AppDeps,
+  command: CreateRequestCommand,
+  place: Place | undefined,
+  buildingId: string,
+): Promise<string | undefined> => {
+  if (command.startParam || command.apartmentId || command.house) return undefined;
+  if (place !== 'entrance' && place !== 'house') return undefined;
+
+  if (place === 'house') return encodeTarget({ kind: 'building', buildingId });
+
+  const apartment = command.resident.apartmentId
+    ? await deps.repository.findApartment(command.resident.apartmentId)
+    : undefined;
+
+  return apartment
+    ? encodeTarget({ kind: 'entrance', buildingId: apartment.buildingId, entrance: apartment.entrance })
+    : encodeTarget({ kind: 'building', buildingId });
+};
+
+/**
+ * Вопрос о доме заявки не заводит: продукт отвечает данными дома, а заявку
+ * человек заведёт кнопкой, если ответ его не устроил. Рассказ о неисправности
+ * в ответ не превращается, даже если разбор счёл его вопросом: пропущенная
+ * поломка дороже лишней заявки.
+ */
+const answerInstead = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult | undefined> => {
+  if (command.anyway || aboutTrouble(command.description)) return undefined;
+
+  const answer = await answerAboutHouse(deps, command.resident, command.description).catch(() => undefined);
+
+  if (answer?.text) return { kind: 'answered', answer: answer.text };
+
+  const elsewhere = await otherSection(deps, command).catch(() => undefined);
+
+  return elsewhere ? { kind: 'answered', answer: elsewhere } : undefined;
 };
 
 /**
@@ -143,19 +186,9 @@ const SHORT_ENOUGH = 40;
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
 
-  // Вопрос о доме заявки не заводит: продукт отвечает данными дома, а заявку
-  // человек заведёт кнопкой, если ответ его не устроил. Рассказ о неисправности
-  // в ответ не превращается, даже если разбор счёл его вопросом: пропущенная
-  // поломка дороже лишней заявки.
-  if (!command.anyway && !aboutTrouble(command.description)) {
-    const answer = await answerAboutHouse(deps, command.resident, command.description).catch(() => undefined);
+  const answered = await answerInstead(deps, command);
 
-    if (answer?.text) return { kind: 'answered', answer: answer.text };
-
-    const elsewhere = await otherSection(deps, command).catch(() => undefined);
-
-    if (elsewhere) return { kind: 'answered', answer: elsewhere };
-  }
+  if (answered) return answered;
 
   // Дом уходит в разбор вместе с текстом: по нему модель относит обращение
   // к настоящему лифту или домофону, а не к дому целиком.
@@ -168,11 +201,16 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
       ? encodeTarget({ kind: 'equipment', buildingId, equipmentId: read.equipment })
       : undefined;
 
+  // Про подъезд и двор человек пишет теми же словами, что про свою квартиру,
+  // поэтому адрес по умолчанию берётся не от привязки, а из разбора текста.
+  const placed = named ? undefined : await placeParam(deps, command, read.place, buildingId);
+  const where = named ?? placed;
+
   const enriched: CreateRequestCommand = {
     ...command,
     category: command.category ?? read.category,
     priority: command.priority ?? read.priority,
-    ...(named ? { startParam: named } : {}),
+    ...(where ? { startParam: where } : {}),
     ...(command.title?.trim() ? {} : read.title ? { title: read.title } : {}),
   };
 
@@ -357,8 +395,14 @@ const findExisting = async (
     statuses: [...OPEN_STATUSES],
   });
 
+  // Адреса открытых заявок разбираются по одному списку квартир: иначе каждая
+  // квартирная заявка дома стоила бы отдельного чтения.
+  const flats = open.some((request) => request.target.kind === 'apartment')
+    ? new Map((await deps.repository.listApartments(audience.buildingId)).map((flat) => [flat.id, flat]))
+    : undefined;
+
   const located: LocatedRequest[] = await Promise.all(
-    open.map(async (request) => ({ request, audience: await locateTarget(deps, request.target) })),
+    open.map(async (request) => ({ request, audience: await locateTarget(deps, request.target, flats) })),
   );
 
   const found = findJoinable({ category, audience, at: deps.now(), authorId: command.resident.id }, located);

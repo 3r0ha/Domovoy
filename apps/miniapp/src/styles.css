@@ -36,6 +36,25 @@ body {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
 }
 
+/*
+ * Видимый фокус у всего своего: по клавиатуре иначе не видно, где стоишь.
+ * Обводка рисуется снаружи и раскладку не двигает.
+ */
+.app :is(button, a, select, textarea, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/*
+ * Нажатие на строку списка меняет фон, а не размер: сжатие по :active пружинит
+ * при прокрутке в мобильном вебвью, потому что палец задевает строку.
+ */
+.request-row:active,
+.guide-errand:active,
+.row-split:active {
+  background-color: var(--sunk);
+}
+
 main {
   padding: 12px 16px 96px;
   display: flex;
@@ -50,11 +69,27 @@ h1 {
   margin: 0 0 12px;
 }
 
+.topbar-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topbar-pickers {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .screen-title {
+  min-width: 0;
   margin: 0;
+  overflow: hidden;
   font-size: 24px;
   letter-spacing: -0.02em;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 @keyframes screen-in {
@@ -84,9 +119,8 @@ main > *:not(.topbar) {
   top: 0;
   z-index: 5;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
   margin: -12px -16px 0;
   padding: 12px 16px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
@@ -188,6 +222,19 @@ main > *:not(.topbar) {
   margin-bottom: 0;
 }
 
+/* Разбор недостатка внутри острова: отступы свои, кнопка одна и главная. */
+.check-form {
+  padding: 0 12px 12px;
+}
+
+.check-form .send-row {
+  margin-top: 10px;
+}
+
+.check-cancel {
+  margin-top: 16px;
+}
+
 .now-row {
   display: flex;
   align-items: baseline;
@@ -204,6 +251,18 @@ main > *:not(.topbar) {
 
 button.now-row {
   cursor: pointer;
+}
+
+/* Строка ведёт в заявку: без шеврона её принимают за подпись. */
+.now-row-open {
+  padding-right: 4px;
+}
+
+.now-chevron {
+  margin-left: auto;
+  color: var(--faint);
+  font-size: 18px;
+  line-height: 1;
 }
 
 .now-row:last-child {
@@ -266,7 +325,7 @@ button.now-row {
   background: var(--accent);
 }
 
-button.danger-link {
+button.link.danger-link {
   align-self: flex-start;
   margin: 0 12px;
   color: var(--danger-text);
@@ -312,6 +371,38 @@ button.danger-link {
 
 .refresh:active {
   background: var(--sunk);
+}
+
+/*
+ * Помощник подписан словом и выделен цветом: он стоит в шапке любого экрана
+ * и ничего не перекрывает. Человеку, который редко берёт телефон в руки,
+ * значок ничего не говорит, а слово говорит.
+ */
+.ask {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--font-meta);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ask:active {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.ask svg {
+  width: 20px;
+  height: 20px;
 }
 
 .badge-offline {
@@ -557,6 +648,39 @@ button.danger-link {
   border-top: 1px solid var(--border);
 }
 
+/*
+ * Подпись над полем: в одну строку с ним длинные значения обрезаются, и
+ * «Гордеева Нина Павловна» читается как «Гордеева Нина Павлов».
+ */
+.field-row {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.field-row > [class*='CellInput__before'],
+.field-row > [class*='CellInput__body'] {
+  flex: 1 0 100%;
+  min-width: 100%;
+}
+
+/* Поле, собранное без кита: те же отступы внутри острова, что и у остальных строк. */
+div.field-row {
+  padding: 8px 12px;
+}
+
+div.field-row .cell-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Очистка поля крестиком: с системным крестиком браузера их выходит два. */
+.field-row [class*='CellInput__clearButton'],
+input[type='search']::-webkit-search-cancel-button,
+input[type='search']::-webkit-search-decoration {
+  display: none;
+  appearance: none;
+}
+
 /* Поле ввода в карточке: без своего фона его принимают за подпись. */
 .field-row input {
   padding: 10px 12px;
@@ -579,12 +703,124 @@ button.danger-link {
 }
 
 .paste {
-  padding: 8px 12px;
+  width: 100%;
+  padding: 8px 0 0;
 }
 
 .paste textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--font-meta);
+}
+
+/* Список квартир и оборудования строками: столбцы подписаны один раз сверху. */
+.rows-box {
+  padding: 10px 12px 12px;
+}
+
+.rows-about {
+  margin: 0 0 8px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  overflow-x: auto;
+}
+
+.rows-head,
+.rows-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rows-head {
+  color: var(--muted);
+  font-size: var(--font-meta);
+}
+
+/* Подпись столбца переносится: обрезанное «Подъ…» не читается. */
+.rows-head {
+  align-items: flex-end;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.rows-head .rows-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rows-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.rows-wide {
+  flex: 2 1 0;
+}
+
+/* Часам нужна своя ширина: «15:00» со значком в общую долю не помещается. */
+.rows-time {
+  flex: 0 1 92px;
+  min-width: 78px;
+}
+
+.rows-line input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  margin: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--font-meta);
+}
+
+/* Место под крестик есть и в шапке: столбцы иначе съезжают на ширину кнопки. */
+.rows-head::after {
+  flex: none;
+  width: 24px;
+  content: '';
+}
+
+.rows-drop {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--faint);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Сохранение карточки дома всегда на виду: полей много, кнопка одна. */
+.save-bar {
+  position: sticky;
+  bottom: calc(env(safe-area-inset-bottom) + 72px);
+  z-index: 1;
+  padding: 10px 0;
+  background: var(--bg);
+}
+
+/* Растушёвка над кнопкой: без неё уезжающая под неё строка выглядит обрезанной. */
+.save-bar::before {
+  position: absolute;
+  inset: auto 0 100% 0;
+  height: 18px;
+  background: linear-gradient(to top, var(--bg), transparent);
+  content: '';
+  pointer-events: none;
 }
 
 .tariff-edit {
@@ -1051,6 +1287,11 @@ main > * > .loading:only-child {
   justify-content: center;
 }
 
+/* Название рядом с кнопкой переносится поровну: иначе номер подъезда уходит на строку один. */
+.row-split [class*="CellSimple__title"] {
+  text-wrap: balance;
+}
+
 .talk .error {
   flex-basis: 100%;
 }
@@ -1067,6 +1308,13 @@ button.link {
 
 button.link.quiet {
   color: var(--muted);
+}
+
+/* Возврат к списку: нижние вкладки уводят из стопки, а эта ссылка на шаг назад. */
+.back-link {
+  align-self: flex-start;
+  margin: 0 0 2px;
+  padding: 4px 0;
 }
 
 .protocol,
@@ -1238,13 +1486,20 @@ main > * > .empty:only-child {
 
 .survey {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px;
-  margin: 10px 0 0;
+  margin: 6px 0 0;
 }
 
-.survey .hint {
-  margin: 0 0 0 4px;
+.survey-note {
+  margin: 12px 0 0;
+}
+
+.survey .legend {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 0 10px;
 }
 
 .flat {
@@ -1500,6 +1755,7 @@ button.flat {
 }
 
 .segment {
+  position: relative;
   flex: 1;
   min-width: 0;
   padding: 12px 4px;
@@ -1516,8 +1772,20 @@ button.flat {
   transition: background 0.15s ease;
 }
 
-.segment + .segment {
-  box-shadow: inset 1px 0 0 var(--border);
+/* Разделитель ровной чертой: скруглением он гнётся и выглядит браком. */
+.segment + .segment::before {
+  content: '';
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: -2px;
+  width: 1px;
+  background: var(--border);
+}
+
+.segment.segment-on::before,
+.segment.segment-on + .segment::before {
+  display: none;
 }
 
 .segment.segment-on {
@@ -1740,7 +2008,9 @@ button.flat {
 }
 
 .chat-who {
-  margin: 0;
+  margin: 0 0 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
 .chat .said {
@@ -1784,6 +2054,19 @@ button.flat {
 /* Реплика Домового: то же облако, но от левого края и без имени. */
 .said-bot {
   background: var(--card);
+}
+
+/* Первый заход: вопрос и подсказки стоят сверху, а не жмутся к строке ответа. */
+.chat-fresh .chat-flow {
+  justify-content: flex-start;
+}
+
+.chat-note {
+  margin: 0;
+}
+
+.chat-common {
+  padding: 0;
 }
 
 .chat-flat {
@@ -2485,9 +2768,10 @@ button[class*='CellAction'][class*='secondary']:not(:disabled) [class*='CellActi
 }
 
 select.building {
+  flex: 1 1 auto;
   width: auto;
   min-width: 0;
-  max-width: 58%;
+  max-width: 100%;
   padding: 4px 24px 4px 12px;
   min-height: 40px;
   margin-bottom: 0;
@@ -2527,15 +2811,16 @@ select.building {
   background: none;
   color: var(--faint);
   cursor: pointer;
-  transition: color 0.12s ease, transform 0.12s ease;
+  transition: color 0.12s ease, background-color 0.12s ease;
 }
 
 .star-on {
   color: #f5a623;
 }
 
+/* Нажатие видно фоном, а не сжатием: палец на прокрутке задевает звёзды. */
 .star:active {
-  transform: scale(0.88);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .star:disabled {
@@ -2551,10 +2836,6 @@ select.building {
 @media (prefers-reduced-motion: reduce) {
   .star {
     transition: none;
-  }
-
-  .star:active {
-    transform: none;
   }
 }
 
@@ -2597,18 +2878,12 @@ select.building {
   margin: 0;
 }
 
+/* Отборы переносятся по строкам: за краем экрана выбранный отбор не виден. */
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
   padding-bottom: 2px;
-  margin: 0 -16px;
-  padding-inline: 16px;
-}
-
-.filters::-webkit-scrollbar {
-  display: none;
 }
 
 .filters button {
@@ -2817,14 +3092,22 @@ button.link.danger-action {
   background: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
+/* Столбик и его подпись стоят одной колонкой: врозь они разъезжаются. */
 .year {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
   gap: 3px;
   margin: 0 16px;
 }
 
+.month-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
 .month {
-  flex: 1;
   height: 18px;
   border-radius: 3px;
   background: var(--sunk);
@@ -2836,6 +3119,21 @@ button.link.danger-action {
 
 .month-often {
   background: var(--danger);
+}
+
+.month-name {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 10px;
+  text-align: center;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
+/* Текущий месяц читается без счёта столбиков. */
+.month-now .month-name {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .mood {
@@ -3058,18 +3356,6 @@ button.link.danger-action {
     animation-delay: 0.15s;
   }
 
-  .request-row,
-  .guide-errand,
-  .row-split {
-    transition: transform 0.12s ease;
-  }
-
-  .request-row:active,
-  .guide-errand:active,
-  .row-split:active {
-    transform: scale(0.985);
-  }
-
   .spark-bar,
   .pulse span,
   .month {
@@ -3097,7 +3383,9 @@ button.link.danger-action {
     animation-delay: 0.16s;
   }
 
+  /* Ширина пересчитывала бы раскладку каждый кадр, преобразование нет. */
   .bar span {
+    transform-origin: left;
     animation: fill 0.55s cubic-bezier(0.2, 0.7, 0.3, 1);
   }
 
@@ -3117,17 +3405,13 @@ button.link.danger-action {
     animation: row-in 0.2s ease-out both;
   }
 
-  /* Нажатие на раздел видно до того, как экран сменится. */
+  /* Нажатие на раздел видно до того, как экран сменится: цветом, а не размером. */
   .tabs .tab {
-    transition: color 0.12s ease, transform 0.12s ease;
+    transition: color 0.12s ease, opacity 0.12s ease;
   }
 
   .tabs .tab:active {
-    transform: scale(0.94);
-  }
-
-  .tabs .tab-active svg {
-    animation: tab-pop 0.2s ease-out;
+    opacity: 0.55;
   }
 
   /* Сумма к оплате меняется после платежа: смену видно, а не только по цифрам. */
@@ -3136,19 +3420,12 @@ button.link.danger-action {
   }
 
   .badge-count {
-    animation: badge-pop 0.24s cubic-bezier(0.2, 0.8, 0.3, 1.4) both;
+    animation: badge-in 0.2s ease-out both;
   }
 
-  @keyframes tab-pop {
-    50% {
-      transform: scale(1.12);
-    }
-  }
-
-  @keyframes badge-pop {
+  @keyframes badge-in {
     from {
       opacity: 0;
-      transform: scale(0.4);
     }
   }
 
@@ -3167,7 +3444,7 @@ button.link.danger-action {
 
   @keyframes fill {
     from {
-      width: 0;
+      transform: scaleX(0);
     }
   }
 

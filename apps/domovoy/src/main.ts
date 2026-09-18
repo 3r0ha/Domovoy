@@ -7,7 +7,9 @@ import {
   InMemoryRepository,
   createSweeper,
   makeManager,
+  createMockCapitalRepair,
   createMockHandoffs,
+  createMockMeetings,
   createMockHub,
   createMockPayments,
   type Lock,
@@ -187,9 +189,22 @@ const main = async (): Promise<void> => {
       ? createMockHandoffs({ channel: process.env['HANDOFF_CHANNEL']?.trim() || 'mock' })
       : undefined;
 
+  // Сведения о капитальном ремонте: их ведёт региональная программа.
+  const capitalRepair =
+    process.env['CAPITAL_REPAIR'] === 'mock'
+      ? createMockCapitalRepair({ title: process.env['CAPITAL_REPAIR_TITLE']?.trim() || undefined })
+      : undefined;
+
+  // Система собраний собственников: заочное голосование имеет силу только в ней.
+  const meetings =
+    process.env['MEETINGS'] === 'mock'
+      ? createMockMeetings({ title: process.env['MEETINGS_TITLE']?.trim() || 'ГИС ЖКХ' })
+      : undefined;
+
   if (!hub) console.warn('HUB не задан, домофония и датчики не подключены');
   if (!payments) console.warn('PAYMENTS не задан, оплата в приложении недоступна');
   if (!handoffs) console.warn('HANDOFF не задан, передача обращений записывается как ручная');
+  if (!meetings) console.warn('MEETINGS не задан, собрание остаётся подготовкой без передачи в систему');
 
   const vision = meterVisionFromEnv(process.env, (error) =>
     console.error('Не удалось распознать показание с фотографии', error),
@@ -230,6 +245,8 @@ const main = async (): Promise<void> => {
     ...(hub ? { hub } : {}),
     ...(payments ? { payments } : {}),
     ...(handoffs ? { handoffs } : {}),
+    ...(meetings ? { meetings } : {}),
+    ...(capitalRepair ? { capitalRepair } : {}),
     ...(vision ? { vision } : {}),
     ...(reasoner ? { reasoner } : {}),
     ...(lock ? { lock } : {}),
@@ -336,6 +353,8 @@ const main = async (): Promise<void> => {
     ...(hub ? { hub } : {}),
     ...(payments ? { payments } : {}),
     ...(handoffs ? { handoffs } : {}),
+    ...(meetings ? { meetings } : {}),
+    ...(capitalRepair ? { capitalRepair } : {}),
     allowedOrigins,
     web,
     // Пустая переменная и незаданная означают одно и то же.

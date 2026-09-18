@@ -16,6 +16,7 @@ import {
   IconPerson,
   IconPolls,
   IconQueue,
+  IconRepair,
   IconReport,
   IconRequests,
   IconRuble,
@@ -50,6 +51,13 @@ const RESIDENT_EXTRA: readonly Section[] = [
   { screen: 'quality', title: 'Работа дома', hint: 'Как справляется компания', icon: IconReport, tone: 'tile-blue' },
   { screen: 'support', title: 'Поддержка', hint: 'Вопрос в управляющую компанию', icon: IconChat, tone: 'tile-teal' },
   { screen: 'visits', title: 'Приём', hint: 'Запись в управляющую компанию', icon: IconCalendar, tone: 'tile-green' },
+  {
+    screen: 'capital',
+    title: 'Капремонт',
+    hint: 'Что и в каком году делают по программе',
+    icon: IconRepair,
+    tone: 'tile-orange',
+  },
   { screen: 'help', title: 'Помощник', hint: 'Спросите словами, что нужно', icon: IconHelp, tone: 'tile-yellow' },
   { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey' },
 ];
@@ -71,14 +79,14 @@ const CONTRACTOR_EXTRA: readonly Section[] = [
 /** Разделы сотрудника: в панели то, чем пользуются в смену, остальное в «Ещё». */
 const STAFF_SECTIONS: readonly Section[] = [
   { screen: 'queue', title: 'Очередь', hint: 'Заявки дома', icon: IconQueue, tone: 'tile-red' },
-  { screen: 'list', title: 'Работа', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
+  { screen: 'list', title: 'Наряды', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
   { screen: 'home', title: 'Дом', hint: 'Оборудование и журнал', icon: IconKey, tone: 'tile-teal' },
   { screen: 'news', title: 'Новости', hint: 'Лента и публикация', icon: IconNews, tone: 'tile-orange' },
 ];
 
 /** У мастера свои наряды впереди: очередь дома ведёт диспетчер. */
 const TECHNICIAN_SECTIONS: readonly Section[] = [
-  { screen: 'list', title: 'Работа', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
+  { screen: 'list', title: 'Наряды', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
   { screen: 'queue', title: 'Очередь', hint: 'Заявки дома', icon: IconQueue, tone: 'tile-red' },
   { screen: 'home', title: 'Дом', hint: 'Оборудование и журнал', icon: IconKey, tone: 'tile-teal' },
   { screen: 'news', title: 'Новости', hint: 'Лента и публикация', icon: IconNews, tone: 'tile-orange' },
@@ -171,8 +179,8 @@ const STAFF_EXTRA: readonly Section[] = [
   },
   {
     screen: 'import',
-    title: 'Завести дом',
-    hint: 'Квартиры и оборудование',
+    title: 'Карточка дома',
+    hint: 'Контакты, квартиры и оборудование',
     icon: IconBuildings,
     tone: 'tile-teal',
     group: 'Управление',
@@ -192,6 +200,14 @@ const STAFF_EXTRA: readonly Section[] = [
     icon: IconPolls,
     tone: 'tile-green',
     group: 'Своё',
+  },
+  {
+    screen: 'capital',
+    title: 'Капремонт',
+    hint: 'Программа по дому',
+    icon: IconRepair,
+    tone: 'tile-orange',
+    group: 'Дом',
   },
   { screen: 'meters', title: 'Оплата', hint: 'Ваша квитанция', icon: IconMeters, tone: 'tile-yellow', group: 'Своё' },
   {
@@ -216,6 +232,13 @@ const FOR_MANAGER: readonly Screen[] = ['audit', 'import'];
 /** Рассылку ведёт тот, кто отвечает за дом перед жильцами. */
 const FOR_DISPATCHER: readonly Screen[] = ['broadcast'];
 const FOR_BOUND: readonly Screen[] = ['meters', 'quality'];
+
+/**
+ * Разделы про свою квартиру. В рабочем меню смены их нет: сотрудник пришёл
+ * работать по дому, а не платить за себя. В режиме показа они остаются, иначе
+ * проверяющему негде посмотреть жильцовую часть.
+ */
+const RESIDENT_OWN: readonly Screen[] = ['meters', 'quality', 'polls', 'bind'];
 
 export interface Layout {
   /** Все разделы человека по порядку: из них берутся и панель, и «Ещё». */
@@ -296,7 +319,11 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
   };
 
   const ordered = needsBinding ? [flat, ...sections, ...extra] : [...sections, ...extra, flat];
-  const everything = [...ordered, DEMO_SECTION].filter((section) => offeredScreen(section.screen, offer));
+  const everything = [...ordered, DEMO_SECTION].filter(
+    (section) =>
+      offeredScreen(section.screen, offer) &&
+      (!isStaff || contractor || offer.demo === true || !RESIDENT_OWN.includes(section.screen)),
+  );
   const fits = everything.length <= TABS_LIMIT;
   const inBar = fits ? everything : everything.slice(0, TABS_LIMIT - 1);
 

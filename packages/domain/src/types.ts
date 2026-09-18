@@ -4,6 +4,9 @@ export const DEFAULT_TIME_ZONE = 'Europe/Moscow';
 /** Роли участников. Определяют, кто какие переходы заявки может выполнять. */
 export type Role = 'resident' | 'dispatcher' | 'technician' | 'manager' | 'contractor';
 
+/** Все роли списком: из него собираются схемы запросов, чтобы список был один. */
+export const ROLES: readonly Role[] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
+
 /** Что можно отключить. Аварии и свои заявки отключить нельзя. */
 export type NoticeKind = 'meters' | 'works' | 'polls' | 'news';
 
@@ -208,6 +211,8 @@ export type ErrorCode =
   | 'visit_started'
   | 'visit_exists'
   | 'handoff_exists'
+  | 'complaint_exists'
+  | 'escalation_not_possible'
   | 'slot_taken'
   // слишком много или слишком велико
   | 'file_too_large'
@@ -262,6 +267,7 @@ export type ErrorCode =
   | 'apartment_exists'
   | 'apartment_not_bound'
   | 'areas_missing'
+  | 'assignee_required'
   | 'request_stale';
 
 export class DomainError extends Error {

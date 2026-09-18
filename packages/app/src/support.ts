@@ -10,6 +10,7 @@ import {
   isInAudience,
   joinRequest,
   reportersCount,
+  type Apartment,
   type ServiceRequest,
 } from '@domovoy/domain';
 
@@ -17,29 +18,47 @@ import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
+interface Home {
+  apartment: Apartment | undefined;
+  buildingId: string | undefined;
+}
+
+/** Квартира жильца и дом, к которому он относится. */
+const homeOf = async (deps: AppDeps, resident: Resident): Promise<Home> => {
+  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
+
+  return { apartment, buildingId: apartment?.buildingId ?? resident.buildingId };
+};
+
+/** Заявка про дом жильца и про ту его часть, где он живёт. */
+const concerns = (request: ServiceRequest, home: Home): boolean => {
+  if (!home.buildingId || request.buildingId !== home.buildingId) return false;
+
+  const audience = audienceForTarget(request.target);
+
+  if (!audience) return false;
+  if (audience.kind === 'building') return true;
+
+  return home.apartment ? isInAudience(home.apartment, audience) : false;
+};
+
 /**
  * Заявки по общему имуществу, которые касаются этого жильца и заведены не им.
  * Двор, освещение и уборка не считаются аварией.
  */
 export const supportableFor = async (deps: AppDeps, resident: Resident): Promise<ServiceRequest[]> => {
-  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
-  const buildingId = apartment?.buildingId ?? resident.buildingId;
+  const home = await homeOf(deps, resident);
 
-  if (!buildingId) return [];
+  if (!home.buildingId) return [];
 
-  const open = await deps.repository.listRequests({ buildingId, statuses: [...OPEN_STATUSES] });
+  const open = await deps.repository.listRequests({ buildingId: home.buildingId, statuses: [...OPEN_STATUSES] });
 
   return open.filter((request) => {
     if (request.target.kind === 'apartment') return false;
     if (hasReported(request, resident.id)) return false;
     if (request.priority === 'emergency' || isConfirmedIncident(request)) return false;
 
-    const audience = audienceForTarget(request.target);
-
-    if (!audience) return false;
-    if (audience.kind === 'building') return true;
-
-    return apartment ? isInAudience(apartment, audience) : false;
+    return concerns(request, home);
   });
 };
 
@@ -65,6 +84,12 @@ export const supportRequest = async (
   }
 
   if (hasReported(found, resident.id)) return { request: found, reporters: reportersCount(found) };
+
+  // Присоединение даёт доступ к переписке и статусам заявки, поэтому отбор тот же,
+  // что и в списке предлагаемых: чужой дом и чужой подъезд не поддерживают.
+  if (!concerns(found, await homeOf(deps, resident))) {
+    throw new DomainError('forbidden', 'Эта заявка не про ваш дом');
+  }
 
   const saved = await deps.repository.saveRequest(joinRequest(found, resident.id, deps.now()));
   const reporters = reportersCount(saved);

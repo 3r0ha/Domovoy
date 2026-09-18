@@ -104,20 +104,25 @@ export const buildingReport = async (
   }
 
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;
-  const requests = await deps.repository.listRequests({ buildingId });
   const now = deps.now();
+
+  const [requests, inspections] = await Promise.all([
+    deps.repository.listRequests({ buildingId }),
+    deps.repository.listInspections(buildingId),
+  ]);
 
   const period = lastDays(now, days);
   const inPeriod = createdIn(requests, period);
 
   const quality = assigneeQuality(inPeriod);
-  const assignees: NamedQuality[] = [];
 
-  for (const item of quality) {
-    const person = await deps.repository.findResident(item.assigneeId);
+  // Имена исполнителей спрашиваются разом: список коротким не бывает только у большого дома.
+  const people = await Promise.all(quality.map((item) => deps.repository.findResident(item.assigneeId)));
 
-    assignees.push({ ...item, displayName: person?.displayName ?? item.assigneeId });
-  }
+  const assignees: NamedQuality[] = quality.map((item, index) => ({
+    ...item,
+    displayName: people[index]?.displayName ?? item.assigneeId,
+  }));
 
   return {
     buildingId,
@@ -128,7 +133,7 @@ export const buildingReport = async (
     assignees,
     objects: problemObjects(requests),
     incidents: confirmedIncidents(requests),
-    inspections: countInspections(await deps.repository.listInspections(buildingId), period, now),
+    inspections: countInspections(inspections, period, now),
     daily: dailyLoad(inPeriod, period),
   };
 };
@@ -198,18 +203,20 @@ export const requestsTable = async (
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;
   const now = deps.now();
   const period = typeof range === 'number' ? lastDays(now, range) : range;
-  const zone = await zoneOf(deps, buildingId);
-  const requests = createdIn(await deps.repository.listRequests({ buildingId }), period);
+  // Реестр за месяц не читает историю дома за все годы: нижняя граница совпадает с `createdIn`.
+  const [zone, found] = await Promise.all([
+    zoneOf(deps, buildingId),
+    deps.repository.listRequests({ buildingId, createdAfter: period.from }),
+  ]);
 
-  const names = new Map<string, string>();
+  const requests = createdIn(found, period);
 
-  for (const request of requests) {
-    if (!request.assigneeId || names.has(request.assigneeId)) continue;
+  const assigneeIds = [...new Set(requests.flatMap((request) => (request.assigneeId ? [request.assigneeId] : [])))];
+  const people = await Promise.all(assigneeIds.map((id) => deps.repository.findResident(id)));
 
-    const person = await deps.repository.findResident(request.assigneeId);
-
-    names.set(request.assigneeId, person?.displayName ?? request.assigneeId);
-  }
+  const names = new Map<string, string>(
+    assigneeIds.map((id, index) => [id, people[index]?.displayName ?? id]),
+  );
 
   const rows: (string | number)[][] = [...requests]
     .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())

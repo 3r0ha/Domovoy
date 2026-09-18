@@ -1,11 +1,16 @@
 import { CATEGORY_RULES, suggestCategory, suggestPriority, type Priority, type RequestCategory } from '@domovoy/domain';
 
+/** Часть дома, о которой написал человек. */
+export type Place = 'apartment' | 'entrance' | 'house';
+
 /** Что удалось понять из обращения. Сроков тут нет: их считает регламент по категории. */
 export interface Understanding {
   category: RequestCategory;
   priority: Priority;
   /** Оборудование дома, о котором речь: модель выбирает его из списка дома. */
   equipment?: string;
+  /** Где случилось: в квартире, в подъезде или во дворе и доме целиком. */
+  place?: Place;
   /** Короткая суть для списка. */
   title?: string;
   /** Один вопрос, если из описания не понять, что случилось. */
@@ -22,6 +27,8 @@ export interface ReasonedFields {
   question?: string;
   /** Код оборудования дома, о котором речь: из списка, переданного модели. */
   equipment?: string;
+  /** Часть дома, о которой речь: apartment, entrance или house. */
+  place?: string;
 }
 
 /** О чём написал человек: сообщение о поломке или вопрос о доме. */
@@ -74,8 +81,11 @@ export interface Reasoner {
   digest?(facts: string): Promise<string | undefined>;
   /** Помощник по приложению. Модель может метод не поддерживать. */
   assist?(input: AssistInput): Promise<AssistFields | undefined>;
-  /** О доме и продукте ли вопрос. Пусто означает «проверить нечем». */
-  onTopic?(question: string): Promise<boolean | undefined>;
+  /**
+   * О доме и продукте ли вопрос. Пусто означает «проверить нечем».
+   * Роль важна: у смены свой словарь, и «что горит» у неё про сроки заявок.
+   */
+  onTopic?(question: string, forStaff?: boolean): Promise<boolean | undefined>;
   /** Уточняющий вопрос об адресе обращения и варианты кнопками. */
   clarify?(input: ClarifyInput): Promise<ClarifyFields | undefined>;
   /** Поломка это или дело другого раздела. Модель может метод не поддерживать. */
@@ -149,6 +159,8 @@ const guessIntent = (text: string): { intent: Intent; topic: QuestionTopic } => 
 
 const PRIORITIES: readonly string[] = ['planned', 'normal', 'emergency'];
 
+const PLACES: readonly Place[] = ['apartment', 'entrance', 'house'];
+
 const TITLE_MAX = 80;
 const QUESTION_MAX = 120;
 
@@ -208,12 +220,14 @@ export const understandRequest = async (
 
   // Оборудование берётся только из списка дома: выдуманный код приведёт в никуда.
   const equipment = house?.equipment?.find((item) => item.code === read.equipment)?.code;
+  const place = PLACES.find((known) => known === read.place);
 
   return {
     category,
     priority: plain.priority === 'emergency' ? 'emergency' : chosen,
     by: 'model',
     ...(equipment ? { equipment } : {}),
+    ...(place ? { place } : {}),
     ...(title ? { title } : {}),
     ...(question ? { question } : {}),
   };

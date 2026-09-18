@@ -107,7 +107,13 @@ describe('дома компании', () => {
     const request = await complain(FIRST, 0.1);
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: MANAGER, requestId: request.id, to });
+      await transitionRequest(deps, {
+        resident: MANAGER,
+        requestId: request.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: MANAGER.id } : {}),
+        ...(to === 'done' ? { comment: 'Сделано' } : {}),
+      });
     }
 
     await transitionRequest(deps, { resident: RESIDENT, requestId: request.id, to: 'confirmed', rating: 5 });

@@ -6,10 +6,13 @@ import type { FastifyInstance } from 'fastify';
 
 import { InMemoryRepository } from '@domovoy/app';
 
-import { buildServer } from '../dist/index.js';
+import { DEFAULT_LIMIT, buildServer } from '../dist/index.js';
 
 const BOT_TOKEN = 'rate-bot-token';
 const BUILDING_ID = 'b1';
+
+/** Сколько запросов стоит один открытый раздел: список, счётчики и профиль дома. */
+const DEFAULT_SCREEN_REQUESTS = 6;
 
 const initDataFor = (userId: number): Promise<string> =>
   signInitData(
@@ -79,14 +82,74 @@ describe('ограничение частоты запросов', () => {
     await app.close();
   });
 
-  it('чужая сессия за соседа не отвечает', async () => {
+  it('чужой адрес за соседа не отвечает', async () => {
     const { app } = await setup({ requests: { limit: 1, windowMs: 60_000 } });
 
-    await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: 'Bearer first' } });
+    await app.inject({ method: 'GET', url: '/api/me', remoteAddress: '10.0.0.1' });
 
-    const other = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: 'Bearer second' } });
+    const same = await app.inject({ method: 'GET', url: '/api/me', remoteAddress: '10.0.0.1' });
+    const other = await app.inject({ method: 'GET', url: '/api/me', remoteAddress: '10.0.0.2' });
 
+    assert.equal(same.statusCode, 429, 'тот же адрес считается дальше');
     assert.notEqual(other.statusCode, 429);
+
+    await app.close();
+  });
+
+  it('смена заголовка авторизации предел не снимает', async () => {
+    const { app } = await setup({ requests: { limit: 2, windowMs: 60_000 } });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/me',
+        headers: { authorization: `Bearer token-${attempt}` },
+      });
+
+      assert.equal(response.statusCode, 401, `запрос ${attempt + 1} отклонён не той причиной`);
+    }
+
+    const rotated = await app.inject({ method: 'GET', url: '/api/me', headers: { authorization: 'Bearer token-9' } });
+
+    assert.equal(rotated.statusCode, 429, 'счёт идёт от адреса, а не от присланного токена');
+
+    await app.close();
+  });
+
+  it('перебор входа не снимается новым токеном в заголовке', async () => {
+    const { app } = await setup({ login: { limit: 2, windowMs: 60_000 } });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await app.inject({
+        method: 'POST',
+        url: '/auth/session',
+        headers: { 'x-max-init-data': 'подпись=не сошлась', authorization: `Bearer token-${attempt}` },
+      });
+    }
+
+    const rotated = await app.inject({
+      method: 'POST',
+      url: '/auth/session',
+      headers: { 'x-max-init-data': 'подпись=не сошлась', authorization: 'Bearer token-9' },
+    });
+
+    assert.equal(rotated.statusCode, 429);
+
+    await app.close();
+  });
+
+  it('статика приложения и лендинг бюджет живых людей не тратят', async () => {
+    const { app } = await setup({ requests: { limit: 2, windowMs: 60_000 } });
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const response = await app.inject({ method: 'GET', url: '/app/assets/main.js' });
+
+      assert.notEqual(response.statusCode, 429, `файл ${attempt + 1} отклонён пределом`);
+    }
+
+    const api = await app.inject({ method: 'GET', url: '/api/me' });
+
+    assert.notEqual(api.statusCode, 429, 'работа в приложении осталась при своём пределе');
 
     await app.close();
   });
@@ -133,6 +196,22 @@ describe('ограничение частоты запросов', () => {
     await app.close();
   });
 
+  it('передача дома считается дорогим маршрутом', async () => {
+    const { app } = await setup({ requests: { limit: 100, windowMs: 60_000 }, heavy: { limit: 2, windowMs: 60_000 } });
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await app.inject({ method: 'POST', url: '/api/buildings/handover' });
+
+      assert.notEqual(response.statusCode, 429, `передача ${attempt + 1} отклонена преждевременно`);
+    }
+
+    const blocked = await app.inject({ method: 'POST', url: '/api/buildings/handover' });
+
+    assert.equal(blocked.statusCode, 429, 'повторная рассылка дому упирается в предел');
+
+    await app.close();
+  });
+
   it('выгрузки упираются в свой предел раньше обычного', async () => {
     const { app } = await setup({
       requests: { limit: 100, windowMs: 60_000 },
@@ -153,6 +232,22 @@ describe('ограничение частоты запросов', () => {
     const usual = await app.inject({ method: 'GET', url: '/api/me', headers });
 
     assert.notEqual(usual.statusCode, 429, 'обычная работа тем же пределом не закрывается');
+
+    await app.close();
+  });
+
+  it('обычный просмотр разделов подряд в предел по умолчанию не упирается', async () => {
+    const { app } = await setup();
+    const headers = { authorization: 'Bearer someone' };
+
+    // Десять разделов подряд, каждый тянет по несколько запросов.
+    for (let attempt = 0; attempt < 10 * DEFAULT_SCREEN_REQUESTS; attempt += 1) {
+      const response = await app.inject({ method: 'GET', url: '/api/me', headers });
+
+      assert.notEqual(response.statusCode, 429, `запрос ${attempt + 1} отклонён на обычном просмотре`);
+    }
+
+    assert.ok(DEFAULT_LIMIT.limit >= 10 * DEFAULT_SCREEN_REQUESTS, 'предел рассчитан на живого человека');
 
     await app.close();
   });

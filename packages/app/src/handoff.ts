@@ -55,6 +55,16 @@ export interface HandoffReceipt {
 /** Передача без канала: обращение ушло письмом или звонком, факт записан в продукте. */
 export const MANUAL_CHANNEL = 'manual';
 
+/** Как способ передачи называется в журнале: служебных слов там быть не должно. */
+const CHANNEL_TITLES: Readonly<Record<string, string>> = {
+  manual: 'письмом или звонком',
+  mock: 'модельное подключение',
+  email: 'по почте',
+  api: 'через обмен данными',
+};
+
+const channelTitle = (channel: string): string => CHANNEL_TITLES[channel] ?? channel;
+
 /** Кто отвечает за обращение и кому его можно передать. */
 export interface ResponsibilityView {
   responsibility: Responsibility;
@@ -163,7 +173,7 @@ export const passRequest = async (deps: AppDeps, input: PassRequestInput): Promi
     actor: input.staff,
     action: 'request_passed',
     subject: request.number,
-    details: `${partner.title}, канал ${saved.channel}`,
+    details: `${partner.title}, ${channelTitle(saved.channel)}`,
     buildingId: request.buildingId,
   });
 

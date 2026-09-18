@@ -1,8 +1,17 @@
 import { Button, CellAction, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { ApiError, formatDay, formatPublished, needsApartment, type DomovoyApi, type MeterView } from '../api.js';
+import {
+  ApiError,
+  decimal,
+  formatDay,
+  formatPublished,
+  monthName,
+  needsApartment,
+  type DomovoyApi,
+  type MeterView,
+} from '../api.js';
 import { ChargesCard } from './ChargesCard.js';
 import { Empty } from './Empty.js';
 import { Failure } from './Failure.js';
@@ -26,36 +35,18 @@ export interface MetersScreenProps {
   onBind?: () => void;
 }
 
-const MONTHS = [
-  'январь',
-  'февраль',
-  'март',
-  'апрель',
-  'май',
-  'июнь',
-  'июль',
-  'август',
-  'сентябрь',
-  'октябрь',
-  'ноябрь',
-  'декабрь',
-];
-
 /** Месяц и срок подачи. */
 const describePeriod = (
   done: boolean,
   at: Date,
   window: { fromDay: number; toDay: number } | undefined,
 ): string => {
-  const month = MONTHS[at.getMonth()] ?? '';
+  const month = monthName(at.getMonth());
 
   if (done) return `Показания за ${month} поданы`;
 
   return window ? `Показания за ${month} · до ${window.toDay} числа` : `Показания за ${month}`;
 };
-
-/** Дробная часть через запятую: «137,1 м³». */
-const number = (value: number): string => value.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
 
 /** Сколько месяцев прошло с последнего показания. */
 const monthsSince = (at: string | undefined, now: Date): number => {
@@ -91,7 +82,7 @@ const History = ({ api, meter, version }: { api: DomovoyApi; meter: MeterView; v
 
   const max = Math.max(...periods.map((period) => period.consumption));
   const describe = (period: (typeof periods)[number]): string =>
-    `${MONTHS[new Date(period.at).getMonth()] ?? ''} ${number(period.consumption)} ${meter.unit}`;
+    `${monthName(new Date(period.at).getMonth())} ${decimal(period.consumption)} ${meter.unit}`;
 
   return (
     <div className="spark" role="img" aria-label={`Расход по месяцам: ${periods.map(describe).join(', ')}`}>
@@ -128,23 +119,35 @@ const MeterCard = ({
   const [editing, setEditing] = useState(false);
   const photo = usePhotos(api);
 
+  const snapshot = photo.photos.at(-1)?.token;
+  const forget = useRef(photo.reset);
+
+  forget.current = photo.reset;
+
+  // Зависимость по снимку, а не по всему набору: иначе разбор уходил бы на каждый рендер.
   useEffect(() => {
-    const token = photo.photos.at(-1)?.token;
+    if (!snapshot) return undefined;
 
-    if (!token) return;
+    let active = true;
 
-    photo.reset();
+    forget.current();
 
     void api
-      .readMeterPhoto(meter.id, token)
+      .readMeterPhoto(meter.id, snapshot)
       .then((read) => {
+        if (!active) return;
+
         if (read.value === undefined) setError('С фотографии не разобрали, введите цифрами');
         else setValue(String(read.value));
       })
       .catch((reason: unknown) => {
-        setError(reason instanceof ApiError ? reason.message : 'Не удалось разобрать фотографию');
+        if (active) setError(reason instanceof ApiError ? reason.message : 'Не удалось разобрать фотографию');
       });
-  }, [photo, api, meter.id]);
+
+    return () => {
+      active = false;
+    };
+  }, [snapshot, api, meter.id]);
 
   const submit = async (): Promise<void> => {
     const parsed = Number(value.replace(',', '.'));
@@ -177,7 +180,7 @@ const MeterCard = ({
   const was =
     meter.lastValue === undefined
       ? `Показаний ещё не было · ${meter.serial}`
-      : `${number(meter.lastValue)} ${meter.unit}${meter.lastAt ? ` · ${formatPublished(meter.lastAt)}` : ''}`;
+      : `${decimal(meter.lastValue)} ${meter.unit}${meter.lastAt ? ` · ${formatPublished(meter.lastAt)}` : ''}`;
 
   return (
     <CellList mode="island">
@@ -264,7 +267,7 @@ const MeterCard = ({
         <p className={result.spike ? 'error inset' : 'hint inset'} role="status">
           {/* Расход считается от прошлого показания: у первого сравнивать не с чем. */}
           Принято
-          {meter.lastValue === undefined ? '' : ` · расход ${number(result.consumption)} ${meter.unit}`}
+          {meter.lastValue === undefined ? '' : ` · расход ${decimal(result.consumption)} ${meter.unit}`}
           {result.spike ? ' · больше обычного' : ''}
         </p>
       ) : null}

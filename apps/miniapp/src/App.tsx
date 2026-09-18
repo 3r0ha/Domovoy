@@ -1,6 +1,6 @@
 import { Button, MaxUI, useSystemColorScheme } from '@maxhub/max-ui';
 import { useBackButton, useBridgeRequest, useLaunchParams } from '@maxkit/react';
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { DomovoyApi, browserCache, type DeviceView, type Profile, type RoleView } from './api.js';
 import { useHaptics } from './haptics.js';
@@ -27,7 +27,7 @@ import { Tour, type TourStep } from './screens/Tour.js';
 import { IconHome } from './screens/icons.js';
 import { Loading } from './screens/Loading.js';
 import { TabBar } from './screens/TabBar.js';
-import { TopBar } from './screens/TopBar.js';
+import { TopBar, type TopBarProps } from './screens/TopBar.js';
 import { screenBody, type ScreenContext } from './screens/registry.js';
 
 export interface AppProps {
@@ -158,6 +158,7 @@ const screenContext = (input: {
   hidden: Section[];
   waiting: Waiting;
   changed: number;
+  backTitle: string;
   screens: Screens;
   goDeeper: (next: Screen) => void;
   openRequest: (id: string) => void;
@@ -178,6 +179,7 @@ const screenContext = (input: {
   hidden: input.hidden,
   waiting: input.waiting,
   changed: input.changed,
+  backTitle: input.backTitle,
   open: input.screens.open,
   goDeeper: input.goDeeper,
   back: input.screens.back,
@@ -200,8 +202,43 @@ const screenContext = (input: {
   },
 });
 
+/** Название экрана: у объекта, устройства и документа оно своё. */
+const screenTitle = (
+  screen: Screen,
+  named: {
+    objectTitle: string | null;
+    device: DeviceView | null;
+    document: { title: string; text: string } | null;
+    sections: readonly Section[];
+  },
+): string =>
+  titleFor(screen, {
+    object: named.objectTitle,
+    device: named.device?.title ?? null,
+    document: named.document?.title ?? null,
+    section: named.sections.find((section) => section.screen === screen)?.title,
+  });
+
+/** Шапка собирается отдельно: переключатели в ней необязательные. */
+const topBar = (
+  input: Omit<TopBarProps, 'building' | 'apartment' | 'onAssistant'> & {
+    building?: TopBarProps['building'];
+    apartment?: TopBarProps['apartment'];
+    onAssistant?: TopBarProps['onAssistant'];
+  },
+): TopBarProps => ({
+  api: input.api,
+  title: input.title,
+  scrolled: input.scrolled,
+  offline: input.offline,
+  onRefresh: input.onRefresh,
+  ...(input.building ? { building: input.building } : {}),
+  ...(input.apartment ? { apartment: input.apartment } : {}),
+  ...(input.onAssistant ? { onAssistant: input.onAssistant } : {}),
+});
+
 /** Рабочая область: разделы, шапка и переходы между экранами. */
-const Workspace = ({ api, profile, refreshSession, launched, offline }: WorkspaceProps) => {
+const Workspace = ({ api: session, profile, refreshSession, launched, offline }: WorkspaceProps) => {
   const haptics = useHaptics();
   const screens = useScreens();
   const [opened, setOpened] = useState<string | null>(null);
@@ -215,11 +252,18 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
   const [changed, setChanged] = useState(0);
 
   const [building, setBuilding] = useState<{ id: string | null; version: number }>({ id: null, version: 0 });
-  const { apartment, pick } = useApartment(api, () =>
+  const { apartment, pick } = useApartment(session, () =>
     setBuilding((current) => ({ ...current, version: current.version + 1 })),
   );
 
-  api.useBuilding(building.id);
+  session.useBuilding(building.id);
+
+  /**
+   * Смена дома, квартиры и нажатие «Обновить» дают экранам новую ссылку на
+   * клиент: экраны держат её в зависимостях запроса и перечитывают данные,
+   * не теряя набранного и не проигрывая въезд заново.
+   */
+  const api = useMemo(() => session.reread(), [session, building.version, refreshed]);
 
   const offer = offerOf(profile);
   const launchedScreen = linkedScreen(scanned ?? launched, offer);
@@ -227,17 +271,27 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
   // и незнакомый раздел просто открывает приложение с начала.
   const startParam = isSectionParam(scanned ?? launched) ? undefined : (scanned ?? launched);
   const scrolled = useScrolled();
-  const waiting = useWaiting(api, profile.role, changed + building.version + refreshed);
+  const waiting = useWaiting(api, profile.role, changed);
   const home = startScreen(profile);
-  const { tour, endTour } = useTour(
-    layoutSections(profile.role, profile.apartmentId !== null, offer).tabs,
-    offer.demo,
+  const bound = profile.apartmentId !== null;
+  const isStaff = profile.role !== 'resident';
+
+  // Раскладка разделов держится за одну ссылку: на неё смотрит подсветка тура.
+  const layout = useMemo(
+    () => layoutSections(profile.role, bound, offer),
+    // Состав установки за время сессии не меняется, поэтому в ключе только его признаки.
+    [profile.role, bound, offer.doors, offer.reception, offer.files, offer.demo],
   );
 
+  // Тур ждёт квартиру: без неё вкладки пустые, а первый шаг повторял бы заголовок экрана.
+  const { tour, endTour } = useTour(layout.tabs, offer.demo, isStaff || bound);
+
+  const { seed } = screens;
+
   useEffect(() => {
-    if (launchedScreen) screens.seed([home, launchedScreen]);
-    else if (startParam) screens.seed([home, 'object']);
-  }, [launchedScreen, startParam, home, screens]);
+    if (launchedScreen) seed([home, launchedScreen]);
+    else if (startParam) seed([home, 'object']);
+  }, [launchedScreen, startParam, home, seed]);
 
   useBack(tip, () => setTip(false), screens);
 
@@ -252,8 +306,6 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
     screens.open(screen);
   };
 
-  const isStaff = profile.role !== 'resident';
-  const bound = profile.apartmentId !== null;
   const screen = screens.top ?? home;
 
   /** Переход вглубь: «назад» вернёт туда, откуда пришли. Подсказка открывается поверх. */
@@ -279,14 +331,12 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
   };
 
   const homeScreen = HOME_SCREENS.includes(screen);
-  const { everything, tabs, hidden } = layoutSections(profile.role, bound, offer);
+  const { everything, tabs, hidden } = layout;
 
-  const title = titleFor(screen, {
-    object: objectTitle,
-    device: device?.title ?? null,
-    document: document?.title ?? null,
-    section: everything.find((section) => section.screen === screen)?.title,
-  });
+  const title = screenTitle(screen, { objectTitle, device, document, sections: everything });
+  const backTitle = screens.under
+    ? screenTitle(screens.under, { objectTitle, device, document, sections: everything }) || 'Назад'
+    : 'Назад';
 
   const picksBuilding = isStaff && !screens.deep && !homeScreen;
   const picksApartment = homeScreen || (!isStaff && !screens.deep);
@@ -301,6 +351,7 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
     hidden,
     waiting,
     changed,
+    backTitle,
     screens,
     goDeeper,
     openRequest,
@@ -313,45 +364,37 @@ const Workspace = ({ api, profile, refreshSession, launched, offline }: Workspac
     setBuilding,
   });
 
-  const head = {
+  const head = topBar({
     api,
     title,
     scrolled,
     offline,
-    ...(picksBuilding
+    building: picksBuilding
       ? {
-          building: {
-            value: building.id,
-            onChange: (id: string | null) => setBuilding((current) => ({ id, version: current.version + 1 })),
-          },
+          value: building.id,
+          onChange: (id: string | null) => setBuilding((current) => ({ id, version: current.version + 1 })),
         }
-      : {}),
-    ...(picksApartment ? { apartment: { value: apartment, onChange: pick } } : {}),
-    onRefresh: (): void => {
+      : undefined,
+    apartment: picksApartment ? { value: apartment, onChange: pick } : undefined,
+    onRefresh: () => {
       haptics.picked();
       setRefreshed((version) => version + 1);
     },
     // Помощник появляется в шапке после согласия: до него вопрос обрабатывать нечем.
-    ...(agreed
-      ? {
-          onAssistant: (): void => {
-            haptics.picked();
-            setTip(true);
-          },
+    onAssistant: agreed
+      ? () => {
+          haptics.picked();
+          setTip(true);
         }
-      : {}),
-  };
+      : undefined,
+  });
 
   return (
     <Shell>
       <main>
         <TopBar {...head} />
 
-        {/* Ключ перемонтирует экран, поэтому на форме заявки он не меняется:
-            иначе нажатие «Обновить» стёрло бы набранный текст и снимки. */}
-        <Fragment key={screen === 'new' ? 'new' : `${screen}-${building.version}-${refreshed}`}>
-          {screenBody(screen, context)}
-        </Fragment>
+        {screenBody(screen, context)}
       </main>
 
       <TabBar sections={tabs} current={screen} waiting={waiting} hidden={hidden} onPick={openTab} />

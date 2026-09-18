@@ -13,6 +13,7 @@ import {
 } from '../dist/index.js';
 
 const BUILDING_ID = 'b1';
+const SECOND = 'b2';
 const NOW = new Date('2026-09-20T09:00:00Z');
 const HOUR = 60 * 60 * 1000;
 
@@ -49,6 +50,15 @@ const store = (initial: SweepState = {}): SweepStore & { state: SweepState } => 
 const breaking = (repository: Repository, method: keyof Repository): Repository =>
   Object.assign(Object.create(Object.getPrototypeOf(repository) as object) as Repository, repository, {
     [method]: () => Promise.reject(new Error('база недоступна')),
+  });
+
+/** Тот же репозиторий, но работы одного дома прочитать не удаётся. */
+const breakingWorksIn = (repository: Repository, buildingId: string): Repository =>
+  Object.assign(Object.create(Object.getPrototypeOf(repository) as object) as Repository, repository, {
+    listWorksBetween: (house: string, from: Date, to: Date) =>
+      house === buildingId
+        ? Promise.reject(new Error('база недоступна'))
+        : repository.listWorksBetween(house, from, to),
   });
 
 const setup = async () => {
@@ -88,6 +98,24 @@ const setup = async () => {
 };
 
 const since = (): SweepState => ({ checkedUntil: new Date(NOW.getTime() - 30 * HOUR).toISOString() });
+
+/** Работы, о которых жильцам дома положено узнать за сутки. */
+const plannedWorks = async (deps: { repository: Repository }, buildingId: string): Promise<void> => {
+  await deps.repository.saveAnnouncement({
+    id: `ann-${buildingId}`,
+    buildingId,
+    audience: { kind: 'building' },
+    title: 'Замена задвижки',
+    body: 'Воды не будет',
+    createdAt: new Date(NOW.getTime() - 40 * HOUR),
+    recipientIds: [],
+    works: {
+      category: 'plumbing',
+      from: new Date(NOW.getTime() + HOUR),
+      until: new Date(NOW.getTime() + 5 * HOUR),
+    },
+  });
+};
 
 describe('регулярный обход', () => {
   it('сдвигает окно только после удачного прохода', async () => {
@@ -152,6 +180,45 @@ describe('регулярный обход', () => {
 
     assert.equal(first, second, 'оба ждут один проход');
     assert.equal(first?.overdue, 1, 'о сроке сказали один раз');
+  });
+
+  it('отказ по одному дому не заставляет повторять рассылку по другим', async () => {
+    const { deps, sent } = await setup();
+    const kept = store(since());
+
+    // Второй дом со своими жильцами и своими работами.
+    await deps.repository.saveBuilding({ id: SECOND, code: 'Д2', address: 'ул. Ленина, 2' });
+    await deps.repository.saveApartment({ id: 'apt-2', buildingId: SECOND, number: 1, entrance: 1, riser: 1 });
+    await deps.repository.saveResident({
+      id: 'res-2',
+      maxUserId: 1002,
+      displayName: 'Пётр',
+      role: 'resident',
+      apartmentId: 'apt-2',
+      buildingId: SECOND,
+    });
+
+    for (const house of [BUILDING_ID, SECOND]) await plannedWorks(deps, house);
+
+    const failed = await createSweeper({ ...deps, repository: breakingWorksIn(deps.repository, SECOND) }, {
+      store: kept,
+    }).run();
+
+    assert.equal(failed.works, 1, 'первый дом предупреждён');
+    assert.equal(failed.failures.length, 1, 'второй дом не обошли');
+    assert.equal(typeof kept.state.worksUntil?.[BUILDING_ID], 'string');
+
+    const repeated = await createSweeper(deps, { store: kept }).run();
+
+    assert.equal(repeated.works, 1, 'повторно пошёл только тот дом, который упал');
+
+    const warned = sent.filter((item) => item.text.startsWith('Завтра плановые работы'));
+
+    assert.deepEqual(
+      warned.map((item) => item.maxUserId).sort(),
+      [1001, 1002],
+      'каждый жилец предупреждён один раз',
+    );
   });
 
   it('отметки прошлого дня не мешают сегодняшним', async () => {

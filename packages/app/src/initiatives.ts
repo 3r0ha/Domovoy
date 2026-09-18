@@ -3,6 +3,7 @@ import {
   INITIATIVE_SHARE,
   sign,
   standingOf,
+  type Apartment,
   type Initiative,
   type InitiativeStanding,
   type Poll,
@@ -94,9 +95,7 @@ const announce = async (deps: AppDeps, initiative: Initiative): Promise<void> =>
       resident,
       `Сосед предлагает: ${initiative.title}\n\n${initiative.question}`,
       [],
-      undefined,
-      undefined,
-      initiative.id,
+      { signAbout: initiative.id },
     );
   }
 };
@@ -112,8 +111,14 @@ export interface InitiativeView {
   author: boolean;
 }
 
-const describe = async (deps: AppDeps, initiative: Initiative, resident: Resident): Promise<InitiativeView> => {
-  const apartments = await deps.repository.listApartments(initiative.buildingId);
+/** Квартиры дома передаются готовыми там, где их уже прочитали. */
+const describe = async (
+  deps: AppDeps,
+  initiative: Initiative,
+  resident: Resident,
+  known?: readonly Apartment[],
+): Promise<InitiativeView> => {
+  const apartments = known ?? (await deps.repository.listApartments(initiative.buildingId));
 
   return {
     initiative,
@@ -129,8 +134,14 @@ export const listInitiativesFor = async (deps: AppDeps, resident: Resident): Pro
   const views: InitiativeView[] = [];
 
   for (const buildingId of await housesOf(deps, resident)) {
-    for (const initiative of await deps.repository.listInitiatives(buildingId)) {
-      views.push(await describe(deps, initiative, resident));
+    const initiatives = await deps.repository.listInitiatives(buildingId);
+
+    if (initiatives.length === 0) continue;
+
+    const apartments = await deps.repository.listApartments(buildingId);
+
+    for (const initiative of initiatives) {
+      views.push(await describe(deps, initiative, resident, apartments));
     }
   }
 
@@ -164,7 +175,7 @@ export const supportInitiative = async (deps: AppDeps, command: SignCommand): Pr
     sign({ initiative: found, apartment, residentId: command.resident.id, at: deps.now() }),
   );
 
-  const view = await describe(deps, saved, command.resident);
+  const view = await describe(deps, saved, command.resident, apartments);
 
   if (!before.enough && view.standing.enough) await demand(deps, saved);
 

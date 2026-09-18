@@ -14,10 +14,11 @@ import {
   TARIFF_KINDS,
   type TariffKind,
 } from '@domovoy/app';
-import { BASIS, DomainError, roundMoney } from '@domovoy/domain';
+import { DomainError, basisFor, isCompanyStaff, roundMoney } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import {
-  buildingIdSchema,
+  buildingQuerySchema,
+  idParamsSchema,
   serializeTariff,
   tariffSchema,
 } from '../serialize.js';
@@ -39,10 +40,12 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       // Начисленное по нормативу и пени считает продукт: основание идёт рядом с суммой.
       const byNorm = charges.lines.some((line) => line.basis === 'norm');
 
+      const staff = isCompanyStaff(resident.role);
+
       const bases: string[] = [
-        ...(byNorm ? [BASIS.norm, BASIS.typicalNorm] : []),
-        ...(debt.penalty > 0 ? [BASIS.penalty] : []),
-      ];
+        ...(byNorm ? [basisFor('norm', staff), basisFor('typicalNorm', staff)] : []),
+        ...(debt.penalty > 0 ? [basisFor('penalty', staff)] : []),
+      ].filter((line): line is string => Boolean(line));
 
       return {
         ...charges,
@@ -110,7 +113,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/debtors',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
@@ -150,6 +153,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/debtors/:id/remind',
       {
         schema: {
+          params: idParamsSchema,
           response: {
             200: { type: 'object', required: ['displayName'], properties: { displayName: { type: 'string' } } },
           },
@@ -167,7 +171,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/tariffs',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: tariffSchema },
         },
       },
@@ -186,10 +190,11 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/tariffs',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['kind', 'value'],
+            additionalProperties: false,
             properties: {
               kind: { type: 'string', enum: TARIFF_KINDS },
               value: { type: 'number', minimum: 0 },

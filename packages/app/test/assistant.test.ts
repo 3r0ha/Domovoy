@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  ASSISTANT_STARTERS,
   InMemoryRepository,
+  OFF_TOPIC,
+  OFF_TOPIC_STAFF,
   askAssistant,
   capabilitiesFor,
+  capabilityFor,
   createServiceRequest,
   findCapability,
+  startersFor,
   submitProblem,
   type AppDeps,
   type Reasoner,
@@ -29,6 +34,14 @@ const dispatcher: Resident = {
   maxUserId: 2001,
   displayName: 'Ольга',
   role: 'dispatcher',
+  buildingId: BUILDING_ID,
+};
+
+const technician: Resident = {
+  id: 'tech-1',
+  maxUserId: 2002,
+  displayName: 'Сергей',
+  role: 'technician',
   buildingId: BUILDING_ID,
 };
 
@@ -129,6 +142,175 @@ describe('помощник по приложению', () => {
 
     assert.equal(answer.by, 'keywords');
     assert.equal(answer.screen, 'home');
+  });
+});
+
+describe('помощник смены', () => {
+  it('на слова о работе смены отвечает разделами смены', async () => {
+    const deps = setup();
+
+    const queue = await askAssistant(deps, dispatcher, 'Что горит в очереди?');
+
+    assert.equal(queue.screen, 'queue');
+    assert.match(queue.answer, /Очередь дома/);
+
+    const assign = await askAssistant(deps, dispatcher, 'Как назначить исполнителя?');
+
+    assert.equal(assign.screen, 'queue');
+
+    const handoff = await askAssistant(deps, dispatcher, 'Как передать обращение смежной организации?');
+
+    assert.equal(handoff.screen, 'queue');
+
+    const cast = await askAssistant(deps, dispatcher, 'Как разослать объявление жильцам?');
+
+    assert.equal(cast.screen, 'broadcast');
+
+    const orders = await askAssistant(deps, technician, 'Какие наряды на мне?');
+
+    assert.equal(orders.screen, 'list');
+    assert.match(orders.answer, /наряд/i);
+  });
+
+  it('заявка у смены называется заявкой по звонку, а не формой жильца', async () => {
+    const deps = setup();
+
+    assert.equal(capabilityFor('new', 'resident')?.title, 'Сообщить о поломке');
+    assert.equal(capabilityFor('new', 'dispatcher')?.title, 'Заявка по звонку');
+    assert.equal(capabilityFor('list', 'technician')?.title, 'Мои наряды');
+
+    const answer = await askAssistant(deps, dispatcher, 'Как завести заявку по звонку?');
+
+    assert.equal(answer.screen, 'new');
+    assert.match(answer.answer, /за жильца/);
+  });
+
+  it('непонятный вопрос смене уводит в очередь, а не в список заявок', async () => {
+    const deps = setup();
+
+    const answer = await askAssistant(deps, dispatcher, 'ыыы');
+
+    assert.equal(answer.screen, 'queue');
+    assert.match(answer.answer, /очередь дома/i);
+  });
+
+  it('посторонняя просьба отклоняется словами роли', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+      assist: () => Promise.resolve({ answer: 'Вот рецепт борща.' }),
+    });
+
+    const toStaff = await askAssistant(deps, dispatcher, 'Свари борщ');
+
+    assert.equal(toStaff.offTopic, true);
+    assert.equal(toStaff.answer, OFF_TOPIC_STAFF);
+    assert.equal(toStaff.screen, undefined, 'сотруднику с посторонним вопросом идти некуда');
+
+    const toResident = await askAssistant(deps, maria, 'Свари борщ');
+
+    assert.equal(toResident.answer, OFF_TOPIC);
+    assert.equal(toResident.title, 'Вопрос в управляющую организацию');
+  });
+
+  it('рабочий вопрос смены не считается посторонним, даже если модель так решила', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+      assist: () => Promise.resolve({ answer: 'Просрочена одна заявка, срок вышел час назад.', screen: 'queue' }),
+    });
+
+    const answer = await askAssistant(deps, dispatcher, 'Что горит?');
+
+    assert.equal(answer.offTopic, undefined);
+    assert.equal(answer.screen, 'queue');
+    assert.match(answer.answer, /Просрочена/);
+  });
+
+  it('спрошенное словами роли доходит до ответа: стартовые вопросы не отбиваются', async () => {
+    const asked: string[] = [];
+
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+      assist: (input) => {
+        asked.push(input.question);
+        return Promise.resolve({ answer: 'Ответ по делу.' });
+      },
+    });
+
+    for (const role of ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] as const) {
+      for (const starter of startersFor(role)) {
+        const who: Resident = { ...maria, role };
+        const answer = await askAssistant(deps, who, starter);
+
+        assert.equal(answer.offTopic, undefined, `«${starter}» у роли ${role} принят за посторонний вопрос`);
+      }
+    }
+
+    assert.ok(asked.length > 0);
+  });
+
+  it('смайлик и одно слово не получают отказ, а просьбу сказать словами', async () => {
+    let asked = 0;
+
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(false),
+      assist: () => {
+        asked += 1;
+        return Promise.resolve({ answer: 'Ответ модели.' });
+      },
+    });
+
+    for (const question of ['🚽💧', 'когда', '???']) {
+      const answer = await askAssistant(deps, maria, question);
+
+      assert.equal(answer.offTopic, undefined, `«${question}» отклонён как посторонний`);
+      assert.equal(answer.by, 'keywords');
+    }
+
+    assert.equal(asked, 0, 'на такое модель не зовут');
+  });
+
+  it('сумма, которой нет в фактах, ответ не проходит', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(true),
+      assist: () => Promise.resolve({ answer: 'Ваш долг 22 799,08 ₽.', screen: 'meters' }),
+    });
+
+    const answer = await askAssistant(deps, maria, 'Сколько я должна?');
+
+    assert.equal(answer.by, 'keywords', 'придуманная сумма отбрасывает весь ответ');
+    assert.doesNotMatch(answer.answer, /22 799/);
+  });
+
+  it('кавычки в ответе приводятся к одним', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      onTopic: () => Promise.resolve(true),
+      assist: () => Promise.resolve({ answer: "Откройте раздел 'Показания и квитанция'.", screen: 'meters' }),
+    });
+
+    const answer = await askAssistant(deps, maria, 'Где передать показания?');
+
+    assert.match(answer.answer, /«Показания и квитанция»/);
+  });
+
+  it('стартовые вопросы зависят от роли', () => {
+    assert.deepEqual(startersFor('resident'), [...ASSISTANT_STARTERS.resident]);
+    assert.notDeepEqual(startersFor('dispatcher'), startersFor('resident'));
+
+    for (const role of ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] as const) {
+      const starters = startersFor(role);
+
+      assert.ok(starters.length >= 3, `у роли ${role} должно быть с чего начать`);
+
+      for (const starter of starters) {
+        assert.ok(findCapability(starter, role), `${role}: «${starter}» никуда не ведёт`);
+      }
+    }
   });
 });
 

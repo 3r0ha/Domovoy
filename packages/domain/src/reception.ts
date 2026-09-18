@@ -59,9 +59,15 @@ interface LocalParts {
   weekday: number;
 }
 
-/** Местные части момента в часовом поясе дома. */
-export const partsIn = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): LocalParts => {
-  const parts = new Intl.DateTimeFormat('en-GB', {
+/** Форматтер стоит дорого, а сетка приёма зовёт его на каждый слот. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+const formatterFor = (timeZone: string): Intl.DateTimeFormat => {
+  const known = formatters.get(timeZone);
+
+  if (known) return known;
+
+  const created = new Intl.DateTimeFormat('en-GB', {
     timeZone,
     hour12: false,
     year: 'numeric',
@@ -70,7 +76,16 @@ export const partsIn = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): LocalPa
     hour: '2-digit',
     minute: '2-digit',
     weekday: 'short',
-  }).formatToParts(at);
+  });
+
+  formatters.set(timeZone, created);
+
+  return created;
+};
+
+/** Местные части момента в часовом поясе дома. */
+export const partsIn = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): LocalParts => {
+  const parts = formatterFor(timeZone).formatToParts(at);
 
   const value = (type: string): string => parts.find((part) => part.type === type)?.value ?? '';
   const weekday = WEEKDAYS.indexOf(value('weekday').toLowerCase().slice(0, 3)) + 1;
@@ -211,14 +226,21 @@ export interface BookVisitInput {
   slots: readonly Date[];
 }
 
-/** Новая запись на приём. @throws {DomainError} */
-export const bookVisit = (input: BookVisitInput): Visit => {
-  const topic = input.topic.trim();
+/** С чем пришли: тема записи. @throws {DomainError} */
+const checkTopic = (given: string): string => {
+  const topic = given.trim();
 
   if (topic.length === 0) throw new DomainError('topic_empty', 'Напишите, с чем придёте');
   if (topic.length > TOPIC_MAX_LENGTH) {
     throw new DomainError('topic_too_long', `Тема длиннее ${TOPIC_MAX_LENGTH} знаков`);
   }
+
+  return topic;
+};
+
+/** Новая запись на приём. @throws {DomainError} */
+export const bookVisit = (input: BookVisitInput): Visit => {
+  const topic = checkTopic(input.topic);
 
   if (!input.slots.some((slot) => slot.getTime() === input.at.getTime())) {
     throw new DomainError('slot_taken', 'Это время уже занято или приём в него не ведётся');
@@ -234,6 +256,48 @@ export const bookVisit = (input: BookVisitInput): Visit => {
     status: 'booked',
     createdAt: input.now,
   };
+};
+
+export interface WriteVisitInput {
+  id: string;
+  buildingId: string;
+  residentId: string;
+  /** Когда пришли или придут. */
+  at: Date;
+  minutes?: number;
+  topic: string;
+  now: Date;
+}
+
+/**
+ * Запись, которую делает сотрудник. Приёмные часы не проверяются: пришедшего
+ * без записи записывают тем временем, когда он пришёл. Прошедшее время
+ * означает, что приём уже состоялся. @throws {DomainError}
+ */
+export const writeVisit = (input: WriteVisitInput): Visit => ({
+  id: input.id,
+  buildingId: input.buildingId,
+  residentId: input.residentId,
+  at: input.at,
+  minutes: input.minutes ?? VISIT_MINUTES,
+  topic: checkTopic(input.topic),
+  status: input.at.getTime() > input.now.getTime() ? 'booked' : 'done',
+  createdAt: input.now,
+});
+
+/** Границы длительности приёма. */
+export const VISIT_MINUTES_RANGE = { min: 5, max: 240 } as const;
+
+/** Сколько длится один приём. @throws {DomainError} */
+export const checkVisitMinutes = (minutes: number): number => {
+  if (!Number.isInteger(minutes) || minutes < VISIT_MINUTES_RANGE.min || minutes > VISIT_MINUTES_RANGE.max) {
+    throw new DomainError(
+      'reception_invalid',
+      `Приём длится от ${VISIT_MINUTES_RANGE.min} до ${VISIT_MINUTES_RANGE.max} минут`,
+    );
+  }
+
+  return minutes;
 };
 
 /** Запись отменена: время снова свободно. */

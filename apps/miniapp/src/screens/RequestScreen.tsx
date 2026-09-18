@@ -5,11 +5,16 @@ import { useState } from 'react';
 import {
   ApiError,
   describeFailure,
+  formatDay,
+  formatDue,
   formatLeft,
   formatPublished,
+  formatSince,
   plural,
   statusTitle,
   tight,
+  type ComplaintOffer,
+  type ComplaintSent,
   type DomovoyApi,
   type HistoryEventView,
   type RequestView,
@@ -23,6 +28,7 @@ import { Attachments } from './Attachments.js';
 import { Composer } from './Composer.js';
 import { RequestActions } from './RequestActions.js';
 import { Clarify } from './Clarify.js';
+import { Confirm } from './Confirm.js';
 import { Responsibility } from './Responsibility.js';
 import { Skeleton } from './Skeleton.js';
 import { IconStar } from './icons.js';
@@ -35,6 +41,14 @@ export interface RequestScreenProps {
   onDocument: (title: string, text: string) => void;
   /** Заявка изменилась: список под ней перечитывается при уходе с экрана. */
   onChanged?: () => void;
+  /** Вернуться к списку, из которого заявку открыли. */
+  onBack?: () => void;
+  /** Как называется этот список: «в очередь», «к заявкам». */
+  backTitle?: string;
+  /** Кто смотрит: он же берёт наряд на себя. */
+  meId?: string;
+  /** Роль сама выполняет работу: мастер и подрядчик уходят в работу без выбора. */
+  selfAssigned?: boolean;
 }
 
 const CLOSED = ['confirmed', 'rejected'];
@@ -56,12 +70,25 @@ const deadline = (request: RequestView): string => {
   if (request.status === 'rejected') return 'отклонена';
   if (CLOSED.includes(request.status)) return 'закрыта';
   if (request.status === 'done') {
-    return request.autoConfirmAt ? `примем сами через ${formatLeft(request.autoConfirmAt)}` : 'ждём вашей приёмки';
+    return request.autoConfirmAt
+      ? `закроется сама через ${formatLeft(request.autoConfirmAt)}`
+      : 'ждём вашей приёмки';
   }
 
-  if (request.overdue) return request.status === 'new' ? 'ответ просрочен' : 'срок нарушен';
+  if (request.overdue) return `просрочено ${formatSince(request.dueAt)}`;
 
   return request.status === 'new' ? `ответ через ${formatLeft(request.dueAt)}` : `осталось ${formatLeft(request.dueAt)}`;
+};
+
+/** Ближайший срок числом и часом: он же стоит в полосе над ним. */
+const dueLine = (request: RequestView): string | null => {
+  if (CLOSED.includes(request.status) || request.status === 'withdrawn') return null;
+
+  const when = formatDue(request.status === 'new' ? request.dueAt : request.resolutionDueAt);
+
+  if (!when) return null;
+
+  return request.status === 'new' ? `Срок ответа: ${when}` : `Срок работ: ${when}`;
 };
 
 /** Полоса срока. У нарушенного её нет. */
@@ -100,19 +127,34 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
 
   if (answered === 0) return null;
 
+  const shown = new Set((view.survey ?? []).map((flat) => flat.state));
+  const states = (['affected', 'fine', 'silent'] as const).filter((state) => shown.has(state));
+
   return (
-    <div className="survey" aria-label="Опрос соседей">
-      <div className={spread.verdict === 'shared' ? 'pipe pipe-alert' : 'pipe'}>
-        <div className="flats">
-          {[...(view.survey ?? [])].reverse().map((flat) => (
-            <span key={flat.number} className={`flat flat-${flat.state}`} title={SURVEY_TITLES[flat.state]}>
-              {flat.number}
+    <div className="survey-block">
+      {/* Столбик квартир без подписи читается как набор цифр: рядом стоит, что он значит. */}
+      <p className="hint survey-note">Соседи по стояку · {VERDICTS[spread.verdict]}</p>
+
+      <div className="survey" aria-label="Опрос соседей">
+        <div className={spread.verdict === 'shared' ? 'pipe pipe-alert' : 'pipe'}>
+          <div className="flats">
+            {[...(view.survey ?? [])].reverse().map((flat) => (
+              <span key={flat.number} className={`flat flat-${flat.state}`} title={SURVEY_TITLES[flat.state]}>
+                {flat.number}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <p className="legend hint">
+          {states.map((state) => (
+            <span key={state}>
+              <span className={`flat flat-${state}`} aria-hidden="true" />
+              {SURVEY_TITLES[state]}
             </span>
           ))}
-        </div>
+        </p>
       </div>
-
-      <span className="hint">{VERDICTS[spread.verdict]}</span>
     </div>
   );
 };
@@ -197,7 +239,7 @@ const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestVie
       before,
       0,
       <li key="due" className={missed ? 'due-mark due-missed' : 'due-mark'}>
-        <span className="status">{missed ? 'Срок вышел' : 'Срок'}</span>{' '}
+        <span className="status">{missed ? 'Просрочено' : 'Срок'}</span>{' '}
         <time>{formatPublished(request.resolutionDueAt)}</time>
       </li>,
     );
@@ -240,7 +282,7 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
         <CellSimple
           className="row-split"
           title="У вас то же самое?"
-          subtitle="Отдельная заявка не нужна: подтверждение добавит голос к этой"
+          subtitle="Добавим ваш голос к этой заявке"
           height="compact"
         />
 
@@ -487,22 +529,19 @@ const Complaint = ({
   request: RequestView;
   onDocument: (title: string, text: string) => void;
 }) => {
-  const [reason, setReason] = useState<string | null>(null);
-  const [checked, setChecked] = useState(false);
+  const [offer, setOffer] = useState<ComplaintOffer | null>(null);
+  const [sent, setSent] = useState<ComplaintSent | null>(null);
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  const say = useToast();
 
   const check = async (): Promise<void> => {
     setBusy(true);
     setFailed(null);
 
     try {
-      const offer = await api.complaint(request.id);
-
-      setChecked(true);
-      setReason(offer.reason);
-
-      if (offer.complaint) onDocument('Обращение в жилинспекцию', offer.complaint);
+      setOffer(await api.complaint(request.id));
     } catch (error) {
       // Отказ проверки кнопку не убирает: попробовать ещё раз есть чем.
       setFailed(error instanceof ApiError ? error.message : 'Не удалось проверить сроки');
@@ -511,17 +550,88 @@ const Complaint = ({
     }
   };
 
+  /** Письмо в орган власти уходит только после согласия человека. */
+  const send = async (): Promise<void> => {
+    setBusy(true);
+    setFailed(null);
+
+    try {
+      const receipt = await api.sendComplaint(request.id);
+
+      setSent(receipt);
+      setAsking(false);
+      say('Обращение отправлено');
+    } catch (error) {
+      setFailed(error instanceof ApiError ? error.message : 'Обращение не ушло');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!request.overdue) return null;
+
+  const done = sent ?? offer?.sent;
 
   return (
     <div className="complaint">
-      {checked ? null : (
+      {offer || done ? null : (
         <button type="button" className="link quiet" disabled={busy} onClick={() => void check()}>
           {busy ? 'Проверяем сроки…' : 'Пожаловаться в жилинспекцию'}
         </button>
       )}
 
-      {checked && reason ? <p className="hint">{reason}</p> : null}
+      {done ? (
+        <p className="hint">
+          Отправлено: {done.organization}
+          {done.externalId ? `, обращение ${done.externalId}` : ''}. Ответ до {formatDay(done.dueAt)}.
+        </p>
+      ) : null}
+
+      {offer && !done ? <p className="hint">{offer.reason}</p> : null}
+
+      {/* Отправку человек видит там же, где узнал об основании: текст открывается
+          отдельно и только если он хочет его прочитать. */}
+      {offer?.possible && !done ? (
+        <div className="actions">
+          <Button type="button" stretched size="large" disabled={busy} onClick={() => setAsking(true)}>
+            Отправить жалобу
+          </Button>
+
+          {offer.complaint ? (
+            <button
+              type="button"
+              className="link"
+              onClick={() => onDocument('Жалоба в жилинспекцию', offer.complaint ?? '')}
+            >
+              Прочитать жалобу
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Текст обращения остаётся доступным и после отправки: его иногда просят приложить. */}
+      {done && offer?.complaint ? (
+        <button
+          type="button"
+          className="link"
+          onClick={() => onDocument('Жалоба в жилинспекцию', offer.complaint ?? '')}
+        >
+          Прочитать жалобу
+        </button>
+      ) : null}
+
+      {asking ? (
+        <Confirm
+          title="Отправить жалобу?"
+          text="Уйдёт в жилинспекцию от вашего имени. Ответ в течение 30 дней."
+          confirmLabel="Отправить"
+          busyLabel="Отправляем…"
+          busy={busy}
+          onConfirm={() => void send()}
+          onCancel={() => setAsking(false)}
+        />
+      ) : null}
+
       {failed ? <ErrorText>{failed}</ErrorText> : null}
     </div>
   );
@@ -542,7 +652,17 @@ const Contact = ({ api, id }: { api: DomovoyApi; id: string }) => {
   );
 };
 
-export const RequestScreen = ({ api, id, staff, onDocument, onChanged }: RequestScreenProps) => {
+export const RequestScreen = ({
+  api,
+  id,
+  staff,
+  onDocument,
+  onChanged,
+  onBack,
+  backTitle,
+  meId,
+  selfAssigned,
+}: RequestScreenProps) => {
   const request = useBridgeRequest(() => api.getRequest(id), [api, id]);
   const people = useBridgeRequest(async () => (staff ? api.staff().catch(() => []) : []), [api, staff]);
 
@@ -560,9 +680,16 @@ export const RequestScreen = ({ api, id, staff, onDocument, onChanged }: Request
   const view = request.data;
   const mine = !staff && view.mine !== false;
   const watching = !staff && view.mine === false;
+  const due = dueLine(view);
 
   return (
     <div className="list">
+      {onBack ? (
+        <button type="button" className="link back-link" onClick={onBack}>
+          <span aria-hidden="true">‹</span> {backTitle ?? 'Назад'}
+        </button>
+      ) : null}
+
       <section className="block">
 
         <p className="request-head">
@@ -581,7 +708,7 @@ export const RequestScreen = ({ api, id, staff, onDocument, onChanged }: Request
 
         <Deadline request={view} />
 
-        {view.deadlineBasis ? <p className="hint aside">{view.deadlineBasis}</p> : null}
+        {due ? <p className="hint aside">{due}</p> : null}
 
         {view.description === view.title ? null : <p className="description">{view.description}</p>}
 
@@ -591,12 +718,24 @@ export const RequestScreen = ({ api, id, staff, onDocument, onChanged }: Request
 
         {view.assigneeName ? <p className="hint">Работу ведёт {view.assigneeName}</p> : null}
 
+        {/* Памятка исполнителю, а не жильцу: с чем его пускают в квартиру. */}
+        {view.workerNote ? <p className="hint aside">{view.workerNote}</p> : null}
+
         <Spread view={view} staff={staff} />
         {staff ? <Contact api={api} id={view.id} /> : null}
         {view.rating ? <p className="hint">Оценка жильца: {view.rating} из 5</p> : null}
       </section>
 
-      {staff ? <RequestActions api={api} request={view} staff={people.data ?? []} onChanged={reload} /> : null}
+      {staff ? (
+        <RequestActions
+          api={api}
+          request={view}
+          staff={people.data ?? []}
+          {...(meId ? { meId } : {})}
+          {...(selfAssigned ? { selfAssigned } : {})}
+          onChanged={reload}
+        />
+      ) : null}
 
       {/* Уточнение адреса видит автор заявки, кем бы он ни был: продукт
           спрашивает только его, остальным приходит пустой ответ. */}

@@ -14,7 +14,7 @@ import { showRequests } from '../pages.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Сколько строк выгрузки ещё читаются прямо в переписке. */
-const SHORT_DATA_LINES = 12;
+const SHORT_DATA_LINES = 5;
 
 /** Заявка, свои дела и справка: то, с чего начинают в личной переписке. */
 export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
@@ -79,7 +79,10 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
     const own = await listOwnApartments(kit.deps, resident);
 
     if (own.length === 0) {
-      await typed.reply('Квартира ещё не привязана. Отправьте код из квитанции.', menuButton(typed));
+      // Код ждут следующим сообщением: без ожидания он уходит в обращение.
+      expect(typed, { kind: 'code' });
+
+      await typed.reply('Квартира ещё не привязана. Отправьте код из квитанции.', cancelKeyboard());
       return;
     }
 

@@ -7,6 +7,14 @@ export interface MockHandoffOptions {
   createId?: () => string;
 }
 
+/** Приставка номера: по ней видно, куда ушло обращение. */
+const PREFIXES: Record<string, string> = {
+  resource: 'РСО',
+  contractor: 'ПОДР',
+  municipal: 'МУН',
+  inspection: 'ГЖИ',
+};
+
 /**
  * Модельный канал передачи обращений: он подтверждает приём и выдаёт номер,
  * но наружу ничего не уходит. Нужен, чтобы сценарий передачи проходился
@@ -25,7 +33,7 @@ export const createMockHandoffs = (options: MockHandoffOptions = {}): HandoffGat
 
       const number = options.createId ? options.createId() : `${++counter}`.padStart(4, '0');
 
-      return { externalId: `MOCK-${number}`, accepted: true };
+      return { externalId: `${PREFIXES[outbound.to] ?? 'ОБР'}-${number}`, accepted: true };
     },
   };
 };

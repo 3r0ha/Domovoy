@@ -115,7 +115,7 @@ describe('передача обращения смежной организац�
 
     assert.equal(handoff.channel, 'gis_zhkh');
     assert.equal(handoff.status, 'accepted');
-    assert.match(handoff.externalId ?? '', /^MOCK-/);
+    assert.match(handoff.externalId ?? '', /^(РСО|ПОДР|МУН|ГЖИ)-/);
 
     const said = deps.notifier.sent.find((message) => message.maxUserId === maria.maxUserId);
 

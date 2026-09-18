@@ -2,7 +2,7 @@ import { Avatar, CellAction, CellList, CellSimple, Switch } from '@maxhub/max-ui
 import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, type DomovoyApi, type NoticeView } from '../api.js';
+import { ApiError, formatDay, initial, type DomovoyApi, type NoticeView } from '../api.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
@@ -28,8 +28,6 @@ export interface ProfileScreenProps {
   /** Квартира отвязана: сессию нужно перечитать. */
   onUnbound?: () => void;
 }
-
-const initial = (name: string): string => name.trim().slice(0, 1).toUpperCase() || '?';
 
 /** Профиль: данные человека, настройки уведомлений и удаление профиля. */
 export const ProfileScreen = ({
@@ -130,10 +128,10 @@ export const ProfileScreen = ({
   const showData = (): Promise<void> =>
     run(async () => onDocument('Мои данные', await api.personalData()));
 
-  /** Документ продукта: открывается своим экраном, без браузера. */
+  /** Документ продукта: открывается своим экраном, без браузера. Список уже прочитан. */
   const showLegal = (slug: string): Promise<void> =>
     run(async () => {
-      const found = (await api.legal()).documents.find((document) => document.slug === slug);
+      const found = (legal.data?.documents ?? []).find((document) => document.slug === slug);
 
       if (found) onDocument(found.title, found.text);
     });
@@ -253,7 +251,7 @@ export const ProfileScreen = ({
           text="Заявки и показания останутся у дома, привязать снова можно кодом из квитанции."
           confirmLabel="Отвязать"
           busyLabel="Отвязываем…"
-          busy={busy}
+          busy={working}
           danger
           onConfirm={() => void unbind()}
           onCancel={() => setLeaving(false)}

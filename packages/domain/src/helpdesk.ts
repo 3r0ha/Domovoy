@@ -1,5 +1,6 @@
+import { partsIn } from './reception.js';
 import { MESSAGE_MAX_LENGTH } from './status.js';
-import { DomainError, type Attachment } from './types.js';
+import { DEFAULT_TIME_ZONE, DomainError, type Attachment } from './types.js';
 
 /** Состояние обращения в поддержку. */
 export type TicketStatus = 'open' | 'answered' | 'closed';
@@ -151,29 +152,42 @@ export const SUPPORT_ANSWER_DAYS = 10;
 
 const DAY_MS = 24 * 3600_000;
 
-/** Дата через столько рабочих дней: выходные пропускаются. */
-export const addWorkingDays = (from: Date, days: number): Date => {
+/**
+ * Дата через столько рабочих дней: выходные пропускаются. День недели берётся
+ * по календарю дома, иначе ночь субботы по местному времени ещё пятница по UTC
+ * и срок съезжает на сутки.
+ */
+export const addWorkingDays = (from: Date, days: number, timeZone: string = DEFAULT_TIME_ZONE): Date => {
   const due = new Date(from.getTime());
 
   for (let left = days; left > 0; left -= 1) {
     do {
       due.setTime(due.getTime() + DAY_MS);
-    } while (due.getUTCDay() === 0 || due.getUTCDay() === 6);
+    } while (partsIn(due, timeZone).weekday > 5);
   }
 
   return due;
 };
 
 /** До какого момента положено ответить. Пусто, если обращение ответа не ждёт. */
-export const answerDueAt = (ticket: SupportTicket, days = SUPPORT_ANSWER_DAYS): Date | undefined => {
+export const answerDueAt = (
+  ticket: SupportTicket,
+  days = SUPPORT_ANSWER_DAYS,
+  timeZone: string = DEFAULT_TIME_ZONE,
+): Date | undefined => {
   const since = waitingSince(ticket);
 
-  return since ? addWorkingDays(since, days) : undefined;
+  return since ? addWorkingDays(since, days, timeZone) : undefined;
 };
 
 /** Срок ответа нарушен. */
-export const isAnswerOverdue = (ticket: SupportTicket, now: Date, days = SUPPORT_ANSWER_DAYS): boolean => {
-  const due = answerDueAt(ticket, days);
+export const isAnswerOverdue = (
+  ticket: SupportTicket,
+  now: Date,
+  days = SUPPORT_ANSWER_DAYS,
+  timeZone: string = DEFAULT_TIME_ZONE,
+): boolean => {
+  const due = answerDueAt(ticket, days, timeZone);
 
   return due !== undefined && now.getTime() > due.getTime();
 };

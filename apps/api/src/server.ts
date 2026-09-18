@@ -9,7 +9,9 @@ import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 
 import type {
   DeviceHub,
+  CapitalRepairDirectory,
   HandoffGateway,
+  MeetingRegistry,
   MeterVision,
   Notifier,
   PaymentGateway,
@@ -53,6 +55,10 @@ export interface ServerOptions {
   stickers?: StickerRenderer;
   /** Канал передачи обращений смежным организациям. Без него передача идёт вручную. */
   handoffs?: HandoffGateway;
+  /** Система собраний собственников. Без неё собрание остаётся подготовкой. */
+  meetings?: MeetingRegistry;
+  /** Сведения о капитальном ремонте. Без них раздела нет. */
+  capitalRepair?: CapitalRepairDirectory;
   now?: () => Date;
   createId?: () => string;
   logger?: boolean;
@@ -181,7 +187,7 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
         onRequest: async (request, reply) => {
           if (receiver.verifySecret(request.headers[header])) return;
 
-          await reply.code(401).send({ error: 'forbidden', message: 'Неверный секрет' });
+          await reply.code(401).send({ error: 'unauthorized', message: 'Нужен секрет платформы' });
         },
       },
       async (request, reply) => {
@@ -209,6 +215,8 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     ...(options.botName ? { botName: options.botName } : {}),
     ...(options.stickers ? { stickers: options.stickers } : {}),
     ...(options.handoffs ? { handoffs: options.handoffs } : {}),
+    ...(options.meetings ? { meetings: options.meetings } : {}),
+    ...(options.capitalRepair ? { capitalRepair: options.capitalRepair } : {}),
     ...(options.demo ? { demo: true } : {}),
   });
 
@@ -242,26 +250,28 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
       preCompressed: true,
       setHeaders: cacheHeaders,
     });
-
-    // Промах по адресу сайта показывается страницей, а не отказом в JSON.
-    fastify.setNotFoundHandler(async (request, reply) => {
-      const wantsPage =
-        request.method === 'GET' &&
-        !request.url.startsWith('/api/') &&
-        !request.url.startsWith('/auth/') &&
-        (request.headers.accept ?? '').includes('text/html');
-
-      if (!wantsPage) {
-        return reply.code(404).send({ error: 'not_found', message: 'Не найдено' });
-      }
-
-      const page = await readFile(join(landing, '404.html'), 'utf8').catch(() => null);
-
-      if (page === null) return reply.code(404).send({ error: 'not_found', message: 'Не найдено' });
-
-      return reply.code(404).type('text/html; charset=utf-8').send(page);
-    });
   }
+
+  const landing = options.web?.landing;
+
+  /**
+   * Промах по адресу. В API это отказ в JSON тем же кодом, что и остальные,
+   * а промах по адресу сайта показывается страницей.
+   */
+  fastify.setNotFoundHandler(async (request, reply) => {
+    const wantsPage =
+      landing !== undefined &&
+      request.method === 'GET' &&
+      !request.url.startsWith('/api/') &&
+      !request.url.startsWith('/auth/') &&
+      (request.headers.accept ?? '').includes('text/html');
+
+    const page = wantsPage ? await readFile(join(landing, '404.html'), 'utf8').catch(() => null) : null;
+
+    if (page === null) return reply.code(404).send({ error: 'not_found', message: 'Не найдено' });
+
+    return reply.code(404).type('text/html; charset=utf-8').send(page);
+  });
 
   return fastify;
 };

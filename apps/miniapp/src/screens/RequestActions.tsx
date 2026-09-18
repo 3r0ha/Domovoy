@@ -15,19 +15,22 @@ import { usePhotos } from '../use-photos.js';
 const AssigneePicker = ({
   staff,
   value,
+  meId,
   onChange,
 }: {
   staff: StaffMemberView[];
   value: string;
+  /** Кто смотрит: себя в списке видно первой строкой. */
+  meId?: string;
   onChange: (id: string) => void;
 }) => (
   <label className="assignee">
     Исполнитель
     <select aria-label="Исполнитель" value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">не назначен</option>
+      <option value="">Выберите исполнителя</option>
       {staff.map((person) => (
         <option key={person.id} value={person.id}>
-          {person.displayName} · в работе {person.load}
+          {person.id === meId ? 'Беру на себя' : person.displayName} · в работе {person.load}
         </option>
       ))}
     </select>
@@ -35,16 +38,37 @@ const AssigneePicker = ({
 );
 
 /** Переходы, которые сервер не примет без объяснения. */
-const NEEDS_REASON = ['rejected', 'needs_info'];
+const NEEDS_REASON = ['rejected', 'needs_info', 'done'];
 
 const REASON_TITLE: Record<string, string> = {
   rejected: 'Почему отказываем?',
   needs_info: 'Что нужно уточнить?',
+  done: 'Что сделали?',
 };
 
 const REASON_HINT: Record<string, string> = {
   rejected: 'Причину увидит жилец',
   needs_info: 'Вопрос уйдёт жильцу',
+  done: 'Отметку увидит жилец',
+};
+
+/**
+ * Приёмку за жильца и возврат в работу смена объясняет: заявку закрывают
+ * со слов человека по телефону, и в истории должно остаться, с чьих именно.
+ */
+const AFTER_DONE_TITLE: Record<string, string> = {
+  confirmed: 'Кто принял работу?',
+  in_progress: 'Что осталось сделать?',
+};
+
+const AFTER_DONE_HINT: Record<string, string> = {
+  confirmed: 'Запишем в историю заявки',
+  in_progress: 'Увидит исполнитель',
+};
+
+const AFTER_DONE_LABEL: Record<string, string> = {
+  confirmed: 'Закрыть заявку',
+  in_progress: 'Вернуть в работу',
 };
 
 export interface RequestActionsProps {
@@ -52,20 +76,37 @@ export interface RequestActionsProps {
   request: RequestView;
   /** Кому можно поручить работу. Пустой список прячет выбор исполнителя. */
   staff?: StaffMemberView[];
+  /** Кто смотрит: он же и берёт наряд на себя. */
+  meId?: string;
+  /** Роль сама выполняет работу: мастер и подрядчик уходят в работу без выбора. */
+  selfAssigned?: boolean;
   onChanged: () => void;
 }
 
 /** Действия над заявкой. */
-export const RequestActions = ({ api, request, staff = [], onChanged }: RequestActionsProps) => {
+export const RequestActions = ({
+  api,
+  request,
+  staff = [],
+  meId,
+  selfAssigned,
+  onChanged,
+}: RequestActionsProps) => {
   const [busy, setBusy] = useState(false);
   const [assigneeId, setAssigneeId] = useState(request.assigneeId ?? '');
   const [asking, setAsking] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  const [proved, setProved] = useState<string | undefined>(undefined);
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const result = usePhotos(api);
   const haptics = useHaptics();
   const actions = useBridgeRequest(() => api.actions(request.id), [api, request.id, request.status]);
-  const scanner = useCodeScanner((code) => void apply('done', undefined, code));
+
+  // Наклейка читается до вопроса о работе: код доезжает до отправки вместе с отметкой.
+  const scanner = useCodeScanner((code) => {
+    setProved(code);
+    setAsking('done');
+  });
 
   const apply = async (action: string, comment?: string, provedBy?: string): Promise<void> => {
     setBusy(true);
@@ -81,6 +122,7 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
       result.reset();
       setAsking(null);
       setReason('');
+      setProved(undefined);
       haptics.done();
       onChanged();
     } catch (error: unknown) {
@@ -91,8 +133,13 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
     }
   };
 
+  // Заявка уже сдана: и приёмка за жильца, и возврат в работу идут с объяснением.
+  const afterDone = request.status === 'done';
+  const explains = (action: string): boolean => NEEDS_REASON.includes(action) || afterDone;
+  const title = (action: string): string => (afterDone ? (AFTER_DONE_LABEL[action] ?? actionTitle(action)) : actionTitle(action));
+
   const start = (action: string): void => {
-    if (NEEDS_REASON.includes(action)) {
+    if (explains(action)) {
       setAsking(action);
       return;
     }
@@ -106,11 +153,18 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
   }
 
   const available = actions.data?.actions ?? [];
-  const main = ['done', 'accepted', 'in_progress'].find((action) => available.includes(action));
+  const order = afterDone ? ['confirmed', 'in_progress'] : ['done', 'accepted', 'in_progress'];
+  const main = order.find((action) => available.includes(action));
   const rest = available.filter((action) => action !== main);
-  const picker = available.includes('in_progress') && staff.length > 0;
+  // На сданной заявке исполнителя не меняют: там либо приёмка, либо возврат тому же мастеру.
+  const picker = available.includes('in_progress') && staff.length > 0 && !afterDone;
   const photos = available.includes('done');
   const proving = main === 'done' && scanner.supported;
+
+  // Ничей наряд в работе никем и не делается: без исполнителя переход закрыт.
+  const unassigned = !afterDone && !selfAssigned && !request.assigneeId && assigneeId.length === 0;
+  const blocked = (action: string): boolean => action === 'in_progress' && unassigned;
+  const needsAssignee = main !== undefined && blocked(main);
 
   return (
     <>
@@ -118,28 +172,36 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
 
       {asking ? (
         <Confirm
-          title={REASON_TITLE[asking] ?? 'Почему?'}
-          confirmLabel={actionTitle(asking)}
+          title={(afterDone ? AFTER_DONE_TITLE[asking] : REASON_TITLE[asking]) ?? 'Почему?'}
+          confirmLabel={title(asking)}
           busyLabel="Отправляем…"
           busy={busy}
           danger={asking === 'rejected'}
           field={{
             value: reason,
-            label: REASON_TITLE[asking] ?? 'Причина',
-            placeholder: REASON_HINT[asking] ?? '',
+            label: (afterDone ? AFTER_DONE_TITLE[asking] : REASON_TITLE[asking]) ?? 'Причина',
+            placeholder: (afterDone ? AFTER_DONE_HINT[asking] : REASON_HINT[asking]) ?? '',
             onChange: setReason,
           }}
-          onConfirm={() => void apply(asking, reason.trim())}
+          onConfirm={() => void apply(asking, reason.trim(), asking === 'done' ? proved : undefined)}
           onCancel={() => {
             setAsking(null);
             setReason('');
+            setProved(undefined);
           }}
         />
       ) : null}
 
       {picker || photos || main ? (
         <section className={picker || photos ? 'block actions' : 'actions'}>
-          {picker ? <AssigneePicker staff={staff} value={assigneeId} onChange={setAssigneeId} /> : null}
+          {picker ? (
+            <AssigneePicker
+              staff={staff}
+              value={assigneeId}
+              {...(meId ? { meId } : {})}
+              onChange={setAssigneeId}
+            />
+          ) : null}
 
           {photos || main ? (
             <div className="send-row">
@@ -159,21 +221,23 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
                   type="button"
                   stretched
                   size="large"
-                  disabled={busy || result.uploading}
+                  disabled={busy || result.uploading || needsAssignee}
                   onClick={() => (proving ? scanner.scan() : start(main))}
                 >
-                  {proving ? 'Сканировать код' : actionTitle(main)}
+                  {proving ? 'Сканировать код' : title(main)}
                 </Button>
               ) : null}
             </div>
           ) : null}
 
+          {needsAssignee ? <p className="hint">Выберите исполнителя: без него заявка в работу не уйдёт</p> : null}
+
           {proving ? (
             <>
               {scanner.error ? <ErrorText>{scanner.error}</ErrorText> : null}
 
-              <button type="button" className="link" disabled={busy} onClick={() => void apply('done')}>
-                Закрыть без скана
+              <button type="button" className="link" disabled={busy} onClick={() => start('done')}>
+                Сдать без кода
               </button>
             </>
           ) : null}
@@ -187,10 +251,10 @@ export const RequestActions = ({ api, request, staff = [], onChanged }: RequestA
               key={action}
               className="row-split"
               mode={action === 'rejected' || action === 'withdrawn' ? 'destructive' : 'secondary'}
-              disabled={busy || result.uploading}
+              disabled={busy || result.uploading || blocked(action)}
               onClick={() => start(action)}
             >
-              {actionTitle(action)}
+              {title(action)}
             </CellAction>
           ))}
         </CellList>

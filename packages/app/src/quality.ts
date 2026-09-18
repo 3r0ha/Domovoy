@@ -7,6 +7,13 @@ import type { AppDeps } from './use-cases.js';
 /** Как дом работал за период. */
 export interface HouseQuality {
   buildingId: string;
+  /**
+   * Адрес этого дома. У сотрудника, который живёт в другом доме, здесь его
+   * собственный дом, а не дом смены, и адрес отличает одни числа от других.
+   */
+  address?: string;
+  /** Сколько суток считалось. */
+  days: number;
   from: Date;
   to: Date;
   /** Сколько заявок дома открыто прямо сейчас. */
@@ -52,8 +59,12 @@ export const houseQuality = async (
   const worked = summarizePeriod(requests, period, now);
   const earlier = summarizePeriod(requests, previousPeriod(period), now);
 
+  const building = await deps.repository.findBuilding(buildingId);
+
   return {
     buildingId,
+    ...(building?.address ? { address: building.address } : {}),
+    days,
     from: period.from,
     to: period.to,
     open: state.open,
@@ -75,7 +86,7 @@ export const houseQuality = async (
  */
 export const formatQualityShort = (quality: HouseQuality): string => {
   const rate =
-    quality.inTimeRate === undefined ? '' : `, в срок ${Math.round(quality.inTimeRate * 100)}% за ${QUALITY_DAYS} дней`;
+    quality.inTimeRate === undefined ? '' : `, в срок ${Math.round(quality.inTimeRate * 100)}% за ${quality.days} дней`;
 
   const overdue = quality.overdue > 0 ? `, просрочено ${quality.overdue}` : '';
 
@@ -84,7 +95,8 @@ export const formatQualityShort = (quality: HouseQuality): string => {
 
 /** Работа дома словами. */
 export const formatQuality = (quality: HouseQuality): string => {
-  const lines = [`Как работает управляющая компания за ${QUALITY_DAYS} дней:`, ''];
+  const where = quality.address ? `, ${quality.address}` : '';
+  const lines = [`Как работает управляющая компания за ${quality.days} дней${where}:`, ''];
 
   lines.push(`  Подано заявок: ${quality.created}`);
   lines.push(`  Закрыто: ${quality.closed}`);

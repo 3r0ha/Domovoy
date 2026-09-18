@@ -188,14 +188,6 @@ export const IconKey = () => (
   </svg>
 );
 
-/** Правка: карандаш. */
-export const IconEdit = () => (
-  <svg {...base}>
-    <path d="M4.5 19.5h4l9.3-9.3a2.1 2.1 0 0 0 0-3l-1-1a2.1 2.1 0 0 0-3 0L4.5 15.5v4Z" />
-    <path d="m13.8 7.2 3 3" />
-  </svg>
-);
-
 /** Обновление: стрелка по кругу. */
 export const IconRefresh = () => (
   <svg {...base}>
@@ -299,5 +291,14 @@ export const IconSticker = () => (
 export const IconWrench = () => (
   <svg {...base}>
     <path d="M15.6 3.6a5 5 0 0 0-6 6.4L4 15.6a2 2 0 0 0 2.8 2.8l5.6-5.6a5 5 0 0 0 6.4-6l-3 3-2.6-2.6 2.4-3.6Z" />
+  </svg>
+);
+
+/** Капитальный ремонт: кирпичная кладка. */
+export const IconRepair = () => (
+  <svg {...base}>
+    <rect x="3.5" y="5" width="17" height="14" rx="1.5" />
+    <path d="M3.5 9.7h17M3.5 14.3h17" />
+    <path d="M9 5v4.7M15 9.7v4.6M9 14.3V19" />
   </svg>
 );

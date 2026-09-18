@@ -8,9 +8,12 @@ import {
   createCollectingNotifier,
   dropVisit,
   formatVisit,
+  listAudit,
   listVisitsFor,
   markVisitDone,
   receptionFor,
+  recordVisit,
+  setReception,
   takeVisit,
   updateBuilding,
   type AppDeps,
@@ -139,6 +142,28 @@ describe('запись на приём', () => {
     );
   });
 
+  it('одновременные записи на один час не занимают его дважды', async () => {
+    const { deps } = await setup();
+
+    const at = (await receptionFor(deps, maria)).slots[0]!;
+
+    // Оба считают свободные часы до того, как кто-то из них сохранится.
+    const [first, second] = await Promise.allSettled([
+      takeVisit(deps, { resident: maria, at, topic: 'Перерасчёт' }),
+      takeVisit(deps, { resident: ivan, at, topic: 'Тот же час' }),
+    ]);
+
+    const failed = [first, second].filter((outcome) => outcome.status === 'rejected');
+
+    assert.equal(failed.length, 1, 'один записался, второй нет');
+    assert.equal((failed[0] as PromiseRejectedResult).reason instanceof DomainError, true);
+    assert.equal(((failed[0] as PromiseRejectedResult).reason as DomainError).code, 'slot_taken');
+
+    const booked = await deps.repository.listVisits({ buildingId: BUILDING_ID, statuses: ['booked'] });
+
+    assert.equal(booked.length, 1, 'в доме осталась одна запись на этот час');
+  });
+
   it('вторая запись того же человека не заводится', async () => {
     const { deps } = await setup();
 
@@ -223,5 +248,125 @@ describe('запись на приём', () => {
 
     assert.equal(done.status, 'done');
     await assert.rejects(markVisitDone(deps, maria, visit.id), /Приём отмечает управляющая организация/);
+  });
+});
+
+describe('приёмные часы дома', () => {
+  it('смена задаёт часы приёма, и в доме появляются свободные часы', async () => {
+    const { deps } = await setup(false);
+
+    assert.deepEqual((await receptionFor(deps, maria)).slots, []);
+
+    const reception = await setReception(deps, {
+      staff: dispatcher,
+      windows: [{ weekday: 2, from: '15:00', to: '17:00' }],
+      minutes: 60,
+    });
+
+    assert.equal(reception.minutes, 60);
+    assert.deepEqual(reception.windows, [{ weekday: 2, from: '15:00', to: '17:00' }]);
+    assert.equal(reception.slots.length, 4, 'два вторника по два часа приёма');
+
+    const [entry] = await listAudit(deps, manager);
+
+    assert.equal(entry?.action, 'reception_changed');
+    assert.match(entry?.subject ?? '', /вторник 15:00-17:00/);
+  });
+
+  it('пустые часы убирают приём по записи', async () => {
+    const { deps } = await setup();
+
+    const reception = await setReception(deps, { staff: dispatcher, windows: [] });
+
+    assert.deepEqual(reception.windows, []);
+    assert.deepEqual(reception.slots, []);
+    await assert.rejects(
+      takeVisit(deps, { resident: maria, at: NOW, topic: 'Перерасчёт' }),
+      /не ведёт приём по записи/,
+    );
+  });
+
+  it('часы задаёт смена своего дома, а не жилец', async () => {
+    const { deps } = await setup();
+
+    await assert.rejects(
+      setReception(deps, { staff: maria, windows: [{ weekday: 2, from: '15:00', to: '17:00' }] }),
+      /Приём ведёт управляющая организация/,
+    );
+
+    await assert.rejects(
+      setReception(deps, {
+        staff: dispatcher,
+        buildingId: 'b2',
+        windows: [{ weekday: 2, from: '15:00', to: '17:00' }],
+      }),
+      DomainError,
+    );
+  });
+
+  it('час приёма не задаётся наоборот', async () => {
+    const { deps } = await setup();
+
+    await assert.rejects(
+      setReception(deps, { staff: dispatcher, windows: [{ weekday: 2, from: '17:00', to: '15:00' }] }),
+      /заканчивается позже/,
+    );
+  });
+});
+
+describe('запись пришедшего сотрудником', () => {
+  it('пришедшего без записи записывают состоявшимся приёмом', async () => {
+    const { deps, notifier } = await setup();
+
+    const visit = await recordVisit(deps, {
+      staff: dispatcher,
+      residentId: maria.id,
+      topic: 'Принесла показания на бумаге',
+    });
+
+    assert.equal(visit.status, 'done', 'приём уже состоялся');
+    assert.equal(visit.at.getTime(), NOW.getTime());
+    assert.equal(notifier.sent.length, 0, 'человеку у стойки сообщать нечего');
+
+    const entry = (await listAudit(deps, manager)).find((item) => item.action === 'visit_recorded');
+
+    assert.match(entry?.details ?? '', /Мария: Принесла показания на бумаге/);
+  });
+
+  it('запись на будущее занимает время и доходит до жильца', async () => {
+    const { deps, notifier } = await setup();
+
+    const slots = (await receptionFor(deps, maria)).slots;
+
+    const visit = await recordVisit(deps, {
+      staff: dispatcher,
+      residentId: maria.id,
+      at: slots[0]!,
+      topic: 'Перерасчёт за воду',
+    });
+
+    assert.equal(visit.status, 'booked');
+    assert.equal((await receptionFor(deps, maria)).slots.length, slots.length - 1);
+    assert.equal(notifier.sent.filter((message) => /записала вас на приём/.test(message.text)).length, 1);
+  });
+
+  it('записывает только смена своего дома и только известного человека', async () => {
+    const { deps } = await setup();
+
+    await assert.rejects(
+      recordVisit(deps, { staff: maria, residentId: ivan.id, topic: 'Перерасчёт' }),
+      /Приём ведёт управляющая организация/,
+    );
+
+    await assert.rejects(
+      recordVisit(deps, { staff: dispatcher, residentId: 'res-нет', topic: 'Перерасчёт' }),
+      /не найден/,
+    );
+  });
+
+  it('запись без темы не принимается', async () => {
+    const { deps } = await setup();
+
+    await assert.rejects(recordVisit(deps, { staff: dispatcher, residentId: maria.id, topic: '  ' }), /с чем/);
   });
 });

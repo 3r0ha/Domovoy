@@ -107,6 +107,21 @@ describe('разбор обращения внешней моделью', () => 
     assert.equal(await reasoner.digest?.('Сейчас: открыто 3'), 'Открыто 3 заявки, одна просрочена.');
   });
 
+  it('проверка темы идёт словами той роли, которая спросила', async () => {
+    const forResident = stub({ body: chat('true') });
+    const resident = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch: forResident.fetch });
+
+    assert.equal(await resident.onTopic?.('Что горит?'), true);
+    assert.match(String(forResident.calls[0]!.body), /счета, показания, соседи/);
+
+    const forStaff = stub({ body: chat('true') });
+    const staff = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch: forStaff.fetch });
+
+    assert.equal(await staff.onTopic?.('Что горит?', true), true);
+    assert.match(String(forStaff.calls[0]!.body), /что горит/);
+    assert.match(String(forStaff.calls[0]!.body), /наряды, дежурство/);
+  });
+
   it('отказ службы не роняет ни намерение, ни пересказ', async () => {
     const { fetch } = stub({ status: 503 });
     const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });

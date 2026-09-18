@@ -1,5 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
-
 import {
   ensureResident,
   openByCode,
@@ -13,6 +11,9 @@ import { billingRoutes } from './routes/billing.js';
 import { broadcastRoutes } from './routes/broadcast.js';
 import { buildingRoutes } from './routes/buildings.js';
 import { deviceRoutes } from './routes/devices.js';
+import { capitalRoutes } from './routes/capital.js';
+import { complaintRoutes } from './routes/complaint.js';
+import { handoverRoutes } from './routes/handover.js';
 import { houseRoutes } from './routes/house.js';
 import { LEGAL_DOCUMENTS, LEGAL_VERSION, formatLegal } from '@domovoy/domain';
 
@@ -25,6 +26,7 @@ import { supportRoutes } from './routes/support.js';
 import { handoffRoutes } from './routes/handoffs.js';
 import { visitRoutes } from './routes/visits.js';
 import { votingRoutes } from './routes/voting.js';
+import { secretGuard } from './secret.js';
 import {
   buildingIdSchema,
 } from './serialize.js';
@@ -88,19 +90,8 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
 
   /** События от домофонии. */
   if (options.hubSecret) {
-    const secret = Buffer.from(options.hubSecret);
-
-    // Сравнение за постоянное время: по длительности ответа секрет не подбирается.
-    const authorized = (request: FastifyRequest): boolean => {
-      const header = request.headers['x-hub-secret'];
-      const value = Array.isArray(header) ? header[0] : header;
-
-      if (typeof value !== 'string') return false;
-
-      const received = Buffer.from(value);
-
-      return received.length === secret.length && timingSafeEqual(received, secret);
-    };
+    const matches = secretGuard(options.hubSecret);
+    const authorized = (request: FastifyRequest): boolean => matches(request.headers['x-hub-secret']);
 
     fastify.post<{ Body: { buildingId: string; deviceId: string } }>(
       '/api/hub/alarm',
@@ -109,7 +100,11 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
           body: {
             type: 'object',
             required: ['buildingId', 'deviceId'],
-            properties: { buildingId: buildingIdSchema, deviceId: { type: 'string', maxLength: 128 } },
+            additionalProperties: false,
+            properties: {
+              buildingId: buildingIdSchema,
+              deviceId: { type: 'string', minLength: 1, maxLength: 128 },
+            },
           },
         },
       },
@@ -129,7 +124,12 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
       '/api/hub/guest-entry',
       {
         schema: {
-          body: { type: 'object', required: ['code'], properties: { code: { type: 'string', maxLength: 32 } } },
+          body: {
+            type: 'object',
+            required: ['code'],
+            additionalProperties: false,
+            properties: { code: { type: 'string', minLength: 1, maxLength: 32 } },
+          },
         },
       },
       async (request, reply) => {
@@ -157,6 +157,9 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
       buildingRoutes,
       broadcastRoutes,
       houseRoutes,
+      capitalRoutes,
+      complaintRoutes,
+      handoverRoutes,
       stickerRoutes,
       supportRoutes,
       visitRoutes,

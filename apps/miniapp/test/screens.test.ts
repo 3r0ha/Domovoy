@@ -26,6 +26,7 @@ const { Tour } = await import('../dist-test/screens/Tour.js');
 const { Assistant } = await import('../dist-test/screens/Assistant.js');
 const { Consent } = await import('../dist-test/screens/Consent.js');
 const { PollsScreen } = await import('../dist-test/screens/PollsScreen.js');
+const { QualityScreen } = await import('../dist-test/screens/QualityScreen.js');
 const { QueueScreen } = await import('../dist-test/screens/QueueScreen.js');
 const { ReportScreen } = await import('../dist-test/screens/ReportScreen.js');
 const { RequestListScreen } = await import('../dist-test/screens/RequestListScreen.js');
@@ -43,7 +44,8 @@ const { StickersScreen } = await import('../dist-test/screens/StickersScreen.js'
 const { SupportScreen } = await import('../dist-test/screens/SupportScreen.js');
 const { BroadcastScreen } = await import('../dist-test/screens/BroadcastScreen.js');
 const { HomeScreen } = await import('../dist-test/screens/HomeScreen.js');
-const { failuresByMonth, objectHistory } = await import('../dist-test/screens/ObjectScreen.js');
+const { ObjectScreen, failuresByMonth, objectHistory } = await import('../dist-test/screens/ObjectScreen.js');
+const { InspectionsScreen } = await import('../dist-test/screens/InspectionsScreen.js');
 
 interface Recorded {
   path: string;
@@ -102,6 +104,15 @@ const render = async (element: unknown, bridge: unknown) => {
       return found;
     },
     findAll: <T extends Element = Element>(selector: string): T[] => [...container.querySelectorAll<T>(selector)],
+    /** Тот же экран с другими свойствами: так приложение просит перечитать данные. */
+    rerender: async (next: unknown) => {
+      await act(async () => {
+        root.render(createElement(MaxProvider as never, { bridge, autoReady: false } as never, next as never));
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+    },
     act: async (run: () => void) => {
       await act(async () => {
         run();
@@ -199,6 +210,27 @@ const tap = (screen: { findAll: <T extends Element = Element>(selector: string) 
 };
 
 describe('оформление заявки', () => {
+  it('пустой экран встречает частыми поломками, а не серым полем', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({});
+
+    const screen = await render(
+      createElement(NewRequestScreen as never, { api, where: 'Квартира 1', onCreated: () => undefined } as never),
+      bridge,
+    );
+
+    const chips = screen.findAll('.chat-common .chip');
+
+    assert.ok(chips.length > 0, 'подсказок с частыми поломками нет');
+    assert.ok(screen.find('.chat')?.className.includes('chat-fresh'), 'содержимое прижато к низу экрана');
+
+    await screen.act(() => (chips[0] as HTMLButtonElement).click());
+
+    assert.equal(screen.find<HTMLTextAreaElement>('#description').value, chips[0]?.textContent);
+
+    await screen.unmount();
+  });
+
   it('показывает объект с наклейки вместо вопроса об адресе', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({
@@ -560,6 +592,47 @@ describe('список заявок', () => {
     await screen.unmount();
   });
 
+  it('пустая работа смены не тупик: из неё уходят в очередь дома', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/requests': [] });
+    let toQueue = 0;
+
+    const screen = await render(
+      createElement(RequestListScreen as never, {
+        api,
+        staff: true,
+        onQueue: () => (toQueue += 1),
+        onNewRequest: () => undefined,
+        onOpen: () => undefined,
+      } as never),
+      bridge,
+    );
+
+    assert.match(screen.text, /Нарядов нет/);
+    assert.match(screen.text, /Заявка по звонку/);
+
+    await screen.act(() => tap(screen, 'В очередь'));
+
+    assert.equal(toQueue, 1);
+
+    await screen.unmount();
+  });
+
+  it('подрядчику без очереди дома пустой экран лишних дорог не показывает', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/requests': [] });
+
+    const screen = await render(
+      createElement(RequestListScreen as never, { api, staff: true, onOpen: () => undefined } as never),
+      bridge,
+    );
+
+    assert.match(screen.text, /Нарядов нет/);
+    assert.doesNotMatch(screen.text, /В очередь/);
+
+    await screen.unmount();
+  });
+
   it('просроченная заявка выделяется, а не теряется в списке', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({ '/api/requests': [{ ...REQUEST, overdue: true, reactionOverdue: true }] });
@@ -678,8 +751,8 @@ describe('список заявок', () => {
     );
 
     assert.match(screen.text, /Авария в доме/);
-    assert.match(screen.text, /Сейчас в доме/);
     assert.match(screen.text, /Нет горячей воды/);
+    assert.doesNotMatch(screen.text, /Сейчас в доме/, 'состояние дома называется один раз, а не двумя подписями подряд');
 
     await screen.act(() => tap(screen, 'Нет горячей воды'));
 
@@ -769,6 +842,48 @@ describe('экран заявки', () => {
     return { screen, calls };
   };
 
+  it('нарушенный срок называется просрочкой, а не четырьмя разными словами', async () => {
+    const { screen } = await openRequest({ status: 'in_progress', overdue: true, dueAt: '2026-09-03T10:00:00Z' });
+
+    assert.match(screen.text, /просрочено/);
+    assert.doesNotMatch(screen.text, /срок нарушен|ответ просрочен|Срок вышел/);
+
+    await screen.unmount();
+  });
+
+  it('вместо описания регламента стоит сам срок: день и час', async () => {
+    const { screen } = await openRequest({
+      status: 'in_progress',
+      deadlineBasis: 'Срок по регламенту организации: он задан для этой категории и срочности',
+      resolutionDueAt: '2026-12-24T09:15:00Z',
+    });
+
+    assert.match(screen.text, /Срок работ: 24 декабря в \d{2}:\d{2}/);
+    assert.doesNotMatch(screen.text, /регламент/);
+
+    await screen.unmount();
+  });
+
+  it('из карточки заявки есть возврат к списку, из которого её открыли', async () => {
+    let back = 0;
+    const { screen } = await openRequest({}, { onBack: () => (back += 1), backTitle: 'Очередь' });
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.back-link').click());
+
+    assert.equal(back, 1);
+    assert.match(screen.find('.back-link')?.textContent ?? '', /Очередь/);
+
+    await screen.unmount();
+  });
+
+  it('без возврата ссылки нет: у жильца стопка может начинаться с заявки', async () => {
+    const { screen } = await openRequest({});
+
+    assert.equal(screen.findAll('.back-link').length, 0);
+
+    await screen.unmount();
+  });
+
   it('показывает состояние, адрес и историю', async () => {
     const { screen } = await openRequest({
       history: [
@@ -818,7 +933,7 @@ describe('экран заявки', () => {
     const rows = screen.findAll('.timeline li');
 
     assert.ok(rows[1]?.className.includes('due-mark'), 'срок должен стоять между событиями');
-    assert.match(rows[1]?.textContent ?? '', /Срок вышел/);
+    assert.match(rows[1]?.textContent ?? '', /Просрочено/, 'нарушенный срок называется одним словом везде');
 
     await screen.unmount();
   });
@@ -1021,7 +1136,7 @@ describe('экран заявки', () => {
     await screen.unmount();
   });
 
-  it('по просроченной заявке готовый текст уходит своим экраном', async () => {
+  it('по просроченной заявке предлагается отправка, а текст открывается по ссылке', async () => {
     const opened: { title: string; text: string }[] = [];
     const { screen } = await openRequest(
       { overdue: true, reactionOverdue: true },
@@ -1031,8 +1146,13 @@ describe('экран заявки', () => {
     await screen.act(() => screen.find<HTMLButtonElement>('.complaint button').click());
 
     assert.match(screen.text, /заявка не принята в работу/);
-    assert.equal(screen.findAll('.complaint textarea').length, 0);
-    assert.equal(opened[0]?.title, 'Обращение в жилинспекцию');
+    assert.match(screen.text, /Отправить жалобу/);
+    assert.equal(opened.length, 0, 'текст сам по себе не открывается: человек решает, читать ли его');
+
+    // Читать обращение необязательно, но возможность есть.
+    await screen.act(() => screen.findAll<HTMLButtonElement>('.complaint button').at(-1)?.click());
+
+    assert.equal(opened[0]?.title, 'Жалоба в жилинспекцию');
     assert.equal(opened[0]?.text.startsWith('В Государственную'), true);
 
     await screen.unmount();
@@ -1130,6 +1250,26 @@ describe('очередь сотрудника', () => {
     await screen.unmount();
   });
 
+  it('порядок очереди задаёт сервер, экран его не переставляет', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/requests': [
+        { ...REQUEST, id: 'req-2', number: 'Д15-2', dueAt: '2026-09-01T10:00:00Z', overdue: true },
+        { ...REQUEST, id: 'req-3', number: 'Д15-3', dueAt: '2026-09-04T10:00:00Z' },
+        { ...REQUEST, id: 'req-1', number: 'Д15-1', dueAt: '2026-09-05T10:00:00Z' },
+      ],
+    });
+
+    const screen = await render(createElement(QueueScreen as never, { api, onOpen: () => {} } as never), bridge);
+
+    assert.deepEqual(
+      screen.findAll('.request-row .row-number').map((node) => (node.textContent ?? '').trim()),
+      ['· Д15-2', '· Д15-3', '· Д15-1'],
+    );
+
+    await screen.unmount();
+  });
+
   it('новую заявку диспетчер принимает прямо из очереди', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({
@@ -1141,12 +1281,39 @@ describe('очередь сотрудника', () => {
       bridge,
     );
 
-    await screen.act(() => tap(screen, 'Принять'));
+    await screen.act(() => tap(screen, 'Взять'));
 
     const post = calls.find((call) => call.method === 'POST');
 
     assert.equal(post?.path, '/api/requests/req-1/transition');
     assert.deepEqual(JSON.parse(post?.body ?? '{}'), { to: 'accepted' });
+
+    await screen.unmount();
+  });
+
+  it('изменение заявки перечитывает очередь, не сбрасывая поиск', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/requests': [
+        { ...REQUEST, id: 'req-1', number: 'Д15-1', title: 'Течёт кран' },
+        { ...REQUEST, id: 'req-2', number: 'Д15-2', title: 'Не работает лифт' },
+      ],
+    });
+
+    const props = { api, onOpen: () => {} };
+    const screen = await render(createElement(QueueScreen as never, { ...props, version: 0 } as never), bridge);
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#queue-search'), 'лифт'));
+
+    assert.equal(screen.text.includes('Течёт кран'), false, 'поиск не отобрал');
+
+    const before = calls.length;
+
+    await screen.rerender(createElement(QueueScreen as never, { ...props, version: 1 } as never));
+
+    assert.ok(calls.length > before, 'очередь не перечиталась');
+    assert.equal(screen.find<HTMLInputElement>('#queue-search').value, 'лифт', 'поиск сбросился');
+    assert.equal(screen.text.includes('Течёт кран'), false, 'отбор сбросился');
 
     await screen.unmount();
   });
@@ -1243,12 +1410,16 @@ describe('очередь сотрудника', () => {
 });
 
 describe('действия сотрудника над заявкой', () => {
-  const openAs = async (replies: Record<string, unknown>, request: Record<string, unknown> = {}) => {
+  const openAs = async (
+    replies: Record<string, unknown>,
+    request: Record<string, unknown> = {},
+    props: Record<string, unknown> = {},
+  ) => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({ ...replies, '/api/requests/req-1': { ...REQUEST, ...request } });
 
     const screen = await render(
-      createElement(RequestScreen as never, { api, id: 'req-1', staff: true } as never),
+      createElement(RequestScreen as never, { api, id: 'req-1', staff: true, ...props } as never),
       bridge,
     );
 
@@ -1260,7 +1431,7 @@ describe('действия сотрудника над заявкой', () => {
 
     assert.deepEqual(
       screen.findAll('.actions button, .actions-more button').map((button) => button.textContent),
-      ['Принять', 'Отклонить'],
+      ['Взять', 'Отклонить'],
     );
 
     await screen.unmount();
@@ -1312,14 +1483,69 @@ describe('действия сотрудника над заявкой', () => {
     await screen.unmount();
   });
 
-  it('без выбора заявка идёт в работу без исполнителя', async () => {
+  it('без исполнителя заявка в работу не уходит', async () => {
     const { screen, calls } = await openAs({
       '/api/requests/req-1/actions': { actions: ['in_progress'] },
       '/api/requests/req-1/transition': { ...REQUEST, status: 'in_progress' },
       '/api/staff': [{ id: 'tech-1', displayName: 'Сергей', role: 'technician', load: 2 }],
     });
 
-    await screen.act(() => screen.find<HTMLButtonElement>('.actions button, .actions-more button').click());
+    const go = screen.find<HTMLButtonElement>('.actions button');
+
+    assert.equal(go.disabled, true);
+    assert.match(screen.text, /Выберите исполнителя/);
+
+    await screen.act(() => go.click());
+
+    assert.equal(
+      calls.find((call) => call.method === 'POST'),
+      undefined,
+      'ничей наряд в работе никем не делается',
+    );
+
+    await screen.unmount();
+  });
+
+  it('выбранный исполнитель открывает переход в работу', async () => {
+    const { screen, calls } = await openAs({
+      '/api/requests/req-1/actions': { actions: ['in_progress'] },
+      '/api/requests/req-1/transition': { ...REQUEST, status: 'in_progress' },
+      '/api/staff': [{ id: 'tech-1', displayName: 'Сергей', role: 'technician', load: 2 }],
+    });
+
+    await screen.act(() => {
+      const select = screen.find<HTMLSelectElement>('.assignee select');
+
+      select.value = 'tech-1';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.actions button').click());
+
+    assert.deepEqual(JSON.parse(calls.find((call) => call.method === 'POST')?.body ?? '{}'), {
+      to: 'in_progress',
+      assigneeId: 'tech-1',
+    });
+
+    await screen.unmount();
+  });
+
+  it('мастер берёт наряд на себя, исполнителя выбирать не надо', async () => {
+    const { screen, calls } = await openAs(
+      {
+        '/api/requests/req-1/actions': { actions: ['in_progress'] },
+        '/api/requests/req-1/transition': { ...REQUEST, status: 'in_progress' },
+        '/api/staff': [{ id: 'tech-1', displayName: 'Сергей', role: 'technician', load: 2 }],
+      },
+      {},
+      { selfAssigned: true },
+    );
+
+    const go = screen.find<HTMLButtonElement>('.actions button');
+
+    assert.equal(go.disabled, false);
+
+    await screen.act(() => go.click());
 
     assert.deepEqual(JSON.parse(calls.find((call) => call.method === 'POST')?.body ?? '{}'), { to: 'in_progress' });
 
@@ -1596,6 +1822,7 @@ describe('собрания собственников', () => {
       title: 'Ремонт подъездов',
       question: 'Утвердить смету',
       days: 14,
+      mode: 'meeting',
     });
 
     await screen.unmount();
@@ -2174,6 +2401,62 @@ describe('объявления', () => {
 
 /** Отказ сервера и пустой ответ, разные вещи. */
 describe('привязка квартиры', () => {
+  it('тому, кто квитанции не нашёл, экран даёт телефон и поддержку', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/house/contacts': {
+        buildingId: 'b1',
+        address: 'ул. Ленина, 15',
+        service: { phone: '+7 900 120-45-00', hours: 'пн-пт 9:00-18:00' },
+      },
+    });
+    let toSupport = 0;
+
+    const screen = await render(
+      createElement(
+        Toasts as never,
+        null,
+        createElement(BindApartmentScreen as never, {
+          api,
+          onBound: () => undefined,
+          onSupport: () => (toSupport += 1),
+        } as never),
+      ),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    assert.match(screen.text, /Не нашли код/);
+    assert.match(screen.text, /\+7 900 120-45-00/);
+
+    await screen.act(() => tap(screen, 'Написать в поддержку'));
+
+    assert.equal(toSupport, 1);
+
+    await screen.unmount();
+  });
+
+  it('заполнитель поля не выглядит набранным кодом', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({});
+
+    const screen = await render(
+      createElement(
+        Toasts as never,
+        null,
+        createElement(BindApartmentScreen as never, { api, onBound: () => undefined } as never),
+      ),
+      bridge,
+    );
+
+    const field = screen.find<HTMLInputElement>('#apartment-code');
+
+    assert.equal(field.value, '');
+    assert.doesNotMatch(field.getAttribute('placeholder') ?? '', /^[A-Z]{4}\d{4}$/);
+
+    await screen.unmount();
+  });
+
   it('код из квитанции уходит на сервер и открывает остальное', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({
@@ -2214,7 +2497,7 @@ describe('привязка квартиры', () => {
     await screen.act(() => screen.find<HTMLButtonElement>('button').click());
 
     assert.match(screen.text, /Введите код из квитанции/);
-    assert.equal(calls.length, 0);
+    assert.equal(calls.filter((call) => call.method === 'POST').length, 0);
     assert.equal(bound, 0);
 
     await screen.unmount();
@@ -2274,6 +2557,52 @@ describe('жильцы без квартиры', () => {
 
     assert.equal(post?.path, '/api/residents/res-7/apartment');
     assert.deepEqual(JSON.parse(post?.body ?? '{}'), { apartmentId: 'apt-2' });
+
+    await screen.unmount();
+  });
+
+  it('квартира стоит в строке человека, а без неё так и написано', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/residents/unbound': [],
+      '/api/residents': [
+        { id: 'res-1', displayName: 'Мария', role: 'resident', apartmentNumber: 1 },
+        { id: 'res-2', displayName: 'Гость Петров', role: 'resident' },
+      ],
+      '/api/apartments': [],
+    });
+
+    const screen = await render(createElement(ResidentsScreen as never, { api } as never), bridge);
+
+    assert.match(screen.text, /Марияжилец · кв\. 1/);
+    assert.match(screen.text, /Гость Петровжилец · квартира не привязана/);
+
+    await screen.unmount();
+  });
+
+  it('людей в доме сотни, поэтому их ищут по имени и квартире', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/residents/unbound': [],
+      '/api/residents': Array.from({ length: 24 }, (_item, index) => ({
+        id: `res-${index}`,
+        displayName: index === 3 ? 'Мария' : `Жилец ${index}`,
+        role: 'resident',
+        apartmentNumber: index + 1,
+      })),
+      '/api/apartments': [],
+    });
+
+    const screen = await render(createElement(ResidentsScreen as never, { api } as never), bridge);
+
+    const search = screen.find<HTMLInputElement>('#people-search');
+
+    assert.ok(search, 'поиска по людям нет');
+
+    await screen.act(() => typeInto(search, 'Мария'));
+
+    assert.match(screen.text, /Мария/);
+    assert.doesNotMatch(screen.text, /Жилец 5/);
 
     await screen.unmount();
   });
@@ -2478,16 +2807,26 @@ describe('отказ вместо пустоты', () => {
       bridge,
     );
 
-    const scan = screen
-      .findAll('button')
-      .find((button) => (button.textContent ?? '').includes('Сканировать код'));
-    assert.ok(scan, 'у наряда нет сканирования наклейки');
+    const scan = screen.findAll('button').find((button) => (button.textContent ?? '').includes('Сканировать код'));
+
+    assert.ok(scan, 'у наряда нет сканирования кода');
 
     await screen.act(() => (scan as HTMLButtonElement).click());
+
+    assert.match(screen.text, /Что сделали/, 'перед сдачей спрашивают отметку о работе');
+    assert.equal(
+      calls.find((call) => call.path.includes('/transition')),
+      undefined,
+      'отметка уходит вместе с работой, а не после неё',
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('.confirm-field'), 'Заменил лампу'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
 
     const post = calls.find((call) => call.path.includes('/transition'));
 
     assert.equal(JSON.parse(post?.body ?? '{}').to, 'done');
+    assert.equal(JSON.parse(post?.body ?? '{}').comment, 'Заменил лампу');
     assert.ok(JSON.parse(post?.body ?? '{}').provedBy, 'закрытие ушло без подтверждения на месте');
 
     await screen.unmount();
@@ -2506,11 +2845,40 @@ describe('отказ вместо пустоты', () => {
       bridge,
     );
 
-    await screen.act(() => tap(screen, 'Закрыть без скана'));
+    await screen.act(() => tap(screen, 'Сдать без кода'));
+    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('.confirm-field'), 'Подтянул кран'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
 
     const post = calls.find((call) => call.path.includes('/transition'));
 
-    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { to: 'done' });
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { to: 'done', comment: 'Подтянул кран' });
+
+    await screen.unmount();
+  });
+
+  it('без отметки о сделанном работу не сдать', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/requests/req-1/actions': { actions: ['done'] },
+      '/api/requests/req-1/transition': { ...REQUEST, status: 'done' },
+      '/api/requests/req-1': { ...REQUEST, status: 'in_progress' },
+    });
+
+    const screen = await render(
+      createElement(RequestScreen as never, { api, id: 'req-1', staff: true } as never),
+      bridge,
+    );
+
+    await screen.act(() => tap(screen, 'Сдать без кода'));
+
+    assert.equal(screen.find<HTMLButtonElement>('.confirm-do').disabled, true);
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
+
+    assert.equal(
+      calls.find((call) => call.path.includes('/transition')),
+      undefined,
+    );
 
     await screen.unmount();
   });
@@ -2835,6 +3203,7 @@ describe('первый вход и помощник', () => {
   it('помощник отвечает и даёт переход в раздел', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({
+      'GET /api/assistant': { starters: ['Где передать показания?', 'Что с моей заявкой?'] },
       '/api/assistant': { answer: 'Откройте «Оплата»: там показания и квитанция.', screen: 'meters', by: 'model' },
     });
     const went: string[] = [];
@@ -2848,10 +3217,11 @@ describe('первый вход и помощник', () => {
       bridge,
     );
 
+    // Подсказки приходят с сервера: у смены они свои, у жильца свои.
     await screen.act(() => tap(screen, 'Где передать показания?'));
     await screen.act(() => {});
 
-    const asked = calls.find((call) => call.path === '/api/assistant');
+    const asked = calls.find((call) => call.path === '/api/assistant' && call.method === 'POST');
 
     assert.equal(asked?.method, 'POST');
     assert.deepEqual(JSON.parse(asked?.body ?? '{}'), { question: 'Где передать показания?' });
@@ -2874,10 +3244,26 @@ describe('первый вход и помощник', () => {
       bridge,
     );
 
-    await screen.act(() => tap(screen, 'Что с моей заявкой?'));
+    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('.composer-field'), 'Что с моей заявкой?'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.composer-send').click());
     await screen.act(() => {});
 
     assert.equal(screen.findAll('[role="alert"]').length, 1);
+
+    await screen.unmount();
+  });
+
+  it('без подсказок с сервера помощник всё равно спрашивает словами', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiRefusing(500, 'internal', 'Служба недоступна');
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    assert.equal(screen.findAll('.assistant-starters .chip').length, 0);
+    assert.ok(screen.find('.composer-field'), 'поле вопроса пропало вместе с подсказками');
 
     await screen.unmount();
   });
@@ -3053,11 +3439,14 @@ describe('фото к заявке', () => {
     assert.match(screen.text, /1/, 'число снимков видно на кнопке');
 
     await screen.act(() => screen.find<HTMLButtonElement>('.actions button, .actions-more button').click());
+    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('.confirm-field'), 'Поменял смеситель'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
 
     const post = calls.find((call) => call.path.endsWith('/transition'));
 
     assert.deepEqual(JSON.parse(post?.body ?? '{}'), {
       to: 'done',
+      comment: 'Поменял смеситель',
       attachments: [{ kind: 'photo', token: 'file:after' }],
       provedBy: 'demo',
     });
@@ -3149,8 +3538,10 @@ describe('тарифы дома', () => {
 
     const screen = await render(createElement(TariffsScreen as never, { api } as never), bridge);
 
+    // Пометка про умолчание стоит одной сноской под списком, а не в каждой строке.
     assert.match(screen.text, /Холодная вода₽ за м³43,5/);
     assert.match(screen.text, /₽ за м² в месяц · с 1 сентября/);
+    assert.equal(screen.text.match(/по умолчанию/g)?.length ?? 0, 0);
 
     await screen.act(() => (screen.findAll('.tariff-row')[0] as HTMLElement).click());
     assert.equal(screen.findAll('.tariff-edit').length, 0);
@@ -3177,7 +3568,7 @@ describe('тарифы дома', () => {
 });
 
 describe('заведение дома', () => {
-  it('кнопка появляется вместе с содержимым файла', async () => {
+  it('квартиры заводятся строками, а не набранной вручную выгрузкой', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({
       '/api/buildings': [{ id: 'b1', code: 'Д15', address: 'ул. Ленина, 15', current: true }],
@@ -3190,15 +3581,46 @@ describe('заведение дома', () => {
     assert.equal(screen.find<HTMLInputElement>('#house-address').value, 'ул. Ленина, 15');
     assert.equal(screen.findAll('button').filter((node) => /Завести квартиры/.test(node.textContent ?? '')).length, 0);
 
-    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('#import-flats'), 'Помещение\n1'));
+    await screen.act(() => tap(screen, 'Добавить квартиру'));
+
+    const number = screen.find<HTMLInputElement>('[aria-label="Помещение, строка 1"]');
+
+    assert.ok(number, 'строка списка квартир не появилась');
+
+    await screen.act(() => typeInto(number, '7'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('[aria-label="Площадь, строка 1"]'), '54,3'));
     await screen.act(() =>
       (screen.findAll('button').find((node) => /Завести квартиры/.test(node.textContent ?? '')) as HTMLButtonElement)
         .click(),
     );
     await screen.act(() => {});
 
-    assert.equal(calls.some((call) => call.path === '/api/import/apartments'), true);
+    const post = calls.find((call) => call.path === '/api/import/apartments');
+
+    assert.ok(post, 'список квартир не ушёл на сервер');
+    assert.match(JSON.parse(post?.body ?? '{}').csv ?? '', /7;1;1;54,3/);
     assert.match(screen.text, /Заведено 2/);
+
+    await screen.unmount();
+  });
+
+  it('выгрузку из таблицы разбирают в строки до отправки', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/buildings': [{ id: 'b1', code: 'Д15', address: 'ул. Ленина, 15', current: true }],
+    });
+
+    const screen = await render(createElement(ImportScreen as never, { api } as never), bridge);
+    await screen.act(() => {});
+
+    await screen.act(() => tap(screen, 'Вставить список квартир'));
+    await screen.act(() =>
+      typeInto(screen.find<HTMLTextAreaElement>('.paste textarea'), 'Помещение;Подъезд;Стояк\n1;1;2\n2;1;2'),
+    );
+    await screen.act(() => tap(screen, 'Разобрать строки'));
+
+    assert.equal(screen.find<HTMLInputElement>('[aria-label="Помещение, строка 1"]').value, '1');
+    assert.equal(screen.find<HTMLInputElement>('[aria-label="Стояк, строка 2"]').value, '2');
 
     await screen.unmount();
   });
@@ -3264,7 +3686,10 @@ describe('заведение дома', () => {
 
     const screen = await render(createElement(ImportScreen as never, { api } as never), bridge);
 
-    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('#import-equipment'), 'x-1;Ворота;телепорт'));
+    await screen.act(() => tap(screen, 'Добавить оборудование'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('[aria-label="Код, строка 1"]'), 'x-1'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('[aria-label="Название, строка 1"]'), 'Ворота'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('[aria-label="Вид, строка 1"]'), 'телепорт'));
     await screen.act(() =>
       (
         screen.findAll('button').find((node) => /Завести оборудование/.test(node.textContent ?? '')) as HTMLButtonElement
@@ -3273,6 +3698,106 @@ describe('заведение дома', () => {
     await screen.act(() => {});
 
     assert.match(screen.text, /Строка 2Вид «телепорт» не опознан/);
+
+    await screen.unmount();
+  });
+});
+
+describe('осмотры общего имущества', () => {
+  const ROUND = {
+    id: 'ins-1',
+    title: 'Осмотр подъезда',
+    entrance: 1,
+    checked: 1,
+    overdue: false,
+    dueAt: '2026-10-20T10:00:00Z',
+    requestIds: [],
+    items: [
+      { title: 'Освещение и выключатели', state: 'ok' },
+      { title: 'Почтовые ящики' },
+    ],
+  };
+
+  it('отметку меняют тем же рядом кнопок, которым её поставили', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/inspections': [ROUND],
+      'POST /api/inspections/ins-1/items/0': { inspection: ROUND },
+    });
+
+    const screen = await render(
+      createElement(InspectionsScreen as never, { api, onOpen: () => undefined } as never),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    const mark = screen.find<HTMLButtonElement>('[aria-label="Недостаток: Освещение и выключатели"]');
+
+    assert.ok(mark, 'у отмеченного пункта нет кнопок: отметку не снять');
+
+    await screen.act(() => mark.click());
+
+    assert.equal(
+      screen.find('.check-form input')?.getAttribute('placeholder'),
+      'Что именно не так',
+      'отметка не переоткрылась разбором недостатка',
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('.check-form input'), 'Лампа мигает'));
+    await screen.act(() => tap(screen, 'Завести заявку'));
+    await screen.act(() => {});
+
+    const post = calls.find((call) => call.path === '/api/inspections/ins-1/items/0');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { state: 'problem', comment: 'Лампа мигает' });
+
+    await screen.unmount();
+  });
+
+  it('заведение заявки главнее отмены и не ждёт своей строки', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/inspections': [ROUND] });
+
+    const screen = await render(
+      createElement(InspectionsScreen as never, { api, onOpen: () => undefined } as never),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    await screen.act(() => screen.find<HTMLButtonElement>('[aria-label="Недостаток: Почтовые ящики"]').click());
+
+    const send = screen.find<HTMLButtonElement>('.check-form .send-row button:last-child');
+
+    assert.match(send.textContent ?? '', /Завести заявку/);
+    assert.equal(send.disabled, true, 'без описания заявку не заводят');
+    assert.match(screen.find('.check-cancel')?.textContent ?? '', /Отмена/);
+
+    await screen.unmount();
+  });
+});
+
+describe('работа дома', () => {
+  it('числа подписаны адресом и длиной периода', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/quality': {
+        buildingId: 'b2',
+        address: 'ул. Ленина, 17',
+        days: 30,
+        from: '2026-08-19T00:00:00Z',
+        to: '2026-09-18T00:00:00Z',
+        open: 2,
+        overdue: 0,
+        created: 5,
+        closed: 4,
+        rated: 2,
+      },
+    });
+
+    const screen = await render(createElement(QualityScreen as never, { api } as never), bridge);
+
+    assert.match(screen.text, /ул\. Ленина, 17/, 'без адреса сотрудник считает это домом смены');
+    assert.match(screen.text, /За 30 дней/);
 
     await screen.unmount();
   });
@@ -3319,6 +3844,31 @@ describe('дома компании', () => {
     assert.deepEqual(opened, ['b2']);
 
     await screen.unmount();
+  });
+
+  it('список говорит, куда ведёт адрес: в карточку дома или в его очередь', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/buildings/report': PORTFOLIO });
+
+    const card = await render(
+      createElement(BuildingsScreen as never, { api, opens: 'card', onPick: () => undefined } as never),
+      bridge,
+    );
+    await card.act(() => {});
+
+    assert.match(card.text, /Адрес открывает карточку дома/);
+
+    await card.unmount();
+
+    const queue = await render(
+      createElement(BuildingsScreen as never, { api, onPick: () => undefined } as never),
+      bridge,
+    );
+    await queue.act(() => {});
+
+    assert.match(queue.text, /Адрес переключает работу на этот дом/);
+
+    await queue.unmount();
   });
 
   it('диспетчеру заведение дома не показывают', async () => {
@@ -3997,7 +4547,7 @@ describe('поддержка', () => {
 
     await screen.act(() => tap(screen, 'Когда включат отопление?'));
 
-    assert.match(screen.text, /Обращение закрыто/);
+    assert.match(screen.text, /Вопрос закрыт/);
 
     await screen.unmount();
   });
@@ -4134,6 +4684,46 @@ describe('история объекта', () => {
     assert.equal(months.length, 12);
     assert.equal(months[11], 2);
     assert.equal(months[4], 1);
+  });
+
+  it('подпись месяца стоит в одной колонке со своим столбиком', async () => {
+    const { bridge } = createMockBridge();
+    const now = new Date();
+    const { api } = apiWith({
+      '/api/objects': {
+        startParam: 'lift-1',
+        target: 'Лифт, подъезд 1',
+        open: [],
+        totalRequests: 4,
+        history: [{ createdAt: now.toISOString() }, { createdAt: now.toISOString() }],
+      },
+    });
+
+    const screen = await render(
+      createElement(ObjectScreen as never, {
+        api,
+        startParam: 'lift-1',
+        onReport: () => undefined,
+        onOpenRequest: () => undefined,
+      } as never),
+      bridge,
+    );
+
+    const columns = screen.findAll('.year .month-column');
+
+    assert.equal(columns.length, 12);
+    assert.equal(
+      columns.every((column) => column.querySelector('.month') !== null && column.querySelector('.month-name') !== null),
+      true,
+      'столбик и подпись стоят одной колонкой, иначе они разъезжаются',
+    );
+
+    const current = columns.at(-1);
+
+    assert.ok(current?.className.includes('month-now'), 'у текущего месяца подписи не было');
+    assert.equal(current?.querySelector('.month-name')?.textContent?.length, 3, 'одной буквы месяцы не различают');
+
+    await screen.unmount();
   });
 
   it('то, что старше года, в полосу не попадает', () => {
@@ -4370,7 +4960,7 @@ describe('рассылка', () => {
 
     await screen.act(() => tap(screen, 'Должники'));
 
-    assert.match(screen.text, /Получателей нет/);
+    assert.match(screen.text, /Никто из них не в MAX/);
     assert.equal(screen.findAll('button').filter((node) => node.textContent === 'Отправить')[0]?.hasAttribute('disabled'), true);
 
     await screen.unmount();
@@ -4538,6 +5128,71 @@ describe('приём в управляющей организации', () => {
 
     await screen.unmount();
   });
+
+  it('управляющий задаёт приёмные часы прямо на экране приёма', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/visits': [],
+      'GET /api/reception': { buildingId: 'b1', minutes: 20, hours: '', slots: [] },
+      'POST /api/reception': { buildingId: 'b1', minutes: 20, hours: 'вт 15:00-19:00', slots: [] },
+      '/api/residents': [],
+    });
+
+    const screen = await render(
+      createElement(Toasts as never, null, createElement(VisitsScreen as never, { api, staff: true, canSchedule: true } as never)),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    assert.match(screen.text, /Часы приёма не заданы/);
+
+    await screen.act(() => tap(screen, 'Задать часы'));
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('[aria-label="До, окно 1"]'), '18:00'));
+    await screen.act(() => tap(screen, 'Сохранить часы'));
+    await screen.act(() => {});
+
+    const post = calls.find((call) => call.path === '/api/reception' && call.method === 'POST');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { windows: [{ weekday: 2, from: '15:00', to: '18:00' }] });
+    assert.match(screen.text, /вт 15:00-19:00/);
+
+    await screen.unmount();
+  });
+
+  it('пришедшего без записи сотрудник заносит сам', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/visits': [],
+      'GET /api/reception': { buildingId: 'b1', minutes: 20, hours: 'вт 15:00-19:00', slots: [] },
+      '/api/residents': [{ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentNumber: 1 }],
+      'POST /api/visits/record': { ...VISIT, residentName: 'Мария', apartment: 1 },
+    });
+
+    const screen = await render(
+      createElement(Toasts as never, null, createElement(VisitsScreen as never, { api, staff: true } as never)),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    await screen.act(() => tap(screen, 'Записать пришедшего'));
+
+    await screen.act(() => {
+      const select = screen.find<HTMLSelectElement>('#walk-in-resident');
+
+      Object.getOwnPropertyDescriptor(globalThis.HTMLSelectElement.prototype, 'value')?.set?.call(select, 'res-1');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#walk-in-topic'), 'Перерасчёт'));
+    await screen.act(() => tap(screen, 'Записать приём'));
+    await screen.act(() => {});
+
+    const post = calls.find((call) => call.path === '/api/visits/record');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { residentId: 'res-1', topic: 'Перерасчёт' });
+
+    await screen.unmount();
+  });
 });
 
 describe('согласие с документами', () => {
@@ -4579,7 +5234,7 @@ describe('согласие с документами', () => {
     );
 
     assert.match(screen.text, /Политика обработки данных/);
-    assert.match(screen.text, /по поручению управляющей организации/);
+    assert.match(screen.text, /по поручению управляющей компании/);
 
     await screen.act(() => tap(screen, 'Политика обработки данных'));
 

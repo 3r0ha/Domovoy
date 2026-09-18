@@ -1,6 +1,9 @@
 import {
   DomainError,
   POLL_RULES,
+  PROTOCOL_TO_INSPECTION_DAYS,
+  PROTOCOL_TO_MANAGEMENT_DAYS,
+  meetingSchedule,
   areaToQuorum,
   castVote,
   countVotes,
@@ -9,19 +12,21 @@ import {
   formatDay,
   isOpen,
   needsClosing,
+  type Apartment,
   type Poll,
   type PollKind,
+  type PollMode,
   type PollResult,
   type VoteChoice,
 } from '@domovoy/domain';
 
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import { recordAction } from './audit.js';
-import { assertServes, houseHint, housesOf } from './buildings.js';
+import { assertServes, houseHintFor, housesOf, type HouseHint } from './buildings.js';
 import { wanting } from './notices.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import { zoneOf } from './zone.js';
-import type { Resident } from './repository.js';
+import type { Building, Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
 const CAN_START: Resident['role'][] = ['manager', 'dispatcher'];
@@ -33,6 +38,12 @@ export interface StartPollCommand {
   question: string;
   /** Сколько дней идёт голосование. */
   days: number;
+  /**
+   * Собрание собственников или опрос жильцов. У собрания сроки закона: десять
+   * дней на сообщение и от семи до шестидесяти дней голосования. Опрос идёт
+   * сразу и юридической силы не имеет.
+   */
+  mode?: PollMode;
 }
 
 /** Объявляет собрание собственников. */
@@ -46,40 +57,74 @@ export const startPoll = async (deps: AppDeps, command: StartPollCommand): Promi
   }
 
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
+  const apartments = await deps.repository.listApartments(buildingId);
 
-  if ((await deps.repository.listApartments(buildingId)).every((apartment) => !apartment.area)) {
+  if (apartments.every((apartment) => !apartment.area)) {
     throw new DomainError(
       'areas_missing',
       'У дома не внесены площади помещений, а голос считается их долей: без площадей собрание не провести',
     );
   }
 
-  const opensAt = deps.now();
+  const now = deps.now();
+  const mode: PollMode = command.mode ?? 'meeting';
 
-  const poll = await deps.repository.savePoll({
+  // Сроки закона считаются там, где собрание имеет силу: в системе заочного
+  // голосования. Жильцы получают сообщение за десять дней до начала, само
+  // голосование идёт от недели до двух месяцев. Опрос управляющей организации
+  // и дом без подключённой системы обходятся без отсрочки: решения там нет.
+  const plan =
+    mode === 'meeting' && deps.meetings ? meetingSchedule({ announcedAt: now, days: command.days }) : undefined;
+  const opensAt = plan?.votingFrom ?? now;
+  const closesAt = plan?.votingTo ?? new Date(opensAt.getTime() + command.days * 24 * 3600_000);
+
+  const created = await deps.repository.savePoll({
     id: deps.createId(),
     buildingId,
     kind: command.kind,
+    mode,
     title: command.title,
     question: command.question,
     opensAt,
-    closesAt: new Date(opensAt.getTime() + command.days * 24 * 3600_000),
+    closesAt,
     startedBy: command.resident.id,
   });
 
+  // Сообщение о собрании размещается в системе: заочное голосование имеет силу
+  // только там. Без подключения продукт остаётся подготовкой к собранию.
+  const house = await deps.repository.findBuilding(buildingId);
+
+  const notice =
+    mode === 'meeting' && deps.meetings
+      ? await deps.meetings
+          .publishNotice({
+            poll: created,
+            administrator: command.resident.displayName,
+            votingFrom: opensAt,
+            votingTo: closesAt,
+            ...(house ? { building: house } : {}),
+          })
+          .catch(() => undefined)
+      : undefined;
+
+  const poll = notice ? await deps.repository.savePoll({ ...created, noticeId: notice.noticeId }) : created;
+
   await recordAction(deps, { actor: command.resident, action: 'poll_started', subject: poll.title, buildingId });
 
-  const apartments = await deps.repository.listApartments(buildingId);
   const residents = await deps.repository.listResidentsByApartments(apartments.map((apartment) => apartment.id));
   const notifier = deps.notifier ?? noopNotifier;
-  const closes = formatDay(poll.closesAt);
+  const zone = await zoneOf(deps, buildingId);
+  const closes = formatDay(poll.closesAt, zone);
+  const opens = formatDay(poll.opensAt, zone);
 
   for (const resident of wanting(residents, 'polls')) {
     await notifyAbout(
       notifier,
       resident,
-      `Собрание собственников: ${poll.title}\n\n${poll.question}\n\n` +
-        `${POLL_RULES[poll.kind].title}. Голосование открыто до ${closes}.`,
+      `${mode === 'meeting' ? 'Собрание собственников' : 'Опрос жильцов'}: ${poll.title}\n\n${poll.question}\n\n` +
+        (mode === 'meeting'
+          ? `${POLL_RULES[poll.kind].title}. Голосование идёт с ${opens} по ${closes}.`
+          : `Ответить можно до ${closes}. Опрос не заменяет собрание собственников.`),
       { section: 'polls', mutable: 'polls' },
     );
   }
@@ -95,21 +140,39 @@ export interface PollView {
   areaToQuorum: number;
   /** Как проголосовало помещение спрашивающего, если оно голосовало. */
   myChoice?: VoteChoice;
+  /** Когда голос подан. */
+  votedAt?: Date;
+  /** Кто из живущих в квартире подал этот голос, если это не спрашивающий. */
+  votedBy?: string;
 }
 
-const describePoll = async (deps: AppDeps, poll: Poll, resident: Resident): Promise<PollView> => {
-  const apartments = await deps.repository.listApartments(poll.buildingId);
+/** Квартиры дома передаются готовыми там, где их уже прочитали. */
+const describePoll = async (
+  deps: AppDeps,
+  poll: Poll,
+  resident: Resident,
+  known?: readonly Apartment[],
+): Promise<PollView> => {
+  const apartments = known ?? (await deps.repository.listApartments(poll.buildingId));
   const votes = await deps.repository.listVotes(poll.id);
   const result = countVotes(poll, apartments, votes);
   const own = new Set(apartmentsOf(resident));
-  const mine = votes.find((vote) => own.has(vote.apartmentId));
+  // Голос у помещения один, а живущих в нём несколько: берётся последний,
+  // и человек должен видеть, что он заменит голос соседа, а не добавит свой.
+  const ours = votes
+    .filter((vote) => own.has(vote.apartmentId))
+    .sort((left, right) => left.at.getTime() - right.at.getTime());
+
+  const mine = ours.at(-1);
+  const byOther = mine && mine.residentId !== resident.id ? await deps.repository.findResident(mine.residentId) : undefined;
 
   return {
     poll,
     result,
     open: isOpen(poll, deps.now()),
     areaToQuorum: areaToQuorum(poll, result),
-    ...(mine ? { myChoice: mine.choice } : {}),
+    ...(mine ? { myChoice: mine.choice, votedAt: mine.at } : {}),
+    ...(byOther ? { votedBy: byOther.displayName } : {}),
   };
 };
 
@@ -122,16 +185,30 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
   const soon = POLL_REMINDER_DAYS * 24 * 3600_000;
   const notifier = deps.notifier ?? noopNotifier;
   const reminded: Resident[] = [];
+  // Квартиры, пояс и подсказка с адресом читаются, только когда есть кому
+  // напоминать, и одни на все собрания дома.
+  let known: { apartments: Apartment[]; zone: string; hintOf: HouseHint } | undefined;
 
   for (const poll of await deps.repository.listPolls(buildingId)) {
     const left = poll.closesAt.getTime() - now.getTime();
 
     if (!isOpen(poll, now) || left > soon || left <= 0) continue;
 
-    const apartments = await deps.repository.listApartments(buildingId);
-    const voted = new Set((await deps.repository.listVotes(poll.id)).map((vote) => vote.apartmentId));
+    if (!known) {
+      const apartments = await deps.repository.listApartments(buildingId);
+
+      known = {
+        apartments,
+        zone: await zoneOf(deps, buildingId),
+        hintOf: houseHintFor(deps, buildingId, apartments),
+      };
+    }
+
+    const { apartments, zone, hintOf } = known;
+    const votes = await deps.repository.listVotes(poll.id);
+    const voted = new Set(votes.map((vote) => vote.apartmentId));
     const silent = apartments.filter((apartment) => !voted.has(apartment.id));
-    const result = countVotes(poll, apartments, await deps.repository.listVotes(poll.id));
+    const result = countVotes(poll, apartments, votes);
 
     if (silent.length === 0 || result.quorum) continue;
 
@@ -140,10 +217,10 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
       'polls',
     );
 
-    const closes = formatDay(poll.closesAt, await zoneOf(deps, buildingId));
+    const closes = formatDay(poll.closesAt, zone);
 
     for (const resident of people) {
-      const house = await houseHint(deps, resident, buildingId);
+      const house = await hintOf(resident);
 
       await notifyAbout(
         notifier,
@@ -165,8 +242,14 @@ export const listPollsFor = async (deps: AppDeps, resident: Resident): Promise<P
   const views: PollView[] = [];
 
   for (const buildingId of await housesOf(deps, resident)) {
-    for (const poll of await deps.repository.listPolls(buildingId)) {
-      views.push(await describePoll(deps, poll, resident));
+    const polls = await deps.repository.listPolls(buildingId);
+
+    if (polls.length === 0) continue;
+
+    const apartments = await deps.repository.listApartments(buildingId);
+
+    for (const poll of polls) {
+      views.push(await describePoll(deps, poll, resident, apartments));
     }
   }
 
@@ -198,6 +281,13 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
     );
   }
 
+  // Голос у помещения один: новый заменяет прежний, и тот, чей голос заменили,
+  // узнаёт об этом. Иначе жильцы одной квартиры молча перебивают друг друга.
+  const before = (await deps.repository.listVotes(poll.id))
+    .filter((item) => item.apartmentId === apartment.id)
+    .sort((left, right) => left.at.getTime() - right.at.getTime())
+    .at(-1);
+
   await deps.repository.saveVote(
     castVote({
       poll,
@@ -207,6 +297,24 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
       at: deps.now(),
     }),
   );
+
+  // Решение собственника уходит в систему: там заочное голосование имеет силу.
+  if (poll.mode !== 'survey' && deps.meetings) {
+    await deps.meetings
+      .submitDecision({ poll, apartmentId: apartment.id, choice: command.choice, at: deps.now() })
+      .catch(() => undefined);
+  }
+
+  if (before && before.residentId !== command.resident.id) {
+    const notifier = deps.notifier ?? noopNotifier;
+
+    await notifyResident(
+      notifier,
+      await deps.repository.findResident(before.residentId),
+      `Голос квартиры ${apartment.number} по собранию «${poll.title}» изменил ${command.resident.displayName}: ` +
+        `${CHOICES[command.choice]}.\nУ помещения один голос, считается последний.`,
+    );
+  }
 
   return describePoll(deps, poll, command.resident);
 };
@@ -238,14 +346,18 @@ const needed = (kind: PollKind, support: number): string => {
 
 export const formatPollResult = (view: PollView, options: PollTextOptions = {}): string => {
   const { poll, result } = view;
+  const survey = poll.mode === 'survey';
+
   const lines = [
     `${poll.title}`,
     poll.question,
     '',
-    `${POLL_RULES[poll.kind].title}. Участие: ${percent(result.turnout)} площади дома.`,
+    survey
+      ? `Опрос жильцов, решением собрания не является. Ответили: ${percent(result.turnout)} площади дома.`
+      : `${POLL_RULES[poll.kind].title}. Участие: ${percent(result.turnout)} площади дома.`,
   ];
 
-  if (!result.quorum) {
+  if (!result.quorum && !survey) {
     lines.push(`Кворума пока нет: не хватает ${formatArea(view.areaToQuorum)} м².`);
   }
 
@@ -257,7 +369,11 @@ export const formatPollResult = (view: PollView, options: PollTextOptions = {}):
     needed(poll.kind, result.support),
   );
 
-  if (view.myChoice && options.personal !== false) lines.push('', `Ваш голос: ${CHOICES[view.myChoice]}.`);
+  if (view.myChoice && options.personal !== false) {
+    const whose = view.votedBy ? ` (подал ${view.votedBy}, у квартиры один голос)` : '';
+
+    lines.push('', `Голос квартиры: ${CHOICES[view.myChoice]}${whose}.`);
+  }
 
   if (!view.open) {
     lines.push('', result.passed ? 'Решение принято.' : 'Решение не принято.');
@@ -303,8 +419,28 @@ export const closePoll = async (deps: AppDeps, poll: Poll): Promise<ClosedPoll> 
   const apartments = await deps.repository.listApartments(poll.buildingId);
   const votes = await deps.repository.listVotes(poll.id);
   const result = countVotes(poll, apartments, votes);
-  const closed = await deps.repository.savePoll({ ...poll, closedAt: deps.now() });
-  const protocol = await formatProtocol(deps, closed, result);
+  const closedAt = deps.now();
+  const house = await deps.repository.findBuilding(poll.buildingId);
+  const saved = await deps.repository.savePoll({ ...poll, closedAt });
+  const protocol = await formatProtocol(deps, saved, result);
+
+  // Протокол размещается в системе, а подлинники уходят в надзор: без этого
+  // решение собрания остаётся у организации и силы не имеет.
+  const published =
+    saved.mode !== 'survey' && deps.meetings
+      ? await deps.meetings
+          .publishProtocol({
+            poll: saved,
+            text: protocol,
+            toInspectionBy: new Date(
+              closedAt.getTime() + (PROTOCOL_TO_MANAGEMENT_DAYS + PROTOCOL_TO_INSPECTION_DAYS) * 24 * 3600_000,
+            ),
+            ...(house ? { building: house } : {}),
+          })
+          .catch(() => undefined)
+      : undefined;
+
+  const closed = published ? await deps.repository.savePoll({ ...saved, protocolId: published.protocolId }) : saved;
   const residents = await deps.repository.listResidentsByApartments(apartments.map((apartment) => apartment.id));
   const notifier = deps.notifier ?? noopNotifier;
 
@@ -360,6 +496,20 @@ export const pollProtocol = async (deps: AppDeps, viewer: Resident, pollId: stri
   return formatProtocol(deps, poll, countVotes(poll, apartments, votes));
 };
 
+/** Шапка протокола: чей документ, по какому дому и кто его вёл. */
+const head = (poll: Poll, survey: boolean, building?: Building, initiator?: string): string[] => [
+  survey ? 'Итоги опроса жильцов' : 'Протокол общего собрания собственников',
+  ...(poll.protocolId ? [`№ ${poll.protocolId}`] : []),
+  ...(building?.address ? [building.address] : []),
+  ...(building?.managementCompany ? [`Управляющая компания: ${building.managementCompany}`] : []),
+  survey
+    ? 'Опрос управляющей организации: решением общего собрания не является'
+    : 'Форма: заочное голосование с использованием системы',
+  ...(poll.noticeId ? [`Сообщение о собрании: ${poll.noticeId}`] : []),
+  ...(initiator ? [`${survey ? 'Провёл' : 'Инициатор'}: ${initiator}`] : []),
+  ...(survey || !initiator ? [] : [`Администратор собрания: ${initiator}`]),
+];
+
 /** Протокол общего собрания. */
 export const formatProtocol = async (deps: AppDeps, poll: Poll, result: PollResult): Promise<string> => {
   const timeZone = await zoneOf(deps, poll.buildingId);
@@ -370,14 +520,10 @@ export const formatProtocol = async (deps: AppDeps, poll: Poll, result: PollResu
   const line = (choice: VoteChoice): string =>
     `${TALLY[choice]}: ${area(result.shares[choice])} м² (${percent(result.shares[choice])})`;
 
-  const lines = ['Протокол общего собрания собственников'];
+  const survey = poll.mode === 'survey';
 
-  if (building?.address) lines.push(building.address);
-  if (building?.managementCompany) lines.push(`Управляющая компания: ${building.managementCompany}`);
-
-  lines.push(
-    'Форма: заочное голосование',
-    ...(initiator ? [`Инициатор: ${initiator.displayName}`] : []),
+  const lines = [
+    ...head(poll, survey, building, initiator?.displayName),
     `Голосование: с ${formatDate(poll.opensAt, timeZone)} по ${formatDate(poll.closesAt, timeZone)}`,
     '',
     'Вопрос повестки дня',
@@ -404,9 +550,20 @@ export const formatProtocol = async (deps: AppDeps, poll: Poll, result: PollResu
         ? 'Решение принято.'
         : 'Решение не принято.'
       : 'Собрание не состоялось: кворума нет.',
-  );
+  ];
 
-  if (poll.closedAt) lines.push('', `Протокол сформирован ${formatDate(poll.closedAt, timeZone)}`);
+  if (poll.closedAt) {
+    lines.push('', `${survey ? 'Итоги подведены' : 'Протокол сформирован'} ${formatDate(poll.closedAt, timeZone)}`);
+  }
+
+  if (!survey) {
+    lines.push(
+      '',
+      'Приложения: реестр собственников, решения собственников, сообщение о проведении собрания.',
+      'Подлинники решений и протокола передаются в управляющую организацию и далее в орган ' +
+        'государственного жилищного надзора.',
+    );
+  }
 
   return lines.join('\n');
 };

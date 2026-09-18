@@ -1,4 +1,4 @@
-import { formatVisit, listVisitsFor, receptionFor, zoneOf, type VisitCard } from '@domovoy/app';
+import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident, type VisitCard } from '@domovoy/app';
 import { DomainError, isCompanyStaff } from '@domovoy/domain';
 
 import { menuButton, visitCancelKeyboard, visitKeyboard } from '../keyboards.js';
@@ -13,6 +13,42 @@ const who = (card: VisitCard): string =>
 
 /** Сколько ближайших часов показывать кнопками: столько же, сколько строк в списках. */
 const SHOWN_SLOTS = 5;
+
+/** Час приёма кнопкой: на подписи день недели и дата, за две недели «чт 17:30» встречается дважды. */
+export interface FreeHour {
+  at: string;
+  title: string;
+}
+
+/**
+ * Приём и его свободные часы. Часы нужны и команде, и нажатию: пока человек
+ * выбирает, слот мог занять сосед, и тогда показываются свежие.
+ */
+export const freeHours = async (
+  kit: BotKit,
+  resident: Resident,
+): Promise<{ reception: Awaited<ReturnType<typeof receptionFor>>; hours: FreeHour[] }> => {
+  const reception = await receptionFor(kit.deps, resident);
+  const zone = await zoneOf(kit.deps, reception.buildingId);
+
+  return {
+    reception,
+    hours: reception.slots.slice(0, SHOWN_SLOTS).map((at) => ({
+      at: at.toISOString(),
+      title: at
+        .toLocaleString('ru-RU', {
+          timeZone: zone,
+          weekday: 'short',
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+        .replace(/,/g, '')
+        .replace(/\.$/, ''),
+    })),
+  };
+};
 
 /** Приём в управляющей организации: запись и отмена прямо в переписке. */
 export const visitCommands = (kit: BotKit): Record<string, Handler> => {
@@ -43,12 +79,11 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
           return;
         }
 
-        const reception = await receptionFor(deps, resident);
-        const zone = await zoneOf(deps, reception.buildingId);
+        const { reception, hours } = await freeHours(kit, resident);
 
         if (reception.mine) {
           await typed.reply(
-            `Вы записаны на приём: ${formatVisit(reception.mine, zone)}`,
+            `Вы записаны на приём: ${formatVisit(reception.mine, await zoneOf(deps, reception.buildingId))}`,
             visitCancelKeyboard(reception.mine.id),
           );
           return;
@@ -64,25 +99,9 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
           return;
         }
 
-        // На кнопке день недели и дата: за две недели «чт 17:30» встречается дважды.
-        const slots = reception.slots.slice(0, SHOWN_SLOTS).map((at) => ({
-          at: at.toISOString(),
-          title: at
-            .toLocaleString('ru-RU', {
-              timeZone: zone,
-              weekday: 'short',
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-            .replace(/,/g, '')
-            .replace(/\.$/, ''),
-        }));
-
         await typed.reply(
           reception.office ? `Приём: ${reception.office}. Когда удобно?` : 'Когда удобно прийти?',
-          visitKeyboard(slots),
+          visitKeyboard(hours),
         );
       } catch (error) {
         await typed.reply(

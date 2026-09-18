@@ -1,5 +1,5 @@
 import { answerAboutHouse, clarifyTarget, type Resident, type SubmitResult } from '@domovoy/app';
-import { BASIS, CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
+import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
 import { Keyboard, fmt } from '@maxkit/max-bot-api';
 
 import { cancelKeyboard, whereKeyboard } from './keyboards.js';
@@ -100,12 +100,10 @@ export const announce = async (
   }
 
   const hint = emergencyHint(created.category, created.priority);
-  // Откуда категория: предположение разбора текста не выдаётся за решение смены.
-  const by = result.categoryBy === 'model' ? `\n${BASIS.modelCategory}` : '';
 
   await typed.reply(
     `Заявка ${fmt.bold(created.number)} принята.\n` +
-      `${rule.title}, ${describeTarget(created.target)}.${by}\n` +
+      `${rule.title}, ${describeTarget(created.target)}.\n` +
       `Ответим до ${formatMoment(created.reactionDueAt)}.\n` +
       `Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.` +
       (hint ? `\n\n${hint}` : ''),

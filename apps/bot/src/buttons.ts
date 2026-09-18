@@ -67,8 +67,10 @@ import {
   readingKeyboard,
   readingPrompt,
   replyIfOpen,
+  visitKeyboard,
 } from './keyboards.js';
 import { takeLegal } from './commands/legal.js';
+import { freeHours } from './commands/visits.js';
 import { groupFor, groupKeyboard } from './menu.js';
 import { showNews, showSupport } from './pages.js';
 import { expect, forget, inChat, toast, type BotContext } from './max.js';
@@ -94,6 +96,11 @@ const explain = async (typed: BotContext, error: unknown, prefix = 'Не пол�
 
 /** Кнопка из старого сообщения: в ней нет того, чем она была. */
 const stale = (typed: BotContext): Promise<void> => toast(typed, 'Кнопка устарела, откройте меню');
+
+/** «Рассылка должникам» из списка долгов: письмо собирается там же, где и остальные. */
+const cast: Button = async (kit, typed) => {
+  await kit.run('broadcast', typed);
+};
 
 /** Кнопка меню повторяет команду. */
 const menu: Button = async (kit, typed, [name]) => {
@@ -143,7 +150,9 @@ const anyway: Button = async (kit, typed) => {
   const description = typed.session?.plannedDescription;
 
   if (!description) {
-    await typed.reply('Не помню, о чём было обращение. Напишите ещё раз, что случилось.');
+    expect(typed, { kind: 'description' });
+
+    await typed.reply('Не помню, о чём было обращение. Напишите ещё раз, что случилось.', cancelKeyboard());
     return;
   }
 
@@ -182,7 +191,7 @@ const ballot: Button = async (kit, typed, [pollId, choice]) => {
       await kit.bot.api
         .sendMessageToUser(
           voter.maxUserId,
-          `Собрание «${view.poll.title}». Ваш голос: ${choiceTitle(choice as never).toLowerCase()}.`,
+          `Собрание «${view.poll.title}». Голос квартиры: ${choiceTitle(choice as never).toLowerCase()}.`,
         )
         .catch(() => undefined);
     }
@@ -460,6 +469,24 @@ const visit: Button = async (kit, typed, parts) => {
 
   if (!at) return stale(typed);
 
+  const resident = await kit.residentOf(typed);
+
+  try {
+    // Пока сообщение висело в переписке, час мог занять сосед: тему спрашивать поздно.
+    const { hours } = await freeHours(kit, resident);
+
+    if (!hours.some((hour) => hour.at === at)) {
+      await typed.reply(
+        hours.length === 0 ? 'Этот час заняли, свободных пока нет.' : 'Этот час заняли. Выберите другой.',
+        hours.length === 0 ? menuButton(typed) : visitKeyboard(hours),
+      );
+      return;
+    }
+  } catch (error) {
+    await explain(typed, error, 'Запись не открылась');
+    return;
+  }
+
   expect(typed, { kind: 'visit', at });
 
   await typed.reply('С чем придёте? Напишите одной строкой.', cancelKeyboard());
@@ -480,13 +507,7 @@ const visitCancel: Button = async (kit, typed, [visitId]) => {
   }
 };
 
-/** Что делать с пришедшей наклейкой: словами под самим сообщением. */
-export const stickerSent = (caption: string, as: 'image' | 'document'): string =>
-  as === 'image'
-    ? `Наклейка «${caption}» выше: перешлите её в любой чат или сохраните к себе.`
-    : `Наклейка «${caption}» пришла файлом: откройте его и распечатайте.`;
-
-/** «Написать»: следующее сообщение уходит в переписку по заявке. */
+/** «Написать по заявке»: следующее сообщение уходит в переписку по ней. */
 const say: Button = async (_kit, typed, [requestId]) => {
   if (!requestId) return stale(typed);
 
@@ -517,6 +538,23 @@ const complaint: Button = async (kit, typed, [requestId]) => {
   }
 };
 
+/** Список смены под заявкой: имена и сколько нарядов уже на человеке. */
+const offerAssignees = async (
+  kit: BotKit,
+  typed: BotContext,
+  requestId: string,
+  resident: Awaited<ReturnType<BotKit['residentOf']>>,
+): Promise<void> => {
+  const staff = await listAssignable(kit.deps, resident);
+
+  if (staff.length === 0) {
+    await typed.reply('Некому поручить: в доме нет мастеров.', menuButton(typed));
+    return;
+  }
+
+  await typed.reply('Кому поручить? Рядом с именем, сколько нарядов уже на человеке.', assignKeyboard(requestId, staff));
+};
+
 /** Кому поручить наряд: список смены с загрузкой, выбор одним нажатием. */
 const assign: Button = async (kit, typed, [requestId, staffId]) => {
   if (!requestId) return stale(typed);
@@ -525,14 +563,7 @@ const assign: Button = async (kit, typed, [requestId, staffId]) => {
 
   try {
     if (!staffId) {
-      const staff = await listAssignable(kit.deps, resident);
-
-      if (staff.length === 0) {
-        await typed.reply('Некому поручить: в доме нет мастеров.', menuButton(typed));
-        return;
-      }
-
-      await typed.reply('Кому поручить? Рядом с именем, сколько нарядов уже на человеке.', assignKeyboard(requestId, staff));
+      await offerAssignees(kit, typed, requestId, resident);
       return;
     }
 
@@ -588,7 +619,9 @@ const more: Button = async (kit, typed, [what, from]) => {
 
   const page = what ? pages[what] : undefined;
 
-  if (page) await page(kit, typed, Number.isFinite(offset) ? offset : 0);
+  if (!page) return stale(typed);
+
+  await page(kit, typed, Number.isFinite(offset) ? offset : 0);
 };
 
 /** Отвязка квартиры: сначала вопрос, потом действие. */
@@ -610,8 +643,13 @@ const leave: Button = async (kit, typed, [step]) => {
   }
 
   try {
-    await unbindApartment(kit.deps, resident, resident.id);
+    const unbound = await unbindApartment(kit.deps, resident, resident.id);
+
     await toast(typed, 'Квартира отвязана');
+    await typed.reply(
+      'Квартира отвязана. Привязать снова можно кодом из квитанции.',
+      kit.menuKeyboard(unbound),
+    );
   } catch (error) {
     await explain(typed, error);
   }
@@ -635,6 +673,7 @@ const forgetMe: Button = async (kit, typed, [step]) => {
 
     await typed.reply(
       'Профиль удалён. Если понадоблюсь снова, просто напишите мне: заведу новый.',
+      menuButton(typed),
     );
   } catch (error) {
     await explain(typed, error);
@@ -716,6 +755,12 @@ const move: Button = async (kit, typed, [requestId, to]) => {
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), assignable(updated, resident.role)),
     );
   } catch (error) {
+    // Наряд в работу уходит с мастером: вместо отказа сразу спрашиваем, кому поручить.
+    if (error instanceof DomainError && error.code === 'assignee_required') {
+      await offerAssignees(kit, typed, requestId, await kit.residentOf(typed));
+      return;
+    }
+
     await explain(typed, error);
   }
 };
@@ -732,6 +777,7 @@ export const BUTTONS: Record<string, Button> = {
   legal,
   menu,
   group,
+  cast,
   cancel,
   anyway,
   vote: ballot,

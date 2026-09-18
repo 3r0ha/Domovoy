@@ -58,6 +58,7 @@ export {
   closeAcceptedBySilence,
   describeFromAttachments,
   escalationFor,
+  sendComplaint,
   knockUpstairs,
   objectPassport,
   remindAboutAcceptance,
@@ -90,13 +91,18 @@ export {
 export {
   ANSWER_MAX_LENGTH,
   ASSISTANT_KNOWLEDGE,
+  ASSISTANT_STARTERS,
   CAPABILITIES,
   OFF_TOPIC,
+  OFF_TOPIC_STAFF,
   STAFF_KNOWLEDGE,
   askAssistant,
   capabilitiesFor,
+  capabilityFor,
   findCapability,
   knowledgeFor,
+  offTopicFor,
+  startersFor,
   type AssistantAnswer,
   type Capability,
 } from './assistant.js';
@@ -109,6 +115,7 @@ export {
   type ClarifyInput,
   type HouseContext,
   type Intent,
+  type Place,
   type QuestionTopic,
   type ReadIntent,
   type Reasoner,
@@ -152,7 +159,22 @@ export {
   type GuestCode,
   type Snapshot,
 } from './devices.js';
+export {
+  createMockCapitalRepair,
+  type CapitalRepairDirectory,
+  type CapitalRepairPlan,
+  type CapitalRepairWork,
+  type MockCapitalRepairOptions,
+} from './capital.js';
 export { createMockHub, type MockHub, type MockHubOptions } from './devices-mock.js';
+export {
+  createMockMeetings,
+  type MeetingDecision,
+  type MeetingNotice,
+  type MeetingProtocol,
+  type MeetingRegistry,
+  type MockMeetingsOptions,
+} from './meetings.js';
 export { raiseSensorAlarm } from './sensors.js';
 export { AHEAD_DAYS, houseAhead, houseNow, type HouseEvent, type HouseNow } from './now.js';
 export { announceIncident, announceResolved } from './broadcast.js';
@@ -215,6 +237,7 @@ export {
   type HouseContacts,
   type ServedBuilding,
 } from './buildings.js';
+export { handOverBuilding, type HandOverCommand, type HandOverResult } from './handover.js';
 export { acceptLegal, legalAccepted } from './legal.js';
 export { dossierFor } from './dossier.js';
 export { portfolio, type BuildingLine } from './portfolio.js';
@@ -363,9 +386,13 @@ export {
   listVisitsFor,
   markVisitDone,
   receptionFor,
+  recordVisit,
+  setReception,
   takeVisit,
   type BookVisitCommand,
   type Reception,
+  type ReceptionHoursCommand,
+  type RecordVisitCommand,
   type VisitCard,
 } from './visits.js';
 export {

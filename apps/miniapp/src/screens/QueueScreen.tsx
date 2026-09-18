@@ -1,8 +1,8 @@
 import { Button, CellList, CellSimple, Input } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-import { describeFailure, type DomovoyApi, type RequestView } from '../api.js';
+import { actionTitle, describeFailure, type DomovoyApi, type RequestView } from '../api.js';
 import { Empty } from './Empty.js';
 import { Group } from './Group.js';
 import { IconRequests } from './icons.js';
@@ -15,6 +15,8 @@ import { useHaptics } from '../haptics.js';
 
 export interface QueueScreenProps {
   api: DomovoyApi;
+  /** Счётчик изменений заявки: по нему очередь перечитывается. */
+  version?: number;
   /** Открыть заявку на её экране. */
   onOpen: (id: string) => void;
   /** Оформить обращение самому, например по телефонному звонку жильца. */
@@ -59,15 +61,51 @@ const found = (request: RequestView, query: string): boolean => {
     .includes(needle);
 };
 
+interface Summary {
+  counts: { overdue: number; new: number; unassigned: number };
+  categories: { category: string; title: string; count: number }[];
+}
+
+/** Сколько заявок под каждым отбором. Один проход по очереди вместо перебора на каждый отбор. */
+const summarize = (all: readonly RequestView[]): Summary => {
+  const counts = { overdue: 0, new: 0, unassigned: 0 };
+  const byCategory = new Map<string, { category: string; title: string; count: number }>();
+
+  for (const request of all) {
+    if (request.overdue) counts.overdue += 1;
+    if (request.status === 'new') counts.new += 1;
+    if (unassigned(request)) counts.unassigned += 1;
+
+    const seen = byCategory.get(request.category);
+
+    if (seen) seen.count += 1;
+    else {
+      byCategory.set(request.category, {
+        category: request.category,
+        title: request.categoryShort ?? request.categoryTitle,
+        count: 1,
+      });
+    }
+  }
+
+  return { counts, categories: [...byCategory.values()] };
+};
+
 /** Очередь дома: просроченное сверху, дальше по сроку. */
-export const QueueScreen = ({ api, onOpen, onNewRequest, canAccept }: QueueScreenProps) => {
-  const queue = useBridgeRequest(() => api.listRequests('queue'), [api]);
+export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: QueueScreenProps) => {
+  const queue = useBridgeRequest(() => api.listRequests('queue'), [api, version]);
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [limit, setLimit] = useState(QUEUE_PAGE);
   const [query, setQuery] = useState('');
   const [taking, setTaking] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const haptics = useHaptics();
+
+  // Порядок задаёт сервер: он же и считает, какой срок у заявки ближайший.
+  const all = queue.data ?? [];
+
+  // Отборы считаются по данным, а не по каждой набранной в поиске букве.
+  const { counts, categories } = useMemo(() => summarize(all), [all]);
 
   const choose = (next: Filter): void => {
     haptics.picked();
@@ -124,20 +162,6 @@ export const QueueScreen = ({ api, onOpen, onNewRequest, canAccept }: QueueScree
     );
   }
 
-  const all = queue.data ?? [];
-
-  const counts = {
-    overdue: all.filter((request) => request.overdue).length,
-    new: all.filter((request) => request.status === 'new').length,
-    unassigned: all.filter(unassigned).length,
-  };
-
-  const categories = [...new Map(all.map((request) => [request.category, request])).values()].map((request) => ({
-    category: request.category,
-    title: request.categoryShort ?? request.categoryTitle,
-    count: all.filter((item) => item.category === request.category).length,
-  }));
-
   const matching = all.filter((request) => matches(request, filter) && found(request, query));
   const shown = matching.slice(0, limit);
   const rest = matching.length - shown.length;
@@ -158,6 +182,7 @@ export const QueueScreen = ({ api, onOpen, onNewRequest, canAccept }: QueueScree
           id="queue-search"
           type="search"
           aria-label="Поиск по очереди"
+          withClearButton
           value={query}
           placeholder="Номер, адрес или суть"
           onChange={(event) => {
@@ -233,7 +258,7 @@ export const QueueScreen = ({ api, onOpen, onNewRequest, canAccept }: QueueScree
               {...(canAccept && request.status === 'new'
                 ? {
                     action: {
-                      title: taking === request.id ? '…' : 'Принять',
+                      title: taking === request.id ? '…' : actionTitle('accepted'),
                       busy: taking !== null,
                       run: () => void accept(request.id),
                     },

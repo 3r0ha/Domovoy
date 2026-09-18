@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  ELDER_TERM_YEARS,
+  INITIATIVE_SHARE,
   areaToQuorum,
   castVote,
   countVotes,
+  electElder,
+  elderNow,
   isOpen,
+  standingOf,
   type Apartment,
+  type Initiative,
   type Poll,
   type Vote,
   type VoteChoice,
@@ -80,6 +86,17 @@ describe('приём голоса', () => {
   it('открыто ли голосование, видно отдельно', () => {
     assert.equal(isOpen(poll(), DURING), true);
     assert.equal(isOpen(poll(), new Date('2026-09-20T00:00:00Z')), false);
+  });
+
+  it('после подведения итогов голос не принимается, даже если срок ещё идёт', () => {
+    const closed: Poll = { ...poll(), closedAt: new Date('2026-09-11T00:00:00Z') };
+
+    assert.equal(isOpen(closed, DURING), false);
+    assert.throws(
+      () =>
+        castVote({ poll: closed, apartment: APARTMENTS[0]!, residentId: 'res-1', choice: 'for', at: DURING }),
+      /Итоги подведены/,
+    );
   });
 });
 
@@ -191,6 +208,47 @@ describe('подсчёт по долям площади', () => {
   });
 });
 
+describe('доли сравниваются до округления', () => {
+  /** Дом на сто тысяч метров: на нём видно разницу между долей и её округлением. */
+  const large: Apartment[] = [
+    { id: 'apt-big', buildingId: 'b1', number: 1, entrance: 1, riser: 1, area: 66666 },
+    { id: 'apt-rest', buildingId: 'b1', number: 2, entrance: 1, riser: 1, area: 33334 },
+  ];
+
+  it('66666 из 100000 это не две трети', () => {
+    const result = countVotes(poll('qualified'), large, [vote('apt-big', 'for')]);
+
+    assert.equal(result.quorum, true, 'две трети площади, кворум есть');
+    assert.equal(result.support, 0.6667, 'в отчёт доля идёт округлённой');
+    assert.equal(result.passed, false, 'до двух третей не хватило шести десятитысячных');
+  });
+
+  it('ровно две трети решение принимают', () => {
+    const exact: Apartment[] = [
+      { ...large[0]!, area: 2 },
+      { ...large[1]!, area: 1 },
+    ];
+
+    assert.equal(countVotes(poll('qualified'), exact, [vote('apt-big', 'for')]).passed, true);
+  });
+
+  it('ровно половина площади кворума не даёт и на больших числах', () => {
+    const half: Apartment[] = [
+      { ...large[0]!, area: 50000 },
+      { ...large[1]!, area: 50000 },
+    ];
+
+    assert.equal(countVotes(poll(), half, [vote('apt-big', 'for')]).quorum, false);
+
+    const over: Apartment[] = [
+      { ...large[0]!, area: 50001 },
+      { ...large[1]!, area: 49999 },
+    ];
+
+    assert.equal(countVotes(poll(), over, [vote('apt-big', 'for')]).quorum, true, 'одного метра хватило');
+  });
+});
+
 describe('сколько не хватает до кворума', () => {
   it('считается в квадратных метрах', () => {
     const result = countVotes(poll(), APARTMENTS, [vote('apt-3', 'for')]);
@@ -202,5 +260,80 @@ describe('сколько не хватает до кворума', () => {
     const result = countVotes(poll(), APARTMENTS, [vote('apt-1', 'for'), vote('apt-2', 'for')]);
 
     assert.equal(areaToQuorum(poll(), result), 0);
+  });
+});
+
+describe('старший по подъезду', () => {
+  const ELECTED = new Date('2026-09-15T00:00:00Z');
+  const elder = electElder(poll(), { entrance: 2, residentId: 'res-7' }, ELECTED);
+
+  it('полномочия начинаются в день собрания и длятся свой срок', () => {
+    assert.equal(ELDER_TERM_YEARS, 2);
+    assert.equal(elder.buildingId, 'b1');
+    assert.equal(elder.since.toISOString(), ELECTED.toISOString());
+    assert.equal(elder.until.toISOString(), '2028-09-15T00:00:00.000Z');
+  });
+
+  it('пока срок идёт, старший находится по своему подъезду', () => {
+    assert.equal(elderNow([elder], 2, new Date('2027-01-01T00:00:00Z'))?.residentId, 'res-7');
+    assert.equal(elderNow([elder], 1, new Date('2027-01-01T00:00:00Z')), undefined, 'соседний подъезд');
+  });
+
+  it('истёкшие полномочия не считаются', () => {
+    assert.equal(elderNow([elder], 2, elder.until), undefined, 'последний день уже не в счёт');
+    assert.equal(elderNow([elder], 2, new Date('2029-01-01T00:00:00Z')), undefined);
+    assert.equal(elderNow([elder], 2, new Date('2026-09-01T00:00:00Z')), undefined, 'ещё не выбрали');
+  });
+
+  it('из нескольких сроков берётся последний начавшийся', () => {
+    const reelected = electElder(poll(), { entrance: 2, residentId: 'res-9' }, new Date('2027-06-01T00:00:00Z'));
+
+    assert.equal(elderNow([elder, reelected], 2, new Date('2027-07-01T00:00:00Z'))?.residentId, 'res-9');
+  });
+});
+
+describe('подписи под инициативой', () => {
+  /** Дом на сто метров: десятая часть это ровно десять. */
+  const HOUSE: Apartment[] = [
+    { id: 'apt-small', buildingId: 'b1', number: 1, entrance: 1, riser: 1, area: 10 },
+    { id: 'apt-large', buildingId: 'b1', number: 2, entrance: 1, riser: 1, area: 90 },
+  ];
+
+  const initiative = (apartmentIds: readonly string[]): Initiative => ({
+    id: 'ini-1',
+    buildingId: 'b1',
+    authorId: 'res-1',
+    title: 'Поставить шлагбаум',
+    question: 'Установить шлагбаум на въезде во двор',
+    kind: 'simple',
+    createdAt: OPENS,
+    signatures: apartmentIds.map((apartmentId) => ({ residentId: `res-${apartmentId}`, apartmentId, at: OPENS })),
+  });
+
+  it('ровно десятая часть площади право требовать собрания даёт', () => {
+    const standing = standingOf(initiative(['apt-small']), HOUSE);
+
+    assert.equal(INITIATIVE_SHARE, 0.1);
+    assert.equal(standing.share, 0.1);
+    assert.equal(standing.areaToDemand, 0);
+    assert.equal(standing.enough, true);
+  });
+
+  it('метра не хватило, значит не хватило', () => {
+    const short = HOUSE.map((apartment) => (apartment.id === 'apt-small' ? { ...apartment, area: 9 } : apartment));
+    const standing = standingOf(initiative(['apt-small']), short);
+
+    assert.equal(standing.areaToDemand, 0.9);
+    assert.equal(standing.enough, false);
+  });
+
+  it('дом без известных площадей права требовать не даёт', () => {
+    const unknown = HOUSE.map((apartment) => ({ ...apartment, area: undefined }));
+
+    assert.deepEqual(standingOf(initiative(['apt-small']), unknown), {
+      share: 0,
+      areaToDemand: 0,
+      enough: false,
+    });
   });
 });

@@ -59,7 +59,9 @@ export const doorKeyboard = (
 
 /** Обращение в поддержку: ответить можно прямо из уведомления. */
 export const supportKeyboard = (ticketId: string) => ({
-  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('💬 Ответить', `ticket:${ticketId}`)]])],
+  attachments: [
+    Keyboard.inlineKeyboard([[Keyboard.button.callback('💬 Ответить по обращению', `ticket:${ticketId}`)]]),
+  ],
 });
 
 /** Ряды кнопок: обычные и открывающие мини-приложение. */
@@ -155,7 +157,7 @@ export const actionKeyboard = (
 ) => {
   const buttons = actions.map((action) =>
     Keyboard.button.callback(
-      actionTitle(action.from, action.to),
+      actionTitle(action.from, action.to, action.requiresComment),
       `${action.requiresComment ? 'ask' : 'req'}:${action.requestId}:${action.to}`,
     ),
   );
@@ -164,7 +166,7 @@ export const actionKeyboard = (
     buttons,
     ...(assignTo ? [[Keyboard.button.callback('👷 Назначить', `assign:${assignTo}`)]] : []),
     ...(passTo ? [[Keyboard.button.callback('📨 Передать', `pass:${passTo}`)]] : []),
-    ...(replyTo ? [[Keyboard.button.callback('💬 Написать', `say:${replyTo}`)]] : []),
+    ...(replyTo ? [[Keyboard.button.callback('💬 Написать по заявке', `say:${replyTo}`)]] : []),
   ]);
 };
 
@@ -230,9 +232,17 @@ export const ACTION_TITLES: Record<string, string> = {
   withdrawn: '↩️ Снять',
 };
 
-/** Возврат сданной работы жилец видит своими словами, а не словами наряда. */
-export const actionTitle = (from: string, to: string): string =>
-  from === 'done' && to === 'in_progress' ? '↩️ Вернуть' : (ACTION_TITLES[to] ?? to);
+/**
+ * Возврат сданной работы жилец видит своими словами, а не словами наряда.
+ * Приёмку за жильца делает смена, и у неё это не «принять работу», а закрытие
+ * заявки: такой переход требует объяснения, по нему их и различаем.
+ */
+export const actionTitle = (from: string, to: string, explains = false): string => {
+  if (from === 'done' && to === 'in_progress') return '↩️ Вернуть';
+  if (from === 'done' && to === 'confirmed' && explains) return '✅ Закрыть заявку';
+
+  return ACTION_TITLES[to] ?? to;
+};
 
 /** Следующая страница того же списка. */
 export const moreKeyboard = (what: string, offset: number, title = '⬇️ Ещё') => ({
@@ -331,21 +341,21 @@ export const bindIfApartment = async (deps: AppDeps, resident: Resident, code: s
   }
 };
 
+/** Ряд бюллетеня: три ответа, как в бумажном бланке. */
+export const pollRow = (pollId: string): ButtonRows[number] =>
+  (['for', 'against', 'abstain'] as const).map((choice) => {
+    const title = choiceTitle(choice);
+    const mark = choice === 'for' ? '✅' : choice === 'against' ? '❌' : '⚪';
+
+    return Keyboard.button.callback(
+      `${mark} ${title.slice(0, 1).toUpperCase()}${title.slice(1)}`,
+      `vote:${pollId}:${choice}`,
+    );
+  });
+
 /** Бюллетень: три кнопки, как в бумажном бланке. */
 export const pollKeyboard = (pollId: string) => ({
-  attachments: [
-    Keyboard.inlineKeyboard([
-      (['for', 'against', 'abstain'] as const).map((choice) => {
-        const title = choiceTitle(choice);
-        const mark = choice === 'for' ? '✅' : choice === 'against' ? '❌' : '⚪';
-
-        return Keyboard.button.callback(
-          `${mark} ${title.slice(0, 1).toUpperCase()}${title.slice(1)}`,
-          `vote:${pollId}:${choice}`,
-        );
-      }),
-    ]),
-  ],
+  attachments: [Keyboard.inlineKeyboard([pollRow(pollId)])],
 });
 
 export const flatTitle = (apartment: OwnApartment): string =>
@@ -387,5 +397,15 @@ export const COMMENT_PROMPTS: Record<string, string> = {
   in_progress: 'Что именно не сделано? Напишите одним сообщением, передам мастеру.',
   needs_info: 'Что нужно уточнить у жильца? Напишите вопрос одним сообщением.',
   rejected: 'Почему заявка отклоняется? Причину увидит жилец.',
+  // Мастер сдаёт работу с телефона и на ходу: длинного рассказа от него не ждут.
+  done: 'Что сделано? Напишите коротко, отметку увидит жилец.',
+  // Заявку за жильца закрывает смена, когда он сказал о приёмке голосом.
+  confirmed: 'Кто принял работу? Напишите одним сообщением, запишу в историю заявки.',
+};
+
+/** Чем подтверждается написанное: у сдачи это отметка о работе, а не причина. */
+export const COMMENT_DONE: Record<string, string> = {
+  done: 'Отметку увидит жилец.',
+  confirmed: 'Записал в историю заявки.',
 };
 

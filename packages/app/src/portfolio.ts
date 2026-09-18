@@ -1,4 +1,4 @@
-import { DomainError, createdIn, isCompanyStaff, lastDays, summarize, summarizePeriod } from '@domovoy/domain';
+import { DomainError, isCompanyStaff, lastDays, summarize, summarizePeriod } from '@domovoy/domain';
 
 import { listServedBuildings } from './buildings.js';
 import type { Resident } from './repository.js';
@@ -34,24 +34,29 @@ export const portfolio = async (
   const now = deps.now();
   const period = lastDays(now, days);
   const served = await listServedBuildings(deps, resident);
-  const lines: BuildingLine[] = [];
 
-  for (const building of served) {
-    const requests = await deps.repository.listRequests({ buildingId: building.id });
+  // Дома независимы: парк из полусотни домов читается разом, а не в очередь.
+  const houses = await Promise.all(
+    served.map((building) => deps.repository.listRequests({ buildingId: building.id })),
+  );
+
+  const lines: BuildingLine[] = served.map((building, index) => {
+    const requests = houses[index] ?? [];
     const state = summarize(requests, now);
     const inPeriod = summarizePeriod(requests, period, now);
 
-    lines.push({
+    return {
       buildingId: building.id,
       code: building.code,
       address: building.address,
       open: state.open,
       overdue: state.overdue,
-      created: createdIn(requests, period).length,
+      // То же число, что дал бы отдельный обход `createdIn`.
+      created: inPeriod.created,
       ...(inPeriod.closed > 0 ? { inTimeRate: inPeriod.inTimeRate } : {}),
       ...(inPeriod.rated > 0 ? { averageRating: inPeriod.averageRating } : {}),
-    });
-  }
+    };
+  });
 
   return lines.sort((left, right) => right.overdue - left.overdue || right.open - left.open);
 };

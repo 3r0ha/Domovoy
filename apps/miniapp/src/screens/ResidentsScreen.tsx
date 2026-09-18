@@ -1,4 +1,4 @@
-import { Avatar, Button, CellSimple, Switch } from '@maxhub/max-ui';
+import { Avatar, Button, CellSimple, Input, Switch } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
@@ -45,10 +45,27 @@ const initial = (name: string): string => name.trim().slice(0, 1).toUpperCase() 
 const ELDER_POLL_DAYS = 14;
 
 const describePerson = (person: PersonView): string => {
-  const flat = person.apartmentNumber === undefined ? '' : `кв. ${person.apartmentNumber}`;
+  const flat =
+    person.apartmentNumber === undefined
+      ? person.role === 'resident'
+        ? 'квартира не привязана'
+        : ''
+      : `кв. ${person.apartmentNumber}`;
   const duty = person.role === 'resident' ? '' : person.onDuty === true ? 'на дежурстве' : 'не на дежурстве';
 
   return [roleTitle(person.role), flat, duty].filter(Boolean).join(' · ');
+};
+
+/** Поиск по людям: имя, роль и номер квартиры сразу. */
+const foundPerson = (person: PersonView, query: string): boolean => {
+  const needle = query.trim().toLowerCase();
+
+  if (needle.length === 0) return true;
+
+  return [person.displayName, roleTitle(person.role), person.apartmentNumber ?? '']
+    .join('\n')
+    .toLowerCase()
+    .includes(needle);
 };
 
 /** Дежурство переключателем. */
@@ -164,7 +181,18 @@ const PersonRow = ({
 );
 
 /** Люди дома, их роли и дежурство. */
-const People = ({ api, canAssign, bound }: { api: DomovoyApi; canAssign: boolean; bound: number }) => {
+const People = ({
+  api,
+  canAssign,
+  bound,
+  query,
+}: {
+  api: DomovoyApi;
+  canAssign: boolean;
+  bound: number;
+  /** Поиск общий на весь экран: он стоит над обоими списками. */
+  query: string;
+}) => {
   const people = useBridgeRequest(() => api.people(), [api, bound]);
   const buildings = useBridgeRequest(() => api.buildings(), [api]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -230,7 +258,13 @@ const People = ({ api, canAssign, bound }: { api: DomovoyApi; canAssign: boolean
     return <Failure title="Люди не загрузились" error={people.error} onRetry={people.reload} />;
   }
 
-  const list = people.data ?? [];
+  const all = people.data ?? [];
+
+  if (all.length === 0) {
+    return <Empty icon={<IconPeople />} title="Людей нет" hint="Появятся, когда жильцы откроют бота" />;
+  }
+
+  const list = all.filter((person) => foundPerson(person, query));
   const residents = list.filter((person) => person.role === 'resident');
   const groups = [
     { title: 'Смена', people: list.filter((person) => person.role !== 'resident') },
@@ -239,13 +273,11 @@ const People = ({ api, canAssign, bound }: { api: DomovoyApi; canAssign: boolean
   ].filter((group) => group.people.length > 0);
   const rest = residents.length - Math.min(limit, residents.length);
 
-  if (groups.length === 0) {
-    return <Empty icon={<IconPeople />} title="Людей нет" hint="Появятся, когда жильцы откроют бота" />;
-  }
-
   return (
     <>
       {error ? <ErrorText>{error}</ErrorText> : null}
+
+      {groups.length === 0 ? <p className="lead">Никого не нашлось</p> : null}
 
       {groups.map((group) => (
         <Group key={group.title} title={group.title}>
@@ -363,6 +395,7 @@ export const ResidentsScreen = ({ api, canAssignRoles }: ResidentsScreenProps) =
   const unbound = useBridgeRequest(() => api.unboundResidents(), [api]);
   const apartments = useBridgeRequest(() => api.apartments(), [api]);
   const [bound, setBound] = useState(0);
+  const [query, setQuery] = useState('');
 
   if (unbound.loading && !unbound.data) return <Skeleton count={2} />;
 
@@ -370,10 +403,24 @@ export const ResidentsScreen = ({ api, canAssignRoles }: ResidentsScreenProps) =
     return <Failure title="Список недоступен" error={unbound.error} onRetry={unbound.reload} />;
   }
 
-  const waiting = unbound.data ?? [];
+  const needle = query.trim().toLowerCase();
+  const waiting = (unbound.data ?? []).filter(
+    (resident) => needle.length === 0 || resident.displayName.toLowerCase().includes(needle),
+  );
 
   return (
     <section className="list">
+      {/* Поиск стоит над обоими списками: в доме людей сотни. */}
+      <Input
+        className="field"
+        id="people-search"
+        type="search"
+        aria-label="Поиск по людям"
+        withClearButton
+        value={query}
+        placeholder="Имя, роль или номер квартиры"
+        onChange={(event) => setQuery(event.target.value)}
+      />
 
       {waiting.length > 0 ? (
         <>
@@ -394,7 +441,7 @@ export const ResidentsScreen = ({ api, canAssignRoles }: ResidentsScreenProps) =
         </>
       ) : null}
 
-      <People api={api} canAssign={canAssignRoles ?? false} bound={bound} />
+      <People api={api} canAssign={canAssignRoles ?? false} bound={bound} query={query} />
     </section>
   );
 };

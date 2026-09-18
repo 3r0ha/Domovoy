@@ -60,13 +60,49 @@ export interface Deadlines {
   resolutionDueAt: Date;
 }
 
-export const computeDeadlines = (category: RequestCategory, priority: Priority, createdAt: Date): Deadlines => {
+/** Локализация аварийного повреждения: полчаса с момента регистрации заявки. */
+export const NORM_LOCALIZATION_MINUTES = 30;
+
+/** Ликвидация засора внутридомовой системы водоотведения: два часа. */
+export const NORM_BLOCKAGE_HOURS = 2;
+
+/** Устранение аварийного повреждения: трое суток с даты повреждения. */
+export const NORM_EMERGENCY_HOURS = 72;
+
+/** Норма, которая ограничивает срок сверху помимо регламента организации. */
+export type NormLimit = 'blockage' | 'emergency';
+
+const normHours = (limit: NormLimit | undefined): number | undefined => {
+  if (limit === 'blockage') return NORM_BLOCKAGE_HOURS;
+
+  return limit === 'emergency' ? NORM_EMERGENCY_HOURS : undefined;
+};
+
+/**
+ * Сроки заявки. Регламент организации бывает строже нормы, мягче нет: п. 13
+ * Правил № 416 даёт полчаса на локализацию аварии, два часа на засор и трое
+ * суток на устранение аварийного повреждения, и эти потолки продукт держит сам.
+ */
+export const computeDeadlines = (
+  category: RequestCategory,
+  priority: Priority,
+  createdAt: Date,
+  limit?: NormLimit,
+): Deadlines => {
   const rule = CATEGORY_RULES[category];
   const factor = PRIORITY_FACTOR[priority];
 
+  const reaction =
+    priority === 'emergency'
+      ? Math.min(rule.reactionMinutes * factor, NORM_LOCALIZATION_MINUTES)
+      : rule.reactionMinutes * factor;
+
+  const capped = normHours(limit);
+  const resolution = capped === undefined ? rule.resolutionHours * factor : Math.min(rule.resolutionHours * factor, capped);
+
   return {
-    reactionDueAt: new Date(createdAt.getTime() + Math.round(rule.reactionMinutes * factor) * MINUTE_MS),
-    resolutionDueAt: new Date(createdAt.getTime() + Math.round(rule.resolutionHours * factor) * HOUR_MS),
+    reactionDueAt: new Date(createdAt.getTime() + Math.round(reaction) * MINUTE_MS),
+    resolutionDueAt: new Date(createdAt.getTime() + Math.round(resolution * 60) * MINUTE_MS),
   };
 };
 
@@ -164,6 +200,18 @@ export const missedDeadline = (request: ServiceRequest, now: Date): boolean =>
 export const timeToResolution = (request: ServiceRequest, now: Date): number =>
   request.resolutionDueAt.getTime() - now.getTime();
 
+/**
+ * Сколько миллисекунд осталось до срока, который идёт по заявке сейчас. У
+ * непринятой это срок ответа, а когда он уже нарушен, срок работ: иначе две
+ * просроченные заявки выстроились бы по одинаковому нормативу реакции.
+ * Отрицательное значение, просрочка.
+ */
+export const timeToDeadline = (request: ServiceRequest, now: Date): number => {
+  const reaction = request.reactionDueAt.getTime() - now.getTime();
+
+  return request.status === 'new' && reaction > 0 ? reaction : timeToResolution(request, now);
+};
+
 /** Кому сейчас принадлежит ход. */
 const turn = (request: ServiceRequest): number => {
   if (isFinal(request.status)) return 2;
@@ -188,7 +236,7 @@ export const compareByUrgency = (left: ServiceRequest, right: ServiceRequest, no
 
   if (leftIncident !== rightIncident) return leftIncident ? -1 : 1;
 
-  return timeToResolution(left, now) - timeToResolution(right, now);
+  return timeToDeadline(left, now) - timeToDeadline(right, now);
 };
 
 export interface CategoryStats {
@@ -204,7 +252,9 @@ export const collectCategoryStats = (requests: readonly ServiceRequest[]): Categ
   const durations = new Map<RequestCategory, number[]>();
 
   for (const request of requests) {
-    const finished = statusChanges(request).find((event) => event.status === 'done');
+    // Последняя сдача, как и в settledAt: переделанная работа заняла всё время
+    // до повторного «выполнено», а не до первого.
+    const finished = statusChanges(request).findLast((event) => event.status === 'done');
 
     if (!finished) continue;
 

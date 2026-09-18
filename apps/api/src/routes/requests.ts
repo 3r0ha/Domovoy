@@ -6,7 +6,6 @@ import {
   contactForRequest,
   supportRequest,
   supportableFor,
-  escalationFor,
   getRequestFor,
   readFile,
   uploadFile,
@@ -23,6 +22,7 @@ import {
 } from '@domovoy/app';
 import {
   decodeTarget,
+  DomainError,
   MESSAGE_MAX_LENGTH,
   RATING_RANGE,
   allowedTransitions,
@@ -32,15 +32,19 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
+import { requestNotFound } from '../errors.js';
 import {
   asTitle,
   attachmentsBodySchema,
   buildingIdSchema,
   CATEGORIES,
+  idParamsSchema,
   plannedSchema,
   requestSchema,
+  requestView,
   serializeRequest,
   staffNames,
+  startParamParamsSchema,
   STATUSES,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
@@ -111,6 +115,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/requests/:id/contact',
       {
         schema: {
+          params: idParamsSchema,
           response: {
             200: {
               type: 'object',
@@ -178,8 +183,8 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
               description: { type: 'string', minLength: 1, maxLength: 2000 },
               title: { type: 'string', maxLength: 120 },
               category: { type: 'string', enum: CATEGORIES },
-              startParam: { type: 'string', maxLength: 512 },
-              apartmentId: { type: 'string' },
+              startParam: { type: 'string', minLength: 1, maxLength: 512 },
+              apartmentId: { type: 'string', minLength: 1, maxLength: 128 },
               house: { type: 'boolean' },
               anyway: { type: 'boolean' },
               attachments: attachmentsBodySchema,
@@ -209,6 +214,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/objects/:startParam',
       {
         schema: {
+          params: startParamParamsSchema,
           response: {
             200: {
               type: 'object',
@@ -244,7 +250,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
         const passport = await objectPassport(deps, request.params.startParam, resident);
 
-        if (!passport) return reply.code(404).send({ error: 'not_found', message: 'Объект не найден' });
+        if (!passport) throw new DomainError('code_not_found', 'Объект не найден');
 
         const moment = deps.now();
         const seen = (item: ServiceRequest) => ({
@@ -270,37 +276,13 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     );
 
     scope.get<{ Params: { id: string } }>(
-      '/api/requests/:id/complaint',
-      {
-        schema: {
-          response: {
-            200: {
-              type: 'object',
-              required: ['possible', 'reason'],
-              properties: {
-                possible: { type: 'boolean' },
-                reason: { type: 'string' },
-                complaint: { type: 'string' },
-              },
-            },
-          },
-        },
-      },
-      async (request) => {
-        const resident = await currentResident(request.max.userId);
-
-        return escalationFor(deps, resident, request.params.id);
-      },
-    );
-
-    scope.get<{ Params: { id: string } }>(
       '/api/requests/:id',
-      { schema: { response: { 200: requestSchema } } },
+      { schema: { params: idParamsSchema, response: { 200: requestSchema } } },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId);
         const found = await getRequestFor(deps, resident, request.params.id);
 
-        if (!found) return reply.code(404).send({ error: 'not_found', message: 'Заявка не найдена' });
+        if (!found) throw requestNotFound();
 
         const survey = resident.role === 'resident' ? [] : await surveyOf(deps, found);
 
@@ -327,6 +309,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/requests/:id/transition',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['to'],
@@ -356,7 +339,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
           ...(request.body.provedBy ? { provedBy: request.body.provedBy } : {}),
         });
 
-        return reply.send(serializeRequest(updated, deps.now(), await staffNames(deps, [updated]), resident));
+        return reply.send(await requestView(deps, updated, resident));
       },
     );
 
@@ -368,6 +351,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/requests/:id/comment',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['text'],
@@ -389,7 +373,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
           ...(request.body.attachments?.length ? { attachments: request.body.attachments } : {}),
         });
 
-        return reply.send(serializeRequest(updated, deps.now(), await staffNames(deps, [updated]), resident));
+        return reply.send(await requestView(deps, updated, resident));
       },
     );
 
@@ -398,7 +382,13 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       '/api/requests/:id/answer',
       {
         schema: {
-          body: { type: 'object', required: ['affected'], properties: { affected: { type: 'boolean' } } },
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            required: ['affected'],
+            additionalProperties: false,
+            properties: { affected: { type: 'boolean' } },
+          },
           response: { 200: requestSchema },
         },
       },
@@ -411,7 +401,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
           affected: request.body.affected,
         });
 
-        return reply.send(serializeRequest(updated, deps.now(), await staffNames(deps, [updated]), resident));
+        return reply.send(await requestView(deps, updated, resident));
       },
     );
 
@@ -437,42 +427,46 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     /** «У меня то же самое» по заявке дома. */
     scope.post<{ Params: { id: string } }>(
       '/api/requests/:id/support',
-      { schema: { response: { 200: requestSchema } } },
+      { schema: { params: idParamsSchema, response: { 200: requestSchema } } },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId);
         const { request: updated } = await supportRequest(deps, resident, request.params.id);
 
-        return reply.send(serializeRequest(updated, deps.now(), await staffNames(deps, [updated]), resident));
+        return reply.send(await requestView(deps, updated, resident));
       },
     );
 
     /** Домовой стучится к соседу сверху: при заливе кран закрывает он. */
     scope.post<{ Params: { id: string } }>(
       '/api/requests/:id/knock',
-      { schema: { response: { 200: requestSchema } } },
+      { schema: { params: idParamsSchema, response: { 200: requestSchema } } },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId);
         const updated = await knockUpstairs(deps, { resident, requestId: request.params.id });
 
-        return reply.send(serializeRequest(updated, deps.now(), await staffNames(deps, [updated]), resident));
+        return reply.send(await requestView(deps, updated, resident));
       },
     );
 
     /** Какие действия по заявке доступны текущей роли. */
-    scope.get<{ Params: { id: string } }>('/api/requests/:id/actions', async (request, reply) => {
-      const resident = await currentResident(request.max.userId);
-      const found = await getRequestFor(deps, resident, request.params.id);
+    scope.get<{ Params: { id: string } }>(
+      '/api/requests/:id/actions',
+      { schema: { params: idParamsSchema } },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const found = await getRequestFor(deps, resident, request.params.id);
 
-      if (!found) return reply.code(404).send({ error: 'not_found', message: 'Заявка не найдена' });
+        if (!found) throw requestNotFound();
 
-      const actions = canAct(resident, found)
-        ? allowedTransitions(found.status, resident.role).filter(
-            (action) => action !== 'withdrawn' || found.authorId === resident.id,
-          )
-        : [];
+        const actions = canAct(resident, found)
+          ? allowedTransitions(found.status, resident.role).filter(
+              (action) => action !== 'withdrawn' || found.authorId === resident.id,
+            )
+          : [];
 
-      return { actions };
-    });
+        return { actions };
+      },
+    );
 
     /** Приём снимка из мини-приложения. */
     scope.post<{ Body: { contentType: string; data: string } }>(
@@ -509,14 +503,18 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     );
 
     /** Выдача снимка. */
-    scope.get<{ Params: { id: string } }>('/api/files/:id', async (request, reply) => {
-      const resident = await currentResident(request.max.userId);
-      const file = await readFile(deps, resident, request.params.id);
+    scope.get<{ Params: { id: string } }>(
+      '/api/files/:id',
+      { schema: { params: idParamsSchema } },
+      async (request, reply) => {
+        const resident = await currentResident(request.max.userId);
+        const file = await readFile(deps, resident, request.params.id);
 
-      return reply
-        .type(file.contentType)
-        .header('cache-control', 'private, max-age=86400, immutable')
-        .send(Buffer.from(file.bytes));
-    });
+        return reply
+          .type(file.contentType)
+          .header('cache-control', 'private, max-age=86400, immutable')
+          .send(Buffer.from(file.bytes));
+      },
+    );
 
 };

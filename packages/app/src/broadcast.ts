@@ -1,7 +1,7 @@
 import { CATEGORY_RULES, audienceForTarget, formatMoment, selectAudience } from '@domovoy/domain';
 import type { AnnouncementAudience, ServiceRequest } from '@domovoy/domain';
 
-import { noopNotifier } from './notifier.js';
+import { noopNotifier, notifyResident } from './notifier.js';
 import { announcementAudience, type Announcement } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -31,9 +31,36 @@ export const postTextToChat = async (
 
     const messageId = await notifier.sendToChat(chatId, text);
 
-    if (post.pin && messageId && notifier.pinInChat) await notifier.pinInChat(chatId, messageId);
+    if (messageId === undefined) {
+      await tellStaffChatIsLost(deps, buildingId);
+      return;
+    }
+
+    if (post.pin && notifier.pinInChat) await notifier.pinInChat(chatId, messageId);
   } catch (error) {
     notifier.onError?.(error);
+    await tellStaffChatIsLost(deps, buildingId);
+  }
+};
+
+/**
+ * В чат дома не удалось написать: бота из него удалили или чат сменился.
+ * Объявление молча не теряется, смена узнаёт и привязывает чат заново.
+ */
+const tellStaffChatIsLost = async (deps: AppDeps, buildingId: string): Promise<void> => {
+  const notifier = deps.notifier ?? noopNotifier;
+  const staff = await deps.repository.listStaff(buildingId).catch(() => []);
+  const building = await deps.repository.findBuilding(buildingId);
+
+  for (const person of staff) {
+    if (person.role !== 'manager' && person.role !== 'dispatcher') continue;
+
+    await notifyResident(
+      notifier,
+      person,
+      `Не получилось написать в чат дома ${building?.address ?? ''}.\n` +
+        'Проверьте, что бот в чате, и дайте там команду /here: привязка восстановится.',
+    );
   }
 };
 
@@ -49,15 +76,19 @@ export const postToChat = async (
   await postTextToChat(deps, announcement.buildingId, `${announcement.title}\n\n${announcement.body}`, post);
 };
 
+/** Объявление, которое уже завели по этой заявке. */
+const announcedFor = async (deps: AppDeps, request: ServiceRequest): Promise<Announcement | undefined> =>
+  (await deps.repository.listAnnouncements(request.buildingId)).find(
+    (announcement) => announcement.requestId === request.id,
+  );
+
 /** Объявление о подтверждённой аварии: продукт публикует его сам. */
 export const announceIncident = async (deps: AppDeps, request: ServiceRequest): Promise<Announcement | undefined> => {
   const audience = audienceForTarget(request.target);
 
   if (!audience) return undefined;
 
-  const known = await deps.repository.listAnnouncements(request.buildingId);
-
-  if (known.some((announcement) => announcement.requestId === request.id)) return undefined;
+  if (await announcedFor(deps, request)) return undefined;
 
   const apartments = await deps.repository.listApartments(request.buildingId);
   const recipients = selectAudience(apartments, audience);
@@ -87,8 +118,7 @@ export const announceIncident = async (deps: AppDeps, request: ServiceRequest): 
 
 /** Авария устранена: сообщение уходит тому же адресату, что и объявление. */
 export const announceResolved = async (deps: AppDeps, request: ServiceRequest): Promise<Announcement | undefined> => {
-  const known = await deps.repository.listAnnouncements(request.buildingId);
-  const opened = known.find((announcement) => announcement.requestId === request.id);
+  const opened = await announcedFor(deps, request);
 
   if (!opened) return undefined;
 

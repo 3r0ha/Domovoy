@@ -267,6 +267,7 @@ export interface HandoffRow {
   answer: string | null;
   created_at: Date;
   answered_at: Date | null;
+  by_resident: boolean | null;
 }
 
 export const toHandoff = (row: HandoffRow): Handoff => ({
@@ -282,6 +283,7 @@ export const toHandoff = (row: HandoffRow): Handoff => ({
   ...(row.external_id === null ? {} : { externalId: row.external_id }),
   ...(row.answer === null ? {} : { answer: row.answer }),
   ...(row.answered_at === null ? {} : { answeredAt: row.answered_at }),
+  ...(row.by_resident ? { byResident: true } : {}),
 });
 
 export interface VisitRow {

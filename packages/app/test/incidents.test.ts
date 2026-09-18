@@ -385,7 +385,12 @@ describe('склейка обращений', () => {
     deps.notifier.sent.length = 0;
 
     for (const to of ['in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: technician, requestId: created.request.id, to });
+      await transitionRequest(deps, {
+        resident: technician,
+        requestId: created.request.id,
+        to,
+        ...(to === 'done' ? { comment: 'Пустили воду' } : {}),
+      });
     }
 
     assert.equal(deps.notifier.sent.some((item) => /Авария: /.test(item.text)), false);
@@ -427,10 +432,15 @@ describe('склейка обращений', () => {
     const id = created.request.id;
 
     await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'in_progress' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: id,
+      to: 'in_progress',
+      assigneeId: technician.id,
+    });
 
     deps.notifier.sent.length = 0;
-    await transitionRequest(deps, { resident: technician, requestId: id, to: 'done' });
+    await transitionRequest(deps, { resident: technician, requestId: id, to: 'done', comment: 'Заменил кран' });
 
     const toAuthor = deps.notifier.sent.find((item) => item.maxUserId === maria.maxUserId);
 
@@ -690,6 +700,8 @@ describe('паспорт объекта', () => {
         resident: to === 'done' ? technician : dispatcher,
         requestId: created.request.id,
         to,
+        ...(to === 'in_progress' ? { assigneeId: technician.id } : {}),
+        ...(to === 'done' ? { comment: 'Заменил кран' } : {}),
       });
     }
 
@@ -756,6 +768,8 @@ describe('приёмка и автозакрытие', () => {
         resident: to === 'done' ? technician : dispatcher,
         requestId: created.request.id,
         to,
+        ...(to === 'in_progress' ? { assigneeId: technician.id } : {}),
+        ...(to === 'done' ? { comment: 'Заменил кран' } : {}),
       });
     }
 
@@ -1083,11 +1097,21 @@ describe('прогноз в очереди', () => {
       const created = asRequest(await submitProblem(deps, { resident: author, description: 'Нет горячей воды' }));
 
       for (const to of ['accepted', 'in_progress'] as const) {
-        await transitionRequest(deps, { resident: dispatcher, requestId: created.request.id, to });
+        await transitionRequest(deps, {
+          resident: dispatcher,
+          requestId: created.request.id,
+          to,
+          ...(to === 'in_progress' ? { assigneeId: technician.id } : {}),
+        });
       }
 
       deps.advance(30 * HOUR);
-      await transitionRequest(deps, { resident: technician, requestId: created.request.id, to: 'done' });
+      await transitionRequest(deps, {
+        resident: technician,
+        requestId: created.request.id,
+        to: 'done',
+        comment: 'Пустили воду',
+      });
       await transitionRequest(deps, { resident: author, requestId: created.request.id, to: 'confirmed' });
       deps.advance(-30 * HOUR);
     }
@@ -1696,7 +1720,13 @@ describe('аварийный режим дома', () => {
     const [request] = await listRequestsFor(deps, dispatcher, 'queue');
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: dispatcher, requestId: request!.id, to });
+      await transitionRequest(deps, {
+        resident: dispatcher,
+        requestId: request!.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: technician.id } : {}),
+        ...(to === 'done' ? { comment: 'Устранено' } : {}),
+      });
     }
 
     await transitionRequest(deps, { resident: maria, requestId: request!.id, to: 'confirmed' });
@@ -1714,7 +1744,13 @@ describe('аварийный режим дома', () => {
     if (own.kind !== 'created') throw new Error('ожидалась новая заявка');
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: dispatcher, requestId: own.request.id, to });
+      await transitionRequest(deps, {
+        resident: dispatcher,
+        requestId: own.request.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: technician.id } : {}),
+        ...(to === 'done' ? { comment: 'Подтянул петли' } : {}),
+      });
     }
 
     await transitionRequest(deps, { resident: maria, requestId: own.request.id, to: 'confirmed' });

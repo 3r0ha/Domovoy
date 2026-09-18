@@ -36,13 +36,16 @@ import {
   actionKeyboard,
   afterError,
   cancelKeyboard,
+  COMMENT_DONE,
   decimal,
   menuButton,
   readingKeyboard,
   readingPrompt,
   replyIfOpen,
   visitCancelKeyboard,
+  visitKeyboard,
 } from './keyboards.js';
+import { freeHours } from './commands/visits.js';
 import { expect, forget, isChatter, QUIT, type Awaiting, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
@@ -65,20 +68,28 @@ const readFromPhoto = async (kit: BotKit, typed: BotContext, meterId: string, sa
   );
 };
 
+/** Числа в отказе приходят с точкой, а в переписке они везде с запятой. */
+const commas = (text: string): string => text.replace(/(\d)\.(\d)/g, '$1,$2');
+
 /** Показание счётчика: за принятым сразу спрашивается следующий прибор. */
 const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text: string): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const value = Number(text.replace(',', '.').replace(/\s/g, ''));
 
   if (!Number.isFinite(value)) {
-    await typed.reply('Не похоже на число. Отправьте показание цифрами, например 123,456');
+    await typed.reply(
+      'Не похоже на число. Отправьте показание цифрами, например 123,456',
+      readingKeyboard(meterId, false),
+    );
     return;
   }
 
-  forget(typed);
-
   try {
     const result = await submitReading(kit.deps, { resident, meterId, value });
+
+    // Ожидание снимается принятым показанием: на отказ его повторяют тем же вводом.
+    forget(typed);
+
     const meters = await metersFor(kit.deps, resident);
     const meter = meters.find((state) => state.meter.id === meterId);
     const rule = meter ? METER_RULES[meter.meter.kind] : undefined;
@@ -104,7 +115,7 @@ const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text
     }
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Показание не принято: ${error.message}`, afterError(error, typed));
+    await typed.reply(`Показание не принято: ${commas(error.message)}`, afterError(error, typed));
   }
 };
 
@@ -149,11 +160,14 @@ const explainTransition = async (
       comment: text,
     });
 
-    // Жильцу, который вернул работу, и смене, которая отказала, нужны разные слова.
+    // Жильцу, который вернул работу, мастеру, который сдал её, и смене, которая
+    // отказала, нужны разные слова: у сдачи это отметка о работе, а не причина.
     const said =
       actor.role === 'resident'
         ? `Заявка ${fmt.bold(updated.number)} снова в работе: передал ваши слова мастеру.`
-        : `Заявка ${fmt.bold(updated.number)}: ${STATUS_TITLES[updated.status]}. Причину увидит жилец.`;
+        : `Заявка ${fmt.bold(updated.number)}: ${STATUS_TITLES[updated.status]}. ${
+            COMMENT_DONE[waiting.to] ?? 'Причину увидит жилец.'
+          }`;
 
     await typed.reply(said, actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated)));
   } catch (error) {
@@ -216,6 +230,12 @@ const askSupportFrom = async (
   const resident = await kit.residentOf(typed);
   forget(typed);
 
+  // Вежливое «спасибо» после команды обращением не становится: иначе оно уйдёт всей смене.
+  if (!ticketId && said.attachments.length === 0 && isChatter(said.text ?? '')) {
+    await typed.reply('Что нужно сделать?', kit.menuKeyboard(resident));
+    return;
+  }
+
   try {
     const ticket = isCompanyStaff(resident.role)
       ? ticketId
@@ -262,12 +282,28 @@ const bindByCode = async (kit: BotKit, typed: BotContext, code: string): Promise
   const resident = await kit.residentOf(typed);
 
   try {
-    await sayBound(kit, typed, await bindApartment(kit.deps, resident, code));
+    const bound = await bindApartment(kit.deps, resident, code);
+
+    forget(typed);
+
+    await sayBound(kit, typed, bound);
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
     await typed.reply(error.message, afterError(error, typed));
   }
+};
+
+/** Код квартиры ждут отдельно: пока он не подошёл, ответ остаётся о коде. */
+const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<void> => {
+  const code = normalizeApartmentCode(text);
+
+  if (!isApartmentCode(code)) {
+    await typed.reply('Код не подошёл. Это восемь знаков из квитанции.', cancelKeyboard());
+    return;
+  }
+
+  await bindByCode(kit, typed, code);
 };
 
 const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> => {
@@ -345,11 +381,17 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
     const visit = await takeVisit(kit.deps, { resident, at: new Date(at), topic });
     const zone = await zoneOf(kit.deps, visit.buildingId);
 
-    await typed.reply(`Записал на приём: ${formatVisit(visit, zone)}`, visitCancelKeyboard(visit.id));
+    await typed.reply(`Записал на приём, ${formatVisit(visit, zone)}`, visitCancelKeyboard(visit.id));
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
-    await typed.reply(`Не записал: ${error.message}`, afterError(error, typed));
+    // Час мог уйти, пока человек писал тему: возвращать некуда, поэтому часы свежие.
+    const { hours } = await freeHours(kit, resident).catch(() => ({ hours: [] }));
+
+    await typed.reply(
+      `Не записал: ${error.message}`,
+      hours.length > 0 ? visitKeyboard(hours) : afterError(error, typed),
+    );
   }
 };
 
@@ -381,6 +423,7 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, said: Said)
   if (waiting.kind === 'message') return sendMessage(kit, typed, waiting.requestId, said);
   if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, said.text);
   if (waiting.kind === 'handoff') return recordAnswerFrom(kit, typed, waiting.handoffId, said.text);
+  if (waiting.kind === 'code') return takeCode(kit, typed, said.text);
   if (waiting.kind === 'assistant') return answerFromAssistant(kit, typed, said.text);
 
   return explainTransition(kit, typed, waiting, said.text);

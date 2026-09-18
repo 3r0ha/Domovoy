@@ -40,9 +40,20 @@ export const paying = async <T>(deps: AppDeps, run: (gateway: PaymentGateway) =>
   }
 };
 
+/** Форматтеры по поясам: период считается на каждое показание, а поясов единицы. */
+const periodFormats = new Map<string, Intl.DateTimeFormat>();
+
 /** Месяц в виде `ГГГГ-ММ` по времени дома. */
-export const periodOf = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string =>
-  new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' }).format(at);
+export const periodOf = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string => {
+  let format = periodFormats.get(timeZone);
+
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit' });
+    periodFormats.set(timeZone, format);
+  }
+
+  return format.format(at);
+};
 
 /** Начисление за месяц по показаниям жильца. @throws {DomainError} если квартира не привязана. */
 export const chargesForResident = async (deps: AppDeps, resident: Resident): Promise<Charges> => {

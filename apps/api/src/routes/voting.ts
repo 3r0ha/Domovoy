@@ -11,9 +11,12 @@ import {
   vote,
 } from '@domovoy/app';
 import type { FastifyPluginAsync } from 'fastify';
+import { DomainError } from '@domovoy/domain';
 import {
-  buildingIdSchema,
+  asAttachment,
+  buildingQuerySchema,
   emptyResult,
+  idParamsSchema,
   initiativeSchema,
   pollSchema,
   serializeInitiative,
@@ -30,7 +33,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/polls',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: { type: 'array', items: pollSchema } },
         },
       },
@@ -44,20 +47,28 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
 
     scope.post<{
       Querystring: { buildingId?: string };
-      Body: { kind: 'simple' | 'qualified'; title: string; question: string; days: number };
+      Body: {
+        kind: 'simple' | 'qualified';
+        title: string;
+        question: string;
+        days: number;
+        mode?: 'meeting' | 'survey';
+      };
     }>(
       '/api/polls',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['kind', 'title', 'question', 'days'],
+            additionalProperties: false,
             properties: {
               kind: { type: 'string', enum: ['simple', 'qualified'] },
               title: { type: 'string', minLength: 1, maxLength: 200 },
               question: { type: 'string', minLength: 1, maxLength: 2000 },
-              days: { type: 'integer', minimum: 1, maximum: 90 },
+              days: { type: 'integer', minimum: 1, maximum: 60 },
+              mode: { type: 'string', enum: ['meeting', 'survey'] },
             },
           },
           response: { 201: pollSchema },
@@ -65,7 +76,16 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const poll = await startPoll(deps, { resident, ...request.body });
+
+        // Поля перечислены поимённо: тело запроса собрание от чужого имени не объявляет.
+        const poll = await startPoll(deps, {
+          resident,
+          kind: request.body.kind,
+          title: request.body.title,
+          question: request.body.question,
+          days: request.body.days,
+          ...(request.body.mode ? { mode: request.body.mode } : {}),
+        });
         const view = (await listPollsFor(deps, resident)).find((item) => item.poll.id === poll.id);
 
         return reply.code(201).send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }));
@@ -80,12 +100,13 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/polls/elder',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['candidateId', 'days'],
+            additionalProperties: false,
             properties: {
-              candidateId: { type: 'string', maxLength: 128 },
+              candidateId: { type: 'string', minLength: 1, maxLength: 128 },
               days: { type: 'integer', minimum: 1, maximum: 90 },
             },
           },
@@ -94,7 +115,12 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const poll = await startElderPoll(deps, { resident, ...request.body });
+
+        const poll = await startElderPoll(deps, {
+          resident,
+          candidateId: request.body.candidateId,
+          days: request.body.days,
+        });
         const views = await listPollsFor(deps, resident);
         const view = views.find((item) => item.poll.id === poll.id);
 
@@ -109,7 +135,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/initiatives',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: { type: 'array', items: initiativeSchema } },
         },
       },
@@ -127,10 +153,11 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/initiatives',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['title', 'question'],
+            additionalProperties: false,
             properties: {
               kind: { type: 'string', enum: ['simple', 'qualified'] },
               title: { type: 'string', minLength: 1, maxLength: 200 },
@@ -142,18 +169,26 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const initiative = await startInitiative(deps, { resident, ...request.body });
+
+        const initiative = await startInitiative(deps, {
+          resident,
+          title: request.body.title,
+          question: request.body.question,
+          ...(request.body.kind ? { kind: request.body.kind } : {}),
+        });
         const views = await listInitiativesFor(deps, resident);
         const view = views.find((item) => item.initiative.id === initiative.id);
 
-        return reply.code(201).send(view ? serializeInitiative(view) : undefined);
+        if (!view) throw new DomainError('initiative_not_found', 'Предложение не найдено');
+
+        return reply.code(201).send(serializeInitiative(view));
       },
     );
 
     /** «Я тоже за»: подпись соседа под предложением. */
     scope.post<{ Params: { id: string } }>(
       '/api/initiatives/:id/support',
-      { schema: { response: { 200: initiativeSchema } } },
+      { schema: { params: idParamsSchema, response: { 200: initiativeSchema } } },
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
@@ -166,9 +201,11 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/initiatives/:id/meeting',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['days'],
+            additionalProperties: false,
             properties: {
               days: { type: 'integer', minimum: 1, maximum: 90 },
               kind: { type: 'string', enum: ['simple', 'qualified'] },
@@ -198,9 +235,11 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/polls/:id/vote',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['choice'],
+            additionalProperties: false,
             properties: { choice: { type: 'string', enum: ['for', 'against', 'abstain'] } },
           },
           response: { 200: pollSchema },
@@ -217,6 +256,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       '/api/polls/:id/protocol',
       {
         schema: {
+          params: idParamsSchema,
           response: {
             200: { type: 'object', required: ['text'], properties: { text: { type: 'string' } } },
           },
@@ -230,16 +270,17 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
     );
 
     /** Тот же протокол файлом. */
-    scope.get<{ Params: { id: string } }>('/api/polls/:id/protocol.txt', async (request, reply) => {
-      const resident = await currentResident(request.max.userId);
+    scope.get<{ Params: { id: string } }>(
+      '/api/polls/:id/protocol.txt',
+      { schema: { params: idParamsSchema } },
+      async (request, reply) => {
+        const resident = await currentResident(request.max.userId);
 
-      const text = await pollProtocol(deps, resident, request.params.id);
-      const name = `протокол-${request.params.id}.txt`;
+        const text = await pollProtocol(deps, resident, request.params.id);
+        const name = `протокол-${request.params.id}.txt`;
 
-      return reply
-        .type('text/plain; charset=utf-8')
-        .header('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`)
-        .send(`${BOM}${text}\n`);
-    });
+        return asAttachment(reply, name, 'text/plain; charset=utf-8').send(`${BOM}${text}\n`);
+      },
+    );
 
 };

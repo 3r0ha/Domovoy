@@ -25,18 +25,6 @@ export const BROADCAST_KINDS: readonly BroadcastKind[] = [
   'staff',
 ];
 
-/** Названия адресатов: одни и те же в боте и в приложении. */
-export const BROADCAST_TITLES: Readonly<Record<BroadcastKind, string>> = {
-  building: 'Весь дом',
-  entrance: 'Подъезд',
-  riser: 'Стояк',
-  apartments: 'Квартиры',
-  debtors: 'Должники',
-  meters: 'Без показаний',
-  poll: 'Не проголосовали',
-  staff: 'Смена',
-};
-
 /** Сколько квартир можно перечислить номерами. */
 export const BROADCAST_FLATS_LIMIT = 50;
 
@@ -109,25 +97,4 @@ export const broadcastText = (text: string): string => {
   }
 
   return trimmed;
-};
-
-/** Номера квартир: из строки «12, 14 18» получается список. @throws {DomainError} */
-export const parseFlatNumbers = (said: string): number[] => {
-  const numbers = [
-    ...new Set(
-      said
-        .split(/[^\d]+/)
-        .filter(Boolean)
-        .map(Number)
-        .filter((number) => Number.isInteger(number) && number > 0),
-    ),
-  ];
-
-  if (numbers.length === 0) throw new DomainError('target_required', 'Перечислите номера квартир через запятую');
-
-  if (numbers.length > BROADCAST_FLATS_LIMIT) {
-    throw new DomainError('payload_too_long', `За раз можно перечислить ${BROADCAST_FLATS_LIMIT} квартир`);
-  }
-
-  return numbers.sort((left, right) => left - right);
 };

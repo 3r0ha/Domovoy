@@ -90,6 +90,8 @@ export interface RequestView {
   reactionOverdue: boolean;
   /** Чем установлен срок: регламент организации, а не решение продукта. */
   deadlineBasis?: string;
+  /** Что мастер обязан предъявить, когда работает в квартире. */
+  workerNote?: string;
   /** Когда работу закроют без ответа жильца. Есть только у сданной работы. */
   autoConfirmAt?: string;
   /** Сколько жильцов сообщили об одном и том же. */
@@ -243,6 +245,17 @@ export interface ComplaintOffer {
   possible: boolean;
   reason: string;
   complaint?: string;
+  /** Обращение уже отправлено: номер и срок ответа. */
+  sent?: { externalId?: string; dueAt: string; organization: string };
+}
+
+/** Чем кончилась отправка обращения в надзор. */
+export interface ComplaintSent {
+  organization: string;
+  externalId?: string;
+  dueAt: string;
+  /** Канал модельный: настоящего обмена за ним нет. */
+  model?: boolean;
 }
 
 export type VoteChoiceView = 'for' | 'against' | 'abstain';
@@ -270,7 +283,15 @@ export interface PollView {
   /** Доля «за» по правилу этого вопроса. */
   support: number;
   myChoice?: VoteChoiceView;
-  /** Чем установлен порог: статья Жилищного кодекса. */
+  /** Голос за квартиру подал другой её житель: его имя. */
+  votedBy?: string;
+  /** Собрание собственников или опрос жильцов. */
+  mode?: 'meeting' | 'survey';
+  /** Номер сообщения о собрании в системе. */
+  noticeId?: string;
+  /** Номер протокола в системе. */
+  protocolId?: string;
+  /** Чем установлен порог: правило этого вопроса словами. */
   basis?: string;
   /** Когда подведены итоги: с этого момента есть протокол. */
   closedAt?: string;
@@ -434,6 +455,10 @@ export interface HouseEventView {
 /** Работа управляющей компании за месяц в том виде, в каком её видит жилец. */
 export interface QualityView {
   buildingId: string;
+  /** Адрес дома: у сотрудника это его собственный дом, а не дом смены. */
+  address?: string;
+  /** Длина промежутка в днях: ею и подписаны числа. */
+  days?: number;
   from: string;
   to: string;
   open: number;
@@ -704,11 +729,22 @@ export interface VisitView {
 }
 
 /** Свободные часы приёма и своя запись. */
+/** Приёмное окно: день недели и часы. */
+export interface ReceptionWindowView {
+  /** День недели от понедельника: 1, воскресенье, 7. */
+  weekday: number;
+  /** Начало окна, «15:00». */
+  from: string;
+  to: string;
+}
+
 export interface ReceptionView {
   buildingId: string;
   minutes: number;
   /** Приёмные окна словами: «вторник 15:00-19:00». */
   hours: string;
+  /** Те же окна полями: из них смена и правит заданное. */
+  windows?: ReceptionWindowView[];
   /** Адрес приёма из карточки дома. */
   office?: string;
   slots: { at: string; day: string; clock: string }[];
@@ -832,4 +868,16 @@ export interface BroadcastAimView {
 
 export interface BroadcastResultView extends BroadcastAimView {
   sent: number;
+}
+
+/** Капитальный ремонт дома по региональной программе. */
+export interface CapitalRepairView {
+  source?: string;
+  /** Подключение модельное: настоящего обмена за ним нет. */
+  model?: boolean;
+  fund?: 'regional' | 'own';
+  contribution?: number;
+  balance?: number;
+  operator?: string;
+  works: { title: string; year: number; state: string; note?: string }[];
 }

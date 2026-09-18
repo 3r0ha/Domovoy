@@ -4,12 +4,14 @@ import { useState } from 'react';
 
 import {
   ApiError,
+  formatDay,
   needsApartment,
   type DomovoyApi,
   type InitiativeView,
   type PollView,
   type VoteChoiceView,
 } from '../api.js';
+import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -32,6 +34,10 @@ const CHOICES: { value: VoteChoiceView; title: string }[] = [
   { value: 'abstain', title: 'Воздержусь' },
 ];
 
+/** Голос словами: он же стоит в подтверждении замены. */
+const choiceTitle = (choice?: VoteChoiceView): string =>
+  CHOICES.find((item) => item.value === choice)?.title.toLowerCase() ?? 'не подан';
+
 /** Доля в процентах. Прочерк вместо «NaN%», если сервер долю не прислал. */
 const percent = (share: number): string => (Number.isFinite(share) ? `${Math.round(share * 100)}%` : '0%');
 
@@ -52,6 +58,7 @@ const PollCard = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState<VoteChoiceView | null>(null);
 
   const showProtocol = async (): Promise<void> => {
     setBusy(true);
@@ -91,6 +98,18 @@ const PollCard = ({
         </span>
       </header>
 
+      {/* Опрос и собрание решают разное: это видно сразу, а не в протоколе. */}
+      {poll.mode === 'survey' ? <p className="hint">Опрос: мнение, не решение</p> : null}
+
+      {/* Силу заочному голосованию даёт государственная система: номер оттуда
+          стоит рядом, чтобы человек мог найти собрание и там. */}
+      {poll.noticeId ? <p className="hint aside">Собрание в системе: {poll.noticeId}</p> : null}
+      {poll.protocolId ? <p className="hint aside">Протокол в системе: {poll.protocolId}</p> : null}
+
+      {poll.mode !== 'survey' && !poll.open && !poll.closedAt && new Date(poll.opensAt) > new Date() ? (
+        <p className="hint">Голосование откроется {formatDay(poll.opensAt)}</p>
+      ) : null}
+
       <p className="description">{poll.question}</p>
 
       <div className="quorum">
@@ -126,20 +145,47 @@ const PollCard = ({
       </div>
 
       {poll.open ? (
-        <div className="segments" role="group" aria-label="Ваш голос">
-          {CHOICES.map((choice) => (
-            <button
-              key={choice.value}
-              type="button"
-              className={poll.myChoice === choice.value ? 'segment segment-on' : 'segment'}
-              aria-pressed={poll.myChoice === choice.value}
-              disabled={busy}
-              onClick={() => void cast(choice.value)}
-            >
-              {choice.title}
-            </button>
-          ))}
-        </div>
+        <>
+          {/* В квартире живёт не один человек, а голос у неё один: заменять
+              чужой голос молча нельзя. */}
+          {poll.votedBy ? (
+            <p className="hint">
+              Голос квартиры подал {poll.votedBy}: {choiceTitle(poll.myChoice)}. Ваш голос заменит его.
+            </p>
+          ) : null}
+
+          <div className="segments" role="group" aria-label="Ваш голос">
+            {CHOICES.map((choice) => (
+              <button
+                key={choice.value}
+                type="button"
+                className={poll.myChoice === choice.value ? 'segment segment-on' : 'segment'}
+                aria-pressed={poll.myChoice === choice.value}
+                disabled={busy}
+                onClick={() => (poll.votedBy ? setReplacing(choice.value) : void cast(choice.value))}
+              >
+                {choice.title}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {replacing ? (
+        <Confirm
+          title="Заменить голос квартиры?"
+          text={`Сейчас записан голос: ${choiceTitle(poll.myChoice)}, его подал ${poll.votedBy}. У квартиры один голос, считается последний.`}
+          confirmLabel={`Голосовать «${choiceTitle(replacing)}»`}
+          busy={busy}
+          busyLabel="Записываем…"
+          onConfirm={() => {
+            const choice = replacing;
+
+            setReplacing(null);
+            void cast(choice);
+          }}
+          onCancel={() => setReplacing(null)}
+        />
       ) : null}
 
       {poll.closedAt ? (
@@ -256,7 +302,7 @@ const InitiativeCard = ({
             onChange={(event) => setKind(event.target.value as never)}
           >
             <option value="simple">Простое большинство</option>
-            <option value="qualified">Квалифицированное, две трети</option>
+            <option value="qualified">Две трети голосов</option>
           </select>
 
           <label htmlFor={`meeting-days-${initiative.id}`}>Сколько дней идёт голосование</label>
@@ -371,6 +417,7 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
   const [question, setQuestion] = useState('');
   const [kind, setKind] = useState<'simple' | 'qualified'>('simple');
   const [days, setDays] = useState('14');
+  const [mode, setMode] = useState<'meeting' | 'survey'>('meeting');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -384,7 +431,7 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
     setError(null);
 
     try {
-      await api.startPoll({ kind, title: title.trim(), question: question.trim(), days: Number(days) });
+      await api.startPoll({ kind, title: title.trim(), question: question.trim(), days: Number(days), mode });
       setTitle('');
       setQuestion('');
       setOpen(false);
@@ -407,6 +454,20 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
   return (
     <section className="card">
       <h2>Новое собрание</h2>
+
+      <label htmlFor="poll-mode">Что объявляем</label>
+      <select id="poll-mode" value={mode} onChange={(event) => setMode(event.target.value as never)}>
+        <option value="meeting">Собрание собственников</option>
+        <option value="survey">Опрос жильцов</option>
+      </select>
+
+      {/* Решение принимает собрание, а опрос только показывает мнение: разница
+          видна до объявления, а не после. */}
+      <p className="hint">
+        {mode === 'meeting'
+          ? 'Начнётся через 10 дней, идёт от 7 до 60 дней.'
+          : 'Начнётся сразу. Решения не принимает.'}
+      </p>
 
       <label htmlFor="poll-title">Тема</label>
       <Input
@@ -443,8 +504,8 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
         className="field"
         id="poll-days"
         type="number"
-        min={1}
-        max={90}
+        min={mode === 'meeting' ? 7 : 1}
+        max={60}
         value={days}
         withClearButton={false}
         onChange={(event) => setDays(event.target.value)}

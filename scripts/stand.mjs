@@ -33,9 +33,13 @@ run(process.execPath, ['apps/domovoy/dist/main.js'], {
     PORT,
     ALLOWED_ORIGINS: `http://localhost:${MINIAPP_PORT}`,
     MARKER_FILE: process.env.MARKER_FILE ?? './state/stand-marker',
-    // На стенде поставщиков нет: домофония и оплата отвечают заглушками.
+    // На стенде поставщиков нет: домофония, оплата и передача обращений
+    // отвечают заглушками.
     HUB: process.env.HUB ?? 'mock',
     PAYMENTS: process.env.PAYMENTS ?? 'mock',
+    HANDOFF: process.env.HANDOFF ?? 'mock',
+    MEETINGS: process.env.MEETINGS ?? 'mock',
+    CAPITAL_REPAIR: process.env.CAPITAL_REPAIR ?? 'mock',
   },
 });
 

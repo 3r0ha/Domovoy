@@ -1,5 +1,5 @@
 import { stickersFor } from '@domovoy/app';
-import { DomainError, plural } from '@domovoy/domain';
+import { DomainError } from '@domovoy/domain';
 
 import { afterError } from '../keyboards.js';
 import type { BotKit, Handler } from '../kit.js';
@@ -35,6 +35,3 @@ export const stickerCommands = (kit: BotKit): Record<string, Handler> => ({
     }
   },
 });
-
-/** Слово с числом объектов: остаётся для сообщений о наклейках. */
-export const objectsWord = (count: number): string => plural(count, 'объект', 'объекта', 'объектов');

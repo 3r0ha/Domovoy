@@ -12,11 +12,15 @@ import {
   unbindApartment,
 } from '@domovoy/app';
 import {
+  ROLES,
   type Role,
 } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import {
+  boundApartmentSchema,
   buildingIdSchema,
+  buildingQuerySchema,
+  idParamsSchema,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
@@ -29,7 +33,7 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/staff',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -59,7 +63,7 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents/unbound',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -84,7 +88,7 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -117,12 +121,12 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents/:id/role',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['role'],
-            properties: {
-              role: { type: 'string', enum: ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] },
-            },
+            additionalProperties: false,
+            properties: { role: { type: 'string', enum: ROLES } },
           },
         },
       },
@@ -138,7 +142,13 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents/:id/duty',
       {
         schema: {
-          body: { type: 'object', required: ['onDuty'], properties: { onDuty: { type: 'boolean' } } },
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            required: ['onDuty'],
+            additionalProperties: false,
+            properties: { onDuty: { type: 'boolean' } },
+          },
         },
       },
       async (request) => {
@@ -153,9 +163,11 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents/:id/buildings',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['buildingIds'],
+            additionalProperties: false,
             properties: { buildingIds: { type: 'array', maxItems: 200, items: buildingIdSchema } },
           },
         },
@@ -173,6 +185,16 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
     /** Жилец съехал: квартира освобождается, история дома остаётся. */
     scope.post<{ Params: { id: string }; Body?: { apartmentId?: string } }>(
       '/api/residents/:id/unbind',
+      {
+        schema: {
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { apartmentId: { type: 'string', minLength: 1, maxLength: 128 } },
+          },
+        },
+      },
       async (request) => {
         const actor = await currentResident(request.max.userId);
         const apartmentId = typeof request.body?.apartmentId === 'string' ? request.body.apartmentId : undefined;
@@ -187,7 +209,7 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/apartments',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -218,22 +240,14 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/residents/:id/apartment',
       {
         schema: {
+          params: idParamsSchema,
           body: {
             type: 'object',
             required: ['apartmentId'],
-            properties: { apartmentId: { type: 'string', maxLength: 128 } },
+            additionalProperties: false,
+            properties: { apartmentId: { type: 'string', minLength: 1, maxLength: 128 } },
           },
-          response: {
-            200: {
-              type: 'object',
-              required: ['apartmentId', 'number', 'alreadyBound'],
-              properties: {
-                apartmentId: { type: 'string' },
-                number: { type: 'integer' },
-                alreadyBound: { type: 'boolean' },
-              },
-            },
-          },
+          response: { 200: boundApartmentSchema },
         },
       },
       async (request) => {

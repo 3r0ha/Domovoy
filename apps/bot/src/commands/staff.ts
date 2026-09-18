@@ -40,7 +40,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
             : ''),
         keyboardOf(
           [
-            ...(waiting > 0 ? [[Keyboard.button.callback('💬 Вопросы', 'menu:support')]] : []),
+            ...(waiting > 0 ? [[Keyboard.button.callback('💬 Вопросы жильцов', 'menu:support')]] : []),
             ...appRow(kit.miniAppUrl, 'В приложении', 'report'),
             ...appRow(kit.miniAppUrl, 'Карта дома', 'plan'),
           ],
@@ -65,7 +65,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
   duty: async (typed) => {
     const resident = await residentOf(typed);
 
-    if (!isCompanyStaff(resident.role) && resident.role !== 'contractor') {
+    if (!isCompanyStaff(resident.role)) {
       await typed.reply('Дежурят сотрудники управляющей компании.', menuButton(typed));
       return;
     }
@@ -100,7 +100,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
     const chatId = typed.chatId;
 
     if (chatId === undefined || !inChat(typed)) {
-      await typed.reply('Эту команду дают в чате дома, а не в переписке со мной.');
+      await typed.reply('Эту команду дают в чате дома: добавьте меня туда и напишите /here.', menuButton(typed));
       return;
     }
 

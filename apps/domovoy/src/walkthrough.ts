@@ -218,7 +218,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     });
     await expect(IVAN, /плановые работы до/);
 
-    say('', 'Заявка не заводилась, но последнее слово за жильцом');
+    say('', 'Заявка не заведена, но жилец может настоять');
     say(IVAN.name, 'нажимает «Всё равно оставить заявку»: в подвале ещё и хлещет');
     platform.userPressesButton('anyway', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /принята/);
@@ -234,7 +234,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     await expect(DISPATCHER, /принята в работу/);
     await expect(IVAN, /принята в работу/);
 
-    say('', 'Соседям по стояку ушло не предупреждение, а вопрос');
+    say('', 'Соседям по стояку ушёл вопрос: у вас то же самое?');
     await expect(ANNA, /Авария: /);
 
     say(ANNA.name, 'нажимает «У меня тоже», не написав ни слова');
@@ -255,9 +255,18 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
       userId: DISPATCHER.maxUserId,
       chatId: DISPATCHER.maxUserId,
     });
-    await expect(DISPATCHER, /выполняется/);
+    await expect(DISPATCHER, /Кому поручить/);
 
-    say('', 'Чтобы попасть в квартиру, нужно договориться, разговор идёт там же');
+    const master = expectResident(await deps.repository.findResidentByMaxUserId(TECHNICIAN.maxUserId));
+
+    say(DISPATCHER.name, `выбирает исполнителя: ${TECHNICIAN.name}`);
+    platform.userPressesButton(`assign:${request!.id}:${master.id}`, {
+      userId: DISPATCHER.maxUserId,
+      chatId: DISPATCHER.maxUserId,
+    });
+    await expect(DISPATCHER, /поручена/);
+
+    say('', 'Доступ в квартиру согласуется в той же переписке');
     say(DISPATCHER.name, 'нажимает «Написать» под уведомлением');
     platform.userPressesButton(`say:${request!.id}`, {
       userId: DISPATCHER.maxUserId,
@@ -285,7 +294,14 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', `Состояние заявки прежнее: ${talking?.status}. Разговор, не смена статуса`);
 
     say(TECHNICIAN.name, 'отчитывается о выполнении');
-    platform.userPressesButton(`req:${request!.id}:done`, {
+    platform.userPressesButton(`ask:${request!.id}:done`, {
+      userId: TECHNICIAN.maxUserId,
+      chatId: TECHNICIAN.maxUserId,
+    });
+    await expect(TECHNICIAN, /Что сделано/);
+
+    say(TECHNICIAN.name, 'Заменил кран-буксу, воду пустил');
+    platform.userSends('Заменил кран-буксу, воду пустил', {
       userId: TECHNICIAN.maxUserId,
       chatId: TECHNICIAN.maxUserId,
     });
@@ -303,7 +319,35 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userSends('Вода так и не появилась', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /выполняется/);
 
-    say('', 'Тем же ботом открывается дверь: отдельного приложения для домофона не нужно');
+    say(TECHNICIAN.name, 'снова отчитывается о выполнении');
+    platform.userPressesButton(`ask:${request!.id}:done`, {
+      userId: TECHNICIAN.maxUserId,
+      chatId: TECHNICIAN.maxUserId,
+    });
+    await expect(TECHNICIAN, /Что сделано/);
+
+    say(TECHNICIAN.name, 'Поменял смеситель целиком, вода идёт');
+    platform.userSends('Поменял смеситель целиком, вода идёт', {
+      userId: TECHNICIAN.maxUserId,
+      chatId: TECHNICIAN.maxUserId,
+    });
+    await expect(IVAN, /ждёт вашей приёмки/);
+
+    say('', 'Жилец подтвердил приёмку по телефону: диспетчер закрывает заявку за него');
+    platform.userPressesButton(`ask:${request!.id}:confirmed`, {
+      userId: DISPATCHER.maxUserId,
+      chatId: DISPATCHER.maxUserId,
+    });
+    await expect(DISPATCHER, /Кто принял работу/);
+
+    say(DISPATCHER.name, 'Иван подтвердил по телефону');
+    platform.userSends('Иван подтвердил по телефону', {
+      userId: DISPATCHER.maxUserId,
+      chatId: DISPATCHER.maxUserId,
+    });
+    await expect(DISPATCHER, /закрыта/);
+
+    say('', 'Дверь открывается тем же ботом');
     say(IVAN.name, '/door');
     platform.userSends('/door', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Что открыть/);
@@ -316,11 +360,11 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userPressesButton('guest:intercom-1', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Код для гостя/);
 
-    say('', 'Гость набрал код на панели, хозяин узнаёт об этом сам, а код гаснет');
+    say('', 'Гость набрал код: хозяин получает уведомление, код гаснет');
     await openByCode(bot.deps, hub.codes.at(-1)!.code);
     await expect(IVAN, /Гостевой код сработал/);
 
-    say('', 'А это заявка, которую никто не подавал: сработал датчик дыма');
+    say('', 'Сработал датчик дыма: заявка заводится без человека');
     await raiseSensorAlarm(bot.deps, data.buildingId, 'smoke-1');
     await expect(DISPATCHER, /датчик дыма/i);
 
@@ -336,12 +380,12 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     await expect(IVAN, /Принято/);
     await expect(IVAN, /Отправьте показание числом/);
 
-    say('', 'Из этих же показаний считается квитанция: в переписке сумма и срок, оплата тут же');
+    say('', 'По показаниям считается квитанция: сумма, срок и оплата в переписке');
     say(IVAN.name, '/bill');
     platform.userSends('/bill', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /К оплате/);
 
-    say('', 'Разбор по строкам, это экран: те же числа открываются в приложении');
+    say('', 'Разбор по строкам открывается в приложении');
     const payer = expectResident(await bot.deps.repository.findResidentByMaxUserId(IVAN.maxUserId));
     const charges = await chargesForResident(bot.deps, payer);
 
@@ -356,7 +400,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userSends('/debts', { userId: DISPATCHER.maxUserId, chatId: DISPATCHER.maxUserId });
     await expect(DISPATCHER, /Долг дома/);
 
-    say('', 'У дома есть общий чат жильцов, своего продукт не заводит, приходит в этот');
+    say('', 'Продукт работает в существующем чате дома');
     say(MANAGER.name, 'добавляет бота в чат дома');
     platform.botAdded({ userId: MANAGER.maxUserId, chatId: HOUSE_CHAT });
     await expectChat(/Чат привязан к дому/);
@@ -370,9 +414,9 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     });
     await expectChat(/Срок выполнения/);
 
-    say('', 'Номер и срок видят все. Квартира соседа неизвестна, адресом стал дом из чата');
+    say('', 'В чате видны номер и срок, квартира автора не раскрывается');
 
-    say('', 'А без обращения бот в разговор не лезет');
+    say('', 'Без обращения бот в переписку не вмешивается');
     say('Сосед в чате дома', 'Кто-нибудь знает, когда включат воду?');
     const quiet = platform.outgoing.length;
 
@@ -401,7 +445,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userSends(flatCode, { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
     await expect(NEWCOMER, /привязаны к квартире/);
 
-    say('', 'Подобрать код нельзя: он свой у каждой квартиры, а промахи считаются');
+    say('', 'Код у каждой квартиры свой, промахи ограничены');
     say('Сосед в чате дома', 'WXYWXY33');
     platform.userSends('WXYWXY33', { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
     await expect(NEWCOMER, /Код не подошёл/);
@@ -436,9 +480,9 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
       userId: IVAN.maxUserId,
       chatId: IVAN.maxUserId,
     });
-    await expect(IVAN, /Ваш голос/);
+    await expect(IVAN, /Голос квартиры/);
 
-    say('', 'Срок собрания вышел, итоги подводятся сами, а протокол остаётся у дома');
+    say('', 'Срок вышел: итоги подводятся сами, протокол остаётся у дома');
     await bot.deps.repository.savePoll({ ...meeting, closesAt: new Date(now().getTime() - 60_000) });
 
     const [closed] = await closeDuePolls(bot.deps);
@@ -446,17 +490,17 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     await expect(IVAN, /Собрание завершено/);
     say('', (closed?.protocol ?? '').split('\n').slice(0, 3).join(' · '));
 
-    say('', 'Те же числа, что у управляющей компании, видит и тот, кто за это платит');
+    say('', 'Те же числа доступны жильцу');
     say(IVAN.name, '/house');
     platform.userSends('/house', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Сейчас открыто заявок/);
 
-    say('', 'Право знать, что о тебе хранят, есть по закону, и отвечает на это продукт');
+    say('', 'Выгрузка своих данных: состав и файл');
     say(IVAN.name, '/mydata');
     platform.userSends('/mydata', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Ваши данные файлом/);
 
-    say('', 'На вопрос о доме бот отвечает данными, а не заводит заявку');
+    say('', 'Вопрос о доме получает ответ данными, заявка не заводится');
     say(PETR.name, '/new');
     platform.userSends('/new', { userId: PETR.maxUserId, chatId: PETR.maxUserId });
     await expect(PETR, /Опишите/);
@@ -473,7 +517,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
         'Под ответом кнопка «Оформить заявку», если ответ не подошёл',
     );
 
-    say('', 'У Марии вторая квартира в соседнем доме, и всё считается по выбранной');
+    say('', 'Вторая квартира в соседнем доме: счёт идёт по выбранной');
     say(MARIA.name, '/flat');
     platform.userSends('/flat', { userId: MARIA.maxUserId, chatId: MARIA.maxUserId });
     await expect(MARIA, /по ней идут показания/);
@@ -482,7 +526,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userPressesButton('flat:apt-17-4', { userId: MARIA.maxUserId, chatId: MARIA.maxUserId });
     await expectToast(/Показания и квитанция: /);
 
-    say('', 'Лифт на подряде: наряд уходит подрядчику, а очередь дома ему не видна');
+    say('', 'Лифт на подряде: подрядчик видит только свой наряд');
 
     const lifts = await makeManager(bot.deps, 9009, 'Лифтсервис');
 
@@ -492,7 +536,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     say('', `Подрядчик видит в очереди дома заявок: ${own.length}`);
 
-    say('', 'Вопрос в управляющую компанию идёт перепиской, а не заявкой');
+    say('', 'Вопрос в управляющую организацию идёт перепиской');
     say(ANNA.name, '/support');
     platform.userSends('/support', { userId: ANNA.maxUserId, chatId: ANNA.maxUserId });
     await expect(ANNA, /Напишите вопрос/);
@@ -520,17 +564,17 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     });
     await expect(ANNA, /Лавочку поставим/);
 
-    say('', 'Выбор объекта для наклейки, это список: бот называет число и открывает приложение');
+    say('', 'Выбор объекта для наклейки открывается в приложении');
     say(IVAN.name, '/stickers');
     platform.userSends('/stickers', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Объектов с кодами/);
 
-    say('', 'Саму наклейку делает приложение, а приходит она в ту же переписку');
+    say('', 'Наклейка приходит в ту же переписку');
     const made = await sendSticker(bot.deps, { resident: payer, payload: 'ent_dom15_1', style: 'night' });
 
     say('', `Наклейка «${made.plan.caption}» ушла ${made.as === 'image' ? 'картинкой' : 'файлом'}`);
 
-    say('', 'Рассылка собирается в приложении: адресат из подъездов и стояков, охват виден до отправки');
+    say('', 'Рассылка собирается в приложении, охват виден до отправки');
     say(DISPATCHER.name, '/broadcast');
     platform.userSends('/broadcast', { userId: DISPATCHER.maxUserId, chatId: DISPATCHER.maxUserId });
     await expect(DISPATCHER, /Рассылка собирается в приложении/);
@@ -545,7 +589,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     await expect(IVAN, /Сообщение управляющей компании/);
 
-    say('', 'Приём в управляющей организации назначается в том же чате: этого требует порядок');
+    say('', 'Запись на приём идёт в той же переписке');
     say(IVAN.name, '/visit');
     platform.userSends('/visit', { userId: IVAN.maxUserId, chatId: IVAN.maxUserId });
     await expect(IVAN, /Когда удобно/);

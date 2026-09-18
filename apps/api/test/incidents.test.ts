@@ -231,7 +231,7 @@ describe('паспорт объекта', () => {
 });
 
 describe('приёмка работы', () => {
-  it('жилец подтверждает выполнение, а управляющая компания, нет', async () => {
+  it('жилец подтверждает выполнение, а смена, только с объяснением', async () => {
     const { app, login } = await setup([maria, dispatcher, technician]);
     const resident = await login(1001);
     const staff = await login(5005);
@@ -241,11 +241,11 @@ describe('приёмка работы', () => {
       .id as string;
 
     await transition(app, staff, id, { to: 'accepted' });
-    await transition(app, staff, id, { to: 'in_progress' });
-    await transition(app, master, id, { to: 'done' });
+    await transition(app, staff, id, { to: 'in_progress', assigneeId: technician.id });
+    await transition(app, master, id, { to: 'done', comment: 'Заменил кран' });
 
-    const byStaff = await transition(app, staff, id, { to: 'confirmed' });
-    assert.equal(byStaff.statusCode, 403, 'сама себе работу УК не принимает');
+    const silent = await transition(app, staff, id, { to: 'confirmed' });
+    assert.equal(silent.statusCode, 400, 'молча за жильца работу не принимают');
 
     const byResident = await transition(app, resident, id, { to: 'confirmed' });
     assert.equal(byResident.json().status, 'confirmed');
@@ -262,8 +262,8 @@ describe('приёмка работы', () => {
       .id as string;
 
     await transition(app, staff, id, { to: 'accepted' });
-    await transition(app, staff, id, { to: 'in_progress' });
-    await transition(app, await login(6006), id, { to: 'done' });
+    await transition(app, staff, id, { to: 'in_progress', assigneeId: technician.id });
+    await transition(app, await login(6006), id, { to: 'done', comment: 'Заменил кран' });
 
     const reopened = await transition(app, resident, id, {
       to: 'in_progress',

@@ -29,6 +29,8 @@ export interface SweepDays {
 export interface SweepState {
   /** До какого момента заявки уже просмотрены. */
   checkedUntil?: string;
+  /** До какого момента просмотрены работы каждого дома. */
+  worksUntil?: Record<string, string>;
   /** Отметки по домам: у каждого свой календарь и своё утро. */
   houses?: Record<string, SweepDays>;
 }
@@ -121,23 +123,25 @@ export const createSweeper = (deps: AppDeps, options: SweepOptions = {}) => {
       }
     };
 
-    const window = await attempt('window', async () => {
-      for (const house of houses) report.works += (await remindAboutWorks(deps, house, since)).length;
+    next.worksUntil = { ...state.worksUntil };
 
-      report.acceptance = (await remindAboutAcceptance(deps, since)).length;
-      report.warned = (await warnAboutDeadlines(deps, since)).length;
-      report.overdue = (await remindAboutOverdue(deps, since)).length;
-    });
+    /**
+     * Предупреждения о работах одного дома. Отметка у каждого дома своя:
+     * падение на одном не заставляет остальные рассылать уже отправленное
+     * заново. Дом, который обойти не удалось, запоминает своё окно: общая
+     * отметка к этому времени уже ушла вперёд.
+     */
+    const works = async (house: string): Promise<void> => {
+      const from = new Date(state.worksUntil?.[house] ?? state.checkedUntil ?? now.toISOString());
+      const ok = await attempt('works', async () => {
+        report.works += (await remindAboutWorks(deps, house, from)).length;
+      });
 
-    if (window) next.checkedUntil = now.toISOString();
+      next.worksUntil = { ...next.worksUntil, [house]: (ok ? now : from).toISOString() };
+    };
 
-    await attempt('closing', async () => {
-      report.closed = (await closeAcceptedBySilence(deps)).length;
-      report.polls = (await closeDuePolls(deps)).length;
-    });
-
-    // Сутки и утро считаются по календарю дома, а не по времени сервера.
-    for (const house of houses) {
+    /** Суточные рассылки одного дома: сутки и утро считаются по его календарю. */
+    const daily = async (house: string): Promise<void> => {
       const zone = await zoneOf(deps, house);
       const today = dayIn(now, zone);
       const done = state.houses?.[house] ?? {};
@@ -184,7 +188,24 @@ export const createSweeper = (deps: AppDeps, options: SweepOptions = {}) => {
 
         if (ok) mark('digest');
       }
-    }
+    };
+
+    for (const house of houses) await works(house);
+
+    const window = await attempt('window', async () => {
+      report.acceptance = (await remindAboutAcceptance(deps, since)).length;
+      report.warned = (await warnAboutDeadlines(deps, since)).length;
+      report.overdue = (await remindAboutOverdue(deps, since)).length;
+    });
+
+    if (window) next.checkedUntil = now.toISOString();
+
+    await attempt('closing', async () => {
+      report.closed = (await closeAcceptedBySilence(deps)).length;
+      report.polls = (await closeDuePolls(deps)).length;
+    });
+
+    for (const house of houses) await daily(house);
 
     await store.save(next);
     return report;

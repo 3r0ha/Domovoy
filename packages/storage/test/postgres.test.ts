@@ -277,7 +277,12 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
 
     await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'in_progress' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: created.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
     await transitionRequest(deps, {
       resident: dispatcher,
       requestId: created.id,
@@ -303,11 +308,17 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     });
 
     await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'in_progress' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: created.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
     await transitionRequest(deps, {
       resident: dispatcher,
       requestId: created.id,
       to: 'done',
+      comment: 'Заменил ролики дверей',
       provedBy: `eqp_${BUILDING_ID}_lift-1`,
     });
 
@@ -616,8 +627,18 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
 
     await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'in_progress' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to: 'done' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: created.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: created.id,
+      to: 'done',
+      comment: 'Заменил прокладку',
+    });
 
     await transitionRequest(deps, {
       resident: author,
@@ -760,7 +781,13 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: dispatcher, requestId: created.id, to });
+      await transitionRequest(deps, {
+        resident: dispatcher,
+        requestId: created.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: dispatcher.id } : {}),
+        ...(to === 'done' ? { comment: 'Заменил кран' } : {}),
+      });
     }
 
     const confirmed = await transitionRequest(deps, {
@@ -1254,12 +1281,14 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
       resident: dispatcher,
       requestId: request.id,
       to: 'in_progress',
+      assigneeId: dispatcher.id,
     });
 
     await transitionRequest(deps, {
       resident: dispatcher,
       requestId: request.id,
       to: 'done',
+      comment: 'Заменил кран',
       attachments: [{ kind: 'photo', token: 'file:after' }],
     });
 
@@ -1285,6 +1314,7 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
       resident: dispatcher,
       requestId: request.id,
       to: 'in_progress',
+      assigneeId: dispatcher.id,
       attachments: [{ kind: 'photo', token: 'file:before' }],
     });
 
@@ -1384,8 +1414,18 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
       to: 'accepted',
     });
 
-    request = await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'in_progress' });
-    request = await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'done' });
+    request = await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
+    request = await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'done',
+      comment: 'Заменил кран',
+    });
 
     await transitionRequest(deps, { resident: author, requestId: request.id, to: 'confirmed', rating: 4 });
 
@@ -1459,6 +1499,204 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
 
     assert.equal(loaded?.contact?.name, 'Гордеева Нина Павловна');
     assert.equal(loaded?.contact?.email, 'nina@uk.ru');
+  });
+
+  it('переданное обращение читается по заявке и по дому', async () => {
+    const request = await createServiceRequest(deps, { resident: author, description: 'Нет горячей воды' });
+    const dueAt = new Date(NOW.getTime() + 2 * 3600_000);
+
+    await deps.repository.saveHandoff({
+      id: 'handoff-1',
+      requestId: request.id,
+      buildingId: BUILDING_ID,
+      to: 'resource',
+      organization: 'Теплосеть',
+      channel: 'gis_zhkh',
+      externalId: 'ГИС-42',
+      status: 'sent',
+      dueAt,
+      createdAt: NOW,
+      byResident: true,
+    });
+
+    const stored = await deps.repository.findHandoff('handoff-1');
+
+    assert.ok(stored);
+    assert.equal(stored?.to, 'resource');
+    assert.equal(stored?.organization, 'Теплосеть');
+    assert.equal(stored?.channel, 'gis_zhkh');
+    assert.equal(stored?.externalId, 'ГИС-42');
+    assert.equal(stored?.byResident, true);
+    assert.equal(stored?.dueAt.getTime(), dueAt.getTime());
+    assert.equal(stored?.answer, undefined);
+
+    const byRequest = await deps.repository.listHandoffs({ requestId: request.id });
+    const waiting = await deps.repository.listHandoffs({ buildingId: BUILDING_ID, waiting: true });
+
+    assert.equal(byRequest.length, 1);
+    assert.equal(waiting.length, 1, 'ответа ещё нет');
+
+    await deps.repository.saveHandoff({
+      ...stored,
+      status: 'answered',
+      answer: 'Устранено, подача восстановлена',
+      answeredAt: NOW,
+    });
+
+    const answered = await deps.repository.findHandoff('handoff-1');
+
+    assert.equal(answered?.status, 'answered');
+    assert.equal(answered?.answer, 'Устранено, подача восстановлена');
+    assert.equal(answered?.answeredAt?.getTime(), NOW.getTime());
+    assert.deepEqual(await deps.repository.listHandoffs({ buildingId: BUILDING_ID, waiting: true }), []);
+  });
+
+  it('вид собрания, сообщение и протокол переживают перезапуск', async () => {
+    const meeting = await deps.repository.savePoll({
+      id: 'poll-meeting',
+      buildingId: BUILDING_ID,
+      kind: 'qualified',
+      mode: 'meeting',
+      title: 'Капитальный ремонт кровли',
+      question: 'Утвердить смету',
+      opensAt: NOW,
+      closesAt: new Date(NOW.getTime() + 10 * 24 * 3600_000),
+      noticeId: 'notice-77',
+      protocolId: 'protocol-12',
+    });
+
+    const stored = await deps.repository.findPoll(meeting.id);
+
+    assert.equal(stored?.mode, 'meeting');
+    assert.equal(stored?.noticeId, 'notice-77');
+    assert.equal(stored?.protocolId, 'protocol-12');
+
+    await deps.repository.savePoll({
+      id: 'poll-survey',
+      buildingId: BUILDING_ID,
+      kind: 'simple',
+      mode: 'survey',
+      title: 'Цвет скамеек',
+      question: 'Какой выбрать',
+      opensAt: NOW,
+      closesAt: new Date(NOW.getTime() + 3 * 24 * 3600_000),
+    });
+
+    const survey = await deps.repository.findPoll('poll-survey');
+
+    assert.equal(survey?.mode, 'survey');
+    assert.equal(survey?.noticeId, undefined);
+    assert.equal(survey?.protocolId, undefined);
+  });
+
+  it('согласие с документами переживает перезапуск', async () => {
+    const legalAt = new Date(NOW.getTime() - 3600_000);
+
+    await deps.repository.saveResident({ ...author, legalVersion: '2026-09-01', legalAt });
+
+    const stored = await deps.repository.findResident(author.id);
+
+    assert.equal(stored?.legalVersion, '2026-09-01');
+    assert.equal(stored?.legalAt?.getTime(), legalAt.getTime());
+
+    await deps.repository.saveResident({ ...author });
+
+    const dropped = await deps.repository.findResident(author.id);
+
+    assert.equal(dropped?.legalVersion, undefined, 'отзыв согласия тоже сохраняется');
+  });
+
+  it('одновременное сохранение заявки не теряет событие', async () => {
+    const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
+    const base = await deps.repository.findRequest(created.id);
+
+    assert.ok(base);
+
+    const fromResident = {
+      ...base,
+      history: [
+        ...base.history,
+        {
+          at: new Date(NOW.getTime() + 60_000),
+          status: base.status,
+          role: author.role,
+          actorId: author.id,
+          kind: 'message' as const,
+          comment: 'Течёт всё сильнее',
+        },
+      ],
+    };
+
+    const fromStaff = {
+      ...base,
+      history: [
+        ...base.history,
+        {
+          at: new Date(NOW.getTime() + 60_000),
+          status: base.status,
+          role: dispatcher.role,
+          actorId: dispatcher.id,
+          kind: 'message' as const,
+          comment: 'Мастер выехал',
+        },
+      ],
+    };
+
+    await Promise.all([deps.repository.saveRequest(fromResident), deps.repository.saveRequest(fromStaff)]);
+
+    const loaded = await deps.repository.findRequest(created.id);
+
+    assert.equal(loaded?.history.length, 3, 'обе реплики записаны');
+    assert.deepEqual(
+      loaded?.history.slice(1).map((event) => event.comment).sort(),
+      ['Мастер выехал', 'Течёт всё сильнее'],
+    );
+  });
+
+  it('сосед, ответивший «у меня работает», а потом присоединившийся, считается затронутым', async () => {
+    const created = await createServiceRequest(deps, { resident: author, description: 'Нет света в подъезде' });
+    const base = await deps.repository.findRequest(created.id);
+
+    assert.ok(base);
+
+    await deps.repository.saveRequest({
+      ...base,
+      notAffected: [{ residentId: neighbour.id, at: NOW }],
+    });
+
+    const answered = await deps.repository.findRequest(created.id);
+
+    assert.ok(answered);
+    assert.equal(answered.notAffected.length, 1);
+
+    const joinedAt = new Date(NOW.getTime() + 600_000);
+
+    await deps.repository.saveRequest({
+      ...answered,
+      joinedBy: [{ residentId: neighbour.id, at: joinedAt }],
+    });
+
+    const loaded = await deps.repository.findRequest(created.id);
+
+    assert.deepEqual(loaded?.notAffected, [], 'прежний ответ больше не считается');
+    assert.equal(loaded?.joinedBy.length, 1);
+    assert.equal(loaded?.joinedBy[0]?.at.getTime(), joinedAt.getTime());
+  });
+
+  it('категория и срок реакции сохраняются при правке заявки', async () => {
+    const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
+    const base = await deps.repository.findRequest(created.id);
+
+    assert.ok(base);
+
+    const reactionDueAt = new Date(NOW.getTime() + 30 * 60_000);
+
+    await deps.repository.saveRequest({ ...base, category: 'heating', reactionDueAt });
+
+    const loaded = await deps.repository.findRequest(created.id);
+
+    assert.equal(loaded?.category, 'heating');
+    assert.equal(loaded?.reactionDueAt.getTime(), reactionDueAt.getTime());
   });
 
   it('повторный прогон миграций ничего не ломает', async () => {

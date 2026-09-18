@@ -59,12 +59,29 @@ export const verificationState = (meter: MeteringDevice, now: Date): Verificatio
   return left <= VERIFICATION_WARNING_DAYS * 24 * 3600_000 ? 'soon' : 'ok';
 };
 
+/** Форматтер стоит дорого, а дату считают по каждому показанию. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+const formatterFor = (timeZone: string): Intl.DateTimeFormat => {
+  const known = formatters.get(timeZone);
+
+  if (known) return known;
+
+  const created = new Intl.DateTimeFormat('ru-RU', {
+    timeZone,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  formatters.set(timeZone, created);
+
+  return created;
+};
+
 /** Календарная дата в поясе дома. */
 const dateIn = (at: Date, timeZone: string): { day: number; month: number; year: number } => {
-  const [day, month, year] = at
-    .toLocaleDateString('ru-RU', { timeZone, day: '2-digit', month: '2-digit', year: 'numeric' })
-    .split('.')
-    .map(Number);
+  const [day, month, year] = formatterFor(timeZone).format(at).split('.').map(Number);
 
   return { day: day ?? 0, month: month ?? 0, year: year ?? 0 };
 };

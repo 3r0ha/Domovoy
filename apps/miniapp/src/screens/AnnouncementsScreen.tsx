@@ -159,9 +159,9 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
           </label>
         </div>
 
-        <label htmlFor="works">Вид объявления</label>
+        <label htmlFor="works">Что публикуем</label>
         <select id="works" value={works} onChange={(event) => setWorks(event.target.value)}>
-          <option value="">Обычное объявление</option>
+          <option value="">Объявление</option>
           {WORK_KINDS.map((kind) => (
             <option key={kind.value} value={kind.value}>
               {kind.title}
@@ -272,7 +272,7 @@ const Share = ({ announcement }: { announcement: AnnouncementView }) => {
   );
 };
 
-export const AnnouncementCard = ({ announcement, showReach }: { announcement: AnnouncementView; showReach?: boolean }) => (
+const AnnouncementCard = ({ announcement, showReach }: { announcement: AnnouncementView; showReach?: boolean }) => (
   <article className="announcement">
     <h2 className="announcement-title">{announcement.title}</h2>
 

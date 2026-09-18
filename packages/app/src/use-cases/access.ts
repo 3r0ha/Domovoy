@@ -12,7 +12,7 @@ import { apartmentsOf } from '../apartments.js';
 import { assertServes, servedBy } from '../buildings.js';
 import { type Resident } from '../repository.js';
 import { type AppDeps } from './deps.js';
-import { type CreateRequestCommand } from './requests.js';
+import { targetOf, type CreateRequestCommand } from './requests.js';
 
 /** Писать в заявку и двигать её вправе те, кого она касается лично. */
 export const canAct = (resident: Resident, request: ServiceRequest): boolean => {
@@ -76,18 +76,28 @@ export const assertStaffServes = async (deps: AppDeps, resident: Resident, reque
 
 /**
  * Заявку от чужой квартиры заводит смена того дома: диспетчер принимает звонок
- * и оформляет обращение от квартиры, из которой позвонили. @throws {DomainError}
+ * и оформляет обращение от квартиры, из которой позвонили. Жилец называет
+ * только свою квартиру: соседу заявка приходит как своя и видна в его списке.
+ *
+ * Проверяется итоговый адрес заявки: квартиру называет и поле запроса, и код
+ * с наклейки, а прежде смотрели только на поле. @throws {DomainError}
  */
 export const assertMayTargetApartment = async (deps: AppDeps, command: CreateRequestCommand): Promise<void> => {
-  const { apartmentId, resident } = command;
+  const { resident } = command;
+  const target = targetOf(command);
 
-  if (!apartmentId || apartmentsOf(resident).includes(apartmentId)) return;
+  if (target?.kind !== 'apartment') return;
+  if (apartmentsOf(resident).includes(target.apartmentId)) return;
 
-  const apartment = await deps.repository.findApartment(apartmentId);
+  if (!isCompanyStaff(resident.role)) {
+    throw new DomainError('forbidden', 'Заявку по чужой квартире заводит управляющая компания этого дома');
+  }
+
+  const apartment = await deps.repository.findApartment(target.apartmentId);
 
   if (!apartment) throw new DomainError('apartment_unknown', 'Квартира не найдена');
 
-  if (!isCompanyStaff(resident.role) || !servedBy(resident, deps).includes(apartment.buildingId)) {
-    throw new DomainError('forbidden', 'Заявку от чужой квартиры заводит управляющая компания этого дома');
+  if (!servedBy(resident, deps).includes(apartment.buildingId)) {
+    throw new DomainError('forbidden', 'Заявку по чужому дому заводит управляющая организация этого дома');
   }
 };

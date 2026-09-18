@@ -144,8 +144,13 @@ describe('старший по подъезду', () => {
     const id = created.request.id;
 
     await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'in_progress' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'done' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
+    await transitionRequest(deps, { resident: dispatcher, requestId: id, to: 'done', comment: 'Заменил лампу' });
 
     const confirmed = await transitionRequest(deps, { resident: maria, requestId: id, to: 'confirmed' });
 

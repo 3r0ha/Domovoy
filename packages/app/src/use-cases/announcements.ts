@@ -9,7 +9,7 @@ import {
 
 import { apartmentsOf } from '../apartments.js';
 import { postToChat } from '../broadcast.js';
-import { homeBuildingOf, houseHint } from '../buildings.js';
+import { homeBuildingOf, houseHintFor } from '../buildings.js';
 import { wanting } from '../notices.js';
 import { formatAnnouncement, noopNotifier, notifyAbout } from '../notifier.js';
 import { type Announcement, type Resident } from '../repository.js';
@@ -75,9 +75,10 @@ export const publishAnnouncement = async (
   const text = formatAnnouncement(command.title, command.body);
 
   const wants = wanting(residents, command.works ? 'works' : 'news');
+  const hintOf = houseHintFor(deps, announcement.buildingId, apartments);
 
   for (const resident of wants) {
-    const house = await houseHint(deps, resident, announcement.buildingId);
+    const house = await hintOf(resident);
 
     await notifyAbout(notifier, resident, house ? formatAnnouncement(command.title, command.body, house) : text, {
       section: 'news',

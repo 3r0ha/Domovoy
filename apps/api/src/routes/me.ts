@@ -8,6 +8,7 @@ import {
   describeContext,
   forgetContact,
   saveContact,
+  startersFor,
   listNotices,
   setNotice,
   exportPersonalData,
@@ -24,6 +25,7 @@ import {
   DomainError,
   LEGAL_VERSION,
   READING_WINDOW,
+  ROLES,
   type NoticeKind,
   type Role,
 } from '@domovoy/domain';
@@ -31,7 +33,9 @@ import { verifyContact } from '@maxkit/server';
 import type { FastifyPluginAsync } from 'fastify';
 import {
   asTitle,
+  boundApartmentSchema,
   noticeSchema,
+  startParamParamsSchema,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
@@ -122,6 +126,30 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       },
     );
 
+    /**
+     * С чего начать разговор с помощником. Подсказки зависят от роли: смене
+     * они про очередь и наряды, жильцу про заявки и показания.
+     */
+    scope.get(
+      '/api/assistant',
+      {
+        schema: {
+          response: {
+            200: {
+              type: 'object',
+              required: ['starters'],
+              properties: { starters: { type: 'array', items: { type: 'string' } } },
+            },
+          },
+        },
+      },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+
+        return { starters: startersFor(resident.role) };
+      },
+    );
+
     /** Помощник по приложению: короткий ответ и готовый переход в раздел. */
     scope.post<{ Body: { question: string } }>(
       '/api/assistant',
@@ -130,6 +158,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
           body: {
             type: 'object',
             required: ['question'],
+            additionalProperties: false,
             properties: { question: { type: 'string', minLength: 1, maxLength: 500 } },
           },
           response: {
@@ -192,7 +221,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
             type: 'object',
             required: ['role'],
             properties: {
-              role: { type: 'string', enum: ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] },
+              role: { type: 'string', enum: ROLES },
             },
           },
         },
@@ -230,7 +259,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
           body: {
             type: 'object',
             required: ['kind', 'on'],
-            properties: { kind: { type: 'string' }, on: { type: 'boolean' } },
+            additionalProperties: false,
+            properties: { kind: { type: 'string', maxLength: 32 }, on: { type: 'boolean' } },
           },
           response: { 200: noticeSchema },
         },
@@ -296,13 +326,17 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
     });
 
     /** Что означает код с наклейки. */
-    scope.get<{ Params: { startParam: string } }>('/api/context/:startParam', async (request, reply) => {
-      const described = await describeContext(deps, request.params.startParam);
+    scope.get<{ Params: { startParam: string } }>(
+      '/api/context/:startParam',
+      { schema: { params: startParamParamsSchema } },
+      async (request) => {
+        const described = await describeContext(deps, request.params.startParam);
 
-      if (!described) return reply.code(404).send({ error: 'unknown_target', message: 'Код объекта не распознан' });
+        if (!described) throw new DomainError('code_not_found', 'Код объекта не распознан');
 
-      return { ...described, target: asTitle(described.target) };
-    });
+        return { ...described, target: asTitle(described.target) };
+      },
+    );
 
     /** Привязка к квартире по коду из квитанции. */
     scope.post<{ Body: { code: string } }>(
@@ -312,19 +346,10 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
           body: {
             type: 'object',
             required: ['code'],
-            properties: { code: { type: 'string', maxLength: 512 } },
+            additionalProperties: false,
+            properties: { code: { type: 'string', minLength: 1, maxLength: 512 } },
           },
-          response: {
-            200: {
-              type: 'object',
-              required: ['apartmentId', 'number', 'alreadyBound'],
-              properties: {
-                apartmentId: { type: 'string' },
-                number: { type: 'integer' },
-                alreadyBound: { type: 'boolean' },
-              },
-            },
-          },
+          response: { 200: boundApartmentSchema },
         },
       },
       async (request) => {
@@ -373,7 +398,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
           body: {
             type: 'object',
             required: ['apartmentId'],
-            properties: { apartmentId: { type: 'string', maxLength: 128 } },
+            additionalProperties: false,
+            properties: { apartmentId: { type: 'string', minLength: 1, maxLength: 128 } },
           },
           response: {
             200: {

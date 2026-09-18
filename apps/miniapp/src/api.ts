@@ -14,7 +14,9 @@ import type {
   AssistantView,
   ClarifyView,
   LegalView,
+  CapitalRepairView,
   ComplaintOffer,
+  ComplaintSent,
   HandoffView,
   ResponsibilityView,
   ContextView,
@@ -42,6 +44,7 @@ import type {
   Profile,
   QualityView,
   ReceptionView,
+  ReceptionWindowView,
   ReadingPeriodView,
   ReadingResultView,
   ReportView,
@@ -122,7 +125,8 @@ export const browserCache = (): ResponseCache => {
   })();
 
   return {
-    get: (key) => (store ? store.getItem(key) : (memory.get(key) ?? null)),
+    // Память нужна и при живом хранилище: переполненное оно ничего не приняло.
+    get: (key) => store?.getItem(key) ?? memory.get(key) ?? null,
     set: (key, value) => {
       try {
         if (store) store.setItem(key, value);
@@ -162,34 +166,50 @@ export interface SessionView {
   displayName: string;
 }
 
-export class DomovoyApi {
-  private token: string | null = null;
-  private buildingId: string | null = null;
+/** Что общее у всех ссылок на клиент: сессия, выбранный дом и текущие чтения. */
+interface SharedState {
+  token: string | null;
+  buildingId: string | null;
   /** Незавершённый обмен строки запуска: второй вызов ждёт его. */
-  private entering: Promise<SessionView> | undefined;
+  entering: Promise<SessionView> | undefined;
   /** Незавершённые чтения по адресам: одновременные запросы делят один ответ. */
-  private readonly reading = new Map<string, Promise<unknown>>();
+  reading: Map<string, Promise<unknown>>;
+}
+
+export class DomovoyApi {
+  private readonly shared: SharedState;
+  private readonly options: ApiOptions;
   private readonly baseUrl: string;
   private readonly doFetch: typeof globalThis.fetch;
   private readonly cache: ResponseCache | undefined;
   private readonly onOffline: ((offline: boolean) => void) | undefined;
 
-  constructor(options: ApiOptions) {
+  constructor(options: ApiOptions, shared?: SharedState) {
+    this.options = options;
     this.baseUrl = options.baseUrl;
     this.doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.cache = options.cache;
     this.onOffline = options.onOffline;
+    this.shared = shared ?? { token: null, buildingId: null, entering: undefined, reading: new Map() };
+  }
+
+  /**
+   * Тот же клиент новой ссылкой. Экраны держат клиент в зависимостях запроса,
+   * поэтому смена ссылки перечитывает данные, не перемонтируя экран.
+   */
+  reread(): DomovoyApi {
+    return new DomovoyApi(this.options, this.shared);
   }
 
   useToken(token: string | null): void {
-    if (token !== this.token) this.cache?.clear();
+    if (token !== this.shared.token) this.cache?.clear();
 
-    this.token = token;
+    this.shared.token = token;
   }
 
   /** С каким домом работает сотрудник. */
   useBuilding(buildingId: string | null): void {
-    this.buildingId = buildingId;
+    this.shared.buildingId = buildingId;
   }
 
   /** Дома, доступные человеку: сотруднику все дома компании, жильцу его собственный. */
@@ -201,24 +221,24 @@ export class DomovoyApi {
   async selectedBuilding(): Promise<BuildingView | undefined> {
     const all = await this.buildings();
 
-    return all.find((item) => (this.buildingId ? item.id === this.buildingId : item.current));
+    return all.find((item) => (this.shared.buildingId ? item.id === this.shared.buildingId : item.current));
   }
 
   /** Обменивает параметры запуска на сессию. */
   login(initData: string): Promise<SessionView> {
-    this.entering ??= this.send<SessionView>('/auth/session', {
+    this.shared.entering ??= this.send<SessionView>('/auth/session', {
       method: 'POST',
       headers: { 'x-max-init-data': initData },
     })
       .then((result) => {
-        this.token = result.token;
+        this.shared.token = result.token;
         return result;
       })
       .finally(() => {
-        this.entering = undefined;
+        this.shared.entering = undefined;
       });
 
-    return this.entering;
+    return this.shared.entering;
   }
 
   me(): Promise<Profile> {
@@ -269,8 +289,18 @@ export class DomovoyApi {
     return this.read<ObjectPassportView>(`/api/objects/${encodeURIComponent(startParam)}`);
   }
 
+  /** Капитальный ремонт дома: сведения региональной программы. */
+  capitalRepair(): Promise<CapitalRepairView> {
+    return this.read<CapitalRepairView>(this.at('/api/capital-repair'));
+  }
+
   complaint(id: string): Promise<ComplaintOffer> {
     return this.read<ComplaintOffer>(`/api/requests/${encodeURIComponent(id)}/complaint`);
+  }
+
+  /** Отправка обращения в надзор: только после согласия человека. */
+  sendComplaint(id: string): Promise<ComplaintSent> {
+    return this.send<ComplaintSent>(`/api/requests/${encodeURIComponent(id)}/complaint`, { method: 'POST' });
   }
 
   /** Уточняющий вопрос об адресе заявки и готовые варианты. */
@@ -294,6 +324,11 @@ export class DomovoyApi {
   /** Согласие с действующей редакцией документов. */
   acceptLegal(): Promise<{ version: string; accepted: boolean }> {
     return this.send<{ version: string; accepted: boolean }>('/api/me/legal', { method: 'POST' });
+  }
+
+  /** С чего начать разговор с помощником: подсказки зависят от роли. */
+  assistantStarters(): Promise<{ starters: string[] }> {
+    return this.read<{ starters: string[] }>('/api/assistant');
   }
 
   /** Помощник: короткий ответ и готовый переход в нужный раздел. */
@@ -364,38 +399,17 @@ export class DomovoyApi {
 
   /** Реестр заявок за период таблицей. */
   /** Показания приборов за месяц, для ГИС ЖКХ. */
-  async exportReadings(format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ filename: string; blob: Blob }> {
-    const response = await this.doFetch(`${this.baseUrl}${this.at(`/api/export/readings.${format}`)}`, {
-      headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
-    });
-
-    if (!response.ok) throw new ApiError(response.status, 'export_failed', 'Не удалось выгрузить показания');
-
-    const disposition = response.headers.get('content-disposition') ?? '';
-    const encoded = /filename\*=UTF-8''([^;]+)/.exec(disposition)?.[1];
-
-    return {
-      filename: encoded ? decodeURIComponent(encoded) : `показания.${format}`,
-      blob: await response.blob(),
-    };
+  exportReadings(format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ filename: string; blob: Blob }> {
+    return this.download(this.at(`/api/export/readings.${format}`), `показания.${format}`, 'Не удалось выгрузить показания');
   }
 
   /** Реестр заявок файлом: книгой Excel или текстом с разделителями. */
-  async exportRequests(days: number, format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ filename: string; blob: Blob }> {
-    const response = await this.doFetch(
-      `${this.baseUrl}${this.at(`/api/report/requests.${format}?days=${days}`)}`,
-      { headers: this.token ? { authorization: `Bearer ${this.token}` } : {} },
+  exportRequests(days: number, format: 'xlsx' | 'csv' = 'xlsx'): Promise<{ filename: string; blob: Blob }> {
+    return this.download(
+      this.at(`/api/report/requests.${format}?days=${days}`),
+      `заявки.${format}`,
+      'Не удалось выгрузить реестр',
     );
-
-    if (!response.ok) throw new ApiError(response.status, 'export_failed', 'Не удалось выгрузить реестр');
-
-    const disposition = response.headers.get('content-disposition') ?? '';
-    const encoded = /filename\*=UTF-8''([^;]+)/.exec(disposition)?.[1];
-
-    return {
-      filename: encoded ? decodeURIComponent(encoded) : `заявки.${format}`,
-      blob: await response.blob(),
-    };
   }
 
   /** Кому можно поручить работу, вместе с текущей загрузкой. */
@@ -420,7 +434,7 @@ export class DomovoyApi {
   async photo(token: string): Promise<Blob> {
     const id = token.slice('file:'.length);
     const response = await this.doFetch(`${this.baseUrl}/api/files/${encodeURIComponent(id)}`, {
-      headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+      headers: this.authorized(),
     });
 
     if (!response.ok) throw new ApiError(response.status, 'file_unavailable', 'Снимок недоступен');
@@ -429,6 +443,17 @@ export class DomovoyApi {
   }
 
   /** Люди дома: жильцы и сотрудники. */
+  /** Передача дома другой управляющей организации. */
+  handOverBuilding(input: { company: string; managerId: string }): Promise<{
+    company: string;
+    managerName: string;
+    released: number;
+    notified: number;
+    chatKept: boolean;
+  }> {
+    return this.send(this.at('/api/buildings/handover'), { method: 'POST', body: JSON.stringify(input) });
+  }
+
   people(): Promise<PersonView[]> {
     return this.read<PersonView[]>(this.at('/api/residents'));
   }
@@ -487,6 +512,8 @@ export class DomovoyApi {
     title: string;
     question: string;
     days: number;
+    /** Собрание собственников или опрос жильцов. */
+    mode?: 'meeting' | 'survey';
   }): Promise<PollView> {
     return this.send<PollView>(this.at('/api/polls'), { method: 'POST', body: JSON.stringify(input) });
   }
@@ -749,6 +776,22 @@ export class DomovoyApi {
     return this.read<ReceptionView>(this.at('/api/reception'));
   }
 
+  /** Приёмные часы дома: их задаёт управляющий. */
+  setReception(windows: ReceptionWindowView[], minutes?: number): Promise<ReceptionView> {
+    return this.send<ReceptionView>(this.at('/api/reception'), {
+      method: 'POST',
+      body: JSON.stringify({ windows, ...(minutes === undefined ? {} : { minutes }) }),
+    });
+  }
+
+  /** Пришедшего без записи заносит сотрудник. */
+  recordVisit(residentId: string, topic: string, at?: string): Promise<VisitView> {
+    return this.send<VisitView>(this.at('/api/visits/record'), {
+      method: 'POST',
+      body: JSON.stringify({ residentId, topic, ...(at ? { at } : {}) }),
+    });
+  }
+
   /** Записи на приём: смене по дому, жильцу свои. */
   visits(): Promise<VisitView[]> {
     return this.read<VisitView[]>(this.at('/api/visits'));
@@ -1006,20 +1049,38 @@ export class DomovoyApi {
 
   /** Тот же адрес, но в выбранном доме. */
   private at(path: string): string {
-    if (!this.buildingId) return path;
+    const building = this.shared.buildingId;
 
-    return `${path}${path.includes('?') ? '&' : '?'}buildingId=${encodeURIComponent(this.buildingId)}`;
+    if (!building) return path;
+
+    return `${path}${path.includes('?') ? '&' : '?'}buildingId=${encodeURIComponent(building)}`;
+  }
+
+  private authorized(): Record<string, string> {
+    return this.shared.token ? { authorization: `Bearer ${this.shared.token}` } : {};
+  }
+
+  /** Выгрузка файлом: имя приходит заголовком, а его может и не быть. */
+  private async download(path: string, fallback: string, failure: string): Promise<{ filename: string; blob: Blob }> {
+    const response = await this.doFetch(`${this.baseUrl}${path}`, { headers: this.authorized() });
+
+    if (!response.ok) throw new ApiError(response.status, 'export_failed', failure);
+
+    const disposition = response.headers.get('content-disposition') ?? '';
+    const encoded = /filename\*=UTF-8''([^;]+)/.exec(disposition)?.[1];
+
+    return { filename: encoded ? decodeURIComponent(encoded) : fallback, blob: await response.blob() };
   }
 
   /** Чтение с разделением одновременных запросов. */
   private read<T>(path: string): Promise<T> {
-    const pending = this.reading.get(path) as Promise<T> | undefined;
+    const pending = this.shared.reading.get(path) as Promise<T> | undefined;
 
     if (pending) return pending;
 
-    const request = this.fresh<T>(path).finally(() => this.reading.delete(path));
+    const request = this.fresh<T>(path).finally(() => this.shared.reading.delete(path));
 
-    this.reading.set(path, request);
+    this.shared.reading.set(path, request);
     return request;
   }
 
@@ -1047,18 +1108,10 @@ export class DomovoyApi {
 
   /** Ответ, который не разбирается как JSON: картинка наклейки приходит разметкой. */
   private async text(path: string): Promise<string> {
-    const headers: Record<string, string> = {};
-
-    if (this.token) headers['authorization'] = `Bearer ${this.token}`;
-
-    const response = await this.doFetch(`${this.baseUrl}${path}`, { headers });
+    const response = await this.doFetch(`${this.baseUrl}${path}`, { headers: this.authorized() });
     const body = await response.text();
 
-    if (!response.ok) {
-      const details = JSON.parse(body) as { error?: string; message?: string };
-
-      throw new ApiError(response.status, details.error ?? 'unknown', details.message ?? 'Что-то пошло не так');
-    }
+    if (!response.ok) throw failureOf(response.status, parsed(body));
 
     return body;
   }
@@ -1067,19 +1120,38 @@ export class DomovoyApi {
     const headers: Record<string, string> = {
       ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...((init.headers as Record<string, string> | undefined) ?? {}),
+      ...this.authorized(),
     };
-
-    if (this.token) headers['authorization'] = `Bearer ${this.token}`;
 
     const response = await this.doFetch(`${this.baseUrl}${path}`, { ...init, headers });
     const text = await response.text();
-    const body: unknown = text.length > 0 ? JSON.parse(text) : {};
+    const body = parsed(text);
 
-    if (!response.ok) {
-      const details = body as { error?: string; message?: string };
-      throw new ApiError(response.status, details.error ?? 'unknown', details.message ?? 'Что-то пошло не так');
-    }
+    if (!response.ok) throw failureOf(response.status, body);
+
+    // Разобрать не удалось, а ответ считается успешным: дальше по нему работать нечем.
+    if (body === null) throw new ApiError(response.status, 'bad_response', 'Ответ сервера не распознан');
 
     return body as T;
   }
 }
+
+/**
+ * Тело ответа. Пустое тело это пустой объект, неразобранное, null: страницу
+ * ошибки шлёт и прокси, а исключение здесь считалось бы обрывом связи.
+ */
+const parsed = (text: string): unknown => {
+  if (text.trim().length === 0) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+
+const failureOf = (status: number, body: unknown): ApiError => {
+  const details = (body ?? {}) as { error?: string; message?: string };
+
+  return new ApiError(status, details.error ?? 'unknown', details.message ?? 'Что-то пошло не так');
+};

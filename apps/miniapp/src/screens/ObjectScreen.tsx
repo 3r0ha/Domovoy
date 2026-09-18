@@ -1,20 +1,21 @@
 import { Button, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
+import { useEffect } from 'react';
 
-import { formatDay, formatSince, plural, type DomovoyApi } from '../api.js';
+import { formatDay, monthName, monthShort, plural, type DomovoyApi } from '../api.js';
 import { DoorRow } from './DoorRow.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
-import { IconRequests, IconWarning } from './icons.js';
-import { RequestDue, RequestState } from './RequestRow.js';
+import { IconRequests } from './icons.js';
+import { RequestRow } from './RequestRow.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface ObjectScreenProps {
   api: DomovoyApi;
   /** Код с наклейки: он и определяет, о каком объекте речь. */
   startParam: string;
-  /** Название объекта для шапки: его присылает сервер. */
-  onTitle?: (title: string) => void;
+  /** Название объекта для шапки: его присылает сервер, а уход с экрана его снимает. */
+  onTitle?: (title: string | null) => void;
   /** Сообщить о проблеме по этому объекту. */
   onReport: () => void;
   onOpenRequest: (id: string) => void;
@@ -47,41 +48,51 @@ export const failuresByMonth = (history: readonly { createdAt: string }[], now: 
   return counts;
 };
 
-const monthName = (index: number, now: Date): string =>
-  new Date(now.getFullYear(), now.getMonth() - (MONTHS - 1 - index), 1).toLocaleDateString('ru-RU', {
-    month: 'long',
-  });
+/** Номер месяца столбика: нулевой это год назад, последний текущий. */
+const columnIndex = (index: number, now: Date): number =>
+  new Date(now.getFullYear(), now.getMonth() - (MONTHS - 1 - index), 1).getMonth();
 
-/** Год объекта: поломки по месяцам. */
+/** Месяц столбика словом. */
+const columnMonth = (index: number, now: Date): string => monthName(columnIndex(index, now));
+
+/** Год объекта: поломки по месяцам. Столбик и его подпись стоят одной колонкой. */
 const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
   const now = new Date();
+  const months = failuresByMonth(history, now);
 
   return (
     <>
+      <p className="hint year-title">Поломки по месяцам</p>
 
-      <p className="hint year-title">Поломки по месяцам, последний столбик это текущий</p>
-
-      <p className="year" aria-label="Поломки по месяцам за год">
-        {failuresByMonth(history, now).map((count, index) => (
+      <div className="year" aria-label="Поломки по месяцам за год">
+        {months.map((count, index) => (
           <span
             key={index}
-            className={count === 0 ? 'month' : count === 1 ? 'month month-once' : 'month month-often'}
-            title={`${monthName(index, now)}: ${plural(count, 'поломка', 'поломки', 'поломок')}`}
-          />
+            className={index === MONTHS - 1 ? 'month-column month-now' : 'month-column'}
+            title={`${columnMonth(index, now)}: ${plural(count, 'поломка', 'поломки', 'поломок')}`}
+          >
+            <span className={count === 0 ? 'month' : count === 1 ? 'month month-once' : 'month month-often'} />
+            <span className="month-name">{monthShort(columnIndex(index, now))}</span>
+          </span>
         ))}
-      </p>
+      </div>
     </>
   );
 };
 
 /** Объект с наклейки: его оборудование, открытые заявки и история. */
 export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest }: ObjectScreenProps) => {
-  const passport = useBridgeRequest(async () => {
-    const found = await api.objectPassport(startParam);
+  const passport = useBridgeRequest(() => api.objectPassport(startParam), [api, startParam]);
+  const target = passport.data?.target;
 
-    onTitle?.(found.target);
-    return found;
-  }, [api, startParam]);
+  // Название уходит в шапку отдельно от загрузки и снимается при уходе с экрана.
+  useEffect(() => {
+    if (!target) return undefined;
+
+    onTitle?.(target);
+
+    return () => onTitle?.(null);
+  }, [target, onTitle]);
 
   if (passport.loading && !passport.data) return <Skeleton count={2} />;
 
@@ -108,41 +119,14 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
 
       {object.open.length > 0 ? (
         <Group title="Об этом уже сообщили">
-          {object.open.map((request, index) => {
-            const overdue = new Date(request.resolutionDueAt).getTime() < Date.now();
-
-            return (
-              <CellSimple
-                key={request.id}
-                className={overdue ? 'request-row request-row-overdue' : 'request-row'}
-                before={
-                  <span className="tile tile-orange">
-                    <IconWarning />
-                  </span>
-                }
-                title={request.title}
-                subtitle={
-                  <span className="row-line">
-                    <span className="row-where">
-                      {overdue ? (
-                        <span className="row-state">
-                          <span className="dot dot-bad" />
-                          {`просрочено ${formatSince(request.resolutionDueAt)}`}
-                        </span>
-                      ) : (
-                        <RequestState status={request.status} />
-                      )}
-                    </span>
-
-                    <RequestDue dueAt={request.resolutionDueAt} overdue={overdue} />
-                  </span>
-                }
-                separator={index > 0}
-                showChevron
-                onClick={() => onOpenRequest(request.id)}
-              />
-            );
-          })}
+          {object.open.map((request, index) => (
+            <RequestRow
+              key={request.id}
+              request={request}
+              separator={index > 0}
+              onOpen={() => onOpenRequest(request.id)}
+            />
+          ))}
         </Group>
       ) : null}
 
@@ -165,7 +149,7 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
 
           {/* Частота поломок это наблюдение продукта, а не регламент обслуживания. */}
           {object.averageDays === undefined ? null : (
-            <p className="hint aside">Это прогноз по истории поломок объекта, а не регламент обслуживания</p>
+            <p className="hint aside">Это прогноз по прошлым поломкам, а не регламент</p>
           )}
         </>
       ) : null}

@@ -1,7 +1,9 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { secretGuard } from './secret.js';
+
 export interface MetricsOptions {
-  /** Токен для чтения метрик. */
+  /** Токен для чтения метрик. Без него страницы метрик нет. */
   token?: string;
   now?: () => number;
   /** Время старта процесса: по нему считается время работы. */
@@ -53,8 +55,13 @@ export const applyMetrics = (fastify: FastifyInstance, options: MetricsOptions =
     durations.set(path, duration);
   });
 
+  // Страница метрик перечисляет маршруты и состояние процесса: без токена её нет вовсе.
+  if (!options.token) return;
+
+  const authorized = secretGuard(`Bearer ${options.token}`);
+
   fastify.get('/metrics', async (request, reply) => {
-    if (options.token && request.headers.authorization !== `Bearer ${options.token}`) {
+    if (!authorized(request.headers.authorization)) {
       return reply.code(401).send({ error: 'unauthorized', message: 'Метрики закрыты токеном' });
     }
 

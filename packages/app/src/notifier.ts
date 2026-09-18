@@ -303,7 +303,7 @@ export const actionsFor = (request: ServiceRequest, resident: Resident): Notific
     requestId: request.id,
     from: request.status,
     to,
-    requiresComment: findTransition(request.status, to)?.requiresComment ?? false,
+    requiresComment: findTransition(request.status, to, resident.role)?.requiresComment ?? false,
   }));
 
 /**
@@ -349,18 +349,33 @@ export const notifyAbout = async (
   });
 };
 
-/** Отправляет уведомление, если у получателя есть идентификатор в MAX. */
+/** На что получатель отвечает кнопкой под сообщением. */
+export interface NotifyReply {
+  /** Заявка, по которой отвечают прямо в переписке. */
+  replyTo?: string;
+  /** Заявка, по которой у соседа спрашивают, то же ли самое у него. */
+  askAbout?: string;
+  /** Предложение соседа: его поддерживают кнопкой. */
+  signAbout?: string;
+  /** Обращение в поддержку: на него отвечают кнопкой. */
+  answerAbout?: string;
+}
+
+/**
+ * Отправляет уведомление, если у получателя есть идентификатор в MAX.
+ * Строкой в `reply` передаётся заявка для ответа: так вызывает часть кода.
+ */
 export const notifyResident = async (
   notifier: Notifier,
   resident: Resident | undefined,
   text: string,
   actions: NotificationAction[] = [],
-  replyTo?: string,
-  askAbout?: string,
-  signAbout?: string,
-  answerAbout?: string,
+  reply: NotifyReply | string = {},
 ): Promise<void> => {
   if (!resident?.maxUserId) return;
+
+  const { replyTo, askAbout, signAbout, answerAbout }: NotifyReply =
+    typeof reply === 'string' ? { replyTo: reply } : reply;
 
   await deliver(notifier, {
     maxUserId: resident.maxUserId,

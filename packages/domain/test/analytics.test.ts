@@ -44,6 +44,7 @@ const step = (value: ServiceRequest, to: Parameters<typeof applyTransition>[1]['
     role: to === 'confirmed' ? 'resident' : to === 'accepted' ? 'dispatcher' : 'technician',
     actorId: 'actor',
     at: CREATED_AT,
+    ...(to === 'done' ? { comment: 'Работа сдана' } : {}),
     ...extra,
   });
 
@@ -258,7 +259,7 @@ describe('итоги за период', () => {
         at: createdAt,
         assigneeId: 'tech-1',
       }),
-      { to: 'done', role: 'technician', actorId: 'tech-1', at },
+      { to: 'done', role: 'technician', actorId: 'tech-1', at, comment: 'Работа сдана' },
     );
   };
 

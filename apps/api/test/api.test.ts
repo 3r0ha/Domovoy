@@ -45,6 +45,16 @@ const APARTMENTS = [
   { id: 'apt-3', buildingId: BUILDING_ID, code: CODES.twentieth, number: 20, entrance: 2, riser: 1, area: 50 },
 ];
 
+/** Жилец первой квартиры: заявку по квартире заводит только тот, кто к ней привязан. */
+const tenant: Resident = {
+  id: 'res-tenant',
+  maxUserId: 1001,
+  displayName: 'Мария',
+  role: 'resident',
+  apartmentId: 'apt-1',
+  buildingId: BUILDING_ID,
+};
+
 const initDataFor = (userId: number, name = 'Жилец'): Promise<string> =>
   signInitData(
     {
@@ -332,7 +342,7 @@ describe('заявки', () => {
   });
 
   it('номера идут по порядку в пределах дома', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const create = (description: string) =>
@@ -385,7 +395,7 @@ describe('заявки', () => {
   });
 
   it('жилец видит свои заявки и не видит чужие', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const first = await login(1001, 'Мария');
     const second = await login(2002, 'Иван');
 
@@ -420,7 +430,7 @@ describe('работа управляющей компании', () => {
   };
 
   it('диспетчер видит очередь дома целиком', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -438,7 +448,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('заявка проходит путь до выполнения', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -462,7 +472,7 @@ describe('работа управляющей компании', () => {
       method: 'POST',
       url: `/api/requests/${id}/transition`,
       headers: authed(staff),
-      payload: { to: 'in_progress' },
+      payload: { to: 'in_progress', assigneeId: dispatcher.id },
     });
     assert.equal(inProgress.json().status, 'in_progress');
 
@@ -470,7 +480,7 @@ describe('работа управляющей компании', () => {
       method: 'POST',
       url: `/api/requests/${id}/transition`,
       headers: authed(staff),
-      payload: { to: 'done' },
+      payload: { to: 'done', comment: 'Заменил кран' },
     });
     assert.equal(done.json().status, 'done');
     assert.equal(done.json().history.length, 4);
@@ -479,7 +489,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('жилец пишет по заявке, не меняя её состояния', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -517,7 +527,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('по чужой заявке не пишут', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const resident = await login(1001);
     const stranger = await login(2002);
 
@@ -541,7 +551,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('жилец не может принять свою заявку', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const resident = await login(1001);
 
     const created = await app.inject({
@@ -565,7 +575,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('отказ без объяснения не принимается', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -590,7 +600,7 @@ describe('работа управляющей компании', () => {
   });
 
   it('интерфейсу подсказываются доступные действия', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -1011,7 +1021,7 @@ describe('выгрузка реестра', () => {
   };
 
   it('отдаётся файлом с именем и типом', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const residentToken = await login(1001);
 
     await app.inject({
@@ -1207,7 +1217,7 @@ describe('выгрузка реестра', () => {
   });
 
   it('реестр выгружается книгой Excel, а не только текстом', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const residentToken = await login(1001);
 
     await app.inject({
@@ -1278,6 +1288,38 @@ describe('привязка жильцов', () => {
     const me = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
 
     assert.equal(me.json().apartmentId, 'apt-2');
+
+    await app.close();
+  });
+
+  it('заявку по квартире открывает привязка, а не сам код с наклейки', async () => {
+    const { app, login } = await setup();
+    const token = await login(1001);
+
+    const create = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/requests',
+        headers: authed(token),
+        payload: { description: 'Течёт кран', startParam: 'apt_apt-1' },
+      });
+
+    const before = await create();
+
+    assert.equal(before.statusCode, 403, 'непривязанный жилец заявку по квартире не заводит');
+    assert.equal(before.json().error, 'forbidden');
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/me/apartment',
+      headers: authed(token),
+      payload: { code: CODES.first },
+    });
+
+    const after = await create();
+
+    assert.equal(after.statusCode, 201, after.body);
+    assert.equal(after.json().request.target, 'Квартира 1');
 
     await app.close();
   });
@@ -1715,7 +1757,7 @@ describe('журнал действий', () => {
   };
 
   it('управляющий видит, кто что сделал', async () => {
-    const { app, login } = await setup([dispatcher, manager]);
+    const { app, login } = await setup([dispatcher, manager, tenant]);
     const resident = await login(1001);
     const staff = await login(5005);
 
@@ -1785,7 +1827,11 @@ describe('оценка работы', () => {
         method: 'POST',
         url: `/api/requests/${id}/transition`,
         headers: authed(staff),
-        payload: { to },
+        payload: {
+          to,
+          ...(to === 'in_progress' ? { assigneeId: dispatcher.id } : {}),
+          ...(to === 'done' ? { comment: 'Заменил кран' } : {}),
+        },
       });
     }
 
@@ -1793,7 +1839,7 @@ describe('оценка работы', () => {
   };
 
   it('жилец принимает работу с оценкой, и та остаётся в заявке', async () => {
-    const harness = await setup([dispatcher]);
+    const harness = await setup([dispatcher, tenant]);
     const { id, resident } = await upToDone(harness);
 
     const confirmed = await harness.app.inject({
@@ -1810,7 +1856,7 @@ describe('оценка работы', () => {
   });
 
   it('принять работу можно и без оценки', async () => {
-    const harness = await setup([dispatcher]);
+    const harness = await setup([dispatcher, tenant]);
     const { id, resident } = await upToDone(harness);
 
     const confirmed = await harness.app.inject({
@@ -1827,7 +1873,7 @@ describe('оценка работы', () => {
   });
 
   it('оценка вне шкалы не принимается', async () => {
-    const harness = await setup([dispatcher]);
+    const harness = await setup([dispatcher, tenant]);
     const { id, resident } = await upToDone(harness);
 
     const response = await harness.app.inject({
@@ -1843,7 +1889,7 @@ describe('оценка работы', () => {
   });
 
   it('оценка попадает в сводку вместе с числом оценивших', async () => {
-    const harness = await setup([dispatcher]);
+    const harness = await setup([dispatcher, tenant]);
     const { id, resident } = await upToDone(harness);
     const staff = await harness.login(5005);
 
@@ -1912,7 +1958,7 @@ describe('снимки к заявке', () => {
   });
 
   it('снимок попадает в заявку и виден диспетчеру', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const token = await login(1001, 'Мария');
     const staffToken = await login(5005);
 
@@ -1938,7 +1984,7 @@ describe('снимки к заявке', () => {
   });
 
   it('снимок без подписи уходит сообщением по заявке', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const token = await login(1001, 'Мария');
     const attachment = (await upload(app, token)).json();
 
@@ -2010,7 +2056,7 @@ describe('снимки к заявке', () => {
   });
 
   it('мастер отчитывается снимком, и тот виден в истории', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const token = await login(1001, 'Мария');
     const staffToken = await login(5005);
 
@@ -2027,7 +2073,7 @@ describe('снимки к заявке', () => {
         method: 'POST',
         url: `/api/requests/${id}/transition`,
         headers: authed(staffToken),
-        payload: { to },
+        payload: { to, ...(to === 'in_progress' ? { assigneeId: dispatcher.id } : {}) },
       });
     }
 
@@ -2037,7 +2083,7 @@ describe('снимки к заявке', () => {
       method: 'POST',
       url: `/api/requests/${id}/transition`,
       headers: authed(staffToken),
-      payload: { to: 'done', attachments: [attachment] },
+      payload: { to: 'done', comment: 'Заменил кран', attachments: [attachment] },
     });
 
     assert.equal(done.statusCode, 200);
@@ -2232,7 +2278,7 @@ describe('здоровье оборудования', () => {
 
 describe('совет по аварии', () => {
   it('приходит с открытой аварийной заявкой и исчезает после закрытия', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const created = await app.inject({

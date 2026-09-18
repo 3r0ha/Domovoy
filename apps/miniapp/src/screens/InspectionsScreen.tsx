@@ -1,4 +1,4 @@
-import { CellAction, CellInput, CellSimple, IconButton } from '@maxhub/max-ui';
+import { Button, CellInput, CellSimple, IconButton } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
@@ -80,7 +80,7 @@ const OnSite = ({
           </span>
         }
         title="Отметиться на месте"
-        subtitle="Скан наклейки подтвердит обход"
+        subtitle="Сканировать код на объекте"
         height="compact"
         separator
         showChevron
@@ -132,54 +132,46 @@ const Item = ({
     }
   };
 
-  if (item.state) {
-    return (
-      <CellSimple
-        title={item.title}
-        {...(item.comment ? { subtitle: item.comment } : {})}
-        after={<span className={item.state === 'ok' ? 'dot dot-good' : 'dot dot-bad'} />}
-        separator
-        height="compact"
-      />
-    );
-  }
+  // Отметку меняют тем же рядом кнопок: нажатая подсвечена, соседняя переносит пункт.
+  const marks = (
+    <span className="check-marks">
+      <IconButton
+        type="button"
+        size="small"
+        variant={item.state === 'ok' ? 'primary' : 'secondary'}
+        aria-label={`В порядке: ${item.title}`}
+        aria-pressed={item.state === 'ok'}
+        disabled={busy}
+        onClick={() => void check('ok')}
+      >
+        <IconCheck />
+      </IconButton>
+      <IconButton
+        type="button"
+        size="small"
+        variant={item.state === 'problem' ? 'primary' : 'secondary'}
+        aria-label={`Недостаток: ${item.title}`}
+        aria-pressed={item.state === 'problem'}
+        disabled={busy}
+        onClick={() => setProblem(true)}
+      >
+        <IconWarning />
+      </IconButton>
+    </span>
+  );
 
   return (
     <>
       <CellSimple
         title={item.title}
-        after={
-          problem ? null : (
-            <span className="check-marks">
-              <IconButton
-                type="button"
-                size="small"
-                variant="secondary"
-                aria-label={`В порядке: ${item.title}`}
-                disabled={busy}
-                onClick={() => void check('ok')}
-              >
-                <IconCheck />
-              </IconButton>
-              <IconButton
-                type="button"
-                size="small"
-                variant="secondary"
-                aria-label={`Недостаток: ${item.title}`}
-                disabled={busy}
-                onClick={() => setProblem(true)}
-              >
-                <IconWarning />
-              </IconButton>
-            </span>
-          )
-        }
+        {...(item.comment ? { subtitle: item.comment } : {})}
+        after={problem ? null : marks}
         separator
         height="compact"
       />
 
       {problem ? (
-        <>
+        <div className="check-form">
           <CellInput
             className="field-row"
             aria-label={`Что не так: ${item.title}`}
@@ -188,27 +180,31 @@ const Item = ({
             onChange={(event) => setComment(event.target.value)}
           />
 
-          <div className="reading-photo">
+          <div className="send-row">
             <PhotoField
               label="Фото"
               count={photos.photos.length}
               uploading={photos.uploading}
               error={photos.error}
+              size="large"
               onPick={photos.attach}
             />
+
+            <Button
+              type="button"
+              stretched
+              size="large"
+              disabled={busy || photos.uploading || comment.trim().length === 0}
+              onClick={() => void check('problem')}
+            >
+              {busy ? 'Отправляем…' : 'Завести заявку'}
+            </Button>
           </div>
 
-          <CellAction
-            mode="primary"
-            disabled={busy || comment.trim().length === 0}
-            onClick={() => void check('problem')}
-          >
-            {busy ? 'Отправляем…' : 'Завести заявку'}
-          </CellAction>
-          <CellAction mode="secondary" disabled={busy} onClick={() => setProblem(false)}>
+          <button type="button" className="link check-cancel" disabled={busy} onClick={() => setProblem(false)}>
             Отмена
-          </CellAction>
-        </>
+          </button>
+        </div>
       ) : null}
 
       {error ? <ErrorText className="inset">{error}</ErrorText> : null}
@@ -260,8 +256,9 @@ export const InspectionsScreen = ({ api, onOpen }: InspectionsScreenProps) => {
           {open.finishedAt
             ? null
             : open.items.map((entry, index) => (
+                // Ключ с обходом: у другого обхода тот же пункт начинается с чистой заметки.
                 <Item
-                  key={entry.title}
+                  key={`${open.id}-${index}`}
                   api={api}
                   inspection={open}
                   index={index}

@@ -1,6 +1,8 @@
-const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 const days = (ms: number): number => Math.round(ms / DAY_MS);
+const hours = (ms: number): number => Math.round(ms / HOUR_MS);
 
 /** Как часто объект ломается и когда ждать следующего раза. */
 export interface Wear {
@@ -17,11 +19,15 @@ export const wearOf = (moments: readonly Date[], now: Date): Wear => {
   const sorted = [...moments].sort((left, right) => left.getTime() - right.getTime());
   const first = sorted[0]!.getTime();
   const last = sorted.at(-1)!.getTime();
-  const average = days((last - first) / (sorted.length - 1));
+  // Промежуток считается в часах: округление до суток обнуляло бы две поломки
+  // за один день, и прогноз по такому объекту пропадал.
+  const averageHours = hours((last - first) / (sorted.length - 1));
 
-  if (average <= 0) return {};
+  if (averageHours <= 0) return {};
 
-  return { averageDays: average, dueInDays: days(last + average * DAY_MS - now.getTime()) };
+  const average = averageHours * HOUR_MS;
+
+  return { averageDays: Math.max(1, days(average)), dueInDays: days(last + average - now.getTime()) };
 };
 
 /** Пора ли ждать поломку. Просроченное больше чем на один свой промежуток не считается. */

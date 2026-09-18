@@ -43,7 +43,16 @@ const nina: Resident = {
   buildingId: BUILDING_ID,
 };
 
-const setup = async () => {
+const petr: Resident = {
+  id: 'res-3',
+  maxUserId: 1003,
+  displayName: 'Пётр',
+  role: 'resident',
+  apartmentId: 'apt-1',
+  buildingId: BUILDING_ID,
+};
+
+const setup = async (extra: Resident[] = []) => {
   let counter = 0;
   const notifier = createCollectingNotifier();
 
@@ -54,7 +63,7 @@ const setup = async () => {
         { id: 'apt-1', buildingId: BUILDING_ID, number: 1, entrance: 1, riser: 1, area: 50 },
         { id: 'apt-2', buildingId: BUILDING_ID, number: 2, entrance: 1, riser: 1, area: 100 },
       ],
-      residents: [maria, ivan, nina],
+      residents: [maria, ivan, nina, ...extra],
     }),
     now: () => NOW,
     createId: () => `id-${++counter}`,
@@ -86,6 +95,25 @@ describe('долги дома', () => {
     assert.ok((first?.penalty ?? 0) > 0, 'по полугодовому долгу пени уже идут');
     assert.ok((first?.overdueDays ?? 0) > 150);
     assert.equal(debt.total, Math.round((debt.debtors[0]!.debt + debt.debtors[1]!.debt) * 100) / 100);
+  });
+
+  it('квартира на двоих даёт одну строку долга, а не две', async () => {
+    const { deps, notifier } = await setup([petr]);
+
+    const debt = await houseDebt(deps, nina);
+    const flat = debt.debtors.find((item) => item.apartmentNumber === 1);
+
+    assert.equal(debt.debtors.length, 2);
+    assert.equal(flat?.displayName, 'Мария, Пётр');
+    assert.equal(debt.total, Math.round((debt.debtors[0]!.debt + debt.debtors[1]!.debt) * 100) / 100);
+
+    await remindDebtor(deps, nina, maria.id);
+
+    assert.deepEqual(
+      notifier.sent.map((item) => item.maxUserId),
+      [maria.maxUserId, petr.maxUserId],
+      'напоминание получают оба жильца квартиры',
+    );
   });
 
   it('кто платит, в списке не значится', async () => {

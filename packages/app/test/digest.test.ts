@@ -101,7 +101,13 @@ describe('утренняя сводка', () => {
     const done = await complain(3);
 
     for (const to of ['accepted', 'in_progress', 'done'] as const) {
-      await transitionRequest(deps, { resident: DISPATCHER, requestId: done.id, to });
+      await transitionRequest(deps, {
+        resident: DISPATCHER,
+        requestId: done.id,
+        to,
+        ...(to === 'in_progress' ? { assigneeId: DISPATCHER.id } : {}),
+        ...(to === 'done' ? { comment: 'Сделано' } : {}),
+      });
     }
 
     const asked = await complain(2);

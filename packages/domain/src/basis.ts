@@ -5,19 +5,14 @@
  */
 export type BasisKind = 'norm' | 'company' | 'product' | 'model' | 'demo';
 
-export const BASIS_KIND_TITLES: Readonly<Record<BasisKind, string>> = {
-  norm: 'Норматив',
-  company: 'Данные организации',
-  product: 'Расчёт продукта',
-  model: 'Предположение модели',
-  demo: 'Модельные данные',
-};
-
 /** Основания, на которые ссылается продукт. Текст один и тот же везде. */
 export const BASIS = {
   requestDeadline:
     'Срок по регламенту организации. Он не мягче нормы: п. 13 Правил № 416 требует локализовать аварию за полчаса',
   plannedDeadline: 'Срок по регламенту организации: он задан для этой категории и срочности',
+  blockageDeadline: 'Засор системы водоотведения устраняют за два часа: п. 13 Правил № 416',
+  workerAtHome: 'В квартиру: удостоверение, бейдж, бахилы',
+  disclosureAnswer: 'Сведения о доме выдаются не позднее следующего дня: п. 34 Правил № 416',
   supportAnswer: 'Ответ на обращение не позже 10 рабочих дней: п. 36 Правил № 416',
   readingWindow: 'Показания принимаются до 26 числа: п. 34 Правил № 354. Окно дома задаёт организация',
   quorum: 'Кворум собрания: более половины голосов, ч. 3 ст. 45 ЖК РФ',
@@ -34,16 +29,46 @@ export const BASIS = {
   modelCategory: 'Категорию предложил разбор текста. Смена меняет её, если не сошлось',
   keywordCategory: 'Категория определена по ключевым словам обращения',
   modelAssistant: 'Ответ собрал разбор текста по разделам приложения',
-  modelDigest: 'Пересказ собрал разбор текста, числа посчитаны продуктом',
+  modelDigest: 'Пересказ собрал разбор текста, числа посчитал продукт',
   modelIntegration: 'Подключение модельное: настоящего обмена за ним нет',
 } as const;
 
 export type BasisKey = keyof typeof BASIS;
 
 /**
+ * То же самое словами жильца. Номер закона и пункта нужен смене: она по нему
+ * отвечает перед надзором. Жильцу важен срок и порядок, поэтому ему идёт
+ * короткая строка, а где и её мало, не идёт ничего.
+ */
+export const PLAIN: Partial<Record<BasisKey, string>> = {
+  supportAnswer: 'Ответим не позже 10 рабочих дней',
+  disclosureAnswer: 'Сведения о доме даём не позднее следующего дня',
+  readingWindow: 'Показания принимаются до 26 числа',
+  quorum: 'Решение принимается, если проголосовало больше половины площади дома',
+  qualified: 'По этому вопросу нужно две трети голосов',
+  initiative: 'Собрание созывают собственники, у которых вместе десятая часть голосов',
+  share: 'Голос считается по площади квартиры',
+  penalty: 'Пени начинаются с 31 дня просрочки, а с 91 дня растут',
+  workerAtHome: 'Мастер показывает удостоверение и надевает бахилы',
+  norm: 'Без показаний начисляем по нормативу',
+  typicalNorm: 'Норматив типовой: свой задаёт организация',
+  wearForecast: 'Это прогноз по прошлым поломкам, а не регламент',
+};
+
+/** Основание для того, кто смотрит: смене норма, жильцу короткая строка. */
+export const basisFor = (key: BasisKey, staff: boolean): string | undefined =>
+  staff ? BASIS[key] : PLAIN[key];
+
+/**
  * Основание срока заявки. Норму про локализацию аварии за полчаса продукт
  * называет только там, где речь об аварии: у плановой заявки она к делу не
- * относится и вводила бы в заблуждение.
+ * относится и вводила бы в заблуждение. У засора срок свой, и он короче.
  */
-export const deadlineBasisFor = (priority: 'emergency' | 'normal' | 'planned'): string =>
-  priority === 'emergency' ? BASIS.requestDeadline : BASIS.plannedDeadline;
+export const deadlineBasisFor = (
+  priority: 'emergency' | 'normal' | 'planned',
+  limit?: 'blockage' | 'emergency',
+): string => {
+  if (limit === 'blockage') return BASIS.blockageDeadline;
+
+  return priority === 'emergency' ? BASIS.requestDeadline : BASIS.plannedDeadline;
+};

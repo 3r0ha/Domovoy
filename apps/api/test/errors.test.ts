@@ -20,6 +20,16 @@ const dispatcher: Resident = {
   buildingId: BUILDING_ID,
 };
 
+/** Жилец первой квартиры: заявку по квартире заводит только тот, кто к ней привязан. */
+const tenant: Resident = {
+  id: 'res-tenant',
+  maxUserId: 1001,
+  displayName: 'Мария',
+  role: 'resident',
+  apartmentId: 'apt-1',
+  buildingId: BUILDING_ID,
+};
+
 const initDataFor = (userId: number, user: Record<string, unknown> = {}): Promise<string> =>
   signInitData(
     {
@@ -113,7 +123,7 @@ describe('сбой хранилища', () => {
 
 describe('коды ошибок отражают смысл', () => {
   it('закрытую заявку трогать нельзя, 409', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001, { first_name: 'Мария' });
     const staff = await login(5005);
 
@@ -146,7 +156,7 @@ describe('коды ошибок отражают смысл', () => {
   });
 
   it('невозможный переход, тоже 409', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001, { first_name: 'Мария' });
     const staff = await login(5005);
 
@@ -198,7 +208,7 @@ describe('коды ошибок отражают смысл', () => {
   });
 
   it('свою заявку автор читает целиком', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, { first_name: 'Мария' });
 
     const created = await app.inject({
@@ -225,7 +235,7 @@ describe('коды ошибок отражают смысл', () => {
   });
 
   it('после приёма на кону уже срок выполнения', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
     const resident = await login(1001, { first_name: 'Мария' });
     const staff = await login(5005);
 
@@ -446,8 +456,36 @@ describe('профиль и уведомления', () => {
     await app.close();
   });
 
+  it('стартовые вопросы помощника приходят с сервера и зависят от роли', async () => {
+    const { app, login } = await setup([dispatcher]);
+
+    const forResident = await app.inject({
+      method: 'GET',
+      url: '/api/assistant',
+      headers: authed(await login(1001, { first_name: 'Мария' })),
+    });
+
+    assert.equal(forResident.statusCode, 200, forResident.body);
+
+    const residentStarters = forResident.json<{ starters: string[] }>().starters;
+
+    assert.ok(residentStarters.length > 0);
+
+    const forStaff = (
+      await app.inject({ method: 'GET', url: '/api/assistant', headers: authed(await login(5005)) })
+    ).json<{ starters: string[] }>().starters;
+
+    assert.notDeepEqual(forStaff, residentStarters);
+    assert.ok(
+      forStaff.some((question) => /очеред/i.test(question)),
+      'смене помощник предлагает начать с очереди',
+    );
+
+    await app.close();
+  });
+
   it('перевод статуса из приложения доходит до жильца', async () => {
-    const { app, login, notifier } = await setup([dispatcher]);
+    const { app, login, notifier } = await setup([dispatcher, tenant]);
     const resident = await login(1001, { first_name: 'Мария' });
     const staff = await login(5005);
 
@@ -474,7 +512,7 @@ describe('профиль и уведомления', () => {
   });
 
   it('о новой заявке узнаёт диспетчер, а не только автор', async () => {
-    const { app, login, notifier } = await setup([dispatcher]);
+    const { app, login, notifier } = await setup([dispatcher, tenant]);
     const resident = await login(1001, { first_name: 'Мария' });
     await login(5005);
 

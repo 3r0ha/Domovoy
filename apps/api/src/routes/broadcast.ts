@@ -10,7 +10,7 @@ import {
 import type { FastifyPluginAsync } from 'fastify';
 
 import { residentReader, type RoutesDeps } from '../context.js';
-import { buildingIdSchema } from '../serialize.js';
+import { buildingQuerySchema } from '../serialize.js';
 
 /** Адресат приходит плоским телом: так его проще проверить схемой. */
 interface ScopeBody {
@@ -80,7 +80,7 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
     '/api/broadcast/targets',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: {
           200: {
             type: 'object',
@@ -122,8 +122,8 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
     '/api/broadcast/preview',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
-        body: { type: 'object', required: ['kind'], properties: scopeSchema },
+        querystring: buildingQuerySchema,
+        body: { type: 'object', required: ['kind'], additionalProperties: false, properties: scopeSchema },
         response: { 200: aimSchema },
       },
     },
@@ -144,10 +144,11 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
     '/api/broadcast',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         body: {
           type: 'object',
           required: ['kind', 'text'],
+          additionalProperties: false,
           properties: { ...scopeSchema, text: { type: 'string', minLength: 1, maxLength: BROADCAST_MAX_LENGTH } },
         },
         response: {

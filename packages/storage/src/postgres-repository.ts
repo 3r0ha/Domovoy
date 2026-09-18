@@ -366,13 +366,16 @@ export class PostgresRepository implements Repository {
     return rows[0] ? toApartment(rows[0]) : undefined;
   }
 
-  /** Следующий номер заявки в доме за месяц. */
-  async nextRequestSequence(buildingId: string, at: Date): Promise<number> {
+  /** Следующий номер заявки в доме за месяц. Без пояса месяц считается по UTC. */
+  async nextRequestSequence(buildingId: string, at: Date, timeZone?: string): Promise<number> {
+    // Границы месяца считаются отдельно от колонки: иначе отбор не ложится на индекс.
     const { rows } = await this.sql.query<{ count: string }>(
       `select count(*) as count from service_request
        where building_id = $1
-         and date_trunc('month', created_at at time zone 'UTC') = date_trunc('month', $2::timestamptz at time zone 'UTC')`,
-      [buildingId, at],
+         and created_at >= date_trunc('month', $2::timestamptz at time zone $3::text) at time zone $3::text
+         and created_at < (date_trunc('month', $2::timestamptz at time zone $3::text) + interval '1 month')
+                          at time zone $3::text`,
+      [buildingId, at, timeZone ?? 'UTC'],
     );
 
     return Number(rows[0]?.count ?? 0) + 1;
@@ -454,7 +457,7 @@ export class PostgresRepository implements Repository {
              resolution_due_at = $6, reopen_count = $7,
              target_kind = $8, apartment_id = $9, apartment_number = $10,
              entrance = $11, riser = $12, equipment_code = $13, equipment_title = $14,
-             rating = $15, knocked_at = $17
+             rating = $15, knocked_at = $17, category = $18, reaction_due_at = $19
          where id = $1`,
         [
           request.id,
@@ -474,6 +477,8 @@ export class PostgresRepository implements Repository {
           request.rating ?? null,
           request.title,
           request.knockedAt ?? null,
+          request.category,
+          request.reactionDueAt,
         ],
       );
 
@@ -513,15 +518,6 @@ export class PostgresRepository implements Repository {
       conditions.push(`author_id = $${values.length}`);
     }
 
-    if (filter.reporterId) {
-      values.push(filter.reporterId);
-      conditions.push(
-        `(author_id = $${values.length}
-          or exists (select 1 from request_reporter r
-                     where r.request_id = service_request.id and r.resident_id = $${values.length}))`,
-      );
-    }
-
     if (filter.assigneeId) {
       values.push(filter.assigneeId);
       conditions.push(`assignee_id = $${values.length}`);
@@ -542,7 +538,13 @@ export class PostgresRepository implements Repository {
       conditions.push(`created_at < $${values.length}`);
     }
 
-    const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+    let reporter = '';
+
+    if (filter.reporterId) {
+      values.push(filter.reporterId);
+      reporter = `$${values.length}`;
+    }
+
     let limit = '';
 
     if (filter.limit !== undefined) {
@@ -550,10 +552,32 @@ export class PostgresRepository implements Repository {
       limit = ` limit $${values.length}`;
     }
 
-    const { rows } = await this.sql.query<RequestRow>(
-      `select * from service_request ${where} order by created_at desc${limit}`,
-      values,
-    );
+    const where = (extra?: string): string => {
+      const all = extra ? [...conditions, extra] : conditions;
+
+      return all.length > 0 ? `where ${all.join(' and ')}` : '';
+    };
+
+    // «Мои заявки» это две разные ветки отбора: свои заведённые и те, к которым
+    // человек присоединился. Объединение проталкивает ограничение в каждую,
+    // условие «или» проходило бы по всей таблице.
+    const text = reporter
+      ? `select * from (
+             (select service_request.* from service_request
+              ${where(`author_id = ${reporter}`)}
+              order by created_at desc${limit})
+           union
+             (select service_request.* from service_request
+              join request_reporter
+                on request_reporter.request_id = service_request.id
+               and request_reporter.resident_id = ${reporter}
+              ${where()}
+              order by created_at desc${limit})
+         ) as reported
+         order by created_at desc${limit}`
+      : `select * from service_request ${where()} order by created_at desc${limit}`;
+
+    const { rows } = await this.sql.query<RequestRow>(text, values);
 
     const ids = rows.map((row) => row.id);
     const [history, reporters, attachments] = await Promise.all([
@@ -636,8 +660,8 @@ export class PostgresRepository implements Repository {
     await this.sql.query(
       `insert into poll (
          id, building_id, kind, title, question, opens_at, closes_at, started_by, closed_at,
-         elder_entrance, elder_resident_id
-       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         elder_entrance, elder_resident_id, mode, notice_id, protocol_id
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        on conflict (id) do update set
          title = excluded.title,
          question = excluded.question,
@@ -645,7 +669,10 @@ export class PostgresRepository implements Repository {
          closes_at = excluded.closes_at,
          closed_at = excluded.closed_at,
          elder_entrance = excluded.elder_entrance,
-         elder_resident_id = excluded.elder_resident_id`,
+         elder_resident_id = excluded.elder_resident_id,
+         mode = excluded.mode,
+         notice_id = excluded.notice_id,
+         protocol_id = excluded.protocol_id`,
       [
         poll.id,
         poll.buildingId,
@@ -658,6 +685,9 @@ export class PostgresRepository implements Repository {
         poll.closedAt ?? null,
         poll.elder?.entrance ?? null,
         poll.elder?.residentId ?? null,
+        poll.mode ?? 'meeting',
+        poll.noticeId ?? null,
+        poll.protocolId ?? null,
       ],
     );
 
@@ -756,13 +786,20 @@ export class PostgresRepository implements Repository {
         ],
       );
 
-      for (const signature of initiative.signatures) {
-        await sql.query(
-          `insert into initiative_signature (initiative_id, apartment_id, resident_id, at)
-           values ($1, $2, $3, $4) on conflict do nothing`,
-          [initiative.id, signature.apartmentId, signature.residentId, signature.at],
-        );
-      }
+      if (initiative.signatures.length === 0) return;
+
+      await sql.query(
+        `insert into initiative_signature (initiative_id, apartment_id, resident_id, at)
+         select $1, apartment_id, resident_id, at
+         from unnest($2::text[], $3::text[], $4::timestamptz[]) as signed (apartment_id, resident_id, at)
+         on conflict do nothing`,
+        [
+          initiative.id,
+          initiative.signatures.map((signature) => signature.apartmentId),
+          initiative.signatures.map((signature) => signature.residentId),
+          initiative.signatures.map((signature) => signature.at),
+        ],
+      );
     };
 
     if (this.sql.transaction) await this.sql.transaction(write);
@@ -972,26 +1009,51 @@ export class PostgresRepository implements Repository {
       await sql.query('delete from inspection_item where inspection_id = $1', [inspection.id]);
       await sql.query('delete from inspection_item_attachment where inspection_id = $1', [inspection.id]);
 
-      for (const [position, item] of inspection.items.entries()) {
+      const items = [...inspection.items.entries()];
+
+      if (items.length > 0) {
         await sql.query(
           `insert into inspection_item (inspection_id, position, title, state, comment, checked_at)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [inspection.id, position, item.title, item.state ?? null, item.comment ?? null, item.at ?? null],
+           select $1, position, title, state, comment, checked_at
+           from unnest($2::int[], $3::text[], $4::text[], $5::text[], $6::timestamptz[])
+             as item (position, title, state, comment, checked_at)`,
+          [
+            inspection.id,
+            items.map(([position]) => position),
+            items.map(([, item]) => item.title),
+            items.map(([, item]) => item.state ?? null),
+            items.map(([, item]) => item.comment ?? null),
+            items.map(([, item]) => item.at ?? null),
+          ],
         );
-
-        for (const attachment of item.attachments ?? []) {
-          await sql.query(
-            `insert into inspection_item_attachment (inspection_id, position, kind, token, transcript)
-             values ($1, $2, $3, $4, $5) on conflict do nothing`,
-            [inspection.id, position, attachment.kind, attachment.token, attachment.transcript ?? null],
-          );
-        }
       }
 
-      for (const requestId of inspection.requestIds) {
+      const files = items.flatMap(([position, item]) =>
+        (item.attachments ?? []).map((attachment) => ({ position, attachment })),
+      );
+
+      if (files.length > 0) {
         await sql.query(
-          'insert into inspection_request (inspection_id, request_id) values ($1, $2) on conflict do nothing',
-          [inspection.id, requestId],
+          `insert into inspection_item_attachment (inspection_id, position, kind, token, transcript)
+           select $1, position, kind, token, transcript
+           from unnest($2::int[], $3::text[], $4::text[], $5::text[]) as file (position, kind, token, transcript)
+           on conflict do nothing`,
+          [
+            inspection.id,
+            files.map((file) => file.position),
+            files.map((file) => file.attachment.kind),
+            files.map((file) => file.attachment.token),
+            files.map((file) => file.attachment.transcript ?? null),
+          ],
+        );
+      }
+
+      if (inspection.requestIds.length > 0) {
+        await sql.query(
+          `insert into inspection_request (inspection_id, request_id)
+           select $1, unnest($2::text[])
+           on conflict do nothing`,
+          [inspection.id, [...inspection.requestIds]],
         );
       }
     };
@@ -1043,9 +1105,9 @@ export class PostgresRepository implements Repository {
     await this.sql.query(
       `insert into handoff (
          id, request_id, building_id, target, organization, channel,
-         external_id, status, due_at, answer, created_at, answered_at
+         external_id, status, due_at, answer, created_at, answered_at, by_resident
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        on conflict (id) do update set
          external_id = excluded.external_id,
          status = excluded.status,
@@ -1065,6 +1127,7 @@ export class PostgresRepository implements Repository {
         orNull(handoff.answer),
         handoff.createdAt,
         handoff.answeredAt ?? null,
+        handoff.byResident === true,
       ],
     );
 
@@ -1154,24 +1217,60 @@ export class PostgresRepository implements Repository {
         ],
       );
 
-      for (const [index, message] of ticket.messages.entries()) {
-        const id = `${ticket.id}:${index}`;
+      // Ключ реплики собирается из времени и автора: по порядковому номеру
+      // одновременные ответы смены и жильца получали один и тот же.
+      const talk = new Map<string, TicketMessage>();
 
-        await sql.query(
-          `insert into support_message (id, ticket_id, at, author_side, author_id, author_name, text)
-           values ($1, $2, $3, $4, $5, $6, $7)
-           on conflict (id) do nothing`,
-          [id, ticket.id, message.at, message.from, message.authorId, message.authorName ?? null, message.text],
-        );
-
-        for (const [position, attachment] of (message.attachments ?? []).entries()) {
-          await sql.query(
-            `insert into support_attachment (message_id, position, kind, token, transcript)
-             values ($1, $2, $3, $4, $5) on conflict do nothing`,
-            [id, position, attachment.kind, attachment.token, attachment.transcript ?? null],
-          );
-        }
+      for (const message of ticket.messages) {
+        talk.set(`${ticket.id}:${message.at.getTime()}:${message.authorId}`, message);
       }
+
+      const replies = [...talk.entries()].map(([id, message]) => ({ id, message }));
+
+      if (replies.length === 0) return;
+
+      await sql.query(
+        `insert into support_message (id, ticket_id, at, author_side, author_id, author_name, text)
+         select id, $1, at, author_side, author_id, author_name, text
+         from unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::text[], $7::text[])
+           as reply (id, at, author_side, author_id, author_name, text)
+         on conflict (id) do update set
+           author_name = excluded.author_name,
+           text = excluded.text`,
+        [
+          ticket.id,
+          replies.map((reply) => reply.id),
+          replies.map((reply) => reply.message.at),
+          replies.map((reply) => reply.message.from),
+          replies.map((reply) => reply.message.authorId),
+          replies.map((reply) => reply.message.authorName ?? null),
+          replies.map((reply) => reply.message.text),
+        ],
+      );
+
+      const files = replies.flatMap((reply) =>
+        (reply.message.attachments ?? []).map((attachment, position) => ({ id: reply.id, position, attachment })),
+      );
+
+      if (files.length === 0) return;
+
+      await sql.query(
+        `insert into support_attachment (message_id, position, kind, token, transcript)
+         select message_id, position, kind, token, transcript
+         from unnest($1::text[], $2::int[], $3::text[], $4::text[], $5::text[])
+           as file (message_id, position, kind, token, transcript)
+         on conflict (message_id, position) do update set
+           kind = excluded.kind,
+           token = excluded.token,
+           transcript = excluded.transcript`,
+        [
+          files.map((file) => file.id),
+          files.map((file) => file.position),
+          files.map((file) => file.attachment.kind),
+          files.map((file) => file.attachment.token),
+          files.map((file) => file.attachment.transcript ?? null),
+        ],
+      );
     };
 
     if (this.sql.transaction) await this.sql.transaction(write);
@@ -1211,7 +1310,7 @@ export class PostgresRepository implements Repository {
     const ids = rows.map((row) => row.id);
 
     const messages = await this.sql.query<TicketMessageRow>(
-      'select * from support_message where ticket_id = any($1) order by at, id',
+      'select * from support_message where ticket_id = any($1) order by at, seq',
       [ids],
     );
 
@@ -1503,48 +1602,118 @@ export class PostgresRepository implements Repository {
   }
 }
 
-/** Дописывает недостающие события истории. */
+/** Событие истории одной строкой: по ней событие и узнаётся в базе. */
+const eventKey = (parts: {
+  at: Date;
+  actorId: string;
+  status: string;
+  isMessage: boolean;
+  comment: string | null;
+}): string =>
+  [parts.at.getTime(), parts.actorId, parts.status, parts.isMessage, parts.comment ?? ''].join(' ');
+
+/**
+ * Дописывает недостающие события истории. Событие узнаётся по содержанию, а не
+ * по своему месту в списке: одновременное сохранение одной заявки с разных
+ * сторон иначе теряет второе событие.
+ */
 const appendHistory = async (sql: SqlClient, request: ServiceRequest): Promise<void> => {
-  const { rows } = await sql.query<{ count: string }>(
-    'select count(*) as count from request_event where request_id = $1',
-    [request.id],
+  if (request.history.length === 0) return;
+
+  const { rows } = await sql.query<{
+    id: string;
+    at: Date;
+    actor_id: string;
+    status: string;
+    is_message: boolean;
+    comment: string | null;
+  }>(
+    `insert into request_event (request_id, actor_id, status, role, comment, at, assignee_id, is_message, on_site)
+     select $1, actor_id, status, role, comment, at, assignee_id, is_message, on_site
+     from unnest($2::text[], $3::request_status[], $4::role[], $5::text[], $6::timestamptz[],
+                 $7::text[], $8::boolean[], $9::boolean[])
+       as event (actor_id, status, role, comment, at, assignee_id, is_message, on_site)
+     on conflict do nothing
+     returning id, at, actor_id, status, is_message, comment`,
+    [
+      request.id,
+      request.history.map((event) => event.actorId),
+      request.history.map((event) => event.status),
+      request.history.map((event) => event.role),
+      request.history.map((event) => event.comment ?? null),
+      request.history.map((event) => event.at),
+      request.history.map((event) => event.assigneeId ?? null),
+      request.history.map((event) => event.kind === 'message'),
+      request.history.map((event) => event.onSite ?? false),
+    ],
   );
 
-  for (const event of request.history.slice(Number(rows[0]?.count ?? 0))) {
-    const inserted = await sql.query<{ id: string }>(
-      `insert into request_event (request_id, actor_id, status, role, comment, at, assignee_id, is_message, on_site)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       returning id`,
-      [
-        request.id,
-        event.actorId,
-        event.status,
-        event.role,
-        event.comment ?? null,
-        event.at,
-        event.assigneeId ?? null,
-        event.kind === 'message',
-        event.onSite ?? false,
-      ],
+  if (rows.length === 0) return;
+
+  const idOf = new Map(
+    rows.map((row) => [
+      eventKey({
+        at: row.at,
+        actorId: row.actor_id,
+        status: row.status,
+        isMessage: row.is_message,
+        comment: row.comment,
+      }),
+      row.id,
+    ]),
+  );
+
+  const files: { eventId: string; attachment: Attachment }[] = [];
+
+  for (const event of request.history) {
+    const eventId = idOf.get(
+      eventKey({
+        at: event.at,
+        actorId: event.actorId,
+        status: event.status,
+        isMessage: event.kind === 'message',
+        comment: event.comment ?? null,
+      }),
     );
 
-    const eventId = inserted.rows[0]?.id;
+    if (!eventId) continue;
 
-    for (const attachment of event.attachments ?? []) {
-      await sql.query(
-        'insert into request_event_attachment (event_id, kind, token, transcript) values ($1, $2, $3, $4)',
-        [eventId, attachment.kind, attachment.token, attachment.transcript ?? null],
-      );
-    }
+    for (const attachment of event.attachments ?? []) files.push({ eventId, attachment });
   }
+
+  if (files.length === 0) return;
+
+  await sql.query(
+    `insert into request_event_attachment (event_id, kind, token, transcript)
+     select event_id, kind, token, transcript
+     from unnest($1::bigint[], $2::text[], $3::text[], $4::text[]) as file (event_id, kind, token, transcript)`,
+    [
+      files.map((file) => file.eventId),
+      files.map((file) => file.attachment.kind),
+      files.map((file) => file.attachment.token),
+      files.map((file) => file.attachment.transcript ?? null),
+    ],
+  );
 };
 
-/** Соседи, сообщившие о той же проблеме. */
+/**
+ * Соседи, сообщившие о той же проблеме. Ответ переписывается: сосед, сначала
+ * ответивший «у меня всё работает», потом присоединяется к заявке.
+ */
 const saveReporters = async (sql: SqlClient, request: ServiceRequest): Promise<void> => {
-  const answers = [
-    ...request.joinedBy.map((join) => ({ ...join, affected: true })),
+  const latest = new Map<string, { residentId: string; at: Date; affected: boolean }>();
+
+  for (const answer of [
     ...request.notAffected.map((join) => ({ ...join, affected: false })),
-  ];
+    ...request.joinedBy.map((join) => ({ ...join, affected: true })),
+  ]) {
+    const known = latest.get(answer.residentId);
+
+    // Строка на жильца одна, поэтому до записи остаётся только последний ответ.
+    if (!known || known.at.getTime() <= answer.at.getTime()) latest.set(answer.residentId, answer);
+  }
+
+  const answers = [...latest.values()];
 
   if (answers.length === 0) return;
 
@@ -1552,7 +1721,9 @@ const saveReporters = async (sql: SqlClient, request: ServiceRequest): Promise<v
     `insert into request_reporter (request_id, resident_id, at, affected)
      select $1, resident_id, at, affected
      from unnest($2::text[], $3::timestamptz[], $4::boolean[]) as answered (resident_id, at, affected)
-     on conflict do nothing`,
+     on conflict (request_id, resident_id) do update set
+       at = excluded.at,
+       affected = excluded.affected`,
     [
       request.id,
       answers.map((answer) => answer.residentId),
@@ -1716,6 +1887,9 @@ interface PollRow {
   closed_at: Date | null;
   elder_entrance: number | null;
   elder_resident_id: string | null;
+  mode: string | null;
+  notice_id: string | null;
+  protocol_id: string | null;
 }
 
 interface EldershipRow {
@@ -1765,4 +1939,7 @@ const toPoll = (row: PollRow): Poll => ({
   ...(row.elder_entrance !== null && row.elder_resident_id
     ? { elder: { entrance: row.elder_entrance, residentId: row.elder_resident_id } }
     : {}),
+  ...(row.mode === 'survey' ? { mode: 'survey' as const } : { mode: 'meeting' as const }),
+  ...(row.notice_id ? { noticeId: row.notice_id } : {}),
+  ...(row.protocol_id ? { protocolId: row.protocol_id } : {}),
 });

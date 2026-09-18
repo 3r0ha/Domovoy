@@ -384,7 +384,12 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
       to: 'in_progress',
       assigneeId: 'staff-technician',
     });
-    await transitionRequest(at(doneOffsetMs), { resident: person('staff-technician'), requestId: created.id, to: 'done' });
+    await transitionRequest(at(doneOffsetMs), {
+      resident: person('staff-technician'),
+      requestId: created.id,
+      to: 'done',
+      comment: 'Работа выполнена, проверено на месте',
+    });
     await transitionRequest(at(doneOffsetMs + 3 * HOUR), {
       resident: ivan,
       requestId: created.id,
@@ -418,6 +423,7 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     resident: person('staff-technician'),
     requestId: inTime.id,
     to: 'done',
+    comment: 'Прочистил сифон, вода уходит',
   });
   await transitionRequest(at(-5 * DAY), { resident: maria, requestId: inTime.id, to: 'confirmed' });
 
@@ -510,7 +516,12 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
   });
 
   for (const [index, to] of (['accepted', 'in_progress'] as const).entries()) {
-    await transitionRequest(at(-2 * DAY + (index + 1) * HOUR), { resident: dispatcher, requestId: accepting.id, to });
+    await transitionRequest(at(-2 * DAY + (index + 1) * HOUR), {
+      resident: dispatcher,
+      requestId: accepting.id,
+      to,
+      ...(to === 'in_progress' ? { assigneeId: 'staff-technician' } : {}),
+    });
   }
 
   await transitionRequest(at(-20 * HOUR), {
@@ -540,7 +551,12 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
       to: 'in_progress',
       assigneeId: technician.id,
     });
-    await transitionRequest(at(day + 3 * HOUR), { resident: technician, requestId: repeated.id, to: 'done' });
+    await transitionRequest(at(day + 3 * HOUR), {
+      resident: technician,
+      requestId: repeated.id,
+      to: 'done',
+      comment: 'Поправил направляющие кабины',
+    });
     await transitionRequest(at(day + 4 * HOUR), { resident: ivan, requestId: repeated.id, to: 'confirmed' });
   }
 
@@ -557,7 +573,12 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     to: 'in_progress',
     assigneeId: technician.id,
   });
-  await transitionRequest(at(-30 * HOUR), { resident: technician, requestId: returned.id, to: 'done' });
+  await transitionRequest(at(-30 * HOUR), {
+    resident: technician,
+    requestId: returned.id,
+    to: 'done',
+    comment: 'Заменил трубку домофона',
+  });
   await transitionRequest(at(-26 * HOUR), {
     resident: maria,
     requestId: returned.id,
@@ -597,7 +618,7 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
 
   await seedReadings(deps, data);
 
-  const meeting = await startPoll(deps, {
+  const announced = await startPoll(deps, {
     resident: dispatcher,
     kind: 'qualified',
     title: 'Ремонт подъездов',
@@ -605,7 +626,28 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     days: 14,
   });
 
+  // Собрание объявили полторы недели назад: сообщение разослано, голосование
+  // уже идёт. Иначе в доме не было бы открытого собрания, а закон даёт десять
+  // дней на сообщение собственникам.
+  const meeting = await repository.savePoll({
+    ...announced,
+    opensAt: new Date(deps.now().getTime() - 3 * DAY),
+    closesAt: new Date(deps.now().getTime() + 11 * DAY),
+  });
+
   await vote(deps, { resident: ivan, pollId: meeting.id, choice: 'for' });
+
+  // Рядом с собранием идёт опрос: он ничего не решает и сроков закона не имеет.
+  const survey = await startPoll(deps, {
+    resident: dispatcher,
+    kind: 'simple',
+    mode: 'survey',
+    title: 'Уборка подъездов по субботам',
+    question: 'Перенести влажную уборку подъездов на субботу',
+    days: 7,
+  });
+
+  await vote(deps, { resident: maria, pollId: survey.id, choice: 'for' });
 
   await setDuty(at(-12 * HOUR), person('staff-manager'), { residentId: technician.id, onDuty: true });
 

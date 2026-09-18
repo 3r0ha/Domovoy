@@ -1,4 +1,4 @@
-import { DomainError, isCompanyStaff } from '@domovoy/domain';
+import { DomainError, isCompanyStaff, type Apartment } from '@domovoy/domain';
 
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import type { Building, HouseContact, HouseService, Resident } from './repository.js';
@@ -8,6 +8,10 @@ import type { AppDeps } from './use-cases.js';
 export const servedBy = (resident: Resident, deps: AppDeps): string[] => [
   ...new Set([resident.buildingId ?? deps.defaultBuildingId, ...(resident.servesBuildingIds ?? [])]),
 ];
+
+/** Дом, в котором человек сейчас действует: выбранный, рабочий или дом установки. */
+export const actingHouse = (deps: AppDeps, actor: Resident, buildingId?: string): string =>
+  buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
 
 /**
  * Дом, в котором человек живёт. У сотрудника он может не совпадать с рабочим:
@@ -42,6 +46,58 @@ export const houseHint = async (
   const building = await deps.repository.findBuilding(buildingId);
 
   return building?.address || building?.code;
+};
+
+/** Подсказка с адресом для одного получателя рассылки. */
+export type HouseHint = (resident: Resident) => Promise<string | undefined>;
+
+/**
+ * Подсказка с адресом дома для рассылки по нему: дом и его квартиры читаются
+ * один раз на всю рассылку, а не на каждого получателя. Квартиры, уже прочитанные
+ * вызывающим, передаются готовыми.
+ */
+export const houseHintFor = (deps: AppDeps, buildingId: string, known?: readonly Apartment[]): HouseHint => {
+  const houses = new Map<string, string | undefined>(
+    (known ?? []).map((apartment) => [apartment.id, apartment.buildingId]),
+  );
+
+  let address: Promise<string | undefined> | undefined;
+  let all: Promise<void> | undefined;
+
+  const addressOf = (): Promise<string | undefined> =>
+    (address ??= deps.repository
+      .findBuilding(buildingId)
+      .then((building) => building?.address || building?.code));
+
+  const houseOf = async (apartmentId: string): Promise<string | undefined> => {
+    if (!known) {
+      all ??= deps.repository.listApartments(buildingId).then((apartments) => {
+        for (const apartment of apartments) houses.set(apartment.id, apartment.buildingId);
+      });
+
+      await all;
+    }
+
+    if (!houses.has(apartmentId)) {
+      houses.set(apartmentId, (await deps.repository.findApartment(apartmentId))?.buildingId);
+    }
+
+    return houses.get(apartmentId);
+  };
+
+  return async (resident) => {
+    const own = new Set<string>(
+      isCompanyStaff(resident.role) ? [resident.buildingId ?? deps.defaultBuildingId] : [],
+    );
+
+    for (const apartmentId of apartmentsOf(resident)) {
+      const house = await houseOf(apartmentId);
+
+      if (house) own.add(house);
+    }
+
+    return own.size < 2 ? undefined : addressOf();
+  };
 };
 
 /**

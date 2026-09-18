@@ -18,27 +18,17 @@ import {
 } from '@domovoy/domain';
 
 import { recordAction } from './audit.js';
-import { assertServes } from './buildings.js';
+import { actingHouse, assertServes } from './buildings.js';
 import { periodOf } from './billing.js';
 import { monthBefore, periodConsumption } from './consumption.js';
+import { readingStates, type ReadingState } from './meter-state.js';
 import { daysLeftPhrase } from './meters.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 import { zoneOf } from './zone.js';
 
-export interface HouseMeterState {
-  meter: HouseMeter;
-  /** Последнее принятое показание, если оно есть. */
-  last?: Reading;
-  /** Расход за прошлый период. */
-  lastConsumption: number;
-  /** Показание за текущий месяц уже подано. */
-  submittedThisMonth: boolean;
-}
-
-const houseOf = (actor: Resident, deps: AppDeps, buildingId?: string): string =>
-  buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
+export type HouseMeterState = ReadingState<HouseMeter>;
 
 const onlyStaff = (actor: Resident): void => {
   if (!isCompanyStaff(actor.role)) {
@@ -54,23 +44,11 @@ export const houseMetersFor = async (
 ): Promise<HouseMeterState[]> => {
   onlyStaff(actor);
 
-  const house = houseOf(actor, deps, buildingId);
+  const house = actingHouse(deps, actor, buildingId);
   const meters = await deps.repository.listHouseMeters(house);
   const readings = await deps.repository.listHouseReadingsFor(meters.map((meter) => meter.id));
-  const now = deps.now();
-  const zone = await zoneOf(deps, house);
 
-  return meters.map((meter) => {
-    const own = readings.filter((reading) => reading.meterId === meter.id);
-    const [last, previous] = own;
-
-    return {
-      meter,
-      ...(last ? { last } : {}),
-      lastConsumption: last ? consumption(previous, last) : 0,
-      submittedThisMonth: last ? isSameMonth(last.at, now, zone) : false,
-    };
-  });
+  return readingStates(meters, readings, deps.now(), await zoneOf(deps, house));
 };
 
 export interface AddHouseMeterCommand {
@@ -94,7 +72,7 @@ export const addHouseMeter = async (
 
   if (serial.length === 0) throw new DomainError('serial_required', 'Нужен заводской номер прибора');
 
-  const buildingId = houseOf(actor, deps, command.buildingId);
+  const buildingId = actingHouse(deps, actor, command.buildingId);
   const known = await deps.repository.listHouseMeters(buildingId);
 
   if (known.some((meter) => meter.kind === command.kind)) {

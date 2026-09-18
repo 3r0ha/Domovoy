@@ -31,7 +31,14 @@ export const TRANSITIONS: readonly Transition[] = [
   },
   { from: 'accepted', to: 'rejected', roles: ['dispatcher', 'manager'], requiresComment: true },
 
-  { from: 'in_progress', to: 'done', roles: ['technician', 'dispatcher', 'manager', 'contractor'] },
+  // Сдача работы без единого слова о сделанном не принимается: отметка уходит
+  // жильцу и остаётся в истории заявки. Длины от неё не требуется.
+  {
+    from: 'in_progress',
+    to: 'done',
+    roles: ['technician', 'dispatcher', 'manager', 'contractor'],
+    requiresComment: true,
+  },
   {
     from: 'in_progress',
     to: 'needs_info',
@@ -40,7 +47,12 @@ export const TRANSITIONS: readonly Transition[] = [
   },
 
   { from: 'done', to: 'confirmed', roles: ['resident'] },
+  // Жилец не всегда нажимает кнопку: он говорит о приёмке по телефону или в
+  // дверях. Смена закрывает такую заявку за него и пишет, откуда знает.
+  { from: 'done', to: 'confirmed', roles: ['dispatcher', 'manager'], requiresComment: true },
   { from: 'done', to: 'in_progress', roles: ['resident'], requiresComment: true },
+  // Работу переделывают и по звонку мастера: он не всегда работает с телефоном.
+  { from: 'done', to: 'in_progress', roles: ['dispatcher', 'manager'], requiresComment: true },
 
   { from: 'needs_info', to: 'in_progress', roles: ['resident', 'dispatcher', 'manager', 'technician', 'contractor'] },
   { from: 'needs_info', to: 'rejected', roles: ['dispatcher', 'manager'], requiresComment: true },
@@ -125,13 +137,24 @@ export const statusTitle = (status: RequestStatus, forStaff = false): string =>
 export const CLOSED_STATUSES = FINAL_STATUSES;
 
 /** Переходы, доступные роли из текущего состояния. */
-export const allowedTransitions = (from: RequestStatus, role: Role): RequestStatus[] =>
-  TRANSITIONS.filter((transition) => transition.from === from && transition.roles.includes(role)).map(
-    (transition) => transition.to,
-  );
+export const allowedTransitions = (from: RequestStatus, role: Role): RequestStatus[] => [
+  ...new Set(
+    TRANSITIONS.filter((transition) => transition.from === from && transition.roles.includes(role)).map(
+      (transition) => transition.to,
+    ),
+  ),
+];
 
-export const findTransition = (from: RequestStatus, to: RequestStatus): Transition | undefined =>
-  TRANSITIONS.find((transition) => transition.from === from && transition.to === to);
+/**
+ * Правило перехода. Один и тот же переход бывает записан для разных ролей
+ * с разными условиями, поэтому роль важна: жилец принимает работу молча,
+ * а смена за него, только объяснив, откуда знает.
+ */
+export const findTransition = (from: RequestStatus, to: RequestStatus, role?: Role): Transition | undefined => {
+  const matching = TRANSITIONS.filter((transition) => transition.from === from && transition.to === to);
+
+  return (role ? matching.find((transition) => transition.roles.includes(role)) : undefined) ?? matching[0];
+};
 
 export interface ApplyTransitionInput {
   to: RequestStatus;
@@ -166,6 +189,25 @@ const checkRating = (rating: number, to: RequestStatus): void => {
   }
 };
 
+/** Роли, которые работают руками: наряд можно записать на них самих. */
+const EXECUTOR_ROLES: readonly Role[] = ['technician', 'contractor'];
+
+/**
+ * Исполнитель заявки, уходящей в работу. Мастер и подрядчик берут наряд на
+ * себя, диспетчер и управляющий называют человека: ничей наряд в работе никем
+ * и не делается. @throws {DomainError}
+ */
+const assigneeFor = (request: ServiceRequest, input: ApplyTransitionInput): string | undefined => {
+  if (input.assigneeId) return input.assigneeId;
+  if (input.to !== 'in_progress' || input.role === 'resident' || request.assigneeId) return undefined;
+
+  if (!EXECUTOR_ROLES.includes(input.role)) {
+    throw new DomainError('assignee_required', 'Выберите исполнителя: в работу заявка уходит с мастером');
+  }
+
+  return input.actorId;
+};
+
 /** Выполняет переход и дописывает историю. @throws {DomainError} */
 export const applyTransition = (request: ServiceRequest, input: ApplyTransitionInput): ServiceRequest => {
   if (isFinal(request.status)) {
@@ -175,7 +217,7 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
     );
   }
 
-  const transition = findTransition(request.status, input.to);
+  const transition = findTransition(request.status, input.to, input.role);
 
   if (!transition) {
     throw new DomainError(
@@ -192,10 +234,17 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
   }
 
   if (transition.requiresComment && !input.comment?.trim()) {
-    throw new DomainError('comment_required', `Переход в «${input.to}» требует объяснения`);
+    throw new DomainError(
+      'comment_required',
+      input.to === 'done'
+        ? 'Напишите коротко, что сделано: отметку увидит жилец'
+        : `Переход в «${STATUS_TITLES[input.to]}» требует объяснения`,
+    );
   }
 
   if (input.rating !== undefined) checkRating(input.rating, input.to);
+
+  const assigneeId = assigneeFor(request, input);
 
   const event: RequestEvent = {
     at: input.at,
@@ -203,17 +252,19 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
     role: input.role,
     actorId: input.actorId,
     ...(input.comment?.trim() ? { comment: input.comment.trim() } : {}),
-    ...(input.assigneeId ? { assigneeId: input.assigneeId } : {}),
+    ...(assigneeId ? { assigneeId } : {}),
     ...(input.attachments?.length ? { attachments: input.attachments } : {}),
     ...(input.onSite ? { onSite: true } : {}),
   };
 
-  const reopened = request.status === 'done' && input.to === 'in_progress';
+  // Счётчик означает «жилец не принял работу», поэтому возврат по звонку
+  // мастера, который смена оформляет от себя, в него не идёт.
+  const reopened = request.status === 'done' && input.to === 'in_progress' && input.role === 'resident';
 
   return {
     ...request,
     status: input.to,
-    ...(input.assigneeId ? { assigneeId: input.assigneeId } : {}),
+    ...(assigneeId ? { assigneeId } : {}),
     ...(input.rating === undefined ? {} : { rating: input.rating }),
     history: [...request.history, event],
     reopenCount: request.reopenCount + (reopened ? 1 : 0),

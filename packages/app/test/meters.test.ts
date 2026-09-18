@@ -351,14 +351,14 @@ describe('дом собирает показания вместе', () => {
 
 describe('расход выше соседского', () => {
   /** Дом, где у соседей есть по два показания подряд: только так виден расход. */
-  const withNeighbours = async (deps: Deps, spent: number[]): Promise<void> => {
+  const withNeighbours = async (deps: Deps, spent: number[], buildingId = BUILDING_ID): Promise<void> => {
     for (const [index, value] of spent.entries()) {
-      const apartmentId = `apt-n${index}`;
-      const meterId = `cold-n${index}`;
+      const apartmentId = `apt-n${buildingId}-${index}`;
+      const meterId = `cold-n${buildingId}-${index}`;
 
       await deps.repository.saveApartment({
         id: apartmentId,
-        buildingId: BUILDING_ID,
+        buildingId,
         number: 100 + index,
         entrance: 1,
         riser: 1,
@@ -418,6 +418,38 @@ describe('расход выше соседского', () => {
     await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 105 });
 
     assert.deepEqual(deps.notifier.sent, []);
+  });
+
+  it('за жильца подаёт сотрудник, а соседи берутся из дома квартиры', async () => {
+    const deps = await setup();
+    const other = 'b9';
+
+    await deps.repository.saveBuilding({ id: other, code: 'Д9', address: 'ул. Мира, 9' });
+    await withNeighbours(deps, [3, 4, 5, 4]);
+    // В доме, где сотрудник ведёт смену, расход совсем другой.
+    await withNeighbours(deps, [30, 40, 50, 40], other);
+
+    const dispatcher: Resident = {
+      id: 'disp-1',
+      maxUserId: 5005,
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      buildingId: other,
+      servesBuildingIds: [BUILDING_ID],
+    };
+
+    deps.setNow(new Date('2026-08-22T10:00:00Z'));
+    await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 100 });
+
+    deps.setNow(WINDOW_DAY);
+    deps.notifier.sent.length = 0;
+
+    await submitReading(deps, { resident: dispatcher, meterId: 'cold-1', value: 112 });
+
+    const warned = deps.notifier.sent.find((item) => /выше, чем у соседей/.test(item.text));
+
+    assert.ok(warned, 'сравнили с соседями по дому квартиры');
+    assert.match(warned?.text ?? '', /12 м³ против 4 м³/);
   });
 
   it('в доме без соседей с приборами продукт молчит', async () => {

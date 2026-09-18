@@ -1,5 +1,7 @@
-import { computeDeadlines, CATEGORY_RULES } from './sla.js';
+import { partsIn } from './reception.js';
+import { computeDeadlines, CATEGORY_RULES, type NormLimit } from './sla.js';
 import {
+  DEFAULT_TIME_ZONE,
   DomainError,
   type Attachment,
   type Priority,
@@ -24,6 +26,8 @@ export interface CreateRequestInput {
   priority?: Priority;
   createdAt: Date;
   attachments?: Attachment[];
+  /** Часовой пояс дома: по нему в номере заявки считаются год и месяц. */
+  timeZone?: string;
 }
 
 const MAX_DESCRIPTION_LENGTH = 2000;
@@ -45,10 +49,20 @@ export const summarizeDescription = (description: string): string => {
   return `${(lastSpace > MAX_TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 };
 
-/** Номер заявки: код дома, год и месяц, порядковый номер. */
-export const formatRequestNumber = (buildingCode: string, sequence: number, createdAt: Date): string => {
-  const year = String(createdAt.getUTCFullYear()).slice(-2);
-  const month = String(createdAt.getUTCMonth() + 1).padStart(2, '0');
+/**
+ * Номер заявки: код дома, год и месяц, порядковый номер. Месяц берётся по
+ * календарю дома: заявка от первого числа 00:30 по местному времени иначе
+ * получила бы номер прошлого месяца.
+ */
+export const formatRequestNumber = (
+  buildingCode: string,
+  sequence: number,
+  createdAt: Date,
+  timeZone: string = DEFAULT_TIME_ZONE,
+): string => {
+  const local = partsIn(createdAt, timeZone);
+  const year = String(local.year).slice(-2);
+  const month = String(local.month).padStart(2, '0');
 
   return `${buildingCode}-${year}${month}-${String(sequence).padStart(4, '0')}`;
 };
@@ -58,6 +72,18 @@ const REQUEST_NUMBER = /^\s*([^\s]+-\d{4}-\d{4})\s*$/;
 
 /** Сообщение целиком это номер заявки: человек спрашивает о ней, а не заводит новую. */
 export const requestNumberIn = (text: string): string | null => REQUEST_NUMBER.exec(text)?.[1] ?? null;
+
+/** Засор внутридомовой системы водоотведения или мусоропровода: у него свой срок. */
+const BLOCKAGE = /засор|забил|забит|не уходит вода|стоит вода|мусоропровод/i;
+
+export const isBlockage = (text: string): boolean => BLOCKAGE.test(text);
+
+/** Какая норма ограничивает срок заявки сверху. */
+export const normLimitFor = (description: string, priority: Priority): NormLimit | undefined => {
+  if (isBlockage(description)) return 'blockage';
+
+  return priority === 'emergency' ? 'emergency' : undefined;
+};
 
 /** Создаёт заявку: сроки, номер и первое событие истории. @throws {DomainError} */
 export const createRequest = (input: CreateRequestInput): ServiceRequest => {
@@ -75,11 +101,16 @@ export const createRequest = (input: CreateRequestInput): ServiceRequest => {
   }
 
   const priority = input.priority ?? CATEGORY_RULES[input.category].defaultPriority;
-  const { reactionDueAt, resolutionDueAt } = computeDeadlines(input.category, priority, input.createdAt);
+  const { reactionDueAt, resolutionDueAt } = computeDeadlines(
+    input.category,
+    priority,
+    input.createdAt,
+    normLimitFor(description, priority),
+  );
 
   return {
     id: input.id,
-    number: formatRequestNumber(input.buildingCode, input.sequence, input.createdAt),
+    number: formatRequestNumber(input.buildingCode, input.sequence, input.createdAt, input.timeZone),
     buildingId: input.buildingId,
     authorId: input.authorId,
     category: input.category,
@@ -128,7 +159,28 @@ const HINTS: readonly CategoryHint[] = [
   { category: 'cleaning', keywords: ['убор', 'мусор', 'грязн', 'подмет', 'мыть'] },
   {
     category: 'yard',
-    keywords: ['двор', 'детск', 'площадк', 'газон', 'парков', 'снег', 'гололёд', 'гололед'],
+    keywords: [
+      'двор',
+      'детск',
+      'площадк',
+      'газон',
+      'парков',
+      'снег',
+      'гололёд',
+      'гололед',
+      'дорог',
+      'тротуар',
+      'проезд',
+      'асфальт',
+      'яма',
+      'люк',
+      'урна',
+      'скамейк',
+      'лавочк',
+      'шлагбаум',
+      'контейнерн',
+      'остановк',
+    ],
     except: ['этаж', 'подъезд', 'лестни'],
   },
 ];

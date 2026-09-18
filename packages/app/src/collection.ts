@@ -12,6 +12,8 @@ import { zoneOf } from './zone.js';
 export interface Debtor {
   residentId: string;
   displayName: string;
+  /** Все жильцы квартиры, если их несколько: напоминание уходит каждому. */
+  residentIds?: string[];
   apartmentId: string;
   /** Номер квартиры. */
   apartmentNumber?: number;
@@ -48,24 +50,34 @@ export const houseDebt = async (deps: AppDeps, actor: Resident, buildingId?: str
   const apartments = known.apartments;
   const residents = await deps.repository.listResidentsByApartments(apartments.map((item) => item.id));
 
-  const debtors: Debtor[] = [];
+  // Долг принадлежит помещению. Когда в квартире живут несколько человек,
+  // считать его на каждого значит задвоить и строку, и сумму по дому.
+  const living = new Map<string, Resident[]>();
 
   for (const resident of residents) {
     const mine = apartmentsOf(resident).find((id) => apartments.some((item) => item.id === id));
 
     if (!mine) continue;
 
-    const debt = await arrearsFor(deps, resident, DEBT_MONTHS, known);
+    living.set(mine, [...(living.get(mine) ?? []), resident]);
+  }
+
+  const debtors: Debtor[] = [];
+
+  for (const [apartmentId, people] of living) {
+    const first = people[0]!;
+    const debt = await arrearsFor(deps, first, DEBT_MONTHS, known);
 
     if (debt.total <= 0) continue;
 
-    const apartment = apartments.find((item) => item.id === mine);
+    const apartment = apartments.find((item) => item.id === apartmentId);
     const range = debtRange(debt);
 
     debtors.push({
-      residentId: resident.id,
-      displayName: resident.displayName,
-      apartmentId: mine,
+      residentId: first.id,
+      displayName: people.map((person) => person.displayName).join(', '),
+      apartmentId,
+      ...(people.length > 1 ? { residentIds: people.map((person) => person.id) } : {}),
       ...(apartment?.number === undefined ? {} : { apartmentNumber: apartment.number }),
       debt: debt.total,
       penalty: debt.penalty,
@@ -153,7 +165,14 @@ export const remindDebtor = async (deps: AppDeps, actor: Resident, residentId: s
 
   if (!text) throw new DomainError('nothing_to_remind', 'Долга нет, напоминать не о чем');
 
-  await notifyAbout(deps.notifier ?? noopNotifier, resident, text, { section: 'meters' });
+  // Платят за квартиру, а не за человека: напоминание получают все её жильцы.
+  const [apartmentId] = apartmentsOf(resident);
+  const neighbours = apartmentId ? await deps.repository.listResidentsByApartments([apartmentId]) : [];
+  const told = neighbours.some((person) => person.id === resident.id) ? neighbours : [resident, ...neighbours];
+
+  for (const person of told) {
+    await notifyAbout(deps.notifier ?? noopNotifier, person, text, { section: 'meters' });
+  }
 
   await recordAction(deps, {
     actor,

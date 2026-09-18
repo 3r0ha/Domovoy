@@ -12,7 +12,6 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
-import { homeOf } from './buildings.js';
 import { announcementAudience, type Announcement, type Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -49,16 +48,29 @@ const touches = (
   return apartment ? isInAudience(apartment, audience) : false;
 };
 
+/** Квартира жильца и дом, который из неё следует: одно чтение на оба ответа. */
+const homeAndFlat = async (
+  deps: AppDeps,
+  resident: Resident,
+): Promise<{ buildingId?: string; apartment?: Apartment }> => {
+  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
+  const buildingId = apartment?.buildingId ?? resident.buildingId;
+
+  return { ...(buildingId ? { buildingId } : {}), ...(apartment ? { apartment } : {}) };
+};
+
 /** Что происходит в доме прямо сейчас. */
 export const houseNow = async (deps: AppDeps, resident: Resident): Promise<HouseNow> => {
-  const buildingId = await homeOf(deps, resident);
+  const { buildingId, apartment } = await homeAndFlat(deps, resident);
 
   if (!buildingId) return { incidents: [], works: [], mood: 'sleeping' };
 
   const now = deps.now();
-  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
 
-  const open = await deps.repository.listRequests({ buildingId, statuses: [...OPEN_STATUSES] });
+  const [open, announcements] = await Promise.all([
+    deps.repository.listRequests({ buildingId, statuses: [...OPEN_STATUSES] }),
+    deps.repository.listWorksBetween(buildingId, now, now),
+  ]);
 
   const incidents = open.filter(
     (request) =>
@@ -67,7 +79,7 @@ export const houseNow = async (deps: AppDeps, resident: Resident): Promise<House
       touches(audienceForTarget(request.target), apartment),
   );
 
-  const works = (await deps.repository.listWorksBetween(buildingId, now, now)).filter((announcement) =>
+  const works = announcements.filter((announcement) =>
     touches(announcementAudience(announcement), apartment),
   );
 
@@ -76,16 +88,21 @@ export const houseNow = async (deps: AppDeps, resident: Resident): Promise<House
 
 /** Что в доме будет на неделе: работы, собрания и обходы одной лентой. */
 export const houseAhead = async (deps: AppDeps, resident: Resident, days = AHEAD_DAYS): Promise<HouseEvent[]> => {
-  const buildingId = await homeOf(deps, resident);
+  const { buildingId, apartment } = await homeAndFlat(deps, resident);
 
   if (!buildingId) return [];
 
   const now = deps.now();
   const until = new Date(now.getTime() + days * 24 * 3600_000);
-  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
   const events: HouseEvent[] = [];
 
-  for (const announcement of await deps.repository.listWorksBetween(buildingId, now, until)) {
+  const [announcements, polls, inspections] = await Promise.all([
+    deps.repository.listWorksBetween(buildingId, now, until),
+    deps.repository.listPolls(buildingId),
+    deps.repository.listInspections(buildingId),
+  ]);
+
+  for (const announcement of announcements) {
     const audience = announcementAudience(announcement);
 
     if (!touches(audience, apartment) || !announcement.works) continue;
@@ -99,13 +116,13 @@ export const houseAhead = async (deps: AppDeps, resident: Resident, days = AHEAD
     });
   }
 
-  for (const poll of await deps.repository.listPolls(buildingId)) {
+  for (const poll of polls) {
     if (poll.closedAt || poll.closesAt.getTime() > until.getTime() || poll.closesAt.getTime() < now.getTime()) continue;
 
     events.push({ kind: 'poll', at: poll.closesAt, title: poll.title, where: 'весь дом' });
   }
 
-  for (const inspection of await deps.repository.listInspections(buildingId)) {
+  for (const inspection of inspections) {
     if (inspection.finishedAt || inspection.dueAt.getTime() > until.getTime()) continue;
 
     events.push({

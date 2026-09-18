@@ -125,6 +125,7 @@ describe('вопрос в управляющую компанию', () => {
     const toResident = notifier.sent.find((message) => message.maxUserId === maria.maxUserId);
 
     assert.match(toResident?.text ?? '', /Подадим тепло 25 сентября/);
+    assert.match(toResident?.text ?? '', /^Ольга Титова, управляющая компания/, 'ответ подписан сотрудником');
   });
 
   it('жилец продолжает ту же переписку, и вопрос снова ждёт ответа', async () => {

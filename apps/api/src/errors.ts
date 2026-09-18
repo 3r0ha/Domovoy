@@ -7,6 +7,7 @@ import type { FastifyError, FastifyInstance, FastifyReply } from 'fastify';
  */
 export const STATUS_BY_CODE = {
   // не приняли данные
+  assignee_required: 400,
   bad_works: 400,
   candidate_elsewhere: 400,
   code_not_apartment: 400,
@@ -42,6 +43,8 @@ export const STATUS_BY_CODE = {
   topic_empty: 400,
   topic_too_long: 400,
   wrong_object: 400,
+  // Неизвестный вид уведомления это значение поля, а не пропавший объект.
+  notice_unknown: 400,
   // сессия есть, а профиля за ней уже нет
   resident_not_found: 401,
   // нет прав
@@ -65,7 +68,6 @@ export const STATUS_BY_CODE = {
   inspection_not_found: 404,
   item_not_found: 404,
   meter_not_found: 404,
-  notice_unknown: 404,
   poll_not_found: 404,
   request_not_found: 404,
   ticket_not_found: 404,
@@ -101,6 +103,8 @@ export const STATUS_BY_CODE = {
   visit_started: 409,
   visit_exists: 409,
   handoff_exists: 409,
+  complaint_exists: 409,
+  escalation_not_possible: 409,
   slot_taken: 409,
   // слишком велико
   file_too_large: 413,
@@ -119,6 +123,41 @@ export const STATUS_BY_CODE = {
 
 const statusForDomainError = (code: ErrorCode): number => STATUS_BY_CODE[code];
 
+/**
+ * Отказы самого адаптера. Предметной области они неизвестны: так отвечает
+ * сервер, когда до сценария дело не дошло или подключённая служба молчит.
+ * Клиент читает их так же, как коды домена, поэтому они тоже перечислены.
+ */
+export const SERVICE_STATUS = {
+  /** Запрос не сошёлся со схемой: не то поле, не тот тип, не та длина. */
+  schema_mismatch: 400,
+  /** Границы периода выгрузки не годятся: перевёрнуты или шире года. */
+  range_invalid: 400,
+  /** Нет общего секрета: домофония, вебхук платформы, метрики. */
+  unauthorized: 401,
+  /** Такого адреса в API нет. */
+  not_found: 404,
+  /** Региональная программа капитального ремонта не отвечает. */
+  capital_unavailable: 503,
+  /** Сбой сервера: подробности уходят в журнал, наружу только код. */
+  internal: 500,
+} as const;
+
+export type ServiceCode = keyof typeof SERVICE_STATUS;
+
+/** Отказ адаптера: предметная область такого случая не знает. */
+export class ServiceError extends Error {
+  constructor(
+    readonly code: ServiceCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ServiceError';
+  }
+}
+
+/** Заявки нет или она не видна этому человеку: ответ один и тот же. */
+export const requestNotFound = (): DomainError => new DomainError('request_not_found', 'Заявка не найдена');
 
 /** Единый ответ на отказ: коды домена по смыслу, остальное как внутренняя ошибка. */
 export const domainErrorHandler =
@@ -126,6 +165,15 @@ export const domainErrorHandler =
   (error: FastifyError, _request: unknown, reply: FastifyReply): FastifyReply => {
     if (error instanceof DomainError) {
       return reply.code(statusForDomainError(error.code)).send({ error: error.code, message: error.message });
+    }
+
+    if (error instanceof ServiceError) {
+      return reply.code(SERVICE_STATUS[error.code]).send({ error: error.code, message: error.message });
+    }
+
+    // Запрос не прошёл схему: наружу идёт код из таблицы, а не имя ошибки Fastify.
+    if (error.validation) {
+      return reply.code(400).send({ error: 'schema_mismatch', message: error.message });
     }
 
     fastify.log.error(error);

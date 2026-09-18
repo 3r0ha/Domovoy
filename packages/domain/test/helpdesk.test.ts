@@ -76,3 +76,34 @@ describe('срок ответа на обращение', () => {
     assert.equal(isAnswerOverdue(ticket, new Date('2026-09-21T11:00:00Z')), true);
   });
 });
+
+describe('рабочие дни считаются по календарю дома', () => {
+  /** Час ночи субботы в Москве: по UTC это ещё вечер пятницы. */
+  const NIGHT = new Date('2026-09-11T22:00:00Z');
+
+  it('ночь субботы по местному времени, это уже выходной', () => {
+    assert.equal(addWorkingDays(NIGHT, 1).toISOString(), '2026-09-13T22:00:00.000Z');
+    assert.equal(
+      addWorkingDays(NIGHT, 1, 'UTC').toISOString(),
+      '2026-09-14T22:00:00.000Z',
+      'по UTC суббота начинается сутками позже',
+    );
+  });
+
+  it('пояс дома доходит до срока ответа', () => {
+    const ticket = asked(NIGHT);
+
+    assert.equal(answerDueAt(ticket, 1)?.toISOString(), '2026-09-13T22:00:00.000Z');
+    assert.equal(answerDueAt(ticket, 1, 'UTC')?.toISOString(), '2026-09-14T22:00:00.000Z');
+    assert.equal(isAnswerOverdue(ticket, new Date('2026-09-14T00:00:00Z'), 1), true);
+    assert.equal(isAnswerOverdue(ticket, new Date('2026-09-14T00:00:00Z'), 1, 'UTC'), false);
+  });
+
+  it('за Уралом выходные начинаются раньше, чем в Москве', () => {
+    // Пятница 20:00 по Москве, но во Владивостоке уже суббота.
+    const evening = new Date('2026-09-11T17:00:00Z');
+
+    assert.equal(addWorkingDays(evening, 1).toISOString(), '2026-09-14T17:00:00.000Z');
+    assert.equal(addWorkingDays(evening, 1, 'Asia/Vladivostok').toISOString(), '2026-09-13T17:00:00.000Z');
+  });
+});

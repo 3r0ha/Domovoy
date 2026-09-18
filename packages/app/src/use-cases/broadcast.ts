@@ -12,7 +12,7 @@ import {
 
 import { apartmentsOf } from '../apartments.js';
 import { recordAction } from '../audit.js';
-import { assertServes, houseHint } from '../buildings.js';
+import { actingHouse, assertServes, houseHintFor } from '../buildings.js';
 import { houseDebt } from '../collection.js';
 import { pendingReadings } from '../meters.js';
 import { wanting } from '../notices.js';
@@ -185,9 +185,6 @@ const reachable = (people: readonly Resident[], scope: BroadcastScope): Resident
 const others = (people: readonly Resident[], actor: Resident): Resident[] =>
   people.filter((person) => person.id !== actor.id);
 
-const houseFor = (deps: AppDeps, actor: Resident, buildingId?: string): string =>
-  buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
-
 /** Сколько человек получит сообщение, прежде чем его отправят. @throws {DomainError} */
 export const aimBroadcast = async (
   deps: AppDeps,
@@ -197,7 +194,7 @@ export const aimBroadcast = async (
 ): Promise<BroadcastAim> => {
   assertMayBroadcast(actor);
 
-  const house = houseFor(deps, actor, buildingId);
+  const house = actingHouse(deps, actor, buildingId);
 
   await assertServes(deps, actor, house);
 
@@ -218,7 +215,7 @@ export const sendBroadcast = async (deps: AppDeps, command: BroadcastCommand): P
   assertMayBroadcast(command.actor);
 
   const text = broadcastText(command.text);
-  const house = houseFor(deps, command.actor, command.buildingId);
+  const house = actingHouse(deps, command.actor, command.buildingId);
 
   await assertServes(deps, command.actor, house);
 
@@ -232,10 +229,11 @@ export const sendBroadcast = async (deps: AppDeps, command: BroadcastCommand): P
 
   const notifier = deps.notifier ?? noopNotifier;
   const notice = noticeForScope(command.scope);
+  const hintOf = houseHintFor(deps, house);
   let sent = 0;
 
   for (const resident of recipients) {
-    const hint = await houseHint(deps, resident, house);
+    const hint = await hintOf(resident);
 
     await notifyAbout(notifier, resident, formatBroadcast(text, hint), {
       section: 'news',
@@ -270,7 +268,7 @@ export const broadcastTargets = async (
 ): Promise<BroadcastTargets> => {
   assertMayBroadcast(actor);
 
-  const house = houseFor(deps, actor, buildingId);
+  const house = actingHouse(deps, actor, buildingId);
 
   await assertServes(deps, actor, house);
 

@@ -11,7 +11,7 @@ type OpenState = 'idle' | 'opening' | 'open';
 const OPEN_SECONDS = 10;
 
 /** Открытие замка: нажатие, ответ и ошибка. */
-export const useLock = (
+const useLock = (
   api: DomovoyApi,
   device: DeviceView,
 ): { state: OpenState; left: number; error: string | null; open: () => void } => {
@@ -22,19 +22,17 @@ export const useLock = (
 
   // Дверь открыта не навсегда: отсчёт идёт на кнопке и сам возвращает её в покой.
   useEffect(() => {
-    if (state !== 'open') return;
+    if (state !== 'open') return undefined;
 
-    const timer = setInterval(() => {
-      setLeft((seconds) => {
-        if (seconds > 1) return seconds - 1;
-
-        setState('idle');
-        return 0;
-      });
-    }, 1000);
+    const timer = setInterval(() => setLeft((seconds) => Math.max(0, seconds - 1)), 1000);
 
     return () => clearInterval(timer);
   }, [state]);
+
+  // Отсчёт кончился: кнопка возвращается в покой отдельно от самого отсчёта.
+  useEffect(() => {
+    if (state === 'open' && left === 0) setState('idle');
+  }, [state, left]);
 
   const open = async (): Promise<void> => {
     setState('opening');
@@ -56,7 +54,7 @@ export const useLock = (
 };
 
 /** Что написано на кнопке: покой, ожидание ответа или сколько осталось открыто. */
-export const lockLabel = (state: OpenState, left: number): string =>
+const lockLabel = (state: OpenState, left: number): string =>
   state === 'opening' ? 'Открываем…' : state === 'open' ? `Открыто, ${left} с` : 'Открыть';
 
 /** Строка двери: название и кнопка, которой её открывают. */

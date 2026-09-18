@@ -221,7 +221,12 @@ describe('уточняющий вопрос об адресе', () => {
     const request = await createServiceRequest(deps, { resident: maria, description: 'Течёт кран' });
 
     await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
-    await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'in_progress' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
 
     await assert.rejects(
       retargetRequest(deps, { resident: maria, requestId: request.id, startParam: 'apt_apt-5' }),

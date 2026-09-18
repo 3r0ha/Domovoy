@@ -173,16 +173,25 @@ export const devicesAt = async (deps: DeviceDeps, buildingId: string, target: Re
   return all.filter((device) => device.entrance === entrance && !isSensor(device));
 };
 
-/** @throws {DomainError} если устройство не относится к дому человека. */
+/** @throws {DomainError} если устройство не относится к дому и подъезду человека. */
 const deviceFor = async (deps: DeviceDeps, resident: Resident, deviceId: string): Promise<Device> => {
   const hub = deps.hub;
 
   if (!hub) throw new DomainError('devices_unavailable', 'Умный дом не подключён');
 
+  const staff = isCompanyStaff(resident.role) && resident.role !== 'contractor';
+  const home = await homeSpot(deps, resident);
+
   for (const buildingId of await housesOf(deps, resident)) {
+    const own = staff && buildingId === resident.buildingId;
     const found = (await ask(() => hub.list(buildingId))).find((device) => device.id === deviceId);
 
-    if (found) return found;
+    if (!found) continue;
+    // Отбор тот же, что и в списке устройств: домофон и камера соседнего
+    // подъезда жильцу не принадлежат, даже если он знает идентификатор.
+    if (!own && found.entrance !== undefined && found.entrance !== home?.entrance) continue;
+
+    return found;
   }
 
   throw new DomainError('device_not_found', 'Устройство не найдено');

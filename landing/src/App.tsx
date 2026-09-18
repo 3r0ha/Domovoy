@@ -39,6 +39,42 @@ const Scene = ({ index }: { index: number }) => {
   );
 };
 
+/** Сроки на тёмном фоне: та же сцена, что у остальных разделов, только другим тоном. */
+const Dark = () => {
+  const section = SECTIONS[2]!;
+
+  return (
+    <section id={section.id} className="dark">
+      <div className="wrap dark-inner">
+        <div className="dark-text" data-reveal="text">
+          <p className="eyebrow">{section.eyebrow}</p>
+          <h2>{section.title}</h2>
+          <p className="lead">{section.text}</p>
+          <ul className="scene-points">
+            {section.points.map((point) => (
+              <li key={point}>
+                <Mark size={9} />
+                {point}
+              </li>
+            ))}
+          </ul>
+          <a className="cta" href={`/${section.id}/`}>
+            {section.cta}
+            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+              <path d="M3 8h9M8 3.5 12.5 8 8 12.5" />
+            </svg>
+          </a>
+        </div>
+
+        <div className="dark-art" data-reveal="art">
+          <Shot name={section.shot} alt={section.alt} />
+          <Domovoy mood="alarmed" size="large" />
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export const App = () => {
   useReveal();
   useSnap();
@@ -70,11 +106,9 @@ export const App = () => {
           <Hem className="hero-hem" />
 
           <div className="hero-foot">
-            {BOT_LINK ? (
-              <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
-                Открыть в MAX
-              </a>
-            ) : null}
+            <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
+              Открыть в MAX
+            </a>
 
             <a className="cta" href="#request">
               Посмотреть, как это работает
@@ -88,52 +122,32 @@ export const App = () => {
         <Scene index={0} />
         <Scene index={1} />
 
-        <section className="dark">
-          <div className="wrap dark-inner">
-            <div className="dark-text" data-reveal="text">
-              <p className="eyebrow">Когда сроки нарушены</p>
-              <h2>Просрочку видит не только жилец</h2>
-              <p className="lead">
-                Хронология с именами, датами и нормативами складывается в обращение
-                в жилищную инспекцию. Жильцу остаётся его отправить.
-              </p>
-              <ul className="scene-points">
-                <li>
-                  <Mark size={9} />
-                  Час опоздания поводом для жалобы не считается
-                </li>
-                <li>
-                  <Mark size={9} />
-                  Нарушенный срок остаётся в отчёте и после закрытия
-                </li>
-              </ul>
-            </div>
+        <Dark />
 
-            <div className="dark-art" data-reveal="art">
-              <Shot name="complaint" alt="Готовое обращение в жилищную инспекцию" />
-              <Domovoy mood="alarmed" size="large" />
-            </div>
-          </div>
-        </section>
-
-        {SECTIONS.slice(2).map((section, index) => (
-          <Scene key={section.id} index={index + 2} />
+        {SECTIONS.slice(3).map((section, index) => (
+          <Scene key={section.id} index={index + 3} />
         ))}
 
         <section className="final">
           <div className="wrap final-inner" data-reveal="text">
-            <h2>Это не всё!</h2>
+            <h2>Домовой открывается в MAX</h2>
             <p className="lead">
-              Мы подготовили полноценный продукт, готовый к запуску прямо сейчас, поэтому
-              на одной страничке обо всём не рассказать. Узнайте подробнее по кнопке ниже!
+              На странице показана часть продукта. Заявки, показания, собрания и работа смены
+              идут в боте и мини-приложении.
             </p>
 
-            <a className="cta" href="/request/">
-              Узнать подробнее
-              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
-                <path d="M3 8h9M8 3.5 12.5 8 8 12.5" />
-              </svg>
-            </a>
+            <div className="final-acts">
+              <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
+                Открыть в MAX
+              </a>
+
+              <a className="cta" href="/request/">
+                Разделы продукта
+                <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true">
+                  <path d="M3 8h9M8 3.5 12.5 8 8 12.5" />
+                </svg>
+              </a>
+            </div>
 
             <Domovoy mood="sleeping-sitting" size="small" />
           </div>

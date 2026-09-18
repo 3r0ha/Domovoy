@@ -184,8 +184,8 @@ const Export = ({ api, days, toChat }: { api: DomovoyApi; days: number; toChat: 
     <>
       {toChat ? (
         <CellSimple
-          title={busy ? 'Собираем реестр…' : 'Прислать в чат'}
-          subtitle={error ? <span className="error">{error}</span> : undefined}
+          title={busy ? 'Собираем реестр…' : 'Прислать в переписку с ботом'}
+          subtitle={error ? <span className="error">{error}</span> : 'Оттуда файл пересылают в любой чат'}
           showChevron={!busy}
           height="compact"
           onClick={() => void send()}

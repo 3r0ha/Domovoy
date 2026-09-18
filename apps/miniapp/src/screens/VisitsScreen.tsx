@@ -2,10 +2,17 @@ import { Button, CellAction, CellInput, CellList, CellSimple } from '@maxhub/max
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { describeFailure, type DomovoyApi, type ReceptionView, type VisitView } from '../api.js';
+import {
+  describeFailure,
+  type DomovoyApi,
+  type ReceptionView,
+  type ReceptionWindowView,
+  type VisitView,
+} from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { useToast } from '../toast.js';
 import { Empty } from './Empty.js';
+import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
 import { IconCalendar, IconPerson } from './icons.js';
@@ -17,6 +24,8 @@ export interface VisitsScreenProps {
   staff?: boolean;
   /** Уйти в поддержку: приём ведут не все организации, а вопрос есть всегда. */
   onSupport?: () => void;
+  /** Часы приёма задаёт управляющий. */
+  canSchedule?: boolean;
 }
 
 /** Кто записан: имя и квартира. */
@@ -25,9 +34,250 @@ const who = (visit: VisitView): string =>
     .filter(Boolean)
     .join(', ');
 
+/** Дни недели в узком столбце: полное название в него не помещается. */
+const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
+const NEW_WINDOW: ReceptionWindowView = { weekday: 2, from: '15:00', to: '19:00' };
+
+/** Приёмные часы дома: их задаёт управляющий. */
+const Hours = ({
+  api,
+  hours,
+  known,
+  onSaved,
+}: {
+  api: DomovoyApi;
+  hours?: string;
+  /** Заданные окна: их правят, а не набирают заново. */
+  known?: ReceptionWindowView[];
+  onSaved: (view: ReceptionView) => void;
+}) => {
+  const [windows, setWindows] = useState<ReceptionWindowView[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  const save = async (): Promise<void> => {
+    if (!windows) return;
+
+    setBusy(true);
+    setError(null);
+
+    try {
+      onSaved(await api.setReception(windows));
+      setWindows(null);
+      toast('Часы приёма сохранены');
+    } catch (reason) {
+      setError(describeFailure(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!windows) {
+    return (
+      <Group title="Часы приёма">
+        <CellSimple
+          before={
+            <span className="tile tile-green">
+              <IconCalendar />
+            </span>
+          }
+          title={hours || 'Часы приёма не заданы'}
+          subtitle="Из них жильцы и выбирают время"
+          height="compact"
+        />
+        <CellAction
+          mode="secondary"
+          onClick={() => setWindows(known?.length ? known.map((window) => ({ ...window })) : [{ ...NEW_WINDOW }])}
+        >
+          {hours ? 'Изменить часы' : 'Задать часы'}
+        </CellAction>
+      </Group>
+    );
+  }
+
+  return (
+    <Group title="Часы приёма">
+      <div className="rows-box">
+        <p className="hint rows-about">Заданные окна заменят прежние</p>
+
+        <div className="rows">
+          {windows.map((window, index) => (
+            <div key={index} className="rows-line">
+              <select
+                className="rows-cell rows-wide"
+                aria-label={`День недели, окно ${index + 1}`}
+                value={window.weekday}
+                onChange={(event) =>
+                  setWindows(
+                    windows.map((current, at) =>
+                      at === index ? { ...current, weekday: Number(event.target.value) } : current,
+                    ),
+                  )
+                }
+              >
+                {WEEKDAYS.map((title, day) => (
+                  <option key={title} value={day + 1}>
+                    {title}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                className="rows-cell rows-time"
+                type="time"
+                aria-label={`С, окно ${index + 1}`}
+                value={window.from}
+                onChange={(event) =>
+                  setWindows(
+                    windows.map((current, at) => (at === index ? { ...current, from: event.target.value } : current)),
+                  )
+                }
+              />
+
+              <input
+                className="rows-cell rows-time"
+                type="time"
+                aria-label={`До, окно ${index + 1}`}
+                value={window.to}
+                onChange={(event) =>
+                  setWindows(
+                    windows.map((current, at) => (at === index ? { ...current, to: event.target.value } : current)),
+                  )
+                }
+              />
+
+              <button
+                type="button"
+                className="rows-drop"
+                aria-label={`Убрать окно ${index + 1}`}
+                onClick={() => setWindows(windows.filter((_current, at) => at !== index))}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="row-links">
+          <button type="button" className="link" onClick={() => setWindows([...windows, { ...NEW_WINDOW }])}>
+            Добавить окно
+          </button>
+
+          <button type="button" className="link quiet" onClick={() => setWindows(null)}>
+            Отмена
+          </button>
+        </div>
+
+        {error ? <ErrorText>{error}</ErrorText> : null}
+      </div>
+
+      <CellAction mode="primary" disabled={busy || windows.length === 0} onClick={() => void save()}>
+        {busy ? 'Сохраняем…' : 'Сохранить часы'}
+      </CellAction>
+    </Group>
+  );
+};
+
+/** Пришедший без записи: сотрудник заносит его сам. */
+const WalkIn = ({ api, onRecorded }: { api: DomovoyApi; onRecorded: () => void }) => {
+  const people = useBridgeRequest(() => api.people().catch(() => []), [api]);
+  const [open, setOpen] = useState(false);
+  const [residentId, setResidentId] = useState('');
+  const [topic, setTopic] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+
+  const residents = (Array.isArray(people.data) ? people.data : []).filter((person) => person.role === 'resident');
+
+  const record = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+
+    try {
+      await api.recordVisit(residentId, topic.trim());
+      setResidentId('');
+      setTopic('');
+      setOpen(false);
+      toast('Приём записан');
+      onRecorded();
+    } catch (reason) {
+      setError(describeFailure(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Group>
+        <CellSimple
+          before={
+            <span className="tile tile-blue">
+              <IconPerson />
+            </span>
+          }
+          title="Записать пришедшего"
+          subtitle="Жилец пришёл без записи"
+          height="compact"
+          showChevron
+          onClick={() => setOpen(true)}
+        />
+      </Group>
+    );
+  }
+
+  return (
+    <Group title="Пришёл без записи">
+      <div className="field-row">
+        <label className="cell-label" htmlFor="walk-in-resident">
+          Кто пришёл
+        </label>
+        <select id="walk-in-resident" value={residentId} onChange={(event) => setResidentId(event.target.value)}>
+          <option value="">Выберите жильца</option>
+          {residents.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.apartmentNumber === undefined
+                ? person.displayName
+                : `${person.displayName} · кв. ${person.apartmentNumber}`}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <CellInput
+        className="field-row"
+        id="walk-in-topic"
+        aria-label="С чем пришёл"
+        placeholder="Перерасчёт за горячую воду"
+        before={<span className="cell-label">С чем пришёл</span>}
+        value={topic}
+        onChange={(event) => setTopic(event.target.value)}
+      />
+
+      <CellAction
+        mode="primary"
+        disabled={busy || residentId === '' || topic.trim().length === 0}
+        onClick={() => void record()}
+      >
+        {busy ? 'Записываем…' : 'Записать приём'}
+      </CellAction>
+      <CellAction mode="secondary" disabled={busy} onClick={() => setOpen(false)}>
+        Отмена
+      </CellAction>
+
+      {error ? <ErrorText className="inset">{error}</ErrorText> : null}
+    </Group>
+  );
+};
+
 /** Записи дома: их ведёт смена. */
-const StaffVisits = ({ api }: { api: DomovoyApi }) => {
+const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: boolean }) => {
   const visits = useBridgeRequest(() => api.visits(), [api]);
+  const reception = useBridgeRequest(() => api.reception().catch((): ReceptionView | null => null), [api]);
+  const [saved, setSaved] = useState<ReceptionView | null>(null);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -37,8 +287,38 @@ const StaffVisits = ({ api }: { api: DomovoyApi }) => {
     return <Failure title="Записи не загрузились" error={visits.error} onRetry={visits.reload} />;
   }
 
+  const view = saved ?? reception.data;
+  const hours = view?.hours;
+
+  const head = (
+    <>
+      {canSchedule ? (
+        <Hours
+          api={api}
+          {...(hours ? { hours } : {})}
+          {...(view?.windows?.length ? { known: view.windows } : {})}
+          onSaved={setSaved}
+        />
+      ) : hours ? (
+        <p className="hint aside">Часы приёма: {hours}</p>
+      ) : null}
+
+      <WalkIn api={api} onRecorded={visits.reload} />
+    </>
+  );
+
   if (visits.data.length === 0) {
-    return <Empty icon={<IconCalendar />} title="Записей нет" hint="Жильцы записываются на приём сами" />;
+    return (
+      <section className="list">
+        {head}
+
+        <Empty
+          icon={<IconCalendar />}
+          title="Записей нет"
+          hint="Жильцы выбирают время сами, из часов приёма дома"
+        />
+      </section>
+    );
   }
 
   const run = async (id: string, what: () => Promise<unknown>, done: string): Promise<void> => {
@@ -57,6 +337,8 @@ const StaffVisits = ({ api }: { api: DomovoyApi }) => {
 
   return (
     <section className="list">
+      {head}
+
       {visits.data.map((visit) => (
         <CellList key={visit.id} mode="island">
           <CellSimple
@@ -189,7 +471,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
         </p>
       ) : null}
 
-      <p className="hint aside">Выберите свободный час: запись подтвердится сразу.</p>
+      <p className="hint aside">Выберите час</p>
 
       {days.map((day) => (
         <Group key={day} title={day}>
@@ -233,5 +515,9 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
 };
 
 /** Приём в управляющей организации. */
-export const VisitsScreen = ({ api, staff, onSupport }: VisitsScreenProps) =>
-  staff ? <StaffVisits api={api} /> : <ResidentVisits api={api} {...(onSupport ? { onSupport } : {})} />;
+export const VisitsScreen = ({ api, staff, onSupport, canSchedule }: VisitsScreenProps) =>
+  staff ? (
+    <StaffVisits api={api} {...(canSchedule ? { canSchedule } : {})} />
+  ) : (
+    <ResidentVisits api={api} {...(onSupport ? { onSupport } : {})} />
+  );

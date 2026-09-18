@@ -5,11 +5,18 @@ import {
   describeTickets,
   listSupportFor,
   supportTicket,
+  type Resident,
 } from '@domovoy/app';
-import { isCompanyStaff, MESSAGE_MAX_LENGTH, type Attachment, type SupportTicket } from '@domovoy/domain';
+import { DomainError, isCompanyStaff, MESSAGE_MAX_LENGTH, type Attachment, type SupportTicket } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 
-import { attachmentsBodySchema, buildingIdSchema, serializeTicket, ticketSchema } from '../serialize.js';
+import {
+  attachmentsBodySchema,
+  buildingQuerySchema,
+  idParamsSchema,
+  serializeTicket,
+  ticketSchema,
+} from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
 /** Поддержка: вопрос жильца управляющей компании и ответ смены. */
@@ -17,10 +24,13 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
   const currentResident = residentReader(deps);
 
   /** Одно обращение с тем же, что видно в списке: кто спросил и сколько ждёт. */
-  const one = async (ticket: SupportTicket, viewerId: string) => {
+  const one = async (ticket: SupportTicket, viewer: Resident) => {
     const [card] = await describeTickets(deps, [ticket]);
 
-    return card ? serializeTicket(card, viewerId) : undefined;
+    // Схема ответа обязывает вернуть обращение: пустое тело с кодом 200 клиенту не ответ.
+    if (!card) throw new DomainError('ticket_not_found', 'Обращение не найдено');
+
+    return serializeTicket(card, viewer.id, isCompanyStaff(viewer.role));
   };
 
   /** Свои обращения, а у смены, вопросы всего дома. */
@@ -28,7 +38,7 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/support',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: { 200: { type: 'array', items: ticketSchema } },
       },
     },
@@ -37,7 +47,7 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
       const cards = await describeTickets(deps, await listSupportFor(deps, resident));
 
-      return cards.map((card) => serializeTicket(card, resident.id));
+      return cards.map((card) => serializeTicket(card, resident.id, isCompanyStaff(resident.role)));
     },
   );
 
@@ -49,13 +59,14 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/support',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         body: {
           type: 'object',
           required: ['text'],
+          additionalProperties: false,
           properties: {
             text: { type: 'string', minLength: 1, maxLength: MESSAGE_MAX_LENGTH },
-            ticketId: { type: 'string', maxLength: 128 },
+            ticketId: { type: 'string', minLength: 1, maxLength: 128 },
             attachments: attachmentsBodySchema,
           },
         },
@@ -72,17 +83,17 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         ...(request.body.attachments?.length ? { attachments: request.body.attachments } : {}),
       });
 
-      return one(ticket, resident.id);
+      return one(ticket, resident);
     },
   );
 
   scope.get<{ Params: { id: string } }>(
     '/api/support/:id',
-    { schema: { response: { 200: ticketSchema } } },
+    { schema: { params: idParamsSchema, response: { 200: ticketSchema } } },
     async (request) => {
       const resident = await currentResident(request.max.userId);
 
-      return one(await supportTicket(deps, resident, request.params.id), resident.id);
+      return one(await supportTicket(deps, resident, request.params.id), resident);
     },
   );
 
@@ -95,10 +106,12 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/support/:id/answer',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        params: idParamsSchema,
+        querystring: buildingQuerySchema,
         body: {
           type: 'object',
           required: ['text'],
+          additionalProperties: false,
           properties: {
             text: { type: 'string', minLength: 1, maxLength: MESSAGE_MAX_LENGTH },
             attachments: attachmentsBodySchema,
@@ -117,19 +130,19 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         ...(request.body.attachments?.length ? { attachments: request.body.attachments } : {}),
       });
 
-      return one(ticket, staff.id);
+      return one(ticket, staff);
     },
   );
 
   /** Вопрос снят: закрывает тот, кто спросил, или смена. */
   scope.post<{ Params: { id: string } }>(
     '/api/support/:id/close',
-    { schema: { response: { 200: ticketSchema } } },
+    { schema: { params: idParamsSchema, response: { 200: ticketSchema } } },
     async (request) => {
       const resident = await currentResident(request.max.userId);
       const ticket = await closeSupport(deps, resident, request.params.id);
 
-      return one(ticket, resident.id);
+      return one(ticket, resident);
     },
   );
 
@@ -138,7 +151,7 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     '/api/support/waiting',
     {
       schema: {
-        querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+        querystring: buildingQuerySchema,
         response: {
           200: { type: 'object', required: ['waiting'], properties: { waiting: { type: 'integer' } } },
         },

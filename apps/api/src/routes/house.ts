@@ -22,13 +22,17 @@ import {
 import type { FastifyPluginAsync } from 'fastify';
 import {
   alertSchema,
+  asAttachment,
   asTitle,
   buildingIdSchema,
+  buildingQuerySchema,
   contactsSchema,
+  rangeOf,
+  RANGE_MAX_DAYS,
   reportSchema,
   serializeHandoff,
 } from '../serialize.js';
-import { buildXlsx } from '../xlsx.js';
+import { buildXlsx, XLSX_TYPE } from '../xlsx.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
 /** Дом целиком: сводки, план, оборудование и лента. */
@@ -42,7 +46,10 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         schema: {
           querystring: {
             type: 'object',
-            properties: { days: { type: 'integer', minimum: 1, maximum: 365 }, buildingId: buildingIdSchema },
+            properties: {
+              days: { type: 'integer', minimum: 1, maximum: RANGE_MAX_DAYS },
+              buildingId: buildingIdSchema,
+            },
           },
           response: { 200: reportSchema },
         },
@@ -73,7 +80,10 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         schema: {
           querystring: {
             type: 'object',
-            properties: { days: { type: 'integer', minimum: 1, maximum: 365 }, buildingId: buildingIdSchema },
+            properties: {
+              days: { type: 'integer', minimum: 1, maximum: RANGE_MAX_DAYS },
+              buildingId: buildingIdSchema,
+            },
           },
           response: {
             200: {
@@ -97,13 +107,17 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/quality',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
-              required: ['buildingId', 'from', 'to', 'open', 'overdue', 'created', 'closed', 'rated'],
+              required: ['buildingId', 'days', 'from', 'to', 'open', 'overdue', 'created', 'closed', 'rated'],
               properties: {
                 buildingId: { type: 'string' },
+                // Адрес и длина периода подписывают числа: у сотрудника это его
+                // собственный дом, а не дом смены.
+                address: { type: 'string' },
+                days: { type: 'integer' },
                 from: { type: 'string' },
                 to: { type: 'string' },
                 open: { type: 'integer' },
@@ -129,7 +143,11 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const quality = await houseQuality(deps, resident);
+        // Считается выбранный дом, как и сводка: квартира сотрудника бывает в другом.
+        const viewer = request.query.buildingId
+          ? { ...resident, buildingId: request.query.buildingId, apartmentId: undefined }
+          : resident;
+        const quality = await houseQuality(deps, viewer);
 
         return { ...quality, from: quality.from.toISOString(), to: quality.to.toISOString() };
       },
@@ -143,7 +161,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
           querystring: {
             type: 'object',
             properties: {
-              days: { type: 'integer', minimum: 1, maximum: 365 },
+              days: { type: 'integer', minimum: 1, maximum: RANGE_MAX_DAYS },
               buildingId: buildingIdSchema,
               from: { type: 'string', format: 'date-time' },
               to: { type: 'string', format: 'date-time' },
@@ -153,16 +171,9 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const range =
-          request.query.from && request.query.to
-            ? { from: new Date(request.query.from), to: new Date(request.query.to) }
-            : request.query.days;
-        const exported = await exportRequests(deps, resident, range);
+        const exported = await exportRequests(deps, resident, rangeOf(request.query) ?? request.query.days);
 
-        return reply
-          .type('text/csv; charset=utf-8')
-          .header('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(exported.filename)}`)
-          .send(exported.csv);
+        return asAttachment(reply, exported.filename, 'text/csv; charset=utf-8').send(exported.csv);
       },
     );
 
@@ -173,7 +184,10 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         schema: {
           querystring: {
             type: 'object',
-            properties: { days: { type: 'integer', minimum: 1, maximum: 365 }, buildingId: buildingIdSchema },
+            properties: {
+              days: { type: 'integer', minimum: 1, maximum: RANGE_MAX_DAYS },
+              buildingId: buildingIdSchema,
+            },
           },
           response: {
             200: {
@@ -199,7 +213,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
           querystring: {
             type: 'object',
             properties: {
-              days: { type: 'integer', minimum: 1, maximum: 365 },
+              days: { type: 'integer', minimum: 1, maximum: RANGE_MAX_DAYS },
               buildingId: buildingIdSchema,
               from: { type: 'string', format: 'date-time' },
               to: { type: 'string', format: 'date-time' },
@@ -209,20 +223,10 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
       async (request, reply) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
-        const range =
-          request.query.from && request.query.to
-            ? { from: new Date(request.query.from), to: new Date(request.query.to) }
-            : request.query.days;
-        const table = await requestsTable(deps, resident, range);
+        const table = await requestsTable(deps, resident, rangeOf(request.query) ?? request.query.days);
         const book = buildXlsx([{ name: 'Заявки', rows: [table.columns, ...table.rows] }]);
 
-        return reply
-          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-          .header(
-            'content-disposition',
-            `attachment; filename*=UTF-8''${encodeURIComponent(`${table.name}.xlsx`)}`,
-          )
-          .send(book);
+        return asAttachment(reply, `${table.name}.xlsx`, XLSX_TYPE).send(book);
       },
     );
 
@@ -231,7 +235,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/plan',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
@@ -282,7 +286,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/equipment',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -319,7 +323,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/now',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
@@ -384,7 +388,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/ahead',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'array',
@@ -414,7 +418,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       '/api/house/contacts',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: contactsSchema },
         },
       },

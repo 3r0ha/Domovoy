@@ -24,10 +24,10 @@ export const statusTitle = (status: string, staff = false): string =>
   (staff ? STAFF_STATUS_TITLES[status] : undefined) ?? STATUS_TITLES[status] ?? status;
 
 const ACTION_TITLES: Record<string, string> = {
-  accepted: 'Принять',
+  accepted: 'Взять',
   in_progress: 'В работу',
   needs_info: 'Уточнить',
-  done: 'Выполнена',
+  done: 'Сдать работу',
   confirmed: 'Принять работу',
   rejected: 'Отклонить',
   withdrawn: 'Снять',
@@ -53,16 +53,25 @@ const spanWords = (minutes: number): string => {
 
 const minutesBetween = (from: number, to: number): number => Math.max(0, Math.round((to - from) / 60_000));
 
-/** Сколько осталось, без глагола. */
-export const formatLeft = (isoDate: string, now: Date = new Date()): string =>
-  spanWords(minutesBetween(now.getTime(), new Date(isoDate).getTime()));
+/** Время из строки. NaN означает, что разобрать не удалось. */
+const at = (isoDate: string): number => new Date(isoDate).getTime();
+
+/** Сколько осталось, без глагола. Пусто, если срок не разобран. */
+export const formatLeft = (isoDate: string, now: Date = new Date()): string => {
+  const due = at(isoDate);
+
+  return Number.isNaN(due) ? '' : spanWords(minutesBetween(now.getTime(), due));
+};
 
 /** Номер не отрывается от слова: «подъезд 1» переносится целиком. */
 export const tight = (text: string): string => text.replace(/ (\d)/g, '\u00a0$1');
 
 /** Сколько прошло, теми же словами. */
-export const formatSince = (isoDate: string, now: Date = new Date()): string =>
-  spanWords(minutesBetween(new Date(isoDate).getTime(), now.getTime()));
+export const formatSince = (isoDate: string, now: Date = new Date()): string => {
+  const was = at(isoDate);
+
+  return Number.isNaN(was) ? '' : spanWords(minutesBetween(was, now.getTime()));
+};
 
 /** Число со словом в нужном падеже: «2 соседа», «5 соседей». */
 export const plural = (count: number, one: string, few: string, many: string): string => {
@@ -78,13 +87,13 @@ export const plural = (count: number, one: string, few: string, many: string): s
 
 /** Срок в человеческом виде. */
 export const formatDeadline = (isoDate: string, now: Date = new Date()): string => {
-  const due = new Date(isoDate);
-  const diffMinutes = Math.round((due.getTime() - now.getTime()) / 60_000);
+  const due = at(isoDate);
 
-  if (diffMinutes < 0) {
-    const overdue = Math.abs(diffMinutes);
-    return overdue < 60 ? `просрочено на ${overdue} мин` : `просрочено на ${Math.round(overdue / 60)} ч`;
-  }
+  if (Number.isNaN(due)) return '';
+
+  const diffMinutes = Math.round((due - now.getTime()) / 60_000);
+
+  if (diffMinutes < 0) return `просрочено ${spanWords(Math.abs(diffMinutes))}`;
 
   const left = formatLeft(isoDate, now);
   const count = Number.parseInt(left, 10);
@@ -103,6 +112,41 @@ export const formatPublished = (isoDate: string): string =>
 export const formatTime = (isoDate: string): string =>
   new Date(isoDate).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
+const MONTHS = [
+  'январь',
+  'февраль',
+  'март',
+  'апрель',
+  'май',
+  'июнь',
+  'июль',
+  'август',
+  'сентябрь',
+  'октябрь',
+  'ноябрь',
+  'декабрь',
+];
+
+/** Название месяца по его номеру от нуля. */
+export const monthName = (index: number): string => MONTHS[index] ?? '';
+
+/** Месяц тремя буквами: подпись под столбиком графика. */
+export const monthShort = (index: number): string => monthName(index).slice(0, 3);
+
+/** Сумма без знака валюты: «1 234,50». */
+export const money = (amount: number): string =>
+  amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Сумма со знаком рубля. */
+export const rubles = (amount: number): string => `${money(amount)} ₽`;
+
+/** Дробная часть через запятую: «137,1». */
+export const decimal = (value: number, digits = 3): string =>
+  value.toLocaleString('ru-RU', { maximumFractionDigits: digits });
+
+/** Первая буква имени: её показывает кружок вместо снимка. */
+export const initial = (name: string): string => name.trim().slice(0, 1).toUpperCase() || '?';
+
 /** Дата без времени. */
 export const formatDay = (isoDate: string, now: Date = new Date()): string => {
   const date = new Date(isoDate);
@@ -113,4 +157,25 @@ export const formatDay = (isoDate: string, now: Date = new Date()): string => {
     month: 'long',
     ...(sameYear ? {} : { year: 'numeric' }),
   });
+};
+
+/** Полночь этого дня: по ней считается, сегодня срок или завтра. */
+const midnight = (date: Date): number => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Когда наступит срок: день и час. Сегодняшний и завтрашний названы словом. */
+export const formatDue = (isoDate: string, now: Date = new Date()): string => {
+  const due = new Date(isoDate);
+
+  if (Number.isNaN(due.getTime())) return '';
+
+  const clock = due.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const days = Math.round((midnight(due) - midnight(now)) / DAY_MS);
+
+  if (days === 0) return `сегодня в ${clock}`;
+  if (days === 1) return `завтра в ${clock}`;
+  if (days === -1) return `вчера в ${clock}`;
+
+  return `${formatDay(isoDate, now)} в ${clock}`;
 };

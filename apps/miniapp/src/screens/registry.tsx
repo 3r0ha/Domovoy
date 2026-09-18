@@ -1,3 +1,4 @@
+import { Button } from '@maxhub/max-ui';
 import { type ReactNode } from 'react';
 
 import { type DomovoyApi, type DeviceView, type Profile } from '../api.js';
@@ -9,6 +10,7 @@ import { AuditScreen } from './AuditScreen.js';
 import { BindApartmentScreen } from './BindApartmentScreen.js';
 import { BroadcastScreen } from './BroadcastScreen.js';
 import { BuildingsScreen } from './BuildingsScreen.js';
+import { CapitalRepairScreen } from './CapitalRepairScreen.js';
 import { CameraScreen } from './CameraScreen.js';
 import { DebtorsScreen } from './DebtorsScreen.js';
 import { DemoScreen } from './DemoScreen.js';
@@ -55,6 +57,8 @@ export interface ScreenContext {
   waiting: Waiting;
   /** Счётчик изменений заявки: по нему списки перечитываются. */
   changed: number;
+  /** Куда вернёт «назад»: название экрана под текущим. */
+  backTitle: string;
   /** Начать стопку заново с этого экрана. */
   open: (screen: Screen) => void;
   /** Перейти вглубь: «назад» вернёт туда, откуда пришли. */
@@ -73,193 +77,234 @@ export interface ScreenContext {
   openBuilding: (buildingId: string, screen: Screen) => void;
 }
 
-type Body = () => ReactNode;
+type Body = (context: ScreenContext) => ReactNode;
+
+const isStaff = (profile: Profile): boolean => profile.role !== 'resident';
+const isContractor = (profile: Profile): boolean => profile.role === 'contractor';
+const isManager = (profile: Profile): boolean => profile.role === 'manager';
+/** Кто ведёт очередь: он принимает заявки и заводит их по звонку. */
+const isDispatcher = (profile: Profile): boolean => isManager(profile) || profile.role === 'dispatcher';
+/** Кто работает руками: такой берёт наряд на себя, исполнителя выбирать не надо. */
+const isExecutor = (profile: Profile): boolean =>
+  profile.role === 'technician' || profile.role === 'contractor';
+
+// Ссылка на чужой раздел открывается пояснением, а не пустой страницей и не отказом сервера.
+const elsewhere: Body = (context) => (
+  <Empty mood="sleeping" title="Раздел недоступен">
+    <Button type="button" onClick={() => context.open('more')}>
+      В меню
+    </Button>
+  </Empty>
+);
+
+/** Раздел, закрытый для роли, показывает пояснение. */
+const allowed = (rule: (profile: Profile) => boolean, body: Body): Body => (context) =>
+  rule(context.profile) ? body(context) : elsewhere(context);
+
+const forStaff = (body: Body): Body => allowed(isStaff, body);
+const forCompany = (body: Body): Body => allowed((profile) => isStaff(profile) && !isContractor(profile), body);
+const forManager = (body: Body): Body => allowed(isManager, body);
+const forDispatcher = (body: Body): Body => allowed(isDispatcher, body);
 
 /**
- * Какой экран за каким именем. Роль и обязательные данные проверяет сам раздел.
+ * Какой экран за каким именем. Карта собирается один раз: роль и обязательные
+ * данные проверяет сам раздел, когда его просят нарисовать.
  */
-const REGISTRY = (context: ScreenContext): Partial<Record<Screen, Body>> => {
-  const { api, profile, changed } = context;
-  const staff = profile.role !== 'resident';
-  const contractor = profile.role === 'contractor';
-  const manager = profile.role === 'manager';
-  /** Кто ведёт очередь: он принимает заявки и заводит их по звонку. */
-  const dispatcher = manager || profile.role === 'dispatcher';
-  // Ссылка на чужой раздел открывается пояснением, а не пустой страницей и не отказом сервера.
-  const elsewhere: Body = () => (
-    <Empty mood="sleeping" title="Этот раздел не для вашей роли" hint="Откройте меню и выберите, что нужно" />
-  );
+const REGISTRY: Partial<Record<Screen, Body>> = {
+  more: (context) => <MoreScreen sections={context.hidden} waiting={context.waiting} onPick={context.goDeeper} />,
 
-  const forStaff = (body: Body): Body => (staff ? body : elsewhere);
-  const forCompany = (body: Body): Body => (staff && !contractor ? body : elsewhere);
-  const forManager = (body: Body): Body => (manager ? body : elsewhere);
-  const forDispatcher = (body: Body): Body => (dispatcher ? body : elsewhere);
+  bind: (context) => (
+    <BindApartmentScreen
+      api={context.api}
+      onSupport={() => context.open('support')}
+      onBound={() => {
+        context.open('list');
+        context.refreshSession();
+      }}
+    />
+  ),
 
-  return {
-    more: () => <MoreScreen sections={context.hidden} waiting={context.waiting} onPick={context.goDeeper} />,
-
-    bind: () => (
-      <BindApartmentScreen
-        api={api}
-        onBound={() => {
-          context.open('list');
-          context.refreshSession();
-        }}
-      />
-    ),
-
-    object: () =>
-      context.startParam ? (
-        <ObjectScreen
-          api={api}
-          startParam={context.startParam}
-          onTitle={context.onObjectTitle}
-          onReport={() => context.goDeeper('new')}
-          onOpenRequest={context.openRequest}
-        />
-      ) : null,
-
-    home: () => (
-      <HomeScreen
-        api={api}
-        staff={staff}
-        model={(profile.model ?? []).includes('doors')}
-        onCamera={(picked) => context.openDevice(picked, 'camera')}
-        onGuest={(picked) => context.openDevice(picked, 'guest')}
-        onJournal={() => context.goDeeper('journal')}
-        onScan={context.openScanned}
-      />
-    ),
-
-    camera: () => (context.device ? <CameraScreen api={api} device={context.device} /> : null),
-    guest: () => (context.device ? <GuestScreen api={api} device={context.device} /> : null),
-    journal: () => <JournalScreen api={api} />,
-
-    new: () => (
-      <NewRequestScreen
-        api={api}
+  object: (context) =>
+    context.startParam ? (
+      <ObjectScreen
+        api={context.api}
         startParam={context.startParam}
-        staff={staff && !contractor}
-        {...(!staff && profile.apartmentNumber ? { where: `Квартира ${profile.apartmentNumber}` } : {})}
-        onCreated={(requestId?: string) => (requestId ? context.openRequest(requestId) : context.open('list'))}
-        onSupport={() => context.open('support')}
+        onTitle={context.onObjectTitle}
+        onReport={() => context.goDeeper('new')}
+        onOpenRequest={context.openRequest}
       />
-    ),
+    ) : null,
 
-    list: () => (
-      <RequestListScreen
-        key={changed}
-        api={api}
-        staff={staff}
-        onNewRequest={() => context.goDeeper('new')}
-        onOpen={context.openRequest}
-      />
-    ),
+  home: (context) => (
+    <HomeScreen
+      api={context.api}
+      staff={isStaff(context.profile)}
+      model={(context.profile.model ?? []).includes('doors')}
+      onCamera={(picked) => context.openDevice(picked, 'camera')}
+      onGuest={(picked) => context.openDevice(picked, 'guest')}
+      onJournal={() => context.goDeeper('journal')}
+      onScan={context.openScanned}
+    />
+  ),
 
-    request: () =>
-      context.opened ? (
-        <RequestScreen
-          api={api}
-          id={context.opened}
-          staff={staff}
-          onDocument={context.openDocument}
-          onChanged={context.onRequestChanged}
-        />
-      ) : null,
+  camera: (context) => (context.device ? <CameraScreen api={context.api} device={context.device} /> : null),
+  guest: (context) => (context.device ? <GuestScreen api={context.api} device={context.device} /> : null),
+  journal: (context) => <JournalScreen api={context.api} />,
 
-    meters: () => (
-      <MetersScreen
-        api={api}
-        readingWindow={profile.readingWindow}
-        {...(profile.meterPhoto ? { photoSupported: true } : {})}
-        payable={profile.payments !== false}
-        paymentsModel={(profile.model ?? []).includes('payments')}
-        onBind={() => context.open('bind')}
-      />
-    ),
+  new: (context) => (
+    <NewRequestScreen
+      api={context.api}
+      startParam={context.startParam}
+      staff={isStaff(context.profile) && !isContractor(context.profile)}
+      {...(!isStaff(context.profile) && context.profile.apartmentNumber
+        ? { where: `Квартира ${context.profile.apartmentNumber}` }
+        : {})}
+      onCreated={(requestId?: string) => (requestId ? context.openRequest(requestId) : context.open('list'))}
+      onSupport={() => context.open('support')}
+    />
+  ),
 
-    news: () => <AnnouncementsScreen api={api} showReach={staff} />,
+  list: (context) => (
+    <RequestListScreen
+      api={context.api}
+      staff={isStaff(context.profile)}
+      version={context.changed}
+      {...(isStaff(context.profile) && !isContractor(context.profile) ? { onQueue: () => context.open('queue') } : {})}
+      onNewRequest={() => context.goDeeper('new')}
+      onOpen={context.openRequest}
+    />
+  ),
 
-    broadcast: forDispatcher(() => <BroadcastScreen api={api} />),
-
-    profile: () => (
-      <ProfileScreen
-        api={api}
-        displayName={profile.displayName}
-        bound={profile.apartmentId !== null}
-        {...(profile.apartmentNumber
-          ? { where: [`Квартира ${profile.apartmentNumber}`, profile.address].filter(Boolean).join(' · ') }
-          : {})}
-        {...(profile.phone ? { phone: profile.phone } : {})}
-        {...(profile.elder ? { elder: profile.elder } : {})}
-        {...(staff && profile.onDuty !== undefined
-          ? { duty: { residentId: profile.id, onDuty: profile.onDuty } }
-          : {})}
-        {...(profile.apartmentId && profile.apartmentNumber
-          ? {
-              flat: {
-                residentId: profile.id,
-                apartmentId: profile.apartmentId,
-                title: `Квартиру ${profile.apartmentNumber}`,
-              },
-            }
-          : {})}
+  request: (context) =>
+    context.opened ? (
+      <RequestScreen
+        api={context.api}
+        id={context.opened}
+        staff={isStaff(context.profile)}
+        meId={context.profile.id}
+        {...(isExecutor(context.profile) ? { selfAssigned: true } : {})}
         onDocument={context.openDocument}
-        onForgotten={context.refreshSession}
-        onUnbound={context.refreshSession}
+        onChanged={context.onRequestChanged}
+        onBack={context.back}
+        backTitle={context.backTitle}
       />
-    ),
+    ) : null,
 
-    demo: () => (profile.demo === true ? <DemoScreen api={api} onSwitched={context.refreshSession} /> : null),
+  meters: (context) => (
+    <MetersScreen
+      api={context.api}
+      readingWindow={context.profile.readingWindow}
+      {...(context.profile.meterPhoto ? { photoSupported: true } : {})}
+      payable={context.profile.payments !== false}
+      paymentsModel={(context.profile.model ?? []).includes('payments')}
+      onBind={() => context.open('bind')}
+    />
+  ),
 
-    polls: () => (
-      <PollsScreen api={api} canStart={staff} onDocument={context.openDocument} onBind={() => context.open('bind')} />
-    ),
-    support: () => <SupportScreen api={api} staff={staff} />,
-    visits: () => (
-      <VisitsScreen api={api} staff={staff && !contractor} onSupport={() => context.open('support')} />
-    ),
-    stickers: () => <StickersScreen api={api} staff={staff} />,
-    quality: () => <QualityScreen api={api} />,
+  news: (context) => <AnnouncementsScreen api={context.api} showReach={isStaff(context.profile)} />,
 
-    document: () =>
-      context.document ? <DocumentScreen text={context.document.text} onBack={context.back} /> : null,
+  broadcast: forDispatcher((context) => <BroadcastScreen api={context.api} />),
 
-    queue: forCompany(() => (
-      <QueueScreen
-        key={changed}
-        api={api}
-        {...(dispatcher ? { canAccept: true } : {})}
-        onOpen={context.openRequest}
-        onNewRequest={() => context.goDeeper('new')}
-      />
-    )),
-    report: forCompany(() => <ReportScreen api={api} toChat={profile.files !== false} />),
-    plan: forCompany(() => <PlanScreen api={api} onOpen={context.openRequest} />),
-    inspections: forCompany(() => <InspectionsScreen api={api} onOpen={context.openRequest} />),
+  profile: (context) => (
+    <ProfileScreen
+      api={context.api}
+      displayName={context.profile.displayName}
+      bound={context.profile.apartmentId !== null}
+      {...(context.profile.apartmentNumber
+        ? {
+            where: [`Квартира ${context.profile.apartmentNumber}`, context.profile.address]
+              .filter(Boolean)
+              .join(' · '),
+          }
+        : {})}
+      {...(context.profile.phone ? { phone: context.profile.phone } : {})}
+      {...(context.profile.elder ? { elder: context.profile.elder } : {})}
+      {...(isStaff(context.profile) && context.profile.onDuty !== undefined
+        ? { duty: { residentId: context.profile.id, onDuty: context.profile.onDuty } }
+        : {})}
+      {...(context.profile.apartmentId && context.profile.apartmentNumber
+        ? {
+            flat: {
+              residentId: context.profile.id,
+              apartmentId: context.profile.apartmentId,
+              title: `Квартиру ${context.profile.apartmentNumber}`,
+            },
+          }
+        : {})}
+      onDocument={context.openDocument}
+      onForgotten={context.refreshSession}
+      onUnbound={context.refreshSession}
+    />
+  ),
 
-    buildings: forCompany(() => (
-      <BuildingsScreen
-        api={api}
-        canAdd={manager}
-        onPick={(id) => context.openBuilding(id, 'queue')}
-        onAdd={(id) => context.openBuilding(id, 'import')}
-      />
-    )),
+  demo: (context) =>
+    context.profile.demo === true ? <DemoScreen api={context.api} onSwitched={context.refreshSession} /> : null,
 
-    equipment: forStaff(() => <EquipmentScreen api={api} onOpen={context.openScanned} />),
+  polls: (context) => (
+    <PollsScreen
+      api={context.api}
+      canStart={isStaff(context.profile)}
+      onDocument={context.openDocument}
+      onBind={() => context.open('bind')}
+    />
+  ),
+  support: (context) => <SupportScreen api={context.api} staff={isStaff(context.profile)} />,
+  visits: (context) => (
+    <VisitsScreen
+      api={context.api}
+      staff={isStaff(context.profile) && !isContractor(context.profile)}
+      {...(isManager(context.profile) ? { canSchedule: true } : {})}
+      onSupport={() => context.open('support')}
+    />
+  ),
+  stickers: (context) => <StickersScreen api={context.api} staff={isStaff(context.profile)} />,
+  quality: (context) => <QualityScreen api={context.api} />,
 
-    tariffs: forStaff(() => <TariffsScreen api={api} {...(manager ? { editable: true } : {})} />),
-    'house-meters': forCompany(() => (
-      <HouseMetersScreen api={api} toChat={profile.files !== false} {...(manager ? { canAdd: true } : {})} />
-    )),
-    debtors: forCompany(() => <DebtorsScreen api={api} />),
-    residents: forCompany(() => <ResidentsScreen api={api} canAssignRoles={manager} />),
+  document: (context) =>
+    context.document ? <DocumentScreen text={context.document.text} onBack={context.back} /> : null,
 
-    audit: forManager(() => <AuditScreen api={api} />),
-    import: forManager(() => <ImportScreen api={api} />),
-  };
+  queue: forCompany((context) => (
+    <QueueScreen
+      api={context.api}
+      version={context.changed}
+      {...(isDispatcher(context.profile) ? { canAccept: true } : {})}
+      onOpen={context.openRequest}
+      onNewRequest={() => context.goDeeper('new')}
+    />
+  )),
+  report: forCompany((context) => <ReportScreen api={context.api} toChat={context.profile.files !== false} />),
+  plan: forCompany((context) => <PlanScreen api={context.api} onOpen={context.openRequest} />),
+  inspections: forCompany((context) => <InspectionsScreen api={context.api} onOpen={context.openRequest} />),
+
+  buildings: forCompany((context) => (
+    <BuildingsScreen
+      api={context.api}
+      canAdd={isManager(context.profile)}
+      opens={isManager(context.profile) ? 'card' : 'queue'}
+      onPick={(id) => context.openBuilding(id, isManager(context.profile) ? 'import' : 'queue')}
+      onAdd={(id) => context.openBuilding(id, 'import')}
+    />
+  )),
+
+  equipment: forStaff((context) => <EquipmentScreen api={context.api} onOpen={context.openScanned} />),
+
+  tariffs: forStaff((context) => (
+    <TariffsScreen api={context.api} {...(isManager(context.profile) ? { editable: true } : {})} />
+  )),
+  'house-meters': forCompany((context) => (
+    <HouseMetersScreen
+      api={context.api}
+      toChat={context.profile.files !== false}
+      {...(isManager(context.profile) ? { canAdd: true } : {})}
+    />
+  )),
+  capital: (context) => <CapitalRepairScreen api={context.api} />,
+  debtors: forCompany((context) => <DebtorsScreen api={context.api} />),
+  residents: forCompany((context) => <ResidentsScreen api={context.api} canAssignRoles={isManager(context.profile)} />),
+
+  audit: forManager((context) => <AuditScreen api={context.api} />),
+  import: forManager((context) => <ImportScreen api={context.api} />),
 };
 
 /** Тело текущего экрана. Неизвестному имени соответствует пустая страница. */
-export const screenBody = (screen: Screen, context: ScreenContext): ReactNode => REGISTRY(context)[screen]?.() ?? null;
+export const screenBody = (screen: Screen, context: ScreenContext): ReactNode => REGISTRY[screen]?.(context) ?? null;

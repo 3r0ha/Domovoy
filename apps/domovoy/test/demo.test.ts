@@ -192,13 +192,20 @@ describe('демонстрационные данные', () => {
     const data = await seedDemo(app, { withRequests: true });
 
     const ivan = data.residents.find((resident) => resident.id === 'res-ivan');
-    const [view] = await listPollsFor(app, ivan!);
+    const polls = await listPollsFor(app, ivan!);
+    const view = polls.find((item) => item.poll.title === 'Ремонт подъездов');
 
     assert.equal(view?.open, true);
     assert.equal(view?.result.totalArea, 200);
     assert.equal(view?.result.votedArea, 40, 'квартира Ивана, 40 м²');
     assert.equal(view?.result.quorum, false);
     assert.equal(view?.areaToQuorum, 60);
+
+    // Рядом идёт опрос жильцов: он не собрание и решения не принимает.
+    const survey = polls.find((item) => item.poll.mode === 'survey');
+
+    assert.equal(survey?.open, true);
+    assert.equal(survey?.poll.title, 'Уборка подъездов по субботам');
   });
 
   it('в поддержке есть отвеченный вопрос и ждущий ответа', async () => {
@@ -256,7 +263,7 @@ describe('сквозной прогон', () => {
     assert.match(transcript, /Домофон, подъезд 1: открыто/, 'дверь открывается тем же ботом');
     assert.match(transcript, /Оплачено/, 'квитанция оплачивается тем же ботом');
     assert.match(transcript, /Квалифицированное большинство/, 'собрание считается по долям');
-    assert.match(transcript, /Ваш голос: за/);
+    assert.match(transcript, /Голос квартиры: за/);
     assert.match(transcript, /Записал на приём/, 'запись на приём идёт тем же ботом');
 
     assert.match(transcript, /бот → чат дома: Чат привязан к дому/);

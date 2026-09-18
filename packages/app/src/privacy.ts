@@ -6,13 +6,15 @@ import {
   METER_RULES,
   NOTICE_TITLES,
   formatDate,
+  type Apartment,
+  type ServiceRequest,
   type VoteChoice,
 } from '@domovoy/domain';
 
 import { periodTitle } from './debt.js';
 
 import { choiceTitle } from './voting.js';
-import type { Resident } from './repository.js';
+import type { Building, Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
 export interface PersonalRequest {
@@ -62,17 +64,38 @@ export interface PersonalData {
   payments: PersonalPayment[];
 }
 
-/** Всё, что продукт знает о человеке. */
-export const exportPersonalData = async (deps: AppDeps, resident: Resident): Promise<PersonalData> => {
-  const requests = await deps.repository.listRequests({ reporterId: resident.id });
-  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
-  const building = await deps.repository.findBuilding(apartment?.buildingId ?? resident.buildingId ?? '');
+/** Заявки человека вместе с его собственными репликами по ним. */
+const ownRequests = (requests: readonly ServiceRequest[], resident: Resident): PersonalRequest[] =>
+  requests.map((request) => ({
+    number: request.number,
+    title: request.title,
+    description: request.description,
+    category: CATEGORY_RULES[request.category].title,
+    status: STATUS_TITLES[request.status],
+    createdAt: request.createdAt,
+    comments: request.history
+      .filter((event) => event.actorId === resident.id && event.comment)
+      .map((event) => ({ at: event.at, text: event.comment ?? '' })),
+  }));
 
+/** Показания, поданные самим человеком: приборы и их история читаются пакетом. */
+const ownReadings = async (
+  deps: AppDeps,
+  resident: Resident,
+  apartment?: Apartment,
+): Promise<PersonalReading[]> => {
+  if (!apartment) return [];
+
+  const meters = await deps.repository.listMetersByApartments([apartment.id]);
+
+  if (meters.length === 0) return [];
+
+  const history = await deps.repository.listReadingsFor(meters.map((meter) => meter.id));
   const readings: PersonalReading[] = [];
 
-  for (const meter of apartment ? await deps.repository.listMeters(apartment.id) : []) {
-    for (const reading of await deps.repository.listReadings(meter.id)) {
-      if (reading.submittedBy !== resident.id) continue;
+  for (const meter of meters) {
+    for (const reading of history) {
+      if (reading.meterId !== meter.id || reading.submittedBy !== resident.id) continue;
 
       readings.push({
         meter: meter.serial,
@@ -83,13 +106,36 @@ export const exportPersonalData = async (deps: AppDeps, resident: Resident): Pro
     }
   }
 
+  return readings;
+};
+
+/** Голоса человека по собраниям его дома. */
+const ownVotes = async (deps: AppDeps, resident: Resident, building?: Building): Promise<PersonalVote[]> => {
+  if (!building) return [];
+
   const votes: PersonalVote[] = [];
 
-  for (const poll of building ? await deps.repository.listPolls(building.id) : []) {
+  for (const poll of await deps.repository.listPolls(building.id)) {
     for (const vote of await deps.repository.listVotes(poll.id)) {
       if (vote.residentId === resident.id) votes.push({ poll: poll.title, choice: vote.choice, at: vote.at });
     }
   }
+
+  return votes;
+};
+
+/** Платежи по квартире, если платежи вообще подключены. */
+const ownPayments = async (deps: AppDeps, apartment?: Apartment): Promise<PersonalPayment[]> => {
+  const history = apartment ? ((await deps.payments?.history(apartment.id)) ?? []) : [];
+
+  return history.map((receipt) => ({ period: receipt.period, amount: receipt.amount, at: receipt.at }));
+};
+
+/** Всё, что продукт знает о человеке. */
+export const exportPersonalData = async (deps: AppDeps, resident: Resident): Promise<PersonalData> => {
+  const requests = await deps.repository.listRequests({ reporterId: resident.id });
+  const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
+  const building = await deps.repository.findBuilding(apartment?.buildingId ?? resident.buildingId ?? '');
 
   return {
     displayName: resident.displayName,
@@ -98,24 +144,10 @@ export const exportPersonalData = async (deps: AppDeps, resident: Resident): Pro
     ...(apartment ? { apartment: apartment.number } : {}),
     ...(resident.phone ? { phone: resident.phone } : {}),
     muted: (resident.mutes ?? []).map((kind) => NOTICE_TITLES[kind]),
-    requests: requests.map((request) => ({
-      number: request.number,
-      title: request.title,
-      description: request.description,
-      category: CATEGORY_RULES[request.category].title,
-      status: STATUS_TITLES[request.status],
-      createdAt: request.createdAt,
-      comments: request.history
-        .filter((event) => event.actorId === resident.id && event.comment)
-        .map((event) => ({ at: event.at, text: event.comment ?? '' })),
-    })),
-    readings,
-    votes,
-    payments: (apartment ? ((await deps.payments?.history(apartment.id)) ?? []) : []).map((receipt) => ({
-      period: receipt.period,
-      amount: receipt.amount,
-      at: receipt.at,
-    })),
+    requests: ownRequests(requests, resident),
+    readings: await ownReadings(deps, resident, apartment),
+    votes: await ownVotes(deps, resident, building),
+    payments: await ownPayments(deps, apartment),
   };
 };
 

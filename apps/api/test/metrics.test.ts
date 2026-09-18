@@ -9,7 +9,12 @@ import { buildServer } from '../dist/index.js';
 
 const BUILDING_ID = 'b1';
 
-const setup = async (metrics: Parameters<typeof buildServer>[0]['metrics'] = {}): Promise<FastifyInstance> =>
+const TOKEN = 'secret';
+
+/** Метрики закрыты токеном: без него маршрута нет, поэтому он есть у всех проверок. */
+const setup = async (
+  metrics: Parameters<typeof buildServer>[0]['metrics'] = { token: TOKEN },
+): Promise<FastifyInstance> =>
   buildServer({
     botToken: 'metrics-bot-token',
     repository: new InMemoryRepository({ buildings: [{ id: BUILDING_ID, code: 'Д15' }], apartments: [] }),
@@ -18,11 +23,14 @@ const setup = async (metrics: Parameters<typeof buildServer>[0]['metrics'] = {})
     metrics,
   });
 
+const read = (app: FastifyInstance) =>
+  app.inject({ method: 'GET', url: '/metrics', headers: { authorization: `Bearer ${TOKEN}` } });
+
 describe('метрики наружу', () => {
   it('отдаёт состояние службы в формате Prometheus', async () => {
     const app = await setup();
 
-    const response = await app.inject({ method: 'GET', url: '/metrics' });
+    const response = await read(app);
 
     assert.equal(response.statusCode, 200);
     assert.match(response.headers['content-type'] as string, /text\/plain/);
@@ -41,7 +49,7 @@ describe('метрики наружу', () => {
     await app.inject({ method: 'GET', url: '/health' });
     await app.inject({ method: 'GET', url: '/api/me' });
 
-    const body = (await app.inject({ method: 'GET', url: '/metrics' })).body;
+    const body = (await read(app)).body;
 
     assert.match(body, /domovoy_http_requests_total\{method="GET",route="\/health",status="200"\} 2/);
     assert.match(body, /domovoy_http_requests_total\{method="GET",route="\/api\/me",status="401"\} 1/);
@@ -56,7 +64,7 @@ describe('метрики наружу', () => {
     await app.inject({ method: 'GET', url: '/api/requests/req-1' });
     await app.inject({ method: 'GET', url: '/api/requests/req-2' });
 
-    const body = (await app.inject({ method: 'GET', url: '/metrics' })).body;
+    const body = (await read(app)).body;
 
     assert.doesNotMatch(body, /req-1/);
     assert.match(body, /route="\/api\/requests\/:id"/);
@@ -67,9 +75,9 @@ describe('метрики наружу', () => {
   it('сама страница метрик в счётчики не попадает', async () => {
     const app = await setup();
 
-    await app.inject({ method: 'GET', url: '/metrics' });
+    await read(app);
 
-    const body = (await app.inject({ method: 'GET', url: '/metrics' })).body;
+    const body = (await read(app)).body;
 
     assert.doesNotMatch(body, /route="\/metrics"/);
 
@@ -77,17 +85,28 @@ describe('метрики наружу', () => {
   });
 
   it('токен закрывает метрики от посторонних', async () => {
-    const app = await setup({ token: 'secret' });
+    const app = await setup();
 
     assert.equal((await app.inject({ method: 'GET', url: '/metrics' })).statusCode, 401);
 
-    const allowed = await app.inject({
+    const wrong = await app.inject({
       method: 'GET',
       url: '/metrics',
-      headers: { authorization: 'Bearer secret' },
+      headers: { authorization: 'Bearer secre' },
     });
 
-    assert.equal(allowed.statusCode, 200);
+    assert.equal(wrong.statusCode, 401, 'короткий токен не проходит');
+    assert.equal((await read(app)).statusCode, 200);
+
+    await app.close();
+  });
+
+  it('без заданного токена маршрута метрик нет вовсе', async () => {
+    const app = await setup({});
+
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+
+    assert.equal(response.statusCode, 404, 'инвентарь маршрутов и состояние процесса наружу не отдаются');
 
     await app.close();
   });

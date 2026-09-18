@@ -176,7 +176,7 @@ export const HomeScreen = ({ api, staff, model, onCamera, onGuest, onJournal, on
 
   return (
     <div className="list">
-      {model ? <p className="hint aside">Домофония работает на модельном подключении: оборудования за ним нет</p> : null}
+      {model ? <p className="hint aside">Домофон показан для примера: дверь по-настоящему не откроется</p> : null}
 
       {staff ? (
         <Group>

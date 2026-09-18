@@ -30,6 +30,16 @@ export interface NewRequestScreenProps {
   onSupport?: () => void;
 }
 
+/** С чего чаще всего начинают: нажатие ставит начало фразы в поле ввода. */
+const COMMON = [
+  'Нет горячей воды',
+  'Не работает лифт',
+  'Не горит свет на площадке',
+  'Течёт труба',
+  'Не работает домофон',
+  'Грязно в подъезде',
+];
+
 /** Оформление заявки: обязательное поле одно, что случилось. */
 export const NewRequestScreen = ({
   api,
@@ -199,13 +209,36 @@ export const NewRequestScreen = ({
     void send(description.trim(), false);
   };
 
+  /** Разговор ещё не начался: подсказки видно, а место под ними не пустует. */
+  const fresh = !sent && !asked && !joined && !planned && !answered;
+
   return (
-    <section className="chat">
+    <section className={fresh ? 'chat chat-fresh' : 'chat'}>
       <div className="chat-flow">
         <article className="said said-bot">
           {target ? <span className="said-who">{target}</span> : null}
           <p className="description">Что случилось?</p>
         </article>
+
+        {fresh ? <p className="hint chat-note">Выберите частое или опишите своими словами</p> : null}
+
+        {fresh ? (
+          <div className="chips chat-common">
+            {COMMON.map((problem) => (
+              <button
+                key={problem}
+                type="button"
+                className="chip"
+                onClick={() => {
+                  haptics.picked();
+                  setDescription(description.trim().length > 0 ? description : problem);
+                }}
+              >
+                {problem}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {context.error ? (
           <article className="said said-bot">
@@ -255,8 +288,8 @@ export const NewRequestScreen = ({
         {answered ? (
           <div className="turn turn-bot">
             <article className="said said-bot">
-              {answered.text.split('\n').map((line) => (
-                <p key={line} className="description">
+              {answered.text.split('\n').map((line, index) => (
+                <p key={index} className="description">
                   {line}
                 </p>
               ))}
@@ -268,7 +301,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void send(answered.description, true)}
             >
-              {sending ? '…' : 'Всё равно заявку'}
+              {sending ? '…' : 'Всё равно оформить'}
             </button>
 
             <button
@@ -285,8 +318,8 @@ export const NewRequestScreen = ({
         {planned ? (
           <div className="turn turn-bot">
             <article className="said said-bot">
-              {planned.work.message.split('\n').map((line) => (
-                <p key={line} className="description">
+              {planned.work.message.split('\n').map((line, index) => (
+                <p key={index} className="description">
                   {line}
                 </p>
               ))}
@@ -373,7 +406,7 @@ export const NewRequestScreen = ({
         <Composer
           id="description"
           label={asked ? 'Уточнение' : 'Что случилось'}
-          placeholder="Сообщение"
+          placeholder="Опишите, что случилось"
           value={asked ? answer : description}
           busy={sending}
           photos={photos}

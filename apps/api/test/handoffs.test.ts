@@ -104,7 +104,8 @@ describe('передача обращения по HTTP', () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().kind, 'management');
-    assert.match(response.json().basis, /ЖК РФ/);
+    // Жильцу идёт короткая строка: номер статьи ему ничего не решает.
+    assert.match(response.json().basis, /общее имущество дома/i);
     assert.deepEqual(response.json().targets, [], 'жильцу список адресатов не нужен');
 
     await app.close();
@@ -127,7 +128,7 @@ describe('передача обращения по HTTP', () => {
     assert.equal(passed.json().organization, 'Водоканал');
     assert.equal(passed.json().status, 'accepted');
     assert.equal(passed.json().dueAt, '2026-09-22T12:00:00.000Z');
-    assert.match(passed.json().externalId, /^MOCK-/);
+    assert.match(passed.json().externalId, /^РСО-/);
 
     const seen = await app.inject({
       method: 'GET',
@@ -137,7 +138,9 @@ describe('передача обращения по HTTP', () => {
 
     assert.equal(seen.json().handoffs.length, 1);
     assert.equal(seen.json().handoffs[0].statusTitle, 'принято');
-    assert.match(seen.json().handoffs[0].basis, /Правил № 354/);
+    // Жилец видит срок ответа датой, а норму по нему, смена.
+    assert.equal(seen.json().handoffs[0].basis, undefined);
+    assert.equal(seen.json().handoffs[0].dueAt, '2026-09-22T12:00:00.000Z');
 
     await app.close();
   });

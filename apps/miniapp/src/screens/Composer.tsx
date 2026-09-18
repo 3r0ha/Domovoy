@@ -27,7 +27,7 @@ export interface ComposerProps {
 const MAX_HEIGHT = 120;
 
 /** Поле растёт под текст, пока не упрётся в потолок. */
-export const fit = (node: HTMLTextAreaElement | null): void => {
+const fit = (node: HTMLTextAreaElement | null): void => {
   if (!node) return;
 
   node.style.height = 'auto';

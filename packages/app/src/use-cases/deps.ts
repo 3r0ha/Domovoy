@@ -1,6 +1,8 @@
 import type { PaymentGateway } from '../billing.js';
 import type { DeviceHub } from '../devices.js';
 import type { HandoffGateway } from '../handoff.js';
+import type { CapitalRepairDirectory } from '../capital.js';
+import type { MeetingRegistry } from '../meetings.js';
 import type { Notifier } from '../notifier.js';
 import type { Reasoner } from '../reasoner.js';
 import type { Repository } from '../repository.js';
@@ -31,6 +33,10 @@ export interface AppDeps {
   stickers?: StickerRenderer;
   /** Канал передачи обращений смежным организациям. Без него передача идёт вручную. */
   handoffs?: HandoffGateway;
+  /** Система собраний собственников. Без неё собрание остаётся опросом жильцов. */
+  meetings?: MeetingRegistry;
+  /** Сведения о капитальном ремонте. Без них раздел не показывается. */
+  capitalRepair?: CapitalRepairDirectory;
 }
 
 /** Блокировка по ключу на время работы. */

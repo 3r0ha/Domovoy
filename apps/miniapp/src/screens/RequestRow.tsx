@@ -89,7 +89,10 @@ export const RequestRow = ({
           )}
           {`\u00a0· ${tight(request.target)}`}
           {staff ? <span className="row-number">{`\u00a0· ${request.number}`}</span> : null}
-          {CLOSED.includes(request.status) || request.status === 'done' ? null : (
+
+          {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы
+              на полуслове, а в карточке заявки он виден целиком. */}
+          {action || CLOSED.includes(request.status) || request.status === 'done' ? null : (
             <RequestDue dueAt={request.dueAt} overdue={request.overdue} />
           )}
         </span>

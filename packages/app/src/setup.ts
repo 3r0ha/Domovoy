@@ -3,6 +3,7 @@ import {
   DEFAULT_TIME_ZONE,
   VISIT_MINUTES,
   checkReception,
+  checkVisitMinutes,
   isHandoffTarget,
   type EquipmentKind,
   type ReceptionWindow,
@@ -114,9 +115,7 @@ const receptionOf = (
   const windows = card.reception === undefined ? known?.reception : checkReception(card.reception);
   const minutes = card.visitMinutes ?? known?.visitMinutes;
 
-  if (minutes !== undefined && (!Number.isInteger(minutes) || minutes < 5 || minutes > 240)) {
-    throw new DomainError('reception_invalid', 'Приём длится от 5 до 240 минут');
-  }
+  if (minutes !== undefined) checkVisitMinutes(minutes);
 
   return {
     ...(windows?.length ? { reception: windows } : {}),

@@ -20,8 +20,12 @@ export interface RequestListScreenProps {
   api: DomovoyApi;
   /** У сотрудника в списке порученная ему работа. */
   staff?: boolean;
+  /** Счётчик изменений заявки: по нему список перечитывается. */
+  version?: number;
   /** Перейти к оформлению заявки. */
   onNewRequest?: () => void;
+  /** Уйти в очередь дома: без своих нарядов работа начинается оттуда. */
+  onQueue?: () => void;
   /** Открыть заявку на её экране. */
   onOpen: (id: string) => void;
 }
@@ -69,8 +73,15 @@ const Rows = ({
 );
 
 /** Список своих заявок: самое срочное сверху, порядок задаёт сервер. */
-export const RequestListScreen = ({ api, staff, onNewRequest, onOpen }: RequestListScreenProps) => {
-  const requests = useBridgeRequest(() => api.listRequests('mine'), [api]);
+export const RequestListScreen = ({
+  api,
+  staff,
+  version,
+  onNewRequest,
+  onQueue,
+  onOpen,
+}: RequestListScreenProps) => {
+  const requests = useBridgeRequest(() => api.listRequests('mine'), [api, version]);
   const [showClosed, setShowClosed] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
@@ -126,7 +137,25 @@ export const RequestListScreen = ({ api, staff, onNewRequest, onOpen }: RequestL
 
       {active.length === 0 ? (
         staff ? (
-          <Empty mood="sleeping" title="Нарядов нет" />
+          <Empty
+            mood="sleeping"
+            title="Нарядов нет"
+            {...(onQueue ? { hint: 'Работа начинается с очереди дома' } : {})}
+          >
+            {onQueue ? (
+              <>
+                <Button type="button" size="large" onClick={onQueue}>
+                  В очередь
+                </Button>
+
+                {onNewRequest ? (
+                  <button type="button" className="link" onClick={onNewRequest}>
+                    Заявка по звонку
+                  </button>
+                ) : null}
+              </>
+            ) : null}
+          </Empty>
         ) : (
           <Empty icon={<IconRequests />} title="Открытых заявок нет" hint="Расскажите, что случилось">
             {create}
@@ -159,7 +188,7 @@ export const RequestListScreen = ({ api, staff, onNewRequest, onOpen }: RequestL
               <RequestRow
                 key={request.id}
                 request={request}
-                separator={index >= 0}
+                separator={index > 0}
                 {...(staff ? { staff } : {})}
                 onOpen={() => onOpen(request.id)}
               />
@@ -167,7 +196,7 @@ export const RequestListScreen = ({ api, staff, onNewRequest, onOpen }: RequestL
           : null}
 
         {showClosed && closed.done && closed.items.length === 0 ? (
-          <CellSimple title={staff ? 'Пока ни одного' : 'Пока ни одной'} height="compact" separator />
+          <CellSimple title="Пусто" height="compact" separator />
         ) : null}
 
         {showClosed && closed.started && !closed.done ? (

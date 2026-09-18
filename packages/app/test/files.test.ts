@@ -185,14 +185,19 @@ describe('снимки к заявке', () => {
 
     const paper = await uploadFile(deps, dispatcher, { contentType: 'image/jpeg', base64: photo() });
 
-    for (const to of ['accepted', 'in_progress'] as const) {
-      await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to });
-    }
+    await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
+    await transitionRequest(deps, {
+      resident: dispatcher,
+      requestId: request.id,
+      to: 'in_progress',
+      assigneeId: dispatcher.id,
+    });
 
     await transitionRequest(deps, {
       resident: dispatcher,
       requestId: request.id,
       to: 'done',
+      comment: 'Справка готова',
       attachments: [paper],
     });
 

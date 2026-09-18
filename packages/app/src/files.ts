@@ -1,4 +1,4 @@
-import { DomainError, isCompanyStaff, type Attachment } from '@domovoy/domain';
+import { DomainError, isCompanyStaff, type Attachment, type ServiceRequest } from '@domovoy/domain';
 
 import type { Resident, StoredFile } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -10,7 +10,7 @@ const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/h
 export const MAX_FILE_BYTES = 1_500_000;
 
 /** Токен вложения для файлов, которые лежат у нас, а не у платформы. */
-export const OWN_FILE_PREFIX = 'file:';
+const OWN_FILE_PREFIX = 'file:';
 
 export const isOwnFile = (token: string): boolean => token.startsWith(OWN_FILE_PREFIX);
 
@@ -64,17 +64,21 @@ export const readFile = async (deps: AppDeps, resident: Resident, id: string): P
   throw new DomainError('forbidden', 'Этот файл вам не принадлежит');
 };
 
+/** Есть ли этот файл среди вложений заявки: своих или из переписки по ней. */
+const holds = (request: ServiceRequest, token: string): boolean =>
+  request.attachments.some((item) => item.token === token) ||
+  request.history.some((event) => event.attachments?.some((item) => item.token === token));
+
 const attachedToOwn = async (deps: AppDeps, resident: Resident, id: string): Promise<boolean> => {
   const token = `${OWN_FILE_PREFIX}${id}`;
-  const requests = [
-    ...(await deps.repository.listRequests({ reporterId: resident.id })),
-    ...(isCompanyStaff(resident.role) ? await deps.repository.listRequests({ assigneeId: resident.id }) : []),
-  ];
+  const mine = await deps.repository.listRequests({ reporterId: resident.id });
 
-  return requests.some(
-    (request) =>
-      request.attachments.some((item) => item.token === token) ||
-      request.history.some((event) => event.attachments?.some((item) => item.token === token)),
+  if (mine.some((request) => holds(request, token))) return true;
+
+  if (!isCompanyStaff(resident.role)) return false;
+
+  return (await deps.repository.listRequests({ assigneeId: resident.id })).some((request) =>
+    holds(request, token),
   );
 };
 

@@ -1,6 +1,5 @@
 import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
-import { Fragment } from 'react';
 
 import { formatDeadline, formatTime, type DomovoyApi, type HouseNowView } from '../api.js';
 import { Domovoy } from './Domovoy.js';
@@ -28,15 +27,19 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
 
   if (!mood) return null;
 
-  return (
-    <Fragment>
-      <p className={`mood mood-${mood}`} data-guide="mood">
-        <Domovoy mood={mood} size={44} />
-        {MOOD[mood]}
-      </p>
+  const quiet = incidents.length === 0 && works.length === 0;
 
-      {incidents.length === 0 && works.length === 0 ? null : (
-        <Group title="Сейчас в доме">
+  return (
+    <div data-guide="mood">
+      {/* Настроение дома называет либо строка, либо список под ней: вдвоём они
+          говорят одно и то же. */}
+      {quiet ? (
+        <p className={`mood mood-${mood}`}>
+          <Domovoy mood={mood} size={44} />
+          {MOOD[mood]}
+        </p>
+      ) : (
+        <Group title={MOOD[mood]} className={`house-now house-now-${mood}`}>
           {incidents.map((item, index) => (
             <CellSimple
               key={item.id}
@@ -68,6 +71,6 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
           ))}
         </Group>
       )}
-    </Fragment>
+    </div>
   );
 };

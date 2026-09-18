@@ -2,12 +2,16 @@ import {
   DomainError,
   bookVisit,
   cancelVisit,
+  checkReception,
+  checkVisitMinutes,
   completeVisit,
   formatClock,
   formatDay,
+  formatReception,
   isActiveVisit,
   isCompanyStaff,
   receptionSlots,
+  writeVisit,
   VISIT_MINUTES,
   type ReceptionWindow,
   type Visit,
@@ -98,6 +102,10 @@ export interface BookVisitCommand {
   buildingId?: string;
 }
 
+/** Нарушение уникального индекса занятого времени (миграция 047). */
+const isSlotClash = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505';
+
 /** Запись на приём. Смена узнаёт о ней уведомлением. @throws {DomainError} */
 export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promise<Visit> => {
   const reception = await receptionFor(deps, command.resident, command.buildingId);
@@ -119,7 +127,14 @@ export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promi
     slots: reception.slots,
   });
 
-  const saved = await deps.repository.saveVisit(visit);
+  // Свободные часы считаны до записи, поэтому за это время слот мог занять
+  // другой жилец: последнее слово за хранилищем, а не за подсчётом.
+  const saved = await deps.repository.saveVisit(visit).catch((error: unknown) => {
+    if (isSlotClash(error)) throw new DomainError('slot_taken', 'Это время только что заняли, выберите другое');
+
+    throw error;
+  });
+
   const zone = await zoneOf(deps, saved.buildingId);
   const notifier = deps.notifier ?? noopNotifier;
 
@@ -138,6 +153,120 @@ export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promi
     action: 'visit_booked',
     subject: when,
     buildingId: saved.buildingId,
+  });
+
+  return saved;
+};
+
+/** Дом смены и право на него. @throws {DomainError} */
+const shiftHouse = async (deps: AppDeps, staff: Resident, buildingId?: string): Promise<string> => {
+  if (!isCompanyStaff(staff.role)) throw new DomainError('forbidden', 'Приём ведёт управляющая организация');
+
+  const house = buildingId ?? staff.buildingId ?? deps.defaultBuildingId;
+
+  await assertServes(deps, staff, house);
+
+  return house;
+};
+
+export interface ReceptionHoursCommand {
+  staff: Resident;
+  /** Приёмные окна дома. Пустой список означает, что приём по записи не ведётся. */
+  windows: ReceptionWindow[];
+  /** Сколько минут занимает один приём. */
+  minutes?: number;
+  buildingId?: string;
+}
+
+/** Приёмные часы дома задаёт смена этого дома. @throws {DomainError} */
+export const setReception = async (deps: AppDeps, command: ReceptionHoursCommand): Promise<Reception> => {
+  const house = await shiftHouse(deps, command.staff, command.buildingId);
+  const known = await deps.repository.findBuilding(house);
+
+  if (!known) throw new DomainError('building_not_found', 'Дом не найден');
+
+  const windows = checkReception(command.windows);
+  const minutes = checkVisitMinutes(command.minutes ?? known.visitMinutes ?? VISIT_MINUTES);
+
+  // Пустые часы убирают приём по записи целиком, поэтому поля снимаются, а не
+  // остаются пустым списком.
+  const { reception, visitMinutes, ...rest } = known;
+  void reception;
+  void visitMinutes;
+
+  await deps.repository.saveBuilding({
+    ...rest,
+    ...(windows.length > 0 ? { reception: windows, visitMinutes: minutes } : {}),
+  });
+
+  await recordAction(deps, {
+    actor: command.staff,
+    action: 'reception_changed',
+    subject: windows.length > 0 ? formatReception(windows) : 'приём по записи не ведётся',
+    buildingId: house,
+  });
+
+  return receptionFor(deps, command.staff, house);
+};
+
+export interface RecordVisitCommand {
+  staff: Resident;
+  /** Кого записали. */
+  residentId: string;
+  topic: string;
+  /** Когда пришли или придут. По умолчанию сейчас. */
+  at?: Date;
+  buildingId?: string;
+}
+
+/**
+ * Сотрудник записывает пришедшего. Человек у стойки не заполняет форму сам,
+ * поэтому часы приёма здесь не проверяются: запись прошедшим временем означает
+ * состоявшийся приём, будущим, что человека записали. @throws {DomainError}
+ */
+export const recordVisit = async (deps: AppDeps, command: RecordVisitCommand): Promise<Visit> => {
+  const house = await shiftHouse(deps, command.staff, command.buildingId);
+  const visitor = await deps.repository.findResident(command.residentId);
+
+  if (!visitor) throw new DomainError('resident_unknown', 'Человек не найден');
+
+  const now = deps.now();
+  const building = await deps.repository.findBuilding(house);
+
+  const visit = writeVisit({
+    id: deps.createId(),
+    buildingId: house,
+    residentId: visitor.id,
+    at: command.at ?? now,
+    minutes: building?.visitMinutes ?? VISIT_MINUTES,
+    topic: command.topic,
+    now,
+  });
+
+  const saved = await deps.repository.saveVisit(visit).catch((error: unknown) => {
+    if (isSlotClash(error)) throw new DomainError('slot_taken', 'Это время уже занято, выберите другое');
+
+    throw error;
+  });
+
+  const zone = await zoneOf(deps, house);
+  const when = `${formatDay(saved.at, zone)}, ${formatClock(saved.at, zone)}`;
+
+  // О записи на будущее человека предупреждают: о состоявшемся приёме он знает и так.
+  if (saved.status === 'booked') {
+    await notifyResident(
+      deps.notifier ?? noopNotifier,
+      visitor,
+      `Управляющая организация записала вас на приём: ${when}.\n${saved.topic}`,
+    );
+  }
+
+  await recordAction(deps, {
+    actor: command.staff,
+    action: 'visit_recorded',
+    subject: when,
+    details: `${visitor.displayName}: ${saved.topic}`,
+    buildingId: house,
   });
 
   return saved;

@@ -219,7 +219,7 @@ describe('стартовый экран приложения', () => {
 
     const screen = await render(fetchStub, 'go-queue');
 
-    assert.match(screen.text, /не для вашей роли/);
+    assert.match(screen.text, /Раздел недоступен/);
 
     await screen.unmount();
   });
@@ -239,7 +239,7 @@ describe('стартовый экран приложения', () => {
 
   it('у сотрудника с двумя квартирами в шапке дом на работе и квартира на своих экранах', async () => {
     const { fetchStub } = server(
-      { id: 'disp-1', displayName: 'Ольга', role: 'dispatcher', apartmentId: 'apt-17' },
+      { id: 'disp-1', displayName: 'Ольга', role: 'dispatcher', apartmentId: 'apt-17', demo: true },
       [
         { id: 'b1', code: 'Д15', address: 'ул. Ленина, 15', current: true },
         { id: 'b2', code: 'Д17', address: 'ул. Ленина, 17', current: false },
@@ -277,7 +277,7 @@ describe('стартовый экран приложения', () => {
 
     const screen = await render(fetchStub);
 
-    assert.deepEqual(screen.tabs(), ['Работа', 'Очередь', 'Дом', 'Новости', 'Ещё']);
+    assert.deepEqual(screen.tabs(), ['Наряды', 'Очередь', 'Дом', 'Новости', 'Ещё']);
     assert.match(screen.text, /Ваши наряды|Нарядов нет/);
 
     await screen.unmount();
@@ -289,7 +289,7 @@ describe('стартовый экран приложения', () => {
     const screen = await render(fetchStub);
     const tabs = screen.tabs();
 
-    assert.deepEqual(tabs, ['Очередь', 'Работа', 'Дом', 'Новости', 'Ещё']);
+    assert.deepEqual(tabs, ['Очередь', 'Наряды', 'Дом', 'Новости', 'Ещё']);
     assert.equal(tabs.includes('Квартира'), false);
 
     await screen.act(() => {
@@ -300,16 +300,16 @@ describe('стартовый экран приложения', () => {
 
     assert.match(screen.text, /Сводка/);
     assert.match(screen.text, /Люди дома/);
-    assert.match(screen.text, /Собрания/);
     assert.match(screen.text, /Смена/, 'разделов у смены много, поэтому они по группам');
     assert.match(screen.text, /Управление/);
+    assert.match(screen.text, /Профиль/);
     assert.doesNotMatch(screen.text, /Ваша квитанция/);
 
     await screen.unmount();
   });
 
-  it('сотрудник, живущий в доме, привязывает свою квартиру и видит свою квитанцию', async () => {
-    const { fetchStub } = server({ id: 'disp-1', displayName: 'Ольга', role: 'dispatcher', apartmentId: null });
+  it('в рабочем меню смены нет ни жильцовых разделов, ни примерки роли', async () => {
+    const { fetchStub } = server({ id: 'disp-1', displayName: 'Ольга', role: 'dispatcher', apartmentId: 'apt-3' });
 
     const screen = await render(fetchStub);
 
@@ -317,21 +317,36 @@ describe('стартовый экран приложения', () => {
       (screen.findAll('.tabs button').at(-1) as HTMLButtonElement).click();
     });
 
-    assert.match(screen.text, /Моя квартира/);
+    assert.doesNotMatch(screen.text, /Собрания/);
+    assert.doesNotMatch(screen.text, /Ваша квитанция/);
+    assert.doesNotMatch(screen.text, /Работа дома/);
+    assert.doesNotMatch(screen.text, /Моя квартира|Добавить квартиру/);
+    assert.doesNotMatch(screen.text, /Посмотреть продукт другой стороной/);
 
     await screen.unmount();
+  });
 
-    const bound = server({ id: 'disp-1', displayName: 'Ольга', role: 'dispatcher', apartmentId: 'apt-3' });
-    const staff = await render(bound.fetchStub);
-
-    await staff.act(() => {
-      (staff.findAll('.tabs button').at(-1) as HTMLButtonElement).click();
+  it('в режиме показа сотруднику возвращают и свою квартиру, и примерку роли', async () => {
+    const { fetchStub } = server({
+      id: 'disp-1',
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      apartmentId: 'apt-3',
+      demo: true,
     });
 
-    assert.match(staff.text, /Ваша квитанция/);
-    assert.match(staff.text, /Добавить квартиру/);
+    const screen = await render(fetchStub);
 
-    await staff.unmount();
+    await screen.act(() => {
+      (screen.findAll('.tabs button').at(-1) as HTMLButtonElement).click();
+    });
+
+    assert.match(screen.text, /Ваша квитанция/);
+    assert.match(screen.text, /Добавить квартиру/);
+    assert.match(screen.text, /Собрания/);
+    assert.match(screen.text, /Посмотреть продукт другой стороной/);
+
+    await screen.unmount();
   });
 
   it('с одним домом выбирать нечего', async () => {
@@ -546,6 +561,31 @@ describe('без канала доставки файлов раздела на�
       false,
     );
     assert.equal(offeredScreen('stickers', { files: false }), false);
+  });
+});
+
+describe('тур первого входа', () => {
+  it('до привязки квартиры не идёт: за вкладками ещё пусто', async () => {
+    globalThis.localStorage.clear();
+
+    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: null });
+    const screen = await render(fetchStub);
+
+    assert.equal(screen.findAll('.tour').length, 0);
+    assert.match(screen.text, /Код из квитанции/);
+
+    await screen.unmount();
+  });
+
+  it('привязанного жильца встречает сразу', async () => {
+    globalThis.localStorage.clear();
+
+    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: 'apt-1' });
+    const screen = await render(fetchStub);
+
+    assert.equal(screen.findAll('.tour').length, 1);
+
+    await screen.unmount();
   });
 });
 

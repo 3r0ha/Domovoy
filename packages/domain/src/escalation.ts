@@ -1,7 +1,7 @@
 import { CATEGORY_RULES, isReactionOverdue, isResolutionOverdue } from './sla.js';
 import { describeTarget } from './audience.js';
 import { isFinal } from './status.js';
-import { DEFAULT_TIME_ZONE, type ServiceRequest } from './types.js';
+import { DEFAULT_TIME_ZONE, type RequestEvent, type Role, type ServiceRequest } from './types.js';
 
 /** Насколько нужно превысить срок выполнения, чтобы это стало поводом для жалобы. */
 export const ESCALATION_OVERRUN_FACTOR = 2;
@@ -72,6 +72,23 @@ const STATUS_WORDS: Record<string, string> = {
 const official = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string =>
   at.toLocaleString('ru-RU', { timeZone, dateStyle: 'short', timeStyle: 'short' });
 
+/** Как называть участника, имя которого в обращении не место. */
+const ROLE_WORDS: Readonly<Record<Role, string>> = {
+  resident: 'житель дома',
+  dispatcher: 'диспетчер',
+  technician: 'мастер',
+  manager: 'управляющий',
+  contractor: 'подрядчик',
+};
+
+/**
+ * Участник хронологии. Сотрудники отвечают за работу и названы поимённо,
+ * автор называет себя сам. Сосед, сообщивший о той же проблеме, идёт ролью:
+ * его имя в жалобе третьего лица не появляется.
+ */
+const participant = (event: RequestEvent, request: ServiceRequest, name: (actorId: string) => string): string =>
+  event.role !== 'resident' || event.actorId === request.authorId ? name(event.actorId) : ROLE_WORDS[event.role];
+
 /** Готовое обращение в жилищную инспекцию. */
 export const buildComplaint = (input: ComplaintInput): string => {
   const { request, now } = input;
@@ -82,7 +99,7 @@ export const buildComplaint = (input: ComplaintInput): string => {
   const timeline = request.history.map(
     (event) =>
       `  ${official(event.at, input.timeZone)}: ${event.kind === 'message' ? 'сообщение' : (STATUS_WORDS[event.status] ?? event.status)}` +
-      ` (${name(event.actorId)})${event.comment ? `: ${event.comment}` : ''}`,
+      ` (${participant(event, request, name)})${event.comment ? `: ${event.comment}` : ''}`,
   );
 
   return [

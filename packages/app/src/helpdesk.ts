@@ -82,7 +82,7 @@ export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Pro
   for (const person of await staffOf(deps, saved.buildingId)) {
     if (person.id === resident.id) continue;
 
-    await notifyResident(notifier, person, text, [], undefined, undefined, undefined, saved.id);
+    await notifyResident(notifier, person, text, [], { answerAbout: saved.id });
   }
 
   return saved;
@@ -119,15 +119,13 @@ export const answerSupport = async (deps: AppDeps, command: AnswerSupportCommand
 
   const asked = await deps.repository.findResident(saved.residentId);
 
+  // Жилец подписан именем, и ответ ему приходит так же: он видит, с кем говорит.
   await notifyResident(
     deps.notifier ?? noopNotifier,
     asked,
-    `Управляющая компания ответила на вопрос «${saved.subject}»:\n${command.text.trim()}`,
+    `${staff.displayName}, управляющая компания, отвечает на вопрос «${saved.subject}»:\n${command.text.trim()}`,
     [],
-    undefined,
-    undefined,
-    undefined,
-    saved.id,
+    { answerAbout: saved.id },
   );
 
   return saved;

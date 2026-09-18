@@ -1,3 +1,4 @@
+import type { ValidatedInitData } from '@maxkit/server';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 export interface RateLimit {
@@ -7,8 +8,12 @@ export interface RateLimit {
   windowMs: number;
 }
 
-/** Обычная работа в приложении. */
-export const DEFAULT_LIMIT: RateLimit = { limit: 60, windowMs: 60_000 };
+/**
+ * Обычная работа в приложении. Один экран тянет несколько запросов сразу, а
+ * человек листает разделы подряд, поэтому предел считается не по экранам, а по
+ * запросам: шесть десятков уходили за полминуты обычного просмотра.
+ */
+export const DEFAULT_LIMIT: RateLimit = { limit: 300, windowMs: 60_000 };
 
 /** Вход в приложение. */
 export const LOGIN_LIMIT: RateLimit = { limit: 10, windowMs: 60_000 };
@@ -16,8 +21,21 @@ export const LOGIN_LIMIT: RateLimit = { limit: 10, windowMs: 60_000 };
 /** Выгрузки и импорт: один запрос стоит дороже обычного. */
 export const HEAVY_LIMIT: RateLimit = { limit: 10, windowMs: 60_000 };
 
-/** Маршруты, которые читают или собирают файлы целиком. */
-export const HEAVY_PATHS = ['/api/import/', '/api/export/', '/api/report/', '/api/stickers/sheet'];
+/** Маршруты, которые читают или собирают файлы целиком либо рассылают их дому. */
+export const HEAVY_PATHS = [
+  '/api/import/',
+  '/api/export/',
+  '/api/report/',
+  '/api/stickers/sheet',
+  '/api/buildings/handover',
+];
+
+/**
+ * Что вообще считается. Статика лендинга и мини-приложения мимо: за общим
+ * адресом дома одна страница тянет десятки файлов, и бюджет живых людей
+ * уходил бы на них.
+ */
+export const GUARDED_PATHS = ['/api/', '/auth/'];
 
 interface Window {
   count: number;
@@ -37,6 +55,8 @@ export interface RateLimiterOptions {
   heavy?: RateLimit;
   /** Начала путей, которые считаются дорогими. */
   heavyPaths?: string[];
+  /** Начала путей, которые вообще считаются. */
+  guardedPaths?: string[];
   /** Пути, которые зовёт не человек: у них свой темп. */
   exempt?: string[];
   now?: () => number;
@@ -48,6 +68,7 @@ export const applyRateLimit = (fastify: FastifyInstance, options: RateLimiterOpt
   const login = options.login ?? LOGIN_LIMIT;
   const heavy = options.heavy ?? HEAVY_LIMIT;
   const heavyPaths = options.heavyPaths ?? HEAVY_PATHS;
+  const guardedPaths = options.guardedPaths ?? GUARDED_PATHS;
   const now = options.now ?? Date.now;
   const windows = new Map<string, Window>();
   const exempt = new Set(['/health', ...(options.exempt ?? [])]);
@@ -83,30 +104,65 @@ export const applyRateLimit = (fastify: FastifyInstance, options: RateLimiterOpt
     }
   };
 
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    if (exempt.has(request.url)) return;
+  /** Считается ли путь вообще и по какому правилу. */
+  const ruleFor = (url: string): { counted: boolean; isLogin: boolean; isHeavy: boolean } => {
+    const counted = !exempt.has(url) && guardedPaths.some((path) => url.startsWith(path));
+    const isLogin = counted && url.startsWith('/auth/session');
 
-    cleanup();
+    return { counted, isLogin, isHeavy: counted && !isLogin && heavyPaths.some((path) => url.startsWith(path)) };
+  };
 
-    const isLogin = request.url.startsWith('/auth/session');
-    const isHeavy = !isLogin && heavyPaths.some((path) => request.url.startsWith(path));
-    const token = request.headers.authorization;
-    const key = `${isLogin ? 'login' : 'api'}:${token ?? request.ip}`;
-    const retryAfter = allow(key, isLogin ? login : requests);
+  /**
+   * Один запрос в счётчиках одного измерения: обычном и, для выгрузок, дорогом.
+   * Дорогие маршруты считаются отдельно: обычный предел они не расходуют вхолостую.
+   */
+  const measure = (dimension: string, isLogin: boolean, isHeavy: boolean): number =>
+    Math.max(
+      allow(`${isLogin ? 'login' : 'api'}:${dimension}`, isLogin ? login : requests),
+      isHeavy ? allow(`heavy:${dimension}`, heavy) : 0,
+    );
 
-    if (isLogin) request.rateLimitKey = key;
-
-    // Дорогие маршруты считаются и отдельно: обычный предел они не расходуют вхолостую.
-    const heavyAfter = isHeavy ? allow(`heavy:${token ?? request.ip}`, heavy) : 0;
-
-    if (retryAfter === 0 && heavyAfter === 0) return;
-
-    const wait = Math.max(retryAfter, heavyAfter);
-
+  const tooMany = async (reply: FastifyReply, wait: number): Promise<void> => {
     await reply.code(429).header('retry-after', String(wait)).send({
       error: 'too_many_requests',
       message: `Слишком много запросов. Повторите через ${wait} с.`,
     });
+  };
+
+  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { counted, isLogin, isHeavy } = ruleFor(request.url);
+
+    if (!counted) return;
+
+    cleanup();
+
+    // Счёт идёт от адреса: заголовок авторизации присылает кто угодно, и его
+    // ротацией предел входа снимался бы.
+    const wait = measure(`ip:${request.ip}`, isLogin, isHeavy);
+
+    if (isLogin) request.rateLimitKey = `login:ip:${request.ip}`;
+
+    if (wait > 0) await tooMany(reply, wait);
+  });
+
+  /**
+   * Второе измерение: сессия. К этому времени токен уже проверен, поэтому
+   * счётчик за ним настоящий, а не заявленный заголовком.
+   */
+  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+    // Сессия объявлена обязательной, чтобы обработчики её не проверяли,
+    // но на открытых маршрутах её нет.
+    const session = request.max as ValidatedInitData | undefined;
+
+    if (!session) return;
+
+    const { counted, isHeavy } = ruleFor(request.url);
+
+    if (!counted) return;
+
+    const wait = measure(`user:${session.userId}`, false, isHeavy);
+
+    if (wait > 0) await tooMany(reply, wait);
   });
 
   fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {

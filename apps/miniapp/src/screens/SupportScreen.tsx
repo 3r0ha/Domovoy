@@ -40,7 +40,11 @@ const asker = (ticket: TicketView): string =>
       : ticket.waitingSince
         ? `ждёт ${formatSince(ticket.waitingSince)}`
         : ticket.statusTitle,
-  ].join(' · ');
+    // Срок ответа нормативный: смене нужно видеть, до какого числа отвечать.
+    ticket.answerDueAt && ticket.overdue !== true ? `ответ до ${formatDay(ticket.answerDueAt)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
 /** Состояние обращения глазами жильца: со сроком ответа, пока он идёт. */
 const state = (ticket: TicketView): string =>
@@ -193,12 +197,13 @@ const Thread = ({
   return (
     <section className="chat">
       <button type="button" className="link chat-back" onClick={onBack}>
-        {staff ? '← Все вопросы' : '← Все обращения'}
+        ← Все вопросы
       </button>
 
-      <div className="chat-flow">
-        {staff ? <p className="hint chat-who">{asker(ticket)}</p> : null}
+      {/* Кто спрашивает и к какому сроку ждёт ответа: это шапка переписки, а не первое сообщение. */}
+      {staff ? <p className="hint chat-who">{asker(ticket)}</p> : null}
 
+      <div className="chat-flow">
         {ticket.messages.map((message, index) => (
           <article key={`${message.at}-${index}`} className={message.own ? 'said said-own' : 'said'}>
             {message.own ? null : <span className="said-who">{message.authorName ?? 'Управляющая компания'}</span>}
@@ -210,7 +215,7 @@ const Thread = ({
       </div>
 
       {closed ? (
-        <p className="hint chat-closed">Обращение закрыто</p>
+        <p className="hint chat-closed">Вопрос закрыт</p>
       ) : (
         <div className="chat-foot">
           {error ? <ErrorText>{error}</ErrorText> : null}
@@ -223,7 +228,7 @@ const Thread = ({
               disabled={busy}
               onClick={() => void run(() => api.closeSupport(ticket.id))}
             >
-              {staff ? 'Закрыть обращение' : 'Вопрос решён'}
+              {staff ? 'Закрыть вопрос' : 'Вопрос решён'}
             </button>
           ) : null}
 
@@ -282,7 +287,7 @@ const Ask = ({
   return (
     <section className="chat">
       <button type="button" className="link chat-back" onClick={onBack}>
-        ← Все обращения
+        ← Все вопросы
       </button>
 
       <div className="chat-flow">

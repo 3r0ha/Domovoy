@@ -1,6 +1,6 @@
-import { DomainError, isCompanyStaff, type Role } from '@domovoy/domain';
+import { DomainError, isCompanyStaff, type Apartment, type Role } from '@domovoy/domain';
 
-import { apartmentIn } from './apartments.js';
+import { apartmentsOf } from './apartments.js';
 import { recordAction } from './audit.js';
 import { assertServes, homeOf, listServedBuildings, servedBy } from './buildings.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
@@ -33,6 +33,17 @@ const ROLE_TITLES: Record<Role, string> = {
 
 export const roleTitle = (role: Role): string => ROLE_TITLES[role];
 
+/** Квартира человека среди квартир дома. */
+const flatOf = (person: Resident, flats: ReadonlyMap<string, Apartment>): Apartment | undefined => {
+  for (const apartmentId of apartmentsOf(person)) {
+    const flat = flats.get(apartmentId);
+
+    if (flat) return flat;
+  }
+
+  return undefined;
+};
+
 /** Люди дома: жильцы и сотрудники. */
 export const listPeople = async (deps: AppDeps, staff: Resident): Promise<Person[]> => {
   if (!isCompanyStaff(staff.role)) {
@@ -41,10 +52,11 @@ export const listPeople = async (deps: AppDeps, staff: Resident): Promise<Person
 
   const buildingId = staff.buildingId ?? deps.defaultBuildingId;
   const people = await deps.repository.listResidents(buildingId);
+  const flats = new Map((await deps.repository.listApartments(buildingId)).map((flat) => [flat.id, flat]));
   const listed: Person[] = [];
 
   for (const person of people) {
-    const apartment = await apartmentIn(deps, person, buildingId);
+    const apartment = flatOf(person, flats);
 
     listed.push({
       id: person.id,

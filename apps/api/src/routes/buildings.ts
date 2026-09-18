@@ -23,16 +23,49 @@ import {
   announcementSchema,
   attachmentsBodySchema,
   buildingIdSchema,
+  buildingQuerySchema,
   CATEGORIES,
   contactSchema,
   houseCardSchema,
   houseSchema,
+  idIndexParamsSchema,
+  idParamsSchema,
   serviceSchema,
   inspectionSchema,
   serializeAnnouncement,
   serializeInspection,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
+
+/** Сколько знаков помещается в выгрузку оборудования и в выгрузку квартир. */
+const EQUIPMENT_CSV_LIMIT = 200_000;
+const APARTMENTS_CSV_LIMIT = 2_000_000;
+
+/** Запас на кавычки, экранирование и остальное тело запроса вокруг самой таблицы. */
+const BODY_OVERHEAD = 64 * 1024;
+
+/** Объявление жильцам: к нему прикладываются плановые работы со сроком. */
+const announcementBodySchema = {
+  type: 'object',
+  required: ['title', 'body'],
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string', minLength: 1, maxLength: 200 },
+    body: { type: 'string', minLength: 1, maxLength: 4000 },
+    entrance: { type: 'integer', minimum: 1 },
+    riser: { type: 'integer', minimum: 1 },
+    works: {
+      type: 'object',
+      required: ['category', 'from', 'until'],
+      additionalProperties: false,
+      properties: {
+        category: { type: 'string', enum: CATEGORIES },
+        from: { type: 'string', format: 'date-time' },
+        until: { type: 'string', format: 'date-time' },
+      },
+    },
+  },
+} as const;
 
 /** Дома компании: карточка, импорт, объявления и осмотры. */
 export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
@@ -64,7 +97,7 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/inspections',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: { 200: { type: 'array', items: inspectionSchema } },
         },
       },
@@ -88,7 +121,13 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/inspections/:id/prove',
       {
         schema: {
-          body: { type: 'object', required: ['code'], properties: { code: { type: 'string', maxLength: 512 } } },
+          params: idParamsSchema,
+          body: {
+            type: 'object',
+            required: ['code'],
+            additionalProperties: false,
+            properties: { code: { type: 'string', minLength: 1, maxLength: 512 } },
+          },
           response: { 200: inspectionSchema },
         },
       },
@@ -117,9 +156,11 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/inspections/:id/items/:index',
       {
         schema: {
+          params: idIndexParamsSchema,
           body: {
             type: 'object',
             required: ['state'],
+            additionalProperties: false,
             properties: {
               state: { type: 'string', enum: ['ok', 'problem'] },
               comment: { type: 'string', maxLength: MESSAGE_MAX_LENGTH },
@@ -211,8 +252,9 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/buildings/card',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
-          body: houseCardSchema,
+          querystring: buildingQuerySchema,
+          // Тело уходит в сценарий целиком: лишнему полю в карточке дома взяться неоткуда.
+          body: { ...houseCardSchema, additionalProperties: false },
           response: { 200: houseSchema },
         },
       },
@@ -232,10 +274,11 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/buildings',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           body: {
             type: 'object',
             required: ['code'],
+            additionalProperties: false,
             properties: {
               code: { type: 'string', minLength: 1, maxLength: 16 },
               address: { type: 'string', maxLength: 200 },
@@ -271,7 +314,7 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/buildings/chat',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
+          querystring: buildingQuerySchema,
           response: {
             200: {
               type: 'object',
@@ -300,9 +343,16 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
     scope.post<{ Querystring: { buildingId?: string }; Body: { csv: string } }>(
       '/api/import/equipment',
       {
+        // Предел тела идёт рядом со схемой: иначе выгрузка упирается в умолчание Fastify.
+        bodyLimit: EQUIPMENT_CSV_LIMIT + BODY_OVERHEAD,
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
-          body: { type: 'object', required: ['csv'], properties: { csv: { type: 'string', maxLength: 200_000 } } },
+          querystring: buildingQuerySchema,
+          body: {
+            type: 'object',
+            required: ['csv'],
+            additionalProperties: false,
+            properties: { csv: { type: 'string', maxLength: EQUIPMENT_CSV_LIMIT } },
+          },
           response: {
             200: {
               type: 'object',
@@ -329,9 +379,15 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
     scope.post<{ Querystring: { buildingId?: string }; Body: { csv: string } }>(
       '/api/import/apartments',
       {
+        bodyLimit: APARTMENTS_CSV_LIMIT + BODY_OVERHEAD,
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
-          body: { type: 'object', required: ['csv'], properties: { csv: { type: 'string', maxLength: 2_000_000 } } },
+          querystring: buildingQuerySchema,
+          body: {
+            type: 'object',
+            required: ['csv'],
+            additionalProperties: false,
+            properties: { csv: { type: 'string', maxLength: APARTMENTS_CSV_LIMIT } },
+          },
           response: {
             200: {
               type: 'object',
@@ -402,26 +458,8 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
       '/api/announcements',
       {
         schema: {
-          querystring: { type: 'object', properties: { buildingId: buildingIdSchema } },
-          body: {
-            type: 'object',
-            required: ['title', 'body'],
-            properties: {
-              title: { type: 'string', minLength: 1, maxLength: 200 },
-              body: { type: 'string', minLength: 1, maxLength: 4000 },
-              entrance: { type: 'integer', minimum: 1 },
-              riser: { type: 'integer', minimum: 1 },
-              works: {
-                type: 'object',
-                required: ['category', 'from', 'until'],
-                properties: {
-                  category: { type: 'string', enum: CATEGORIES },
-                  from: { type: 'string', format: 'date-time' },
-                  until: { type: 'string', format: 'date-time' },
-                },
-              },
-            },
-          },
+          querystring: buildingQuerySchema,
+          body: announcementBodySchema,
         },
       },
       async (request, reply) => {

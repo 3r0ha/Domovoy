@@ -33,10 +33,14 @@ const HOME_GROUP: MenuGroup = {
   ],
 };
 
+/** Помощник стоит первым экраном у всех: спросить словами проще, чем искать пункт. */
+const ASK_ITEM: MenuItem = { title: '❓ Спросить', command: 'help' };
+
 const RESIDENT: RoleMenu = {
   top: [
     { title: '✍️ Новая заявка', command: 'new' },
     { title: '📋 Заявки', command: 'my' },
+    ASK_ITEM,
   ],
   groups: [
     {
@@ -67,7 +71,6 @@ const RESIDENT: RoleMenu = {
         { title: '☎️ Контакты', command: 'contacts' },
         { title: '🏢 Квартира', command: 'flat' },
         { title: '🗂 Мои данные', command: 'mydata' },
-        { title: '📄 Документы', command: 'legal' },
       ],
     },
   ],
@@ -77,6 +80,7 @@ const CONTRACTOR: RoleMenu = {
   top: [
     { title: '📋 Наряды', command: 'my' },
     { title: '🗂 Мои данные', command: 'mydata' },
+    ASK_ITEM,
   ],
   groups: [],
 };
@@ -85,6 +89,7 @@ const STAFF: RoleMenu = {
   top: [
     { title: '📋 Заявки', command: 'my' },
     { title: '🌙 Дежурство', command: 'duty' },
+    ASK_ITEM,
   ],
   groups: [
     {
@@ -95,7 +100,6 @@ const STAFF: RoleMenu = {
         { title: '🗓 Приём', command: 'visit' },
         { title: '📊 Сводка', command: 'report' },
         { title: '🏷 Наклейки', command: 'stickers' },
-        { title: '📄 Документы', command: 'legal' },
       ],
     },
     {
@@ -114,9 +118,6 @@ const STAFF: RoleMenu = {
 
 /** Дела управляющей компании: мастеру и подрядчику они не поручены. */
 const FOR_MANAGEMENT = new Set(['broadcast']);
-
-/** Только управляющий: чат дома привязывает он. Отдельной группы ради одного пункта нет. */
-const MANAGER_ITEM: MenuItem = { title: '🔗 Чат дома', command: 'here' };
 
 const roleMenu = (role: string): RoleMenu =>
   role === 'resident' ? RESIDENT : role === 'contractor' ? CONTRACTOR : STAFF;
@@ -153,9 +154,7 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
   }));
 
   const groups = [
-    ...allowed.map((group) =>
-      group.key === 'shift' && role === 'manager' ? { ...group, items: [...group.items, MANAGER_ITEM] } : group,
-    ),
+    ...allowed,
     ...(role !== 'resident' && apartmentsOf(resident).length > 0 ? [HOME_GROUP] : []),
   ].filter((group) => group.items.length > 0);
 
