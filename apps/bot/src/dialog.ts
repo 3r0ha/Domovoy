@@ -17,6 +17,7 @@ import {
   zoneOf,
 } from '@domovoy/app';
 import {
+  APARTMENT_CODE_LENGTH,
   DomainError,
   isApartmentCode,
   isCompanyStaff,
@@ -38,6 +39,7 @@ import {
   cancelKeyboard,
   COMMENT_DONE,
   decimal,
+  errorText,
   menuButton,
   readingKeyboard,
   readingPrompt,
@@ -98,7 +100,10 @@ const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text
       `Принято: ${decimal(result.reading.value)}${rule ? ` ${rule.unit}` : ''}.` +
         (result.consumption > 0
           ? ` Расход за период: ${decimal(result.consumption)}${rule ? ` ${rule.unit}` : ''}.`
-          : ''),
+          : '') +
+        // Предупреждение о расходе идёт этим же сообщением: отдельным оно
+        // приходило раньше чека и читалось как отказ.
+        (result.advice ? `\n\n${commas(result.advice)}` : ''),
     );
 
     const next = meters.find(
@@ -115,7 +120,7 @@ const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text
     }
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Показание не принято: ${commas(error.message)}`, afterError(error, typed));
+    await typed.reply(`Показание не принято: ${commas(errorText(error))}`, afterError(error, typed));
   }
 };
 
@@ -128,7 +133,7 @@ const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting): P
 
   expect(typed, waiting);
 
-  await typed.reply(error.message, cancelKeyboard());
+  await typed.reply(errorText(error), cancelKeyboard());
 
   return true;
 };
@@ -153,7 +158,7 @@ const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, sa
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'message', requestId })) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
+    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
   }
 };
 
@@ -198,7 +203,7 @@ const explainTransition = async (
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to })) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
+    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
   }
 };
 
@@ -283,12 +288,14 @@ const askSupportFrom = async (
     await typed.reply(
       isCompanyStaff(resident.role)
         ? `Ответ отправлен жильцу по обращению «${ticket.subject}».`
-        : `Вопрос принят: «${ticket.subject}». Ответ придёт сюда.`,
+        : ticketId
+          ? 'Передал в управляющую организацию. Ответ придёт сюда.'
+          : `Вопрос принят: «${ticket.subject}». Ответ придёт сюда.`,
     );
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'support', ...(ticketId ? { ticketId } : {}) })) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${error.message}`, afterError(error, typed));
+    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
   }
 };
 
@@ -318,7 +325,7 @@ const bindByCode = async (kit: BotKit, typed: BotContext, code: string): Promise
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
-    await typed.reply(error.message, afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed));
   }
 };
 
@@ -327,7 +334,15 @@ const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<v
   const code = normalizeApartmentCode(text);
 
   if (!isApartmentCode(code)) {
-    await typed.reply('Код не подошёл. Это восемь знаков из квитанции.', cancelKeyboard());
+    // Знаков может быть ровно восемь, а не подойти буква: в коде нет тех,
+    // которые путают с цифрами, и про это надо сказать отдельно.
+    await typed.reply(
+      code.length === APARTMENT_CODE_LENGTH
+        ? 'В коде есть лишний знак. Похожие на цифры буквы в нём не используются, проверьте код в квитанции.'
+        : `Код не подошёл: в нём ${APARTMENT_CODE_LENGTH} знаков, а вы набрали ${code.length}.`,
+      cancelKeyboard(),
+    );
+
     return;
   }
 
@@ -397,7 +412,7 @@ const recordAnswerFrom = async (kit: BotKit, typed: BotContext, handoffId: strin
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
-    await typed.reply(`Не записал: ${error.message}`, afterError(error, typed));
+    await typed.reply(`Не записал: ${errorText(error)}`, afterError(error, typed));
   }
 };
 
@@ -420,7 +435,7 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
     const { hours } = await freeHours(kit, resident).catch(() => ({ hours: [] }));
 
     await typed.reply(
-      `Не записал: ${error.message}`,
+      `Не записал: ${errorText(error)}`,
       hours.length > 0 ? visitKeyboard(hours) : afterError(error, typed),
     );
   }

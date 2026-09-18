@@ -378,6 +378,8 @@ export interface ReadingResultView {
   consumption: number;
   /** Расход резко выше обычного. */
   spike: boolean;
+  /** Что сказать о расходе, если он необычный. */
+  advice?: string;
 }
 
 export interface UnboundResidentView {

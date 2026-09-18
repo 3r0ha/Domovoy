@@ -21,7 +21,7 @@ import { apartmentsOf } from './apartments.js';
 import { houseHint, servedBy } from './buildings.js';
 import { recordAction } from './audit.js';
 import { wanting } from './notices.js';
-import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
+import { noopNotifier, notifyAbout } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 import { zoneOf } from './zone.js';
@@ -129,6 +129,11 @@ export interface ReadingResult {
   consumption: number;
   /** Расход резко выше обычного. */
   spike: boolean;
+  /**
+   * Что сказать о расходе. Возвращается ответом, а не уведомлением: человек
+   * ждёт этот текст после принятого показания, а уведомление опережает его.
+   */
+  advice?: string;
 }
 
 /** Подача показания. */
@@ -175,30 +180,32 @@ export const submitReading = async (deps: AppDeps, command: SubmitReadingCommand
   // Расход прошлого периода этой же квартиры: он уже прочитан вместе с историей.
   const before = previous ? consumption(rest[1], previous) : 0;
 
-  if (spike) await warnAboutSpike(deps, meter, saved, previous);
-  // Сравнение с соседями стоит трёх запросов по всему дому, поэтому его делаем,
-  // только когда расход вырос: о неизменившемся жильцу уже говорили в прошлый раз.
-  else if (spent > before) await warnAboutNeighbours(deps, meter, spent, flat?.buildingId, command.resident);
+  const advice = spike
+    ? spikeAdvice(meter, spent)
+    : // Сравнение с соседями стоит трёх запросов по всему дому, поэтому его делаем,
+      // только когда расход вырос: о неизменившемся жильцу уже говорили в прошлый раз.
+      spent > before
+      ? await neighbourAdvice(deps, meter, spent, flat?.buildingId)
+      : undefined;
 
-  return { reading: saved, consumption: spent, spike };
+  return { reading: saved, consumption: spent, spike, ...(advice ? { advice } : {}) };
 };
 
 /** Расход заметно выше соседского. Дом берётся у квартиры прибора, а не у подавшего. */
-const warnAboutNeighbours = async (
+const neighbourAdvice = async (
   deps: AppDeps,
   meter: Meter,
   spent: number,
   buildingId: string | undefined,
-  resident: Resident,
-): Promise<void> => {
-  if (spent <= 0 || !buildingId) return;
+): Promise<string | undefined> => {
+  if (spent <= 0 || !buildingId) return undefined;
 
   const rule = METER_RULES[meter.kind];
   const apartments = await deps.repository.listApartments(buildingId);
   const meters = await deps.repository.listMetersByApartments(apartments.map((apartment) => apartment.id));
   const same = meters.filter((item) => item.kind === meter.kind && item.id !== meter.id);
 
-  if (same.length < NEIGHBOURS_FOR_COMPARISON) return;
+  if (same.length < NEIGHBOURS_FOR_COMPARISON) return undefined;
 
   const readings = await deps.repository.listReadingsFor(same.map((item) => item.id));
 
@@ -210,37 +217,25 @@ const warnAboutNeighbours = async (
 
   const compared = compareToNeighbours(spent, neighbours);
 
-  if (!compared.unusual) return;
+  if (!compared.unusual) return undefined;
 
-  await notifyResident(
-    deps.notifier ?? noopNotifier,
-    resident,
+  return (
     `Расход по счётчику ${meter.serial} выше, чем у соседей: ` +
-      `${formatMeterValue(spent)} ${rule.unit} против ${formatMeterValue(compared.median)} ${rule.unit} ` +
-      'у похожих квартир.\n' +
-      'Стоит проверить: чаще всего это подтекающий бачок или смеситель.',
+    `${formatMeterValue(spent)} ${rule.unit} против ${formatMeterValue(compared.median)} ${rule.unit} ` +
+    'у похожих квартир.\n' +
+    'Стоит проверить: чаще всего это подтекающий бачок или смеситель.'
   );
 };
 
-
-
 /** Резкий скачок расхода: повод предупредить. */
-const warnAboutSpike = async (
-  deps: AppDeps,
-  meter: Meter,
-  reading: Reading,
-  previous: Reading | undefined,
-): Promise<void> => {
+const spikeAdvice = (meter: Meter, spent: number): string => {
   const rule = METER_RULES[meter.kind];
-  const spent = consumption(previous, reading);
 
-  await notifyResident(
-    deps.notifier ?? noopNotifier,
-    await deps.repository.findResident(reading.submittedBy),
+  return (
     `Расход по счётчику «${rule.title}» за период: ${formatMeterValue(spent)} ${rule.unit}, ` +
-      'это заметно больше обычного.\n' +
-      'Если вы не расходовали больше обычного, проверьте краны и бачок: течь видно по счётчику ' +
-      'раньше, чем по потолку соседей.',
+    'это заметно больше обычного.\n' +
+    'Если вы не расходовали больше обычного, проверьте краны и бачок: течь видно по счётчику ' +
+    'раньше, чем по потолку соседей.'
   );
 };
 

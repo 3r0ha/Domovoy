@@ -14,6 +14,9 @@ const remember = (typed: BotContext, description: string, startParam?: string): 
 };
 
 /** Вопрос о доме получает ответ вместо заявки. */
+/** О чём ответ: про дом целиком или про самого спрашивающего. */
+const PERSONAL_TOPICS = new Set(['bill', 'request']);
+
 export const answerQuestion = async (
   kit: BotKit,
   typed: BotContext,
@@ -21,9 +24,21 @@ export const answerQuestion = async (
   description: string,
   startParam?: string,
 ): Promise<boolean> => {
-  const answer = await answerAboutHouse(kit.deps, resident, description).catch(() => ({ text: undefined }));
+  const answer = await answerAboutHouse(kit.deps, resident, description).catch(() => ({
+    text: undefined,
+    topic: 'unknown' as const,
+  }));
 
   if (!answer.text) return false;
+
+  // Квитанция и свои заявки при соседях не читаются: в чат уходит строка,
+  // а сам ответ в личную переписку.
+  if (inChat(typed) && PERSONAL_TOPICS.has(answer.topic) && resident.maxUserId !== undefined) {
+    await kit.bot.api.sendMessageToUser(resident.maxUserId, answer.text).catch(() => undefined);
+    await typed.reply(`${resident.displayName}, ответил вам лично.`);
+
+    return true;
+  }
 
   remember(typed, description, startParam);
 
@@ -36,22 +51,24 @@ export const answerQuestion = async (
  * Уточняющий вопрос об адресе: варианты приходят кнопками, а сами адреса
  * берутся из дома, поэтому нажатие всегда ведёт к настоящему объекту.
  */
-const askWhere = async (kit: BotKit, typed: BotContext, created: { id: string }): Promise<boolean> => {
+const askWhere = async (
+  kit: BotKit,
+  typed: BotContext,
+  created: { id: string },
+): Promise<{ question: string; keyboard: ReturnType<typeof whereKeyboard> } | undefined> => {
   const resident = await kit.residentOf(typed);
   const request = await kit.deps.repository.findRequest(created.id);
 
-  if (!request) return false;
+  if (!request) return undefined;
 
   const clarification = await clarifyTarget(kit.deps, resident, request).catch(() => undefined);
 
-  if (!clarification) return false;
+  if (!clarification) return undefined;
 
   typed.session ??= {};
   typed.session.where = { requestId: request.id, options: clarification.options };
 
-  await typed.reply(clarification.question, whereKeyboard(request.id, clarification.options));
-
-  return true;
+  return { question: clarification.question, keyboard: whereKeyboard(request.id, clarification.options) };
 };
 
 /** Что жилец узнаёт в ответ на своё обращение. */
@@ -101,19 +118,26 @@ export const announce = async (
 
   const hint = emergencyHint(created.category, created.priority);
 
-  await typed.reply(
+  const receipt =
     `Заявка ${created.number} принята.\n` +
-      `${rule.title}, ${describeTarget(created.target)}.\n` +
-      `Ответим до ${formatMoment(created.reactionDueAt)}.\n` +
-      `Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.` +
-      (hint ? `\n\n${hint}` : ''),
-    kit.openApp(startParam, typed),
-  );
+    `${rule.title}, ${describeTarget(created.target)}.\n` +
+    `Ответим до ${formatMoment(created.reactionDueAt)}.\n` +
+    `Срок выполнения: до ${formatMoment(created.resolutionDueAt)}.` +
+    (hint ? `\n\n${hint}` : '');
+
+  // Где случилось, спрашивается кнопками: набирать адрес руками пожилому человеку
+  // тяжело. Вопрос идёт тем же сообщением, что и чек: отдельным он приходил после
+  // срока выполнения и выглядел как новый разговор.
+  const where = inChat(typed) ? undefined : await askWhere(kit, typed, created);
+
+  if (where) {
+    await typed.reply(`${receipt}\n\n${where.question}`, where.keyboard);
+    return;
+  }
+
+  await typed.reply(receipt, kit.openApp(startParam, typed));
 
   if (inChat(typed)) return;
-
-  // Где случилось, спрашивается кнопками: набирать адрес руками пожилому человеку тяжело.
-  if (await askWhere(kit, typed, created)) return;
 
   // Нерасшифрованное голосовое спрашивают первым: без него в заявке нет сути.
   const ask = unheard ? 'Голосовое не разобрал. Напишите одной строкой, что случилось.' : result.question;

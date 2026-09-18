@@ -81,10 +81,10 @@ export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Pro
   const saved = await deps.repository.saveSupportTicket(ticket);
   const notifier = deps.notifier ?? noopNotifier;
   const last = saved.messages.at(-1)?.text ?? '';
+  // Ответ даётся кнопкой из самого уведомления, поэтому команду называть незачем.
   const text =
     `Вопрос в поддержку от ${resident.displayName}: «${saved.subject}»` +
-    (last === saved.subject ? '' : `\n${last}`) +
-    '\n\nОтветьте из приложения или командой /support.';
+    (last === saved.subject ? '' : `\n${last}`);
 
   for (const person of await staffOf(deps, saved.buildingId)) {
     if (person.id === resident.id) continue;

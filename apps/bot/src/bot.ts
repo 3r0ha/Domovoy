@@ -56,6 +56,7 @@ import {
   inChat,
   morphing,
   PRIVATE_COMMANDS,
+  QUIET_COMMANDS,
   nameOf,
   toast,
   toAttachments,
@@ -285,6 +286,41 @@ const guarded =
     }
   };
 
+/**
+ * Личный ответ в общем чате: обработчик тот же, меняется только адрес ответа.
+ * Дела смены уходят молча: соседям в чате строка о них не нужна.
+ */
+const inPrivate = async (
+  bot: Bot,
+  typed: BotContext,
+  run: (typed: BotContext) => Promise<void>,
+  how: { quiet: boolean; whenClosed: Extra | undefined },
+): Promise<void> => {
+  const user = typed.user ?? typed.callback?.user ?? typed.message?.sender;
+  const userId = user?.user_id;
+
+  if (userId === undefined) return;
+
+  typed.session ??= {};
+
+  const personal = Object.create(typed) as BotContext;
+
+  personal.reply = (text, extra) => bot.api.sendMessageToUser(userId, text, extra);
+
+  try {
+    await run(personal);
+
+    if (!how.quiet) await typed.reply(`${nameOf(user)}, ответил вам лично.`);
+  } catch (error) {
+    if (error instanceof DomainError) throw error;
+
+    await typed.reply(
+      `${nameOf(user)}, это видно только вам: напишите мне в личные сообщения, там и отвечу.`,
+      how.whenClosed,
+    );
+  }
+};
+
 export const createDomovoyBot = (
   options: BotOptions,
 ): {
@@ -341,33 +377,8 @@ export const createDomovoyBot = (
 
   bot.command('start', (context) => greet(kit, context as never));
 
-  /**
-   * Личный ответ в общем чате: обработчик тот же, меняется только адрес ответа.
-   */
-  const answerPrivately = async (typed: BotContext, run: (typed: BotContext) => Promise<void>): Promise<void> => {
-    const user = typed.user ?? typed.callback?.user ?? typed.message?.sender;
-    const userId = user?.user_id;
-
-    if (userId === undefined) return;
-
-    typed.session ??= {};
-
-    const personal = Object.create(typed) as BotContext;
-
-    personal.reply = (text, extra) => bot.api.sendMessageToUser(userId, text, extra);
-
-    try {
-      await run(personal);
-      await typed.reply(`${nameOf(user)}, ответил вам лично.`);
-    } catch (error) {
-      if (error instanceof DomainError) throw error;
-
-      await typed.reply(
-        `${nameOf(user)}, это видно только вам: напишите мне в личные сообщения, там и отвечу.`,
-        openAppKeyboard(),
-      );
-    }
-  };
+  const answerPrivately = (typed: BotContext, run: (typed: BotContext) => Promise<void>, quiet: boolean) =>
+    inPrivate(bot, typed, run, { quiet, whenClosed: openAppKeyboard() });
 
   /** Команда и кнопка меню вызывают один обработчик. */
   const actions = new Map<string, (typed: BotContext) => Promise<void>>();
@@ -384,7 +395,9 @@ export const createDomovoyBot = (
 
       if (!inChat(typed) || !PRIVATE_COMMANDS.has(name)) return run(typed);
 
-      return DIALOG_COMMANDS.has(name) ? inviteToDialog(typed, name, openAppKeyboard) : answerPrivately(typed, run);
+      return DIALOG_COMMANDS.has(name)
+        ? inviteToDialog(typed, name, openAppKeyboard)
+        : answerPrivately(typed, run, QUIET_COMMANDS.has(name));
     });
 
     actions.set(name, dispatch);
@@ -480,6 +493,10 @@ export const createDomovoyBot = (
         await speakInChat(kit, typed);
         return;
       }
+
+      // Согласие спрашивается и на обычное сообщение: иначе первый же текст
+      // заводит заявку и профиль у человека, который документов не видел.
+      if (await needsLegal(kit, typed)) return;
 
       await continueDialog(kit, typed, { text, attachments });
     }) as never,

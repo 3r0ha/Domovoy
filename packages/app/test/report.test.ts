@@ -180,10 +180,8 @@ describe('сводка для управляющей компании', () => {
 
     assert.deepEqual(
       staff.map((person) => ({ name: person.displayName, load: person.load })),
-      [
-        { name: 'Ольга, диспетчер', load: 0 },
-        { name: 'Сергей, мастер', load: 1 },
-      ],
+      [{ name: 'Сергей, мастер', load: 1 }],
+      'диспетчер наряды не выполняет и сам себе не предлагается',
     );
   });
 

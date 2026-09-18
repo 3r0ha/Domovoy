@@ -62,6 +62,7 @@ import {
   COMMENT_PROMPTS,
   confirmKeyboard,
   copyKeyboard,
+  errorText,
   flatTitle,
   formatInitiative,
   guestKeyboard,
@@ -100,7 +101,7 @@ const explain = async (typed: BotContext, error: unknown, prefix = 'Не пол�
     return;
   }
 
-  await typed.reply(`${prefix}: ${error.message}`, fix ?? menuButton(typed));
+  await typed.reply(`${prefix}: ${errorText(error)}`, fix ?? menuButton(typed));
 };
 
 /** Кнопка из старого сообщения: в ней нет того, чем она была. */
@@ -303,7 +304,7 @@ const flat: Button = async (kit, typed, [apartmentId]) => {
     await toast(typed, apartment ? `Показания и квитанция: ${flatTitle(apartment)}` : 'Квартира выбрана');
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(error.message, afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed));
   }
 };
 
@@ -350,7 +351,7 @@ const payMonth: Button = async (kit, typed, [step]) => {
     );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(error.message, afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed));
   }
 };
 
@@ -375,7 +376,7 @@ const payDebt: Button = async (kit, typed, [step]) => {
     await typed.reply(`Долг погашен: ${formatMoney(total)} за ${months(receipts.length)}.`, menuButton(typed));
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(error.message, afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed));
   }
 };
 
@@ -616,7 +617,6 @@ const visitCancel: Button = async (kit, typed, [visitId]) => {
 
   try {
     await dropVisit(kit.deps, resident, visitId);
-    await toast(typed, 'Запись отменена');
     await typed.reply('Запись на приём отменена.', kit.menuKeyboard(resident));
   } catch (error) {
     await explain(typed, error, 'Запись не отменилась');

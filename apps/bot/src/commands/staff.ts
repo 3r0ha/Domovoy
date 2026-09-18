@@ -12,7 +12,7 @@ import { BASIS, DomainError, isCompanyStaff, isHandoffOverdue } from '@domovoy/d
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { boundHere, pinNote } from '../chat-binding.js';
-import { afterError, appRow, keyboardOf, menuButton, oneKeyboard } from '../keyboards.js';
+import { afterError, appRow, errorText, keyboardOf, menuButton, oneKeyboard } from '../keyboards.js';
 import { showDebtors } from '../pages.js';
 import { inChat } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
@@ -41,7 +41,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -78,7 +78,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       if (said) await typed.reply(`${said}\n${BASIS.modelDigest}`);
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -113,7 +113,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -134,7 +134,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(`${boundHere(building)}${await pinNote(bot, chatId)}`, openApp());
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
     },
 
@@ -156,7 +156,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
         );
       } catch (error) {
         if (!(error instanceof DomainError)) throw error;
-        await typed.reply(error.message, afterError(error, typed));
+        await typed.reply(errorText(error), afterError(error, typed));
       }
     },
   };

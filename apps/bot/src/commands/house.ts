@@ -19,6 +19,7 @@ import {
   appRow,
   cancelKeyboard,
   doorKeyboard,
+  errorText,
   formatInitiative,
   initiativeKeyboard,
   keyboardOf,
@@ -56,7 +57,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -127,7 +128,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       await inApp(kit, typed, short, 'quality', 'Работа дома в приложении');
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -136,13 +137,18 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     const resident = await residentOf(typed);
 
     try {
-      await typed.reply(
-        shorten(formatContacts(await contactsFor(deps, resident)), 'Остальные контакты в приложении.'),
-        openApp(sectionParam('support'), typed),
-      );
+      const card = formatContacts(await contactsFor(deps, resident));
+
+      // В чате дома нужен только аварийный телефон: полная карточка там читается
+      // плохо и уходит вверх после пары сообщений соседей.
+      const said = inChat(typed)
+        ? `${card.split('\n')[0]!}\nОстальные контакты в приложении.`
+        : shorten(card, 'Остальные контакты в приложении.');
+
+      await typed.reply(said, openApp(sectionParam('support'), typed));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -168,6 +174,13 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
   /** Обращение в жилинспекцию по последней просроченной заявке. */
   gzhi: async (typed) => {
     const resident = await residentOf(typed);
+
+    // Наряды подрядчика чужие: обращаться по ним в инспекцию ему не с чем.
+    if (resident.role === 'contractor') {
+      await typed.reply('Обращение в жилищную инспекцию составляет заявитель, а не исполнитель наряда.', menuButton(typed));
+      return;
+    }
+
     const served = new Set(servedBy(resident, deps));
     const mine = await listRequestsFor(deps, resident, 'mine');
     const own = mine.filter((request) => !isCompanyStaff(resident.role) || !served.has(request.buildingId));

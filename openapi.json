@@ -5697,6 +5697,9 @@
                     },
                     "spike": {
                       "type": "boolean"
+                    },
+                    "advice": {
+                      "type": "string"
                     }
                   }
                 }

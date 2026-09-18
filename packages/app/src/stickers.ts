@@ -63,6 +63,13 @@ export const stickersFor = async (
   buildingId?: string,
 ): Promise<StickerPlan[]> => {
   const staff = isCompanyStaff(resident.role);
+
+  // Наклейки клеят на объекты дома: это дело управляющей организации и жильца.
+  // Подрядчику отвечаем отказом по правам, а не пустым списком.
+  if (!staff && resident.role !== 'resident') {
+    throw new DomainError('forbidden', 'Наклейки делают жильцы и сотрудники управляющей организации');
+  }
+
   const house = buildingId ?? (staff ? (resident.buildingId ?? deps.defaultBuildingId) : await homeBuildingOf(deps, resident));
 
   await assertServes(deps, resident, house);

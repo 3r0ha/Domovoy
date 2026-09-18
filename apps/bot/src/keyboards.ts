@@ -234,7 +234,7 @@ export const ACTION_TITLES: Record<string, string> = {
   done: '🏁 Выполнена',
   confirmed: '✅ Принять работу',
   rejected: '⛔ Отклонить',
-  withdrawn: '↩️ Снять',
+  withdrawn: '↩️ Отозвать заявку',
 };
 
 /**
@@ -277,6 +277,16 @@ export const menuButton = (context?: { message?: { recipient?: { chat_type?: str
   const where = context?.message?.recipient?.chat_type;
 
   return where === 'chat' || where === 'channel' ? undefined : oneKeyboard('🏠 Меню', 'group:back');
+};
+
+/**
+ * Текст отказа целой фразой. Внутри продукта причины пишутся без точки, потому
+ * что подставляются в строку, а человеку отказ приходит отдельным сообщением.
+ */
+export const errorText = (error: unknown): string => {
+  const said = error instanceof Error ? error.message : String(error);
+
+  return /[.!?…)]$/.test(said) ? said : `${said}.`;
 };
 
 /** Кнопка, которой отказ исправляют. Пусто, если исправлять нечем. */

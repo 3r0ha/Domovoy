@@ -115,7 +115,7 @@ const MeterCard = ({
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ consumption: number; spike: boolean } | null>(null);
+  const [result, setResult] = useState<{ consumption: number; spike: boolean; advice?: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const photo = usePhotos(api);
 
@@ -163,7 +163,11 @@ const MeterCard = ({
     try {
       const submitted = await api.submitReading(meter.id, parsed);
 
-      setResult({ consumption: submitted.consumption, spike: submitted.spike });
+      setResult({
+        consumption: submitted.consumption,
+        spike: submitted.spike,
+        ...(submitted.advice ? { advice: submitted.advice } : {}),
+      });
       setValue('');
       setEditing(false);
       onSubmitted();
@@ -271,6 +275,8 @@ const MeterCard = ({
           {result.spike ? ' · больше обычного' : ''}
         </p>
       ) : null}
+
+      {result?.advice ? <p className="hint inset">{result.advice}</p> : null}
     </CellList>
   );
 };

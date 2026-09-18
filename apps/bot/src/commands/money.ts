@@ -4,6 +4,7 @@ import { DomainError, formatMoney, METER_RULES, verificationState } from '@domov
 import {
   afterError,
   appRow,
+  errorText,
   keyboardOf,
   menuButton,
   metersKeyboard,
@@ -68,7 +69,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(readingPrompt(pending[0]!), readingKeyboard(pending[0]!.meter.id, false));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 
@@ -116,7 +117,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
     },
   };

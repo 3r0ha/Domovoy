@@ -1,7 +1,7 @@
 import { stickersFor } from '@domovoy/app';
 import { DomainError } from '@domovoy/domain';
 
-import { afterError } from '../keyboards.js';
+import { afterError, errorText } from '../keyboards.js';
 import type { BotKit, Handler } from '../kit.js';
 import { inApp } from './in-app.js';
 
@@ -31,7 +31,7 @@ export const stickerCommands = (kit: BotKit): Record<string, Handler> => ({
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 });

@@ -39,6 +39,7 @@ import {
   alsoKeyboard,
   assignable,
   appRow,
+  errorText,
   keyboardOf,
   menuButton,
   moreKeyboard,
@@ -198,7 +199,11 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
 
   // Кто отвечает и кому передано, важнее прочего: с этого начинается ответ на
   // вопрос «что с моим обращением».
-  const zones = view ? `\n\nОтвечает: ${view.responsibility.title}\n${view.responsibility.basis}` : '';
+  // Норма закона нужна жильцу: ею объясняется, почему отвечает не управляющая
+  // организация. Смена читает эти карточки десятками, и ссылка ей только мешает.
+  const zones = view
+    ? `\n\nОтвечает: ${view.responsibility.title}${forStaff ? '' : `\n${view.responsibility.basis}`}`
+    : '';
   const passed = handoffs.map((handoff) => `\n\n${formatHandoff(handoff, now)}`).join('');
 
   await typed.reply(
@@ -373,6 +378,6 @@ export const showDebtors = async (kit: BotKit, typed: BotContext): Promise<void>
     );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(error.message, afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed));
   }
 };

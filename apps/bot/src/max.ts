@@ -408,6 +408,9 @@ export const PRIVATE_COMMANDS = new Set([
 /** Команды с продолжением: бот спрашивает, человек отвечает. Из чата уводятся в переписку. */
 export const DIALOG_COMMANDS = new Set(['new', 'meters', 'support', 'broadcast']);
 
+/** Дела смены: ответ уходит в переписку молча, соседям в чате он не нужен. */
+export const QUIET_COMMANDS = new Set(['debts', 'report', 'duty']);
+
 /** Вложение в том виде, в каком его приносит Bot API. */
 export interface MaxAttachment {
   type?: string;

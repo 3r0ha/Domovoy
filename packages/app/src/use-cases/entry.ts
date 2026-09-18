@@ -49,6 +49,17 @@ export const describeContext = async (deps: AppDeps, startParam: string): Promis
   if (!target) return null;
 
   const apartment = target.kind === 'apartment' ? await deps.repository.findApartment(target.apartmentId) : undefined;
+
+  // Код с наклейки может быть набран с ошибкой или остаться от снятого объекта:
+  // обращение по несуществующему месту заводить нельзя.
+  if (target.kind === 'apartment' && !apartment) return null;
+
+  if (target.kind === 'equipment') {
+    const known = await deps.repository.findEquipment(target.buildingId, target.equipmentId);
+
+    if (!known) return null;
+  }
+
   const audience = audienceForTarget(target);
 
   return {

@@ -215,8 +215,9 @@ describe('резкий расход', () => {
     const result = await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 121 });
 
     assert.equal(result.spike, true);
-    assert.match(deps.notifier.sent[0]?.text ?? '', /заметно больше обычного/);
-    assert.match(deps.notifier.sent[0]?.text ?? '', /проверьте краны/);
+    assert.match(result.advice ?? '', /заметно больше обычного/);
+    assert.match(result.advice ?? '', /проверьте краны/);
+    assert.deepEqual(deps.notifier.sent, [], 'о расходе отвечают, а не уведомляют');
 
     assert.equal((await deps.repository.listRequests({})).length, 0);
   });
@@ -396,13 +397,9 @@ describe('расход выше соседского', () => {
     const result = await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 112 });
 
     assert.equal(result.spike, false, 'по своей истории это не скачок');
-
-    const warned = deps.notifier.sent.find((item) => /выше, чем у соседей/.test(item.text));
-
-    assert.ok(warned, 'жильца не предупредили');
-    assert.equal(warned?.maxUserId, maria.maxUserId);
-    assert.match(warned?.text ?? '', /12 м³ против 4 м³/);
-    assert.match(warned?.text ?? '', /подтекающий бачок/);
+    assert.match(result.advice ?? '', /выше, чем у соседей/, 'жильца не предупредили');
+    assert.match(result.advice ?? '', /12 м³ против 4 м³/);
+    assert.match(result.advice ?? '', /подтекающий бачок/);
   });
 
   it('обычный расход поводом для письма не становится', async () => {
@@ -415,8 +412,10 @@ describe('расход выше соседского', () => {
 
     deps.setNow(WINDOW_DAY);
     deps.notifier.sent.length = 0;
-    await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 105 });
 
+    const result = await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 105 });
+
+    assert.equal(result.advice, undefined);
     assert.deepEqual(deps.notifier.sent, []);
   });
 
@@ -444,12 +443,10 @@ describe('расход выше соседского', () => {
     deps.setNow(WINDOW_DAY);
     deps.notifier.sent.length = 0;
 
-    await submitReading(deps, { resident: dispatcher, meterId: 'cold-1', value: 112 });
+    const result = await submitReading(deps, { resident: dispatcher, meterId: 'cold-1', value: 112 });
 
-    const warned = deps.notifier.sent.find((item) => /выше, чем у соседей/.test(item.text));
-
-    assert.ok(warned, 'сравнили с соседями по дому квартиры');
-    assert.match(warned?.text ?? '', /12 м³ против 4 м³/);
+    assert.match(result.advice ?? '', /выше, чем у соседей/, 'сравнили с соседями по дому квартиры');
+    assert.match(result.advice ?? '', /12 м³ против 4 м³/);
   });
 
   it('в доме без соседей с приборами продукт молчит', async () => {
@@ -460,8 +457,9 @@ describe('расход выше соседского', () => {
 
     deps.setNow(WINDOW_DAY);
     deps.notifier.sent.length = 0;
-    await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 190 });
 
-    assert.equal(deps.notifier.sent.some((item) => /выше, чем у соседей/.test(item.text)), false);
+    const result = await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 190 });
+
+    assert.equal(/выше, чем у соседей/.test(result.advice ?? ''), false);
   });
 });

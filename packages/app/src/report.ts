@@ -160,8 +160,10 @@ export const listAssignable = async (deps: AppDeps, resident: Resident): Promise
 
   const load = assigneeLoad(requests);
 
+  // Наряд делают руками: диспетчер и управляющий в список исполнителей
+  // не попадают, иначе они предлагаются сами себе.
   return people
-    .filter((person) => person.role !== 'resident')
+    .filter((person) => person.role === 'technician' || person.role === 'contractor')
     .map((person) => ({
       id: person.id,
       displayName: person.displayName,

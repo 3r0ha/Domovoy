@@ -145,6 +145,12 @@ describe('чат-бот управляющей компании', () => {
         },
       ],
       apartments: APARTMENTS,
+      // Оборудование с наклейками: по этим кодам и ходят переходы из ссылок.
+      equipment: [
+        { buildingId: BUILDING_ID, code: 'lift-1', title: 'Лифт, подъезд 1', kind: 'lift' },
+        { buildingId: BUILDING_ID, code: 'lift-2', title: 'Лифт, подъезд 2', kind: 'lift' },
+        { buildingId: BUILDING_ID, code: 'domofon-1', title: 'Домофон, подъезд 1', kind: 'intercom' },
+      ],
       // Согласие с документами у заведённых людей уже есть: его отдельно
       // проверяет разговор с новым человеком.
       residents: residents.map((person) => ({ ...person, legalVersion: LEGAL_VERSION })),
@@ -226,7 +232,7 @@ describe('чат-бот управляющей компании', () => {
 
     const [greeting] = await platform.waitForOutgoing(1, 3000);
 
-    assert.match(greeting?.text ?? '', /оборудование lift-2/);
+    assert.match(greeting?.text ?? '', /Лифт, подъезд 2/, 'у объекта человеческое название, а не код');
     assert.match(greeting?.text ?? '', /Опишите/);
 
     await bot.stop();
@@ -263,12 +269,16 @@ describe('чат-бот управляющей компании', () => {
     });
     await platform.waitForOutgoing(1, 3000);
 
-    platform.userSends('Застряли между этажами, кабина не двигается', { userId: 1001, chatId: 2001 });
-    const messages = await platform.waitForOutgoing(2, 3000);
+    // Первый разговор начинается с документов: без согласия продукт не записывает.
+    platform.userPressesButton('legal:accept', { userId: 1001, chatId: 2001 });
+    await waitForMessage(2001, /Чем помочь/);
 
-    const confirmation = messages[1]?.text ?? '';
+    platform.forgetOutgoing();
+    platform.userSends('Застряли между этажами, кабина не двигается', { userId: 1001, chatId: 2001 });
+
+    const confirmation = await waitForMessage(2001, /Заявка Д15/);
     assert.match(confirmation, /Заявка Д15-2609-0001 принята/);
-    assert.match(confirmation, /Лифт, оборудование lift-2/);
+    assert.match(confirmation, /Лифт, Лифт, подъезд 2|Лифт, подъезд 2/);
     assert.match(confirmation, /Ответим до /);
     assert.match(confirmation, /Срок выполнения: до /);
     assert.match(confirmation, /нажмите кнопку связи/, 'по аварии бот говорит, что делать прямо сейчас');
@@ -297,12 +307,14 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start();
 
     platform.userSends('/new', { userId: 9009, chatId: 9009 });
-    await platform.waitForOutgoing(1, 3000);
+    await waitForMessage(9009, /персональные данные/);
+
+    platform.userPressesButton('legal:accept', { userId: 9009, chatId: 9009 });
+    await waitForMessage(9009, /Опишите/);
 
     platform.userSends('Что-то сломалось', { userId: 9009, chatId: 9009 });
-    const messages = await platform.waitForOutgoing(2, 3000);
 
-    assert.match(messages[1]?.text ?? '', /Отсканируйте код на подъезде/);
+    assert.match(await waitForMessage(9009, /Отсканируйте/), /Отсканируйте код на подъезде/);
 
     await bot.stop();
   });
@@ -809,9 +821,7 @@ describe('чат-бот управляющей компании', () => {
       payload,
     });
 
-    const messages = await platform.waitForOutgoing(3, 3000);
-
-    assert.match(messages[2]?.text ?? '', /оборудование lift-2/);
+    assert.match(await waitForMessage(4004, /Лифт, подъезд 2/), /обратились по объекту/);
 
     await bot.stop();
   });
@@ -1073,6 +1083,12 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start();
 
     platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
+    await waitForMessage(4009, /персональные данные/);
+
+    platform.userPressesButton('legal:accept', { userId: 4009, chatId: 4009 });
+    await waitForMessage(4009, /Чем помочь/);
+
+    platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
 
     assert.match(await waitForMessage(4009, /привязаны к квартире/), /квартире 1/);
 
@@ -1086,6 +1102,12 @@ describe('чат-бот управляющей компании', () => {
 
   it('чужой восьмизначный код отвечает отказом, а не заявкой', async () => {
     const bot = await start();
+
+    platform.userSends('WXYWXY33', { userId: 4010, chatId: 4010 });
+    await waitForMessage(4010, /персональные данные/);
+
+    platform.userPressesButton('legal:accept', { userId: 4010, chatId: 4010 });
+    await waitForMessage(4010, /Чем помочь/);
 
     platform.userSends('WXYWXY33', { userId: 4010, chatId: 4010 });
 
@@ -2014,6 +2036,20 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('до согласия обычное сообщение заявкой не становится', async () => {
+    const bot = await start();
+
+    platform.userSends('Течёт кран на кухне, вода капает', { userId: 9100, chatId: 9100 });
+    await waitForMessage(9100, /персональные данные/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'без согласия заявки нет');
+
+    platform.userPressesButton('legal:accept', { userId: 9100, chatId: 9100 });
+    await waitForMessage(9100, /Чем помочь/);
+
+    await bot.stop();
+  });
+
   it('мастер по наклейке отмечает выезд, а не заводит вторую заявку', async () => {
     const technician: Resident = {
       id: 'tech-onsite',
@@ -2034,13 +2070,6 @@ describe('чат-бот управляющей компании', () => {
     };
 
     const bot = await start([RESIDENT_WITH_FLAT, technician, dispatcher]);
-
-    await bot.deps.repository.saveEquipment({
-      buildingId: BUILDING_ID,
-      code: 'lift-1',
-      title: 'Лифт, подъезд 1',
-      kind: 'lift',
-    });
 
     const lift = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-1' });
 
@@ -2801,7 +2830,7 @@ describe('чат-бот управляющей компании', () => {
       const card = await waitForMessage(6007, /Отвечает/);
 
       assert.match(card, /Управляющая организация/);
-      assert.match(card, /ЖК РФ/);
+      assert.equal(/ЖК РФ/.test(card), false, 'норму закона смене в каждой карточке не печатают');
 
       platform.userPressesButton(`pass:${request?.id ?? ''}`, { userId: 6007, chatId: 6007 });
       await waitForMessage(6007, /Кому передать/);
@@ -3048,7 +3077,7 @@ describe('чат-бот управляющей компании', () => {
       assert.equal(booked[0]?.topic, 'Перерасчёт за горячую воду');
 
       platform.userPressesButton(`visit-cancel:${booked[0]?.id ?? ''}`, { userId: 3003, chatId: 3003 });
-      await waitForToast(/Запись отменена/);
+      await waitForMessage(3003, /Запись на приём отменена/);
 
       assert.equal((await bot.deps.repository.listVisits({ statuses: ['booked'] })).length, 0);
 

@@ -1,7 +1,7 @@
 import { broadcastTargets } from '@domovoy/app';
 import { DomainError, plural } from '@domovoy/domain';
 
-import { afterError } from '../keyboards.js';
+import { afterError, errorText } from '../keyboards.js';
 import type { BotKit, Handler } from '../kit.js';
 import { inApp } from './in-app.js';
 
@@ -34,7 +34,7 @@ export const broadcastCommands = (kit: BotKit): Record<string, Handler> => ({
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(error.message, afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed));
     }
   },
 });

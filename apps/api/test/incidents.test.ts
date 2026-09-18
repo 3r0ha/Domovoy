@@ -674,10 +674,8 @@ describe('сводка по дому', () => {
     assert.equal(response.statusCode, 200);
     assert.deepEqual(
       body.map((person: { displayName: string; load: number }) => [person.displayName, person.load]),
-      [
-        ['Ольга', 0],
-        ['Сергей', 1],
-      ],
+      [['Сергей', 1]],
+      'диспетчер наряды не выполняет',
     );
 
     await app.close();

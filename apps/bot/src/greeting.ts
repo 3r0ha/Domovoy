@@ -19,7 +19,7 @@ import {
   type Role,
 } from '@domovoy/domain';
 
-import { actionKeyboard, bindIfApartment, cancelKeyboard, replyIfOpen } from './keyboards.js';
+import { actionKeyboard, bindIfApartment, cancelKeyboard, errorText, replyIfOpen } from './keyboards.js';
 import { expect, inChat, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
 import type { BotKit } from './kit.js';
@@ -45,7 +45,7 @@ const bound = async (kit: BotKit, typed: BotContext, payload: string): Promise<b
     if (!(error instanceof DomainError)) throw error;
 
     // Код квартиры не подошёл или их было слишком много: причина важнее меню.
-    await typed.reply(error.message, kit.menuKeyboard(resident));
+    await typed.reply(errorText(error), kit.menuKeyboard(resident));
 
     return true;
   }

@@ -111,6 +111,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
                 at: { type: 'string' },
                 consumption: { type: 'number' },
                 spike: { type: 'boolean' },
+                advice: { type: 'string' },
               },
             },
           },
@@ -130,6 +131,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
           at: result.reading.at.toISOString(),
           consumption: result.consumption,
           spike: result.spike,
+          ...(result.advice ? { advice: result.advice } : {}),
         });
       },
     );
