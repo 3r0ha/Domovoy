@@ -278,6 +278,33 @@ describe('дела словами', () => {
     assert.equal(await doingFor(deps, maria, 'назначьте Сергея на эту заявку'), undefined);
   });
 
+  it('рассказ о поломке модель не беспокоит', async () => {
+    const deps = setup();
+
+    await inWork(deps);
+
+    let asked = 0;
+
+    const doing = await doingFor(
+      {
+        ...deps,
+        reasoner: {
+          understand: () => Promise.resolve(undefined),
+          doing: () => {
+            asked += 1;
+
+            return Promise.resolve({ deed: 'done' });
+          },
+        },
+      },
+      technician,
+      'в подъезде опять мусор у бака',
+    );
+
+    assert.equal(asked, 0, 'о поломке спросили модель');
+    assert.equal(doing, undefined);
+  });
+
   it('слов о деле нет, значит дела нет', async () => {
     const deps = setup();
 

@@ -4213,4 +4213,23 @@ describe('названия в меню', () => {
 
     assert.deepEqual([...new Set(long)], []);
   });
+
+  it('у каждой роли есть кнопка в раздел, который называет помощник', () => {
+    const roles: Resident['role'][] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
+
+    // Сотрудник живёт в своей квартире и спрашивает про свою квитанцию: раздел
+    // помощник называет всем ролям, значит и перейти в него должно быть чем.
+    const without = roles.filter((role) => {
+      const menu = menuFor(
+        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, buildingId: BUILDING_ID },
+        { demo: true },
+      );
+
+      const commands = [...menu.top, ...menu.groups.flatMap((group) => group.items)].map((item) => item.command);
+
+      return !commands.includes('bill') || !commands.includes('meters');
+    });
+
+    assert.deepEqual(without, []);
+  });
 });

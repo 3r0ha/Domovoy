@@ -432,9 +432,12 @@ export const createHttpReasoner = (options: HttpReasonerOptions): Reasoner => {
       : call(system, text, tokens, waitMs);
 
     // Неудачный ответ не запоминается: следующий разбор попробует ещё раз.
-    void answer.then((said) => {
-      if (said === undefined) recent.delete(key);
-    });
+    void answer.then(
+      (said) => {
+        if (said === undefined) recent.delete(key);
+      },
+      () => recent.delete(key),
+    );
 
     recent.set(key, { answer, at: now });
 

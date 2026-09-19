@@ -173,6 +173,14 @@ const assigning = async (
 /** Сколько заявок уходит модели: дальше список только путает выбор. */
 const LISTED = 10;
 
+/**
+ * Похоже ли сказанное на дело: законченное действие, номер заявки или слова о
+ * наряде. Рассказ о поломке сюда не попадает, и лишнего запроса к модели не
+ * будет: ответ человек ждёт и без него.
+ */
+const MAYBE_DEED =
+  /(?<!\p{L})\p{L}{2,}(?:ал|ял|ил|ел|ла|ли|ло|но|ты|та)(?!\p{L})|заявк|наряд|номер|работ[уы]|\d{4}/iu;
+
 /** Человек спрашивает, а не делает: с вопросом это разговор, а не дело. */
 const ASKING = /\?|^\s*(когда|почему|зачем|сколько|как|где|кто|что с|можно ли|подскажите|скажите)\b/iu;
 
@@ -282,7 +290,7 @@ const asked = async (
   text: string,
   open: readonly ServiceRequest[],
 ): Promise<(Phrase & { number?: string }) | undefined> => {
-  if (!deps.reasoner?.doing || open.length === 0) return undefined;
+  if (!deps.reasoner?.doing || open.length === 0 || !MAYBE_DEED.test(text)) return undefined;
 
   const deeds = Object.entries(DEEDS)
     .filter(([, deed]) => open.some((request) => able(request, deed.to, resident)))

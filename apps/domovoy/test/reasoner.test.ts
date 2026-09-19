@@ -122,6 +122,32 @@ describe('разбор обращения внешней моделью', () => 
     assert.match(String(forStaff.calls[0]!.body), /наряды, дежурство/);
   });
 
+  it('один и тот же вопрос уходит в службу один раз', async () => {
+    const { calls, fetch } = stub({ body: chat('{"intent":"question","topic":"bill"}') });
+    const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });
+
+    const [first, second] = await Promise.all([
+      reasoner.intent?.('когда придёт квитанция'),
+      reasoner.intent?.('когда придёт квитанция'),
+    ]);
+
+    assert.deepEqual(first, second);
+    assert.equal(calls.length, 1, 'одинаковый разбор спросили дважды');
+
+    await reasoner.intent?.('когда дадут воду');
+
+    assert.equal(calls.length, 2, 'другой вопрос ответом из памяти не подменяется');
+  });
+
+  it('неудачный ответ в памяти не остаётся', async () => {
+    const { calls, fetch } = stub({ status: 503 });
+    const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });
+
+    assert.equal(await reasoner.intent?.('когда дадут воду'), undefined);
+    assert.equal(await reasoner.intent?.('когда дадут воду'), undefined);
+    assert.equal(calls.length, 2, 'после отказа службу не спросили заново');
+  });
+
   it('отказ службы не роняет ни намерение, ни пересказ', async () => {
     const { fetch } = stub({ status: 503 });
     const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });
