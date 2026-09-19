@@ -2,7 +2,7 @@ import { Button, CellAction, CellInput, CellSimple, Textarea } from '@maxhub/max
 import { useBridgeRequest } from '@maxkit/react';
 import { useState, type ReactNode } from 'react';
 
-import { ApiError, type BuildingView, type DomovoyApi, type ImportResultView } from '../api.js';
+import { ApiError, plural, type BuildingView, type DomovoyApi, type ImportResultView } from '../api.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Confirm } from './Confirm.js';
@@ -95,6 +95,22 @@ interface HouseCard {
   office: string;
   officeHours: string;
 }
+
+/** Часовые пояса России: пояс дома выбирают из них, а не набирают названием зоны. */
+const ZONES: readonly { id: string; title: string }[] = [
+  { id: 'Europe/Kaliningrad', title: 'Калининград, UTC+2' },
+  { id: 'Europe/Moscow', title: 'Москва, UTC+3' },
+  { id: 'Europe/Samara', title: 'Самара, UTC+4' },
+  { id: 'Asia/Yekaterinburg', title: 'Екатеринбург, UTC+5' },
+  { id: 'Asia/Omsk', title: 'Омск, UTC+6' },
+  { id: 'Asia/Novosibirsk', title: 'Новосибирск, UTC+7' },
+  { id: 'Asia/Krasnoyarsk', title: 'Красноярск, UTC+7' },
+  { id: 'Asia/Irkutsk', title: 'Иркутск, UTC+8' },
+  { id: 'Asia/Yakutsk', title: 'Якутск, UTC+9' },
+  { id: 'Asia/Vladivostok', title: 'Владивосток, UTC+10' },
+  { id: 'Asia/Magadan', title: 'Магадан, UTC+11' },
+  { id: 'Asia/Kamchatka', title: 'Камчатка, UTC+12' },
+];
 
 const cardOf = (building?: BuildingView): HouseCard => ({
   address: building?.address ?? '',
@@ -191,6 +207,52 @@ const Paste = ({ label, hint, onPaste }: { label: string; hint: string; onPaste:
   );
 };
 
+/** Квартиры, которые в доме уже есть: по подъездам, чтобы не заводить второй раз. */
+const KnownFlats = ({ api, version }: { api: DomovoyApi; version: number }) => {
+  const flats = useBridgeRequest((alive) => api.until(alive).apartments().catch(() => []), [api, version]);
+  const known = Array.isArray(flats.data) ? flats.data : [];
+
+  if (known.length === 0) return null;
+
+  const entrances = [...new Set(known.map((flat) => flat.entrance))].sort((a, b) => a - b);
+
+  return (
+    <>
+      <p className="hint rows-about">
+        Заведено {plural(known.length, 'квартира', 'квартиры', 'квартир')} в{' '}
+        {plural(entrances.length, 'подъезде', 'подъездах', 'подъездах')}
+      </p>
+
+      {entrances.map((entrance) => (
+        <p key={entrance} className="hint known-list">
+          Подъезд {entrance}:{' '}
+          {known
+            .filter((flat) => flat.entrance === entrance)
+            .sort((a, b) => a.number - b.number)
+            .map((flat) => flat.number)
+            .join(', ')}
+        </p>
+      ))}
+    </>
+  );
+};
+
+/** Оборудование, которое уже заведено. */
+const KnownUnits = ({ api, version }: { api: DomovoyApi; version: number }) => {
+  const units = useBridgeRequest((alive) => api.until(alive).equipment().catch(() => []), [api, version]);
+  const known = Array.isArray(units.data) ? units.data : [];
+
+  if (known.length === 0) return null;
+
+  return (
+    <>
+      <p className="hint rows-about">Заведено: {plural(known.length, 'единица', 'единицы', 'единиц')}</p>
+
+      <p className="hint known-list">{known.map((unit) => `${unit.title} (${unit.code})`).join(', ')}</p>
+    </>
+  );
+};
+
 /** Дом заводится списком квартир: строками вручную или вставкой из таблицы. */
 export const ImportScreen = ({ api }: ImportScreenProps) => {
   const house = useBridgeRequest((alive) => api.until(alive).selectedBuilding(), [api]);
@@ -205,6 +267,8 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResultView | null>(null);
+  // После заведения списки уже имеющегося перечитываются.
+  const [imported, setImported] = useState(0);
 
   const run = async (what: () => Promise<string>): Promise<void> => {
     setBusy(true);
@@ -240,15 +304,28 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
           value={card.address}
           onChange={(event) => setCard({ ...card, address: event.target.value })}
         />
-        <CellInput
-          className="field-row"
-          id="house-zone"
-          aria-label="Часовой пояс"
-          placeholder="Europe/Moscow"
-          before={<span className="cell-label">Часовой пояс</span>}
-          value={card.timeZone}
-          onChange={(event) => setCard({ ...card, timeZone: event.target.value })}
-        />
+        <div className="field-row">
+          <label className="cell-label" htmlFor="house-zone">
+            Часовой пояс
+          </label>
+          <select
+            id="house-zone"
+            aria-label="Часовой пояс"
+            value={card.timeZone}
+            onChange={(event) => setCard({ ...card, timeZone: event.target.value })}
+          >
+            <option value="">По умолчанию</option>
+            {ZONES.map((zone) => (
+              <option key={zone.id} value={zone.id}>
+                {zone.title}
+              </option>
+            ))}
+            {/* Пояс, заданный не из этого списка, остаётся выбранным, а не теряется. */}
+            {card.timeZone && !ZONES.some((zone) => zone.id === card.timeZone) ? (
+              <option value={card.timeZone}>{card.timeZone}</option>
+            ) : null}
+          </select>
+        </div>
       </Group>
 
       <Group title="К кому обращаться">
@@ -427,6 +504,8 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
 
       <Group title="Квартиры">
         <div className="rows-box">
+          <KnownFlats api={api} version={imported} />
+
           {flats.length === 0 ? (
             <p className="hint rows-about">Помещения дома: из них считается счёт и строится план</p>
           ) : null}
@@ -502,12 +581,13 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                const imported = await api.importApartments(flatsToText(flats));
+                const outcome = await api.importApartments(flatsToText(flats));
 
-                setResult(imported);
+                setResult(outcome);
                 setFlats([]);
+                setImported((version) => version + 1);
 
-                return `Заведено ${imported.added}, обновлено ${imported.updated}, приборов ${imported.meters}`;
+                return `Заведено ${outcome.added}, обновлено ${outcome.updated}, приборов ${outcome.meters}`;
               })
             }
           >
@@ -518,6 +598,8 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
 
       <Group title="Оборудование">
         <div className="rows-box">
+          <KnownUnits api={api} version={imported} />
+
           {units.length === 0 ? (
             <p className="hint rows-about">Лифты, домофоны и узлы учёта: по ним идут осмотры и наклейки</p>
           ) : null}
@@ -577,12 +659,13 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                const imported = await api.importEquipment(unitsToText(units));
+                const outcome = await api.importEquipment(unitsToText(units));
 
-                setResult({ added: imported.added, updated: 0, meters: 0, problems: imported.problems });
+                setResult({ added: outcome.added, updated: 0, meters: 0, problems: outcome.problems });
                 setUnits([]);
+                setImported((version) => version + 1);
 
-                return `Заведено оборудования: ${imported.added}`;
+                return `Заведено оборудования: ${outcome.added}`;
               })
             }
           >

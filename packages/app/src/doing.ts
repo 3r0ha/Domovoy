@@ -86,13 +86,13 @@ const PHRASES: readonly Phrase[] = [
   {
     to: 'done',
     // Только законченное действие: «когда почините» это просьба, а не отчёт.
-    words:
-      /почини(л|ла|ли)|устранил|заменил|сделал|готово|выполнил|закрыл наряд|работу сдал|прочистил|отремонтировал/i,
+    words: /почини(л|ла|ли)|устранил|заменил|сделал|готово|выполнил|закрыл|работу сдал|прочистил|отремонтировал/i,
     denied: 'Сдать работу может исполнитель наряда, который взят в работу.',
   },
   {
+    // «Закрыл» у смены по сданной работе это её приёмка за жильца.
     to: 'confirmed',
-    words: /вс[её] сдела|работу принял|принимаю работ|претензий нет|спасибо, вс[её]/i,
+    words: /вс[её] сдела|работу принял|принимаю работ|претензий нет|спасибо, вс[её]|закрыл/i,
     denied: 'Принять работу можно, когда мастер её сдал.',
   },
   {
@@ -161,13 +161,14 @@ const assigning = async (
 
   if (choices.length === 0) return { kind: 'denied', reason: 'Открытых заявок, которые можно поручить, сейчас нет.' };
 
-  const numbered = numberIn(text, choices);
+  const found = numbered(text, choices);
+  const about = found.length > 0 ? found : choices;
   const person = named(text, candidates);
 
   return {
     kind: 'assign',
-    ...(numbered ? { request: numbered } : choices.length === 1 ? { request: choices[0]! } : {}),
-    choices: numbered ? [numbered] : choices,
+    ...(about.length === 1 ? { request: about[0]! } : {}),
+    choices: about,
     ...(person.length === 1 ? { staff: person[0]! } : {}),
     candidates,
   };
@@ -185,17 +186,22 @@ const MAYBE_DEED =
   /(?<!\p{L})\p{L}{2,}(?:ал|ял|ил|ел|ла|ли|ло|но|ты|та)(?!\p{L})|заявк|наряд|номер|работ[уы]|\d{4}/iu;
 
 /** Человек спрашивает, а не делает: с вопросом это разговор, а не дело. */
-const ASKING = /\?|^\s*(когда|почему|зачем|сколько|как|где|кто|что с|можно ли|подскажите|скажите)\b/iu;
+// Граница слова через lookahead: `\b` в JS кириллицу не знает.
+const ASKING = /\?|^\s*(когда|почему|зачем|сколько|как|где|кто|что с|можно ли|подскажите|скажите)(?!\p{L})/iu;
 
-/** Номер заявки внутри фразы: целиком или хвостом из четырёх цифр. */
-const numberIn = (text: string, open: readonly ServiceRequest[]): ServiceRequest | undefined => {
+/**
+ * Заявки с номером из фразы: целиком или хвостом из четырёх цифр. Хвост
+ * повторяется от месяца к месяцу, поэтому подходящих бывает несколько:
+ * какая из них по делу, решают права на переход.
+ */
+const numbered = (text: string, open: readonly ServiceRequest[]): ServiceRequest[] => {
   const full = /([A-Za-zА-Яа-я0-9]+-\d{4}-\d{4})/u.exec(text)?.[1];
 
-  if (full) return open.find((request) => request.number === full);
+  if (full) return open.filter((request) => request.number === full);
 
   const tail = /(?<![\d-])(\d{4})(?![\d-])/u.exec(text)?.[1];
 
-  return tail ? open.find((request) => request.number.endsWith(`-${tail}`)) : undefined;
+  return tail ? open.filter((request) => request.number.endsWith(`-${tail}`)) : [];
 };
 
 /**
@@ -216,7 +222,7 @@ const around = async (deps: AppDeps, resident: Resident): Promise<ServiceRequest
 
 /** Снять обращение вправе только тот, кто его подал: правила переходов этого не знают. */
 const able = (request: ServiceRequest, to: RequestStatus, resident: Resident): boolean => {
-  if (!allowedTransitions(request.status, resident.role).includes(to)) return false;
+  if (!allowedTransitions(request.status, resident.role, request.assigneeId === resident.id).includes(to)) return false;
 
   return to !== 'withdrawn' || request.authorId === resident.id;
 };
@@ -251,8 +257,9 @@ export const doingFor = async (deps: AppDeps, resident: Resident, text: string):
   if (!read && matched.length === 0) return undefined;
 
   // Номер заявки снимает выбор: и названный словами, и узнанный моделью.
-  const numbered = numberIn(said, open) ?? open.find((request) => request.number === read?.number);
-  const about = numbered ? [numbered] : open;
+  const found = numbered(said, open);
+  const byModel = open.find((request) => request.number === read?.number);
+  const about = found.length > 0 ? found : byModel ? [byModel] : open;
 
   // Одни и те же слова у разных ролей значат разное: «всё сделали» у мастера
   // это сдача работы, а у жильца её приёмка. Решает не слово, а то, что этот

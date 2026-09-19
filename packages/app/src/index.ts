@@ -21,6 +21,7 @@ export {
   type VisitFilter,
 } from './repository.js';
 export {
+  DESCRIPTION_IN_NOTICE,
   actionsFor,
   createCollectingNotifier,
   describePlace,
@@ -127,7 +128,7 @@ export {
   type ReasonedFields,
   type Understanding,
 } from './reasoner.js';
-export { answerAboutHouse, type HouseAnswer } from './answers.js';
+export { answerAboutHouse, describeHouseNow, type HouseAnswer } from './answers.js';
 export { summariseReport } from './digest-text.js';
 export {
   PAYMENTS_LIMIT,
@@ -143,7 +144,9 @@ export {
   GUEST_CODE_MINUTES,
   SENSOR_KINDS,
   SENSOR_SILENCE_HOURS,
+  VIEW_JOURNAL_MINUTES,
   activeGuestCodes,
+  collapseViews,
   isSensor,
   isSilent,
   revokeGuestCode,
@@ -238,7 +241,9 @@ export {
   formatContacts,
   homeBuildingOf,
   homeOf,
+  housed,
   listServedBuildings,
+  publicHouseOf,
   servedBy,
   type HouseContacts,
   type ServedBuilding,
@@ -248,7 +253,7 @@ export { acceptLegal, legalAccepted } from './legal.js';
 export { dossierFor, queueLine } from './dossier.js';
 export { assertSaid, saysSomething } from './said.js';
 export { portfolio, type BuildingLine } from './portfolio.js';
-export { zoneOf } from './zone.js';
+export { formatMomentAt, houseZone, zoneOf } from './zone.js';
 export {
   checkInspectionItem,
   listInspections,
@@ -437,6 +442,7 @@ export {
   meterHistory,
   metersFor,
   pendingReadings,
+  meterNamedIn,
   readingInWords,
   readingProgress,
   remindAboutReadings,

@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import type { Inspection, PlannedWork, ServiceRequest } from '@domovoy/domain';
 
 import {
+  DESCRIPTION_IN_NOTICE,
   formatAcceptanceReminder,
   formatAssignment,
   formatAutoConfirmed,
@@ -93,7 +94,7 @@ describe('тексты уведомлений', () => {
     const text = formatAssignment(request());
 
     assert.match(text, /^Вам поручена заявка Д15-2609-0001\./);
-    assert.match(text, /Срок: 8 сентября в 09:00\.$/);
+    assert.match(text, /Срок: 8 сентября в 09:00 \(время московское\)\.$/, 'без пояса дома время подписано');
   });
 
   it('пояс дома меняет срок в наряде', () => {
@@ -110,6 +111,17 @@ describe('тексты уведомлений', () => {
   it('число сообщивших появляется только когда их больше одного', () => {
     assert.doesNotMatch(formatNewRequest(request(), 1), /Сообщили/);
     assert.match(formatNewRequest(request(), 3), /\nСообщили: 3$/);
+  });
+
+  it('длинное описание в уведомлении смене обрезается по слову, короткое остаётся целиком', () => {
+    const long = Array.from({ length: 80 }, (_, index) => `слово${index}`).join(' ');
+    const text = formatNewRequest(request({ description: long }), 2);
+    const shown = text.split('\n')[2] ?? '';
+
+    assert.ok(shown.length <= DESCRIPTION_IN_NOTICE + 1, `описание не обрезано: ${shown.length}`);
+    assert.match(shown, /слово\d+…$/, 'обрезано посреди слова или без многоточия');
+    assert.match(text, /\nСообщили: 2$/, 'число сообщивших пропало вместе с хвостом');
+    assert.match(formatNewRequest(request(), 1), /Нет горячей воды со вчерашнего вечера$/);
   });
 
   it('соседа спрашивают, а не пугают', () => {

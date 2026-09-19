@@ -10,6 +10,8 @@ import type { BotKit } from './kit.js';
 const ABOUT: Record<string, string> = {
   accepted: 'принять заявку в работу',
   in_progress: 'взять наряд в работу',
+  // Жилец не берёт наряд: он возвращает сданную работу мастеру.
+  'in_progress:resident': 'вернуть работу мастеру',
   needs_info: 'спросить уточнение у жильца',
   done: 'сдать работу',
   confirmed: 'принять работу',
@@ -87,7 +89,7 @@ export const offerDoing = async (kit: BotKit, typed: BotContext, text: string): 
 
   if (doing.kind === 'assign') return await offerAssign(kit, typed, doing);
 
-  const what = ABOUT[doing.to] ?? 'изменить заявку';
+  const what = ABOUT[`${doing.to}:${resident.role}`] ?? ABOUT[doing.to] ?? 'изменить заявку';
 
   // Слова человека уходят в отчёт вместе с нажатием: переписывать их заново
   // ради подтверждения незачем. Метка привязывает слова к этому предложению:

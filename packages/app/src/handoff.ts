@@ -3,9 +3,12 @@ import {
   HANDOFF_BASIS,
   HANDOFF_STATUS_TITLES,
   HANDOFF_TITLES,
+  STATUS_TITLES,
+  addMessage,
   formatMoment,
   handoffDueAt,
   isCompanyStaff,
+  isFinal,
   isHandoffOverdue,
   reporterIds,
   responsibilityFor,
@@ -87,13 +90,19 @@ export const responsibilityOf = async (deps: AppDeps, request: ServiceRequest): 
   const partner = partnerFor(building, responsibility.kind as HandoffTarget, request);
 
   // Тот, кто уже ждёт ответа, кнопкой не предлагается: повторная передача
-  // всё равно вернула бы отказ.
-  const waiting = await deps.repository.listHandoffs({ requestId: request.id, waiting: true });
+  // всё равно вернула бы отказ. Закрытую заявку передавать некуда.
+  const waiting = isFinal(request.status)
+    ? undefined
+    : await deps.repository.listHandoffs({ requestId: request.id, waiting: true });
 
-  const targets = (building?.partners ?? [])
-    .filter((item) => !item.categories || item.categories.includes(request.category))
-    .filter((item) => !waiting.some((handoff) => handoff.to === item.kind))
-    .map((item) => ({ to: item.kind, organization: item.title, basis: HANDOFF_BASIS[item.kind] }));
+  // Жилищная инспекция это канал жильца: смена передаёт работу, а не жалуется на себя.
+  const targets = waiting
+    ? (building?.partners ?? [])
+        .filter((item) => item.kind !== 'inspection')
+        .filter((item) => !item.categories || item.categories.includes(request.category))
+        .filter((item) => !waiting.some((handoff) => handoff.to === item.kind))
+        .map((item) => ({ to: item.kind, organization: item.title, basis: HANDOFF_BASIS[item.kind] }))
+    : [];
 
   return {
     responsibility,
@@ -115,6 +124,24 @@ const assertStaff = (staff: Resident): void => {
   }
 };
 
+/** Заявка, которую ещё есть куда передавать. @throws {DomainError} */
+const assertPassable = (request: ServiceRequest, to: HandoffTarget): void => {
+  if (isFinal(request.status)) {
+    throw new DomainError('request_closed', `Заявка ${request.number} уже закрыта: ${STATUS_TITLES[request.status]}`);
+  }
+
+  if (to === 'inspection') {
+    throw new DomainError('forbidden', 'В жилищную инспекцию обращается жилец, а не управляющая организация');
+  }
+};
+
+/** Строка истории заявки о передаче: её читают и жилец, и смена. */
+const passedLine = (handoff: Handoff, note: string | undefined): string =>
+  `Обращение передано: ${handoff.organization}, ${channelTitle(handoff.channel)}. ` +
+  `Ответ ожидается до ${formatMoment(handoff.dueAt)}.` +
+  (handoff.externalId ? ` Номер ${handoff.externalId}.` : '') +
+  (note?.trim() ? `\n${note.trim()}` : '');
+
 /** Передаёт обращение смежной организации. @throws {DomainError} */
 export const passRequest = async (deps: AppDeps, input: PassRequestInput): Promise<Handoff> => {
   assertStaff(input.staff);
@@ -124,6 +151,7 @@ export const passRequest = async (deps: AppDeps, input: PassRequestInput): Promi
   if (!request) throw new DomainError('request_not_found', 'Заявка не найдена');
 
   await assertServes(deps, input.staff, request.buildingId);
+  assertPassable(request, input.to);
 
   const building = await deps.repository.findBuilding(request.buildingId);
   const partner = partnerFor(building, input.to, request);
@@ -169,6 +197,11 @@ export const passRequest = async (deps: AppDeps, input: PassRequestInput): Promi
   };
 
   const saved = await deps.repository.saveHandoff(handoff);
+
+  // Передача видна в самой заявке: жилец и смена читают историю, а не журнал действий.
+  await deps.repository.saveRequest(
+    addMessage(request, { role: input.staff.role, actorId: input.staff.id, at: now, text: passedLine(saved, input.note) }),
+  );
 
   await recordAction(deps, {
     actor: input.staff,

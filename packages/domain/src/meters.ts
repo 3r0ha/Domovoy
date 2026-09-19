@@ -1,5 +1,6 @@
 import { daysInMonth } from './calendar.js';
 import { median as middleOf } from './numbers.js';
+import { formatMeterValue } from './russian.js';
 import { DEFAULT_TIME_ZONE, DomainError } from './types.js';
 
 /** Что считает прибор учёта. */
@@ -176,7 +177,7 @@ export const acceptReading = (input: SubmitReadingInput): Reading => {
     if (value < input.previous.value && !isOverflow(input.previous.value, value, rule.digits)) {
       throw new DomainError(
         'reading_decreased',
-        `Предыдущее показание ${input.previous.value} ${rule.unit}: счётчик не может показать меньше`,
+        `Предыдущее показание ${formatMeterValue(input.previous.value)} ${rule.unit}: счётчик не может показать меньше`,
       );
     }
 

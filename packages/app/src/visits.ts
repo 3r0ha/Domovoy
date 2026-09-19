@@ -17,7 +17,7 @@ import {
   type Visit,
 } from '@domovoy/domain';
 
-import { assertServes, homeBuildingOf } from './buildings.js';
+import { assertServes, homeBuildingOf, housed, publicHouseOf } from './buildings.js';
 import { recordAction } from './audit.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
@@ -43,6 +43,10 @@ export interface Reception {
 const HORIZON_DAYS = 14;
 
 const houseOf = async (deps: AppDeps, resident: Resident, buildingId?: string): Promise<string> => {
+  // Часы приёма это открытые сведения: новому человеку без дома они нужны
+  // до привязки, и он видит приём своего дома или дома по умолчанию.
+  if (!housed(resident)) return publicHouseOf(deps, resident);
+
   const house = buildingId ?? (await homeBuildingOf(deps, resident));
 
   await assertServes(deps, resident, house);

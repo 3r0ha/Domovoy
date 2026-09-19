@@ -91,7 +91,7 @@ export const NewRequestScreen = ({
   );
   const [apartmentId, setApartmentId] = useState('');
 
-  const send = async (text: string, anyway: boolean): Promise<void> => {
+  const send = async (text: string, anyway: boolean, apartFrom?: string): Promise<void> => {
     setSending(true);
     setError(null);
     setSent(text);
@@ -106,6 +106,8 @@ export const NewRequestScreen = ({
         ...(staff && !apartmentId ? { house: true } : {}),
         ...(photos.photos.length > 0 ? { attachments: photos.photos } : {}),
         ...(anyway ? { anyway: true } : {}),
+        // «Это другое» после присоединения: участие в чужой заявке снимается вместе с новой.
+        ...(anyway && apartFrom ? { apartFrom } : {}),
       });
 
       // Отправленное уходит из поля сразу: оно уже стоит в переписке.
@@ -273,7 +275,7 @@ export const NewRequestScreen = ({
           <div key={request.id} className="turn turn-bot">
             <article className="said said-bot">
               <p className="description">
-                Об этом уже сообщили: {request.title}. {statusTitle(request.status)},{' '}
+                Об этом уже сообщили: {request.title}. {request.statusTitle ?? statusTitle(request.status)},{' '}
                 {formatDeadline(request.resolutionDueAt)}.
               </p>
 
@@ -363,7 +365,8 @@ export const NewRequestScreen = ({
           <div className="turn turn-bot">
             <article className="said said-bot">
               <p className="description">
-                Уже чиним: {joined.request.title}. {statusTitle(joined.request.status)},{' '}
+                Похоже на уже поданную: {joined.request.title}.{' '}
+                {joined.request.statusTitle ?? statusTitle(joined.request.status)},{' '}
                 {formatDeadline(joined.request.resolutionDueAt)}. Сообщили: {joined.request.reporters}.
               </p>
             </article>
@@ -377,8 +380,10 @@ export const NewRequestScreen = ({
               className="inline-btn"
               disabled={sending}
               onClick={() => {
+                const apartFrom = joined.request?.id;
+
                 setJoined(null);
-                if (sent) void send(sent, true);
+                if (sent) void send(sent, true, apartFrom);
               }}
             >
               {sending ? 'Отправляем…' : 'Это другое'}

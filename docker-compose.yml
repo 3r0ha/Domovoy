@@ -118,6 +118,8 @@ services:
       # Пустая переменная для Caddy, не то же самое, что незаданная: умолчание он
       # подставит только во второй раз, поэтому оно стоит здесь.
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      # Имя с www переадресуется на основной адрес: WWW_ADDRESS=www.domovoy.homes.
+      WWW_ADDRESS: ${WWW_ADDRESS:-www.localhost:80}
     ports:
       - '${HTTP_PORT:-8080}:80'
       - '${HTTPS_PORT:-8443}:443'

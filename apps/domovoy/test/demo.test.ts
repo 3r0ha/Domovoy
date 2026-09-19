@@ -34,7 +34,7 @@ describe('демонстрационные данные', () => {
     const app = deps();
     const data = await seedDemo(app);
 
-    assert.equal((await app.repository.listApartments(data.buildingId)).length, 6);
+    assert.equal((await app.repository.listApartments(data.buildingId)).length, 12);
     assert.equal((await app.repository.findResidentByMaxUserId(1001))?.displayName, 'Мария');
     assert.equal((await app.repository.findResidentByMaxUserId(2001))?.role, 'dispatcher');
   });
@@ -123,10 +123,14 @@ describe('демонстрационные данные', () => {
     const data = await seedDemo(app, { withRequests: true });
 
     const dispatcher = data.residents.find((resident) => resident.role === 'dispatcher');
-    const [first] = await listRequestsFor(app, dispatcher!, 'queue');
+    const queue = await listRequestsFor(app, dispatcher!, 'queue');
+    const stuck = queue.find((request) => request.priority === 'emergency' && /застряли/iu.test(request.description));
 
-    assert.equal(first?.priority, 'emergency');
-    assert.match(first?.description ?? '', /лифт/i);
+    // Авария посева уже в работе у мастера, чтобы за день показа не краснеть:
+    // в очереди она видна, а первыми стоят заявки, которые ещё ждут смены.
+    assert.equal(stuck?.status, 'in_progress');
+    assert.ok(stuck?.assigneeId, 'аварийная заявка без исполнителя');
+    assert.equal(queue[0]?.status, 'new');
   });
 
   it('заявки создаются обычными сценариями, а не записью в базу', async () => {
@@ -196,10 +200,11 @@ describe('демонстрационные данные', () => {
     const view = polls.find((item) => item.poll.title === 'Ремонт подъездов');
 
     assert.equal(view?.open, true);
-    assert.equal(view?.result.totalArea, 200);
+    assert.equal(view?.result.totalArea, 458);
     assert.equal(view?.result.votedArea, 40, 'квартира Ивана, 40 м²');
     assert.equal(view?.result.quorum, false);
-    assert.equal(view?.areaToQuorum, 60);
+    // Дом 458 м², кворум больше половины: голосу Ивана не хватает 189 м².
+    assert.equal(view?.areaToQuorum, 189);
 
     // Рядом идёт опрос жильцов: он не собрание и решения не принимает.
     const survey = polls.find((item) => item.poll.mode === 'survey');
@@ -240,7 +245,7 @@ describe('демонстрационные данные', () => {
     await seedDemo(app);
     await assert.doesNotReject(seedDemo(app));
 
-    assert.equal((await app.repository.listApartments(demoData().buildingId)).length, 6);
+    assert.equal((await app.repository.listApartments(demoData().buildingId)).length, 12);
   });
 });
 
@@ -272,7 +277,7 @@ describe('сквозной прогон', () => {
     assert.match(transcript, /Сообщений от бота за это время: 0/, 'бот влез в разговор соседей');
     assert.match(transcript, /бот → чат дома: Иван, ответил вам лично/);
 
-    assert.match(transcript, /Вопрос в поддержку от Анна/, 'вопрос в управляющую компанию');
+    assert.match(transcript, /Вопрос в поддержку, пишет Анна/, 'вопрос в управляющую компанию');
     assert.match(transcript, /Лавочку поставим/, 'смена ответила кнопкой под вопросом');
     assert.match(transcript, /Наклейка «Подъезд 1»/, 'наклейка приходит в переписку файлом');
     assert.match(transcript, /Рассылка собирается в приложении/, 'списки и формы уходят на экран');

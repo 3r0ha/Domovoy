@@ -92,7 +92,13 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
               className="tariff-row"
               title={tariff.title}
               subtitle={since(tariff)}
-              after={<span className="report-value">{shown(tariff)}</span>}
+              after={
+                <span className="tariff-after">
+                  <span className="report-value">{shown(tariff)}</span>
+                  {/* Что число правится нажатием, видно по слову, а не угадывается. */}
+                  {editable ? <span className="tariff-change">Изменить</span> : null}
+                </span>
+              }
               separator={index > 0}
               {...(editable
                 ? {

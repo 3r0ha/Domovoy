@@ -141,6 +141,44 @@ describe('дела словами', () => {
     assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', second);
   });
 
+  it('хвост номера повторяется по месяцам: берётся та заявка, по которой дело возможно', async () => {
+    let at = new Date('2026-08-22T10:00:00Z');
+    const deps = { ...setup(), now: () => at };
+
+    const august = await inWork(deps, 'Течёт труба в подвале');
+
+    await transitionRequest(deps, { resident: technician, requestId: august, to: 'done', comment: 'Труба заменена' });
+
+    at = new Date('2026-09-22T10:00:00Z');
+
+    const september = await inWork(deps, 'Не работает свет в подъезде');
+
+    assert.equal((await deps.repository.findRequest(august))!.number.slice(-4), '0001');
+    assert.equal((await deps.repository.findRequest(september))!.number.slice(-4), '0001');
+
+    const doing = await doingFor(deps, technician, 'сделал 0001');
+
+    assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', september, 'сданная заявка увела дело не туда');
+  });
+
+  it('«закрыл по 0001» это сдача работы мастером и приёмка её за жильца сменой', async () => {
+    const deps = setup();
+    const id = await inWork(deps);
+    const tail = (await deps.repository.findRequest(id))!.number.slice(-4);
+
+    const byMaster = await doingFor(deps, technician, `закрыл по ${tail}`);
+
+    assert.equal(byMaster?.kind === 'transition' ? byMaster.to : '', 'done');
+    assert.equal(byMaster?.kind === 'transition' ? byMaster.request?.id : '', id);
+
+    await transitionRequest(deps, { resident: technician, requestId: id, to: 'done', comment: 'Труба заменена' });
+
+    const byDispatcher = await doingFor(deps, dispatcher, `закрыл по ${tail}`);
+
+    assert.equal(byDispatcher?.kind === 'transition' ? byDispatcher.to : '', 'confirmed');
+    assert.equal(byDispatcher?.kind === 'transition' ? byDispatcher.requiresComment : false, true);
+  });
+
   it('когда нарядов несколько, выбор остаётся за человеком', async () => {
     const deps = setup();
 

@@ -62,6 +62,7 @@ console.log(
     `  приложение   http://localhost:${MINIAPP_PORT}/stand.html`,
     `  жилец        http://localhost:${MINIAPP_PORT}/stand.html?startapp=&as=1001&name=Мария`,
     `  диспетчер    http://localhost:${MINIAPP_PORT}/stand.html?startapp=&as=2001&name=Ольга`,
+    `  мастер       http://localhost:${MINIAPP_PORT}/stand.html?startapp=&as=2002&name=Сергей`,
     `  управляющий  http://localhost:${MINIAPP_PORT}/stand.html?startapp=&as=2003&name=Нина`,
     `  подрядчик    http://localhost:${MINIAPP_PORT}/stand.html?startapp=&as=2004&name=Лифтсервис`,
     `  по наклейке  http://localhost:${MINIAPP_PORT}/stand.html?startapp=ent_dom15_1`,

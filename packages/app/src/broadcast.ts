@@ -1,9 +1,10 @@
-import { CATEGORY_RULES, audienceForTarget, formatMoment, selectAudience } from '@domovoy/domain';
+import { CATEGORY_RULES, audienceForTarget, selectAudience } from '@domovoy/domain';
 import type { AnnouncementAudience, ServiceRequest } from '@domovoy/domain';
 
 import { noopNotifier, notifyResident } from './notifier.js';
 import { announcementAudience, type Announcement } from './repository.js';
 import type { AppDeps } from './use-cases.js';
+import { formatMomentAt, houseZone } from './zone.js';
 
 /** Что сделать с объявлением в чате помимо отправки. */
 interface ChatPost {
@@ -92,6 +93,7 @@ export const announceIncident = async (deps: AppDeps, request: ServiceRequest): 
 
   const apartments = await deps.repository.listApartments(request.buildingId);
   const recipients = selectAudience(apartments, audience);
+  const zone = await houseZone(deps, request.buildingId);
 
   const announcement = await deps.repository.saveAnnouncement({
     id: deps.createId(),
@@ -104,7 +106,7 @@ export const announceIncident = async (deps: AppDeps, request: ServiceRequest): 
     title: `Авария: ${CATEGORY_RULES[request.category].title.toLowerCase()}`,
     body:
       `${request.title}\n\n` +
-      `Знаем и чиним, заявка ${request.number}. Срок: ${formatMoment(request.resolutionDueAt)}.\n` +
+      `Знаем и чиним, заявка ${request.number}. Срок: ${formatMomentAt(request.resolutionDueAt, zone)}.\n` +
       'Заводить свою заявку не нужно: сообщим, когда устраним.',
     createdAt: deps.now(),
     recipientIds: recipients.map((apartment) => apartment.id),

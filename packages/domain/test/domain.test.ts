@@ -605,6 +605,33 @@ describe('жизненный цикл заявки', () => {
     assert.deepEqual(allowedTransitions('new', 'resident'), ['withdrawn']);
     // Управляющий закрывает сданную работу за жильца, объяснив, откуда знает.
     assert.deepEqual(allowedTransitions('done', 'manager'), ['confirmed', 'in_progress']);
+    // Чужую новую заявку мастер не берёт, записанную на себя берёт.
+    assert.deepEqual(allowedTransitions('new', 'technician'), []);
+    assert.deepEqual(allowedTransitions('new', 'technician', true), ['accepted']);
+    assert.deepEqual(allowedTransitions('new', 'contractor', true), ['accepted']);
+  });
+
+  it('мастер берёт новую заявку, записанную на него, а чужую ждёт от диспетчера', () => {
+    const own: ServiceRequest = { ...makeRequest(), assigneeId: 'tech-7' };
+
+    const taken = applyTransition(own, { to: 'accepted', role: 'technician', actorId: 'tech-7', at: CREATED_AT });
+
+    assert.equal(taken.status, 'accepted');
+    assert.equal(taken.assigneeId, 'tech-7');
+
+    assert.throws(
+      () => applyTransition(makeRequest(), { to: 'accepted', role: 'technician', actorId: 'tech-7', at: CREATED_AT }),
+      (error: unknown) => {
+        assert.ok(error instanceof DomainError);
+        assert.equal(error.code, 'role_not_allowed');
+        return true;
+      },
+    );
+
+    assert.throws(
+      () => applyTransition(own, { to: 'accepted', role: 'technician', actorId: 'tech-8', at: CREATED_AT }),
+      /записанную на вас/,
+    );
   });
 
   it('снимок результата остаётся при том переходе, к которому приложен', () => {

@@ -291,13 +291,14 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
   const isStaff = role !== 'resident';
   const needsBinding = !isStaff && !bound;
 
+  // Без квартиры квитанции нет: вкладку «Оплата» занимают новости, сама она остаётся в «Ещё».
   const sections = contractor
     ? CONTRACTOR_SECTIONS
     : role === 'technician'
       ? TECHNICIAN_SECTIONS
       : isStaff
         ? STAFF_SECTIONS
-        : RESIDENT_SECTIONS;
+        : RESIDENT_SECTIONS.filter((section) => bound || !FOR_BOUND.includes(section.screen));
 
   const extra = contractor
     ? bound
@@ -312,7 +313,7 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
 
   const flat: Section = {
     screen: 'bind',
-    title: needsBinding ? 'Квартира' : bound ? 'Добавить квартиру' : 'Моя квартира',
+    title: needsBinding || contractor ? 'Квартира' : bound ? 'Добавить квартиру' : 'Моя квартира',
     hint: 'По коду из квитанции',
     icon: IconHome,
     tone: 'tile-blue',

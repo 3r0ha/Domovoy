@@ -2,7 +2,7 @@ import { Button, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState, type ReactNode } from 'react';
 
-import { ApiError, formatPublished, type DomovoyApi, type PeriodSummaryView } from '../api.js';
+import { ApiError, formatPublished, hours, type DomovoyApi, type PeriodSummaryView } from '../api.js';
 import { CategoryTile } from './CategoryTile.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
@@ -123,10 +123,10 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     />
     <Row
       title="Среднее время"
-      value={period.closed === 0 ? 'нет данных' : `${period.averageHours} ч`}
+      value={period.closed === 0 ? 'нет данных' : hours(period.averageHours)}
       hint={
         previous.averageHours > 0 && period.closed > 0 ? (
-          <Change value={period.averageHours} before={previous.averageHours} better="less" format={(value) => `${value} ч`} />
+          <Change value={period.averageHours} before={previous.averageHours} better="less" format={hours} />
         ) : undefined
       }
     />

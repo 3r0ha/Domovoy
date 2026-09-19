@@ -53,6 +53,8 @@ export interface ScreenContext {
   profile: Profile;
   /** Код объекта с наклейки или из адреса стенда. */
   startParam: string | undefined;
+  /** Тот же код для новой заявки: только пока человек пришёл с паспорта объекта. */
+  reportedObject: string | undefined;
   /** Заявка, открытая на своём экране. */
   opened: string | null;
   device: DeviceView | null;
@@ -65,6 +67,8 @@ export interface ScreenContext {
   changed: number;
   /** Куда вернёт «назад»: название экрана под текущим. */
   backTitle: string;
+  /** Есть куда возвращаться: экран открыт поверх другого. */
+  deep: boolean;
   /** Начать стопку заново с этого экрана. */
   open: (screen: Screen) => void;
   /** Перейти вглубь: «назад» вернёт туда, откуда пришли. */
@@ -79,6 +83,8 @@ export interface ScreenContext {
   onRequestChanged: () => void;
   /** Сессию нужно перечитать: изменились квартира, роль или согласия. */
   refreshSession: () => void;
+  /** Поправить профиль на месте: сохранённый телефон виден сразу и после возврата. */
+  patchProfile: (update: (profile: Profile) => Profile) => void;
   /** Работать с другим домом и уйти на его экран. */
   openBuilding: (buildingId: string, screen: Screen) => void;
 }
@@ -160,7 +166,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
   new: (context) => (
     <NewRequestScreen
       api={context.api}
-      startParam={context.startParam}
+      startParam={context.reportedObject}
       staff={isStaff(context.profile) && !isContractor(context.profile)}
       {...(!isStaff(context.profile) && context.profile.apartmentNumber
         ? { where: `Квартира ${context.profile.apartmentNumber}` }
@@ -188,6 +194,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
         id={context.opened}
         staff={isStaff(context.profile)}
         meId={context.profile.id}
+        meName={context.profile.displayName}
         {...(isExecutor(context.profile) ? { selfAssigned: true } : {})}
         onDocument={context.openDocument}
         onChanged={context.onRequestChanged}
@@ -241,6 +248,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       onDocument={context.openDocument}
       onForgotten={context.refreshSession}
       onUnbound={context.refreshSession}
+      onPhone={(phone) => context.patchProfile((profile) => ({ ...profile, phone: phone || undefined }))}
     />
   ),
 
@@ -255,7 +263,14 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       onBind={() => context.open('bind')}
     />
   ),
-  support: (context) => <SupportScreen api={context.api} staff={isStaff(context.profile)} />,
+  support: (context) => (
+    <SupportScreen
+      api={context.api}
+      staff={isStaff(context.profile)}
+      {...(context.deep ? { onBack: context.back, backTitle: context.backTitle } : {})}
+      onChanged={context.onRequestChanged}
+    />
+  ),
   visits: (context) => (
     <VisitsScreen
       api={context.api}

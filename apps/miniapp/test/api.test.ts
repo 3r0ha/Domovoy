@@ -7,8 +7,10 @@ import {
   actionTitle,
   formatDeadline,
   formatLeft,
+  formatPhone,
   formatPublished,
   formatSince,
+  hours,
   parseCount,
   parseDecimal,
   statusTitle,
@@ -284,6 +286,17 @@ describe('человеческие подписи', () => {
 
   it('дата публикации показывается датой, а не остатком времени', () => {
     assert.match(formatPublished('2026-09-03T10:30:00Z'), /3 сентября/);
+  });
+
+  it('телефон читается по группам, а чужой формат не трогается', () => {
+    assert.equal(formatPhone('79990000000'), '+7 999 000-00-00');
+    assert.equal(formatPhone('8 (912) 345-67-89'), '+7 912 345-67-89');
+    assert.equal(formatPhone('+380501234567'), '+380501234567');
+  });
+
+  it('часы в сводке идут через запятую, как остальные числа', () => {
+    assert.equal(hours(14.8), '14,8 ч');
+    assert.equal(hours(3), '3 ч');
   });
 
   it('просрочка называется просрочкой теми же словами, что и в списках', () => {

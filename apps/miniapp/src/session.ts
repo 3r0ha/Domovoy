@@ -8,7 +8,13 @@ const TOKEN_KEY = 'session-token';
 export type SessionState =
   | { status: 'loading' }
   | { status: 'error'; message: string; retry: () => void }
-  | { status: 'ready'; profile: Profile; refresh: () => void };
+  | {
+      status: 'ready';
+      profile: Profile;
+      refresh: () => void;
+      /** Поправить профиль на месте: телефон сохранён, входить заново незачем. */
+      patch: (update: (profile: Profile) => Profile) => void;
+    };
 
 /** Вход в приложение. */
 export const useSession = (api: DomovoyApi, initData: string | null): SessionState => {
@@ -17,6 +23,12 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
   const [attempt, setAttempt] = useState(0);
 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
+
+  const patch = useCallback(
+    (update: (profile: Profile) => Profile) =>
+      setState((current) => (current.status === 'ready' ? { ...current, profile: update(current.profile) } : current)),
+    [],
+  );
 
   useEffect(() => {
     let active = true;
@@ -37,7 +49,7 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
 
         try {
           const profile = await loadProfile();
-          if (active) setState({ status: 'ready', profile, refresh: retry });
+          if (active) setState({ status: 'ready', profile, refresh: retry, patch });
           return;
         } catch (error) {
           if (!(error instanceof ApiError) || !error.isUnauthorized) throw error;
@@ -56,7 +68,7 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
       await bridge.SecureStorage.setItem(TOKEN_KEY, issued.token).catch(() => undefined);
 
       const profile = await loadProfile();
-      if (active) setState({ status: 'ready', profile, refresh: retry });
+      if (active) setState({ status: 'ready', profile, refresh: retry, patch });
     };
 
     enter().catch((error: unknown) => fail(describeFailure(error)));
@@ -64,7 +76,7 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
     return () => {
       active = false;
     };
-  }, [api, bridge, initData, attempt, retry]);
+  }, [api, bridge, initData, attempt, retry, patch]);
 
   return state;
 };

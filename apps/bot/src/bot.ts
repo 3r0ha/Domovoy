@@ -30,6 +30,7 @@ import {
   initiativeKeyboard,
   keyboardOf,
   menuButton,
+  pollRow,
   supportKeyboard,
   PERSONAL,
 } from './keyboards.js';
@@ -214,7 +215,19 @@ export const createBotNotifier = (
   onError?: (error: unknown) => void,
   miniAppUrl?: string,
 ): Notifier => ({
-  async send({ maxUserId, text, actions, replyTo, askAbout, signAbout, answerAbout, section, mutable, complaintFor }) {
+  async send({
+    maxUserId,
+    text,
+    actions,
+    replyTo,
+    askAbout,
+    signAbout,
+    answerAbout,
+    section,
+    mutable,
+    complaintFor,
+    voteAbout,
+  }) {
     try {
       const keyboard = askAbout
         ? alertKeyboard(askAbout)
@@ -222,8 +235,10 @@ export const createBotNotifier = (
           ? initiativeKeyboard(signAbout)
           : answerAbout
             ? supportKeyboard(answerAbout)
-            : section || complaintFor
+            : section || complaintFor || voteAbout
               ? keyboardOf([
+                  // Бюллетень первым рядом: голосуют, не открывая приложение.
+                  ...(voteAbout ? [pollRow(voteAbout)] : []),
                   ...(complaintFor
                     ? [[Keyboard.button.callback('📄 Пожаловаться в инспекцию', `gzhi:${complaintFor}`)]]
                     : []),

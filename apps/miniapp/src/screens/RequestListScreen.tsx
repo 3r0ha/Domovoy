@@ -2,7 +2,7 @@ import { Button, CellAction, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { describeFailure, type DomovoyApi, type RequestView } from '../api.js';
+import { actionTitle, describeFailure, type DomovoyApi, type RequestView } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
@@ -46,29 +46,34 @@ const Rows = ({
   title?: string;
   /** Наряд, который сейчас берут: повторное нажатие ничего не отправляет. */
   starting?: string | null;
-  /** Взять наряд в работу прямо из списка. */
-  onStart?: (id: string) => void;
+  /** Двинуть наряд прямо из списка: взять новый или уйти в работу по принятому. */
+  onStart?: (id: string, to: 'accepted' | 'in_progress') => void;
   onOpen: (id: string) => void;
 }) => (
   <Group {...(title ? { title } : {})}>
-    {requests.map((request, index) => (
-      <RequestRow
-        key={request.id}
-        request={request}
-        separator={index > 0}
-        {...(staff ? { staff } : {})}
-        {...(onStart && request.status === 'accepted'
-          ? {
-              action: {
-                title: starting === request.id ? 'Берём…' : 'В работу',
-                busy: starting !== null && starting !== undefined,
-                run: () => onStart(request.id),
-              },
-            }
-          : {})}
-        onOpen={() => onOpen(request.id)}
-      />
-    ))}
+    {requests.map((request, index) => {
+      // Новую заявку, порученную самому мастеру, он берёт отсюда же: она уже его.
+      const next = request.status === 'accepted' ? 'in_progress' : request.status === 'new' && request.assigneeId ? 'accepted' : null;
+
+      return (
+        <RequestRow
+          key={request.id}
+          request={request}
+          separator={index > 0}
+          {...(staff ? { staff } : {})}
+          {...(onStart && next
+            ? {
+                action: {
+                  title: starting === request.id ? 'Берём…' : actionTitle(next),
+                  busy: starting !== null && starting !== undefined,
+                  run: () => onStart(request.id, next),
+                },
+              }
+            : {})}
+          onOpen={() => onOpen(request.id)}
+        />
+      );
+    })}
   </Group>
 );
 
@@ -91,12 +96,12 @@ export const RequestListScreen = ({
    * Наряд берут в работу одним нажатием: закрывает его мастер на экране заявки,
    * где есть снимок и отметка о выезде.
    */
-  const start = async (id: string): Promise<void> => {
+  const start = async (id: string, to: 'accepted' | 'in_progress'): Promise<void> => {
     setFailed(null);
     setStarting(id);
 
     try {
-      await api.transition(id, 'in_progress');
+      await api.transition(id, to);
       haptics.done();
       requests.reload();
     } catch (error: unknown) {
@@ -166,7 +171,7 @@ export const RequestListScreen = ({
           requests={active}
           staff={staff}
           title={staff ? 'Ваши наряды' : 'Ваши заявки'}
-          {...(staff ? { starting, onStart: (id: string) => void start(id) } : {})}
+          {...(staff ? { starting, onStart: (id: string, to: 'accepted' | 'in_progress') => void start(id, to) } : {})}
           onOpen={onOpen}
         />
       )}

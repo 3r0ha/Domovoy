@@ -1,5 +1,6 @@
 import { PLAIN, isCompanyStaff, type Role } from '@domovoy/domain';
 
+import { describeHouseNow } from './answers.js';
 import { dossierFor } from './dossier.js';
 import type { Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
@@ -92,7 +93,14 @@ export const CAPABILITIES: readonly Capability[] = [
     command: '/news',
     title: 'Объявления дома',
     about: 'Прочитать объявления управляющей организации и узнать о плановых работах',
-    words: /объявл|новост|отключ|планов[а-я]* работ|когда включат/i,
+    words:
+      /объявл|новост|отключ|планов[а-я]* работ|когда включат|когда дадут|нет (горячей |холодной )?воды|нет света|нет электричеств|нет отоплени|нет газа|не идёт вода|не идет вода|пропал[аио]? (вода|свет|электричество|отопление)/i,
+  },
+  {
+    screen: 'tour',
+    title: 'Тур по приложению',
+    about: 'Пройти короткий показ разделов: что где лежит и с чего начать',
+    words: /(^|[^а-яё])тур(?![а-яё])|покажи тур|как пользоваться|как этим пользоваться|что здесь можно|что тут можно|с чего начать|как работает приложени|обучени|подсказки по приложени/i,
   },
   {
     screen: 'polls',
@@ -504,6 +512,41 @@ const declined = (role: Role): AssistantAnswer => {
   };
 };
 
+/** Слова о том, что в доме прямо сейчас чего-то нет: ответ берётся из данных дома, а не из описания раздела. */
+const OUTAGE =
+  /нет (горячей |холодной )?воды|нет света|нет электричеств|нет отоплени|нет газа|отключили|отключение|когда включат|когда дадут|не идёт вода|не идет вода|пропал[аио]? (вода|свет|электричество|отопление)|не работает лифт|лифт не (едет|работает)/i;
+
+/**
+ * Ответы без модели. Тур это действие приложения, а не рассказ: переход в
+ * него и есть ответ. Про отключение человек хочет знать, что с домом сейчас:
+ * без модели это говорят данные дома, с моделью те же данные идут ей фактами.
+ */
+const bySignal = async (
+  deps: AppDeps,
+  resident: Resident,
+  asked: string,
+  modelled: boolean,
+): Promise<AssistantAnswer | undefined> => {
+  const found = findCapability(asked, resident.role);
+
+  if (found?.screen === 'tour') return plainAnswer(asked, resident.role);
+
+  if (modelled || !OUTAGE.test(asked)) return undefined;
+
+  const now = await describeHouseNow(deps, resident).catch(() => undefined);
+  const news = capabilityFor('news', resident.role);
+
+  if (!now || !news) return undefined;
+
+  return {
+    answer: now,
+    screen: news.screen,
+    title: news.title,
+    ...(news.command ? { command: news.command } : {}),
+    by: 'keywords',
+  };
+};
+
 export const askAssistant = async (
   deps: AppDeps,
   resident: Resident,
@@ -511,8 +554,12 @@ export const askAssistant = async (
   history: readonly { asked: string; said: string }[] = [],
 ): Promise<AssistantAnswer> => {
   const asked = question.trim().slice(0, QUESTION_MAX_LENGTH);
-  const plain = plainAnswer(asked, resident.role);
   const reasoner: Reasoner | undefined = deps.reasoner;
+  const signalled = asked.length > 0 ? await bySignal(deps, resident, asked, reasoner?.assist !== undefined) : undefined;
+
+  if (signalled) return signalled;
+
+  const plain = plainAnswer(asked, resident.role);
 
   if (asked.length === 0 || !reasoner?.assist) return plain;
 

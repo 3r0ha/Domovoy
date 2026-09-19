@@ -315,6 +315,8 @@ export class DomovoyApi {
     house?: boolean;
     /** Завести заявку, даже если идут объявленные работы. */
     anyway?: boolean;
+    /** Заявка, к которой человека только что присоединили: участие в ней снимается. */
+    apartFrom?: string;
   }): Promise<SubmitResult> {
     return this.send<SubmitResult>('/api/requests', { method: 'POST', body: JSON.stringify(input) });
   }

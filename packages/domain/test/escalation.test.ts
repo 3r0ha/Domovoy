@@ -126,6 +126,23 @@ describe('обращение в жилищную инспекцию', () => {
     assert.match(text, /Адрес: ул\. Ленина, 15\n/);
   });
 
+  it('без пояса дома время подписано московским, с поясом стоит местное', () => {
+    const moscow = complaint();
+
+    assert.match(moscow, /Обращение № Д15-2609-0001 от 01\.09\.2026, 09:00 \(время московское\)/);
+
+    const local = buildComplaint({
+      request: request(),
+      address: 'ул. Ленина, 15',
+      residentName: 'Мария Иванова',
+      timeZone: 'Asia/Vladivostok',
+      now: new Date('2026-09-03T07:00:00Z'),
+    });
+
+    assert.match(local, /Обращение № Д15-2609-0001 от 01\.09\.2026, 16:00\n/);
+    assert.doesNotMatch(local, /время московское/);
+  });
+
   it('сроки названы оба и отнесены к управляющей организации, а не к закону', () => {
     const text = complaint();
 

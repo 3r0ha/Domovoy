@@ -59,7 +59,7 @@ export const useTour = (
   sections: readonly Section[],
   demo = false,
   ready = true,
-): { tour: TourStep[]; endTour: () => void } => {
+): { tour: TourStep[]; endTour: () => void; startTour: () => void } => {
   const bridge = useBridge();
   const [open, setOpen] = useState(false);
 
@@ -97,8 +97,11 @@ export const useTour = (
     mark();
   }, [mark]);
 
+  /** Тур по просьбе из помощника: идёт заново, сколько бы раз его ни смотрели. */
+  const startTour = useCallback(() => setOpen(true), []);
+
   // Шаги держатся за одну ссылку: подсветка тура смотрит на них из эффекта.
   const tour = useMemo(() => (open ? tourSteps(sections, demo) : []), [open, sections, demo]);
 
-  return { tour, endTour };
+  return { tour, endTour, startTour };
 };

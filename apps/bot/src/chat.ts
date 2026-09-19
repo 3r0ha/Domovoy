@@ -1,12 +1,51 @@
-import { describeFromAttachments, submitProblem, unheardVoice, type Building, type Resident } from '@domovoy/app';
+import {
+  describeFromAttachments,
+  meterNamedIn,
+  readingInWords,
+  submitProblem,
+  unheardVoice,
+  type Building,
+  type Resident,
+} from '@domovoy/app';
 import { DomainError, encodeTarget, type Attachment } from '@domovoy/domain';
 
-import { addressed, isChatter, mentionsOf, shown, toAttachments, withoutMention, type BotContext } from './max.js';
+import {
+  addressed,
+  isChatter,
+  mentionsOf,
+  nameOf,
+  shown,
+  toAttachments,
+  withoutMention,
+  type BotContext,
+} from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Обращение из чата заводится по дому, если жилец ещё не привязан к квартире. */
 const whereFrom = (resident: Resident, building?: Building): string | undefined =>
   !resident.apartmentId && building ? encodeTarget({ kind: 'building', buildingId: building.id }) : undefined;
+
+/** Число, похожее на показание: хотя бы три цифры подряд. */
+const READING_NUMBER = /(?<![\d-])\d{3,}(?![\d-])/u;
+
+/**
+ * Показание, сказанное при соседях: «хвс 12350». В чат оно не принимается,
+ * цифры по квартире видны только её жильцу, поэтому человека зовут в переписку.
+ */
+const declineReading = async (kit: BotKit, typed: BotContext, resident: Resident, text: string): Promise<boolean> => {
+  const said = await readingInWords(kit.deps, resident, text).catch(() => []);
+
+  if (said.length === 0 && !(READING_NUMBER.test(text) && meterNamedIn(text))) return false;
+
+  const user = typed.user ?? typed.message?.sender;
+
+  await typed.reply(
+    `${nameOf(user)}, показания принимаю в личной переписке: напишите мне в личные сообщения.`,
+    kit.openApp(undefined, typed),
+  );
+
+  return true;
+};
 
 /** Заявка по сказанному в чате. */
 const report = async (
@@ -18,6 +57,8 @@ const report = async (
 ): Promise<void> => {
   const resident = await kit.residentOf(typed, building?.id);
   const startParam = whereFrom(resident, building);
+
+  if (attached.length === 0 && (await declineReading(kit, typed, resident, description))) return;
 
   try {
     const { description: sense, attachments } = await describeFromAttachments(description, attached, kit.transcriber);

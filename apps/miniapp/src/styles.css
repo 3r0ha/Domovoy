@@ -98,14 +98,31 @@ h1 {
   gap: 8px;
 }
 
+/* Название экрана переносится на вторую строку, а не режется: «Домофон, под…» ничего не говорит. */
 .screen-title {
   min-width: 0;
   margin: 0;
   overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 1.5rem;
+  line-height: 1.15;
   letter-spacing: -0.02em;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+/* Длинное название идёт мельче, а помощник рядом с ним ужимается до значка. */
+.topbar-long .screen-title {
+  font-size: 1.25rem;
+}
+
+.topbar-long .ask {
+  padding: 0 12px;
+}
+
+.topbar-long .ask-word {
+  display: none;
 }
 
 @keyframes screen-in {
@@ -560,6 +577,31 @@ button.link.danger-link {
 
 .row-where {
   min-width: 0;
+}
+
+.row-target::before {
+  content: '\00a0· ';
+}
+
+/* Рядом с кнопкой строке тесно: адрес встаёт под состоянием целиком, а не рвётся вокруг кнопки. */
+@media (max-width: 359px) {
+  .row-action {
+    margin-left: 0;
+    padding: 9px 10px;
+  }
+
+  .request-row-acting .row-target {
+    display: block;
+  }
+
+  .request-row-acting .row-target::before {
+    content: none;
+  }
+
+  /* Номер третьей строкой не помещается: он есть в карточке заявки. */
+  .request-row-acting .row-number {
+    display: none;
+  }
 }
 
 .row-number {
@@ -1954,6 +1996,15 @@ button.flat {
   white-space: nowrap;
 }
 
+/* На узком экране пять подписей не помещаются в свой кегль: они мельче, но целиком. */
+@media (max-width: 359px) {
+  .tabs .tab {
+    padding: 6px 1px;
+    font-size: 0.6875rem;
+    letter-spacing: -0.01em;
+  }
+}
+
 .tabs .tab-active {
   color: var(--accent-text);
   font-weight: 600;
@@ -2343,12 +2394,6 @@ button.chat-done {
 
 .chat-closed {
   margin-top: 12px;
-}
-
-
-button.chat-back {
-  align-self: flex-start;
-  margin: 0 0 4px;
 }
 
 .said-own {
@@ -3194,6 +3239,34 @@ button.link.danger-action {
   font-size: var(--font-item);
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Число и под ним слово о правке: правится нажатием по строке, и это видно. */
+.tariff-after {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.tariff-change {
+  color: var(--accent-text);
+  font-size: var(--font-small);
+}
+
+/* Код квартиры с наклейки: его переписывают в квитанцию, поэтому он крупный и по группам. */
+.sticker-code {
+  margin: 4px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+/* Что уже заведено в доме: перечень стоит над формой, чтобы не заводить второй раз. */
+.known-list {
+  margin: 0 0 6px;
+  line-height: 1.5;
 }
 
 [class*='CellSimple__after'] > * + [class*='CellSimple__chevron'] {

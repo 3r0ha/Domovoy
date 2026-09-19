@@ -165,12 +165,61 @@ describe('дом без владельца', () => {
     );
   });
 
-  it('человек без дома не получает контакты дома по умолчанию', async () => {
-    await assert.rejects(contactsFor(setup(), person('resident')), /другая управляющая организация/);
+  it('человек без дома получает телефоны организации дома по умолчанию, но не дежурного', async () => {
+    const deps = setup();
+
+    await deps.repository.saveResident({
+      id: 'staff-duty',
+      maxUserId: 77,
+      displayName: 'Дежурный',
+      role: 'dispatcher',
+      buildingId: FIRST,
+      servesBuildingIds: [FIRST],
+      onDuty: true,
+      phone: '+7 900 000-00-00',
+    });
+
+    // Телефон аварийной службы нужен новому человеку на первом экране,
+    // до привязки квартиры. Дежурный при этом остаётся своим.
+    const contacts = await contactsFor(deps, person('resident'));
+
+    assert.equal(contacts.buildingId, FIRST);
+    assert.equal(contacts.duty, undefined);
   });
 
   it('дом остаётся своим для того, кто его ведёт', async () => {
     const contacts = await contactsFor(ownerless(), person('manager', FIRST), FIRST);
+
+    assert.equal(contacts.buildingId, FIRST);
+  });
+
+  it('жилец без квартиры с оставшейся привязкой получает контакты своего дома, а не отказ', async () => {
+    const deps = setup();
+
+    await deps.repository.saveResident({
+      id: 'staff-duty',
+      maxUserId: 77,
+      displayName: 'Дежурный',
+      role: 'dispatcher',
+      buildingId: SECOND,
+      servesBuildingIds: [SECOND],
+      onDuty: true,
+    });
+
+    // После отвязки квартиры дом в профиле остаётся, а приложение может
+    // прислать и другой дом, запомненный с прошлого раза.
+    const stale = await contactsFor(deps, person('resident', SECOND), FIRST);
+
+    assert.equal(stale.buildingId, SECOND);
+    assert.equal(stale.duty, undefined, 'дежурного видят только свои');
+
+    const own = await contactsFor(deps, person('resident', SECOND));
+
+    assert.equal(own.buildingId, SECOND);
+  });
+
+  it('привязка к удалённому дому ведёт к дому по умолчанию', async () => {
+    const contacts = await contactsFor(setup(), person('resident', 'gone'));
 
     assert.equal(contacts.buildingId, FIRST);
   });

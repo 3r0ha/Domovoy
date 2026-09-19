@@ -126,9 +126,11 @@ const PRIVATE_PREFIXES = ['/api/', '/auth/'];
  * и не меняется, такой лежит год. Страница на них ссылается и перечитывается всегда.
  */
 const cacheHeaders = (reply: FastifyReply, path: string): void => {
-  const rule = path.includes('/assets/')
+  // Сжатая копия приходит сюда своим именем: index.html.br это всё ещё страница.
+  const name = path.replace(/\.(br|gz)$/u, '');
+  const rule = name.includes('/assets/')
     ? 'public, max-age=31536000, immutable'
-    : path.endsWith('.html')
+    : name.endsWith('.html')
       ? 'no-cache'
       : 'public, max-age=3600';
 

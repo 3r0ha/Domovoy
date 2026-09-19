@@ -15,11 +15,15 @@ export interface Transition {
   roles: readonly Role[];
   /** Переход требует объяснения. */
   requiresComment?: boolean;
+  /** Переход доступен только исполнителю, на которого заявка уже записана. */
+  assignedOnly?: boolean;
 }
 
 /** Жизненный цикл заявки. */
 export const TRANSITIONS: readonly Transition[] = [
   { from: 'new', to: 'accepted', roles: ['dispatcher', 'manager'] },
+  // Заявку из осмотра мастер заводит на себя: ждать диспетчера ему незачем.
+  { from: 'new', to: 'accepted', roles: ['technician', 'contractor'], assignedOnly: true },
   { from: 'new', to: 'rejected', roles: ['dispatcher', 'manager'], requiresComment: true },
 
   { from: 'accepted', to: 'in_progress', roles: ['dispatcher', 'manager', 'technician', 'contractor'] },
@@ -54,7 +58,10 @@ export const TRANSITIONS: readonly Transition[] = [
   // Работу переделывают и по звонку мастера: он не всегда работает с телефоном.
   { from: 'done', to: 'in_progress', roles: ['dispatcher', 'manager'], requiresComment: true },
 
-  { from: 'needs_info', to: 'in_progress', roles: ['resident', 'dispatcher', 'manager', 'technician', 'contractor'] },
+  // Жилец отвечает на уточнение словами: без ответа возвращать заявку в работу
+  // нечем, мастер спрашивал не зря.
+  { from: 'needs_info', to: 'in_progress', roles: ['resident'], requiresComment: true },
+  { from: 'needs_info', to: 'in_progress', roles: ['dispatcher', 'manager', 'technician', 'contractor'] },
   { from: 'needs_info', to: 'rejected', roles: ['dispatcher', 'manager'], requiresComment: true },
 
   { from: 'new', to: 'withdrawn', roles: ['resident'] },
@@ -110,7 +117,7 @@ export const OPEN_STATUSES: readonly RequestStatus[] = [
 
 /** Как состояние называется человеку. */
 export const STATUS_TITLES: Record<RequestStatus, string> = {
-  new: 'принята',
+  new: 'новая',
   accepted: 'принята в работу',
   in_progress: 'выполняется',
   needs_info: 'ждёт ответа жильца',
@@ -136,12 +143,16 @@ export const statusTitle = (status: RequestStatus, forStaff = false): string =>
 /** Состояния, в которых заявка закончена. */
 export const CLOSED_STATUSES = FINAL_STATUSES;
 
-/** Переходы, доступные роли из текущего состояния. */
-export const allowedTransitions = (from: RequestStatus, role: Role): RequestStatus[] => [
+/**
+ * Переходы, доступные роли из текущего состояния. `own` означает, что заявка
+ * записана на спрашивающего: только тогда открываются переходы исполнителя.
+ */
+export const allowedTransitions = (from: RequestStatus, role: Role, own = false): RequestStatus[] => [
   ...new Set(
-    TRANSITIONS.filter((transition) => transition.from === from && transition.roles.includes(role)).map(
-      (transition) => transition.to,
-    ),
+    TRANSITIONS.filter(
+      (transition) =>
+        transition.from === from && transition.roles.includes(role) && (own || !transition.assignedOnly),
+    ).map((transition) => transition.to),
   ),
 ];
 
@@ -258,6 +269,10 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
       'role_not_allowed',
       `Роль «${input.role}» не может перевести заявку в «${input.to}»`,
     );
+  }
+
+  if (transition.assignedOnly && request.assigneeId !== input.actorId) {
+    throw new DomainError('role_not_allowed', 'Взять можно только заявку, записанную на вас: остальные принимает диспетчер');
   }
 
   checkComment(transition, input);

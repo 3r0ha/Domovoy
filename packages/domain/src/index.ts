@@ -92,6 +92,7 @@ export {
 } from './request.js';
 export {
   ESCALATION_OVERRUN_FACTOR,
+  MOSCOW_TIME_NOTE,
   buildComplaint,
   canEscalate,
   type ComplaintInput,
@@ -112,6 +113,7 @@ export {
   isConfirmedIncident,
   isSharedInfrastructure,
   joinRequest,
+  leaveRequest,
   markUnaffected,
   promoteToShared,
   reporterIds,
@@ -346,6 +348,7 @@ export {
   answerDueAt,
   closeTicket,
   compareTickets,
+  isAcknowledgement,
   isAnswerOverdue,
   openTicket,
   PUBLIC_HOLIDAYS,

@@ -8,7 +8,7 @@ import {
   retargetRequest,
   waitingHandoffs,
 } from '@domovoy/app';
-import { type HandoffStatus, type HandoffTarget } from '@domovoy/domain';
+import { isCompanyStaff, type HandoffStatus, type HandoffTarget } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 
 import { requestNotFound } from '../errors.js';
@@ -50,7 +50,8 @@ export const handoffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       const view = await responsibilityOf(deps, found);
       const now = deps.now();
 
-      const staff = resident.role !== 'resident';
+      // Подрядчик, как и жилец, обращение не передаёт: своя же организация в адресатах ему ни к чему.
+      const staff = isCompanyStaff(resident.role);
 
       return reply.send({
         ...view.responsibility,

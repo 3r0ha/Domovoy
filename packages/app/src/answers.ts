@@ -1,11 +1,12 @@
 import {
-  formatMoney, describeUntil, formatMoment, OPEN_STATUSES, type ServiceRequest } from '@domovoy/domain';
+  formatMoney, describeUntil, formatMoment, OPEN_STATUSES, STATUS_TITLES, isFinal, type ServiceRequest } from '@domovoy/domain';
 
 import { chargesForResident } from './billing.js';
 import { homeOf } from './buildings.js';
 import { houseAhead, houseNow } from './now.js';
 import { classifyIntent, type QuestionTopic } from './reasoner.js';
 import { announcementAudience, type Resident } from './repository.js';
+import { supportableFor } from './support.js';
 import { listRequestsFor, type AppDeps } from './use-cases.js';
 import { zoneOf } from './zone.js';
 
@@ -40,6 +41,10 @@ const composeAnswer = async (deps: AppDeps, resident: Resident, topic: QuestionT
   }
 };
 
+/** Что в доме сейчас: идущие работы и аварии, а если их нет, ближайшее событие. */
+export const describeHouseNow = async (deps: AppDeps, resident: Resident): Promise<string | undefined> =>
+  aboutHouse(deps, resident);
+
 const aboutHouse = async (deps: AppDeps, resident: Resident): Promise<string | undefined> => {
   const now = await houseNow(deps, resident);
   const zone = await zoneOf(deps, await homeOf(deps, resident));
@@ -61,16 +66,33 @@ const aboutHouse = async (deps: AppDeps, resident: Resident): Promise<string | u
     lines.push(`${incident.title}: заявка ${incident.number}, срок ${formatMoment(incident.resolutionDueAt, zone)}.`);
   }
 
-  if (lines.length === 0) {
-    const ahead = await houseAhead(deps, resident);
-    const next = ahead[0];
+  if (lines.length > 0) return `Сейчас в доме:\n${lines.join('\n')}`;
 
-    return next
-      ? `Сейчас в доме ничего не отключено. Ближайшее: ${next.title}, ${formatMoment(next.at, zone)}.`
-      : 'Сейчас в доме ничего не отключено и аварий нет.';
+  // Аварии не объявлено, но открытые заявки по общему имуществу уже могут
+  // быть: свои и соседские. Человеку с отключённой водой они и нужны.
+  const reported = await sharedRequests(deps, resident);
+
+  if (reported.length > 0) {
+    return `Аварии и работ в доме не объявлено, но заявки по дому уже есть:\n${reported
+      .map((request) => `${request.title}: заявка ${request.number}, ${STATUS_TITLES[request.status]}.`)
+      .join('\n')}`;
   }
 
-  return `Сейчас в доме:\n${lines.join('\n')}`;
+  const ahead = await houseAhead(deps, resident);
+  const next = ahead[0];
+
+  return next
+    ? `Сейчас в доме ничего не отключено. Ближайшее: ${next.title}, ${formatMoment(next.at, zone)}.`
+    : 'Сейчас в доме ничего не отключено и аварий нет.';
+};
+
+/** Открытые заявки по общему имуществу, которые касаются человека: его собственные и соседские. */
+const sharedRequests = async (deps: AppDeps, resident: Resident): Promise<ServiceRequest[]> => {
+  const mine = (await listRequestsFor(deps, resident, 'mine')).filter(
+    (request) => !isFinal(request.status) && request.target.kind !== 'apartment',
+  );
+
+  return [...mine, ...(await supportableFor(deps, resident))];
 };
 
 const aboutBill = async (deps: AppDeps, resident: Resident): Promise<string | undefined> => {
@@ -106,5 +128,5 @@ const aboutRequests = async (deps: AppDeps, resident: Resident): Promise<string 
 };
 
 const state = (request: ServiceRequest): string =>
-  request.status === 'done' ? 'ждёт вашей приёмки' : request.assigneeId ? 'в работе' : 'принята';
+  request.status === 'done' ? 'ждёт вашей приёмки' : request.assigneeId ? 'в работе' : 'новая';
 

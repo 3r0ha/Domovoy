@@ -40,6 +40,8 @@ export type Screen =
   | 'request';
 
 export interface Screens {
+  /** Вся стопка снизу вверх: по ней видно, через какие экраны человек пришёл. */
+  stack: readonly Screen[];
   /** Верхний экран стопки; пустая стопка означает «показать стартовый». */
   top: Screen | undefined;
   /** Экран под верхним: туда и вернёт «назад». */
@@ -70,7 +72,7 @@ export const useScreens = (): Screens => {
   const seed = useCallback((next: Screen[]) => setStack((current) => (current.length > 0 ? current : next)), []);
 
   return useMemo(
-    () => ({ top: stack.at(-1), under: stack.at(-2), deep: stack.length > 1, open, push, back, seed }),
+    () => ({ stack, top: stack.at(-1), under: stack.at(-2), deep: stack.length > 1, open, push, back, seed }),
     [stack, open, push, back, seed],
   );
 };

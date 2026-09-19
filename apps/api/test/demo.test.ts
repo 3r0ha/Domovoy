@@ -152,6 +152,50 @@ describe('роли для проверки', () => {
     await app.close();
   });
 
+  it('жильцу дают свободную квартиру, а не чужую', async () => {
+    const repository = new InMemoryRepository({
+      buildings: [{ id: BUILDING_ID, code: 'Д15' }],
+      apartments: APARTMENTS,
+      residents: [
+        {
+          id: 'res-taken',
+          maxUserId: 1,
+          displayName: 'Мария',
+          role: 'resident',
+          apartmentId: 'apt-1',
+          buildingId: BUILDING_ID,
+        },
+      ],
+    });
+
+    const app = await buildServer({
+      botToken: BOT_TOKEN,
+      repository,
+      defaultBuildingId: BUILDING_ID,
+      demo: true,
+    });
+
+    const entered = await app.inject({
+      method: 'POST',
+      url: '/auth/session',
+      headers: { 'x-max-init-data': await initDataFor(701) },
+    });
+    const token = entered.json<{ token: string }>().token;
+
+    await app.inject({ method: 'POST', url: '/api/demo', headers: authed(token), payload: { role: 'manager' } });
+    await app.inject({ method: 'POST', url: '/api/demo', headers: authed(token), payload: { role: 'resident' } });
+
+    const me = (await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) })).json<{
+      apartmentId: string | null;
+    }>();
+
+    // Первая по номеру квартира занята настоящей жилицей: её показания и
+    // квитанция проверяющему доставаться не должны.
+    assert.equal(me.apartmentId, 'apt-2');
+
+    await app.close();
+  });
+
   it('несуществующую роль не примерить', async () => {
     const { app, token } = await setup(true);
 

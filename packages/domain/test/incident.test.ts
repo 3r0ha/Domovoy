@@ -8,6 +8,7 @@ import {
   findJoinable,
   isConfirmedIncident,
   joinRequest,
+  leaveRequest,
   markUnaffected,
   promoteToShared,
   reportersCount,
@@ -93,6 +94,18 @@ describe('поиск заявки, о которой уже сообщили', (
     const found = findJoinable(candidate(), [located(joined)]);
 
     assert.equal(found, undefined);
+  });
+
+  it('«это другое» снимает и присоединение, и ответ по опросу, но не автора', () => {
+    const joined = markUnaffected(joinRequest(request(), 'res-2', CREATED_AT), 'res-3', CREATED_AT);
+
+    const left = leaveRequest(joined, 'res-2');
+
+    assert.equal(reportersCount(left), 1);
+    assert.deepEqual(left.notAffected.map((check) => check.residentId), ['res-3']);
+    assert.deepEqual(leaveRequest(left, 'res-3').notAffected, []);
+    assert.equal(leaveRequest(joined, 'res-1'), joined, 'автор из своей заявки не уходит');
+    assert.equal(leaveRequest(left, 'res-9'), left, 'посторонний ничего не меняет');
   });
 
   it('закрытая заявка не принимает подтверждений', () => {

@@ -95,9 +95,53 @@ export interface TicketReply {
   at: Date;
 }
 
+/** Слова, из которых состоит благодарность за ответ. */
+const ACKNOWLEDGEMENT_WORDS: ReadonlySet<string> = new Set([
+  'спасибо',
+  'благодарю',
+  'понятно',
+  'ясно',
+  'ок',
+  'окей',
+  'хорошо',
+  'отлично',
+  'принято',
+  'понял',
+  'поняла',
+  'ага',
+  'да',
+  'супер',
+  'большое',
+  'огромное',
+  'вам',
+  'все',
+  'ладно',
+  'договорились',
+  'помогло',
+  'получилось',
+]);
+
+const ACKNOWLEDGEMENT_MAX_WORDS = 8;
+
+/** «Спасибо, понятно»: ответ принят, нового вопроса в реплике нет. */
+export const isAcknowledgement = (text: string): boolean => {
+  if (/[?]/u.test(text)) return false;
+
+  const words = text
+    .toLowerCase()
+    .replace(/ё/gu, 'е')
+    .split(/[^\p{L}]+/u)
+    .filter(Boolean);
+
+  return (
+    words.length > 0 && words.length <= ACKNOWLEDGEMENT_MAX_WORDS && words.every((word) => ACKNOWLEDGEMENT_WORDS.has(word))
+  );
+};
+
 /**
  * Реплика в переписке. Вопрос жильца снова открывает обращение, ответ смены
- * помечает его отвеченным. @throws {DomainError}
+ * помечает его отвеченным. Благодарность за ответ вопросом не считается:
+ * обращение остаётся отвеченным. @throws {DomainError}
  */
 export const replyToTicket = (ticket: SupportTicket, reply: TicketReply): SupportTicket => {
   const text = reply.text.trim();
@@ -111,9 +155,11 @@ export const replyToTicket = (ticket: SupportTicket, reply: TicketReply): Suppor
     throw new DomainError('ticket_closed', 'Обращение закрыто, задайте вопрос заново');
   }
 
+  const thanked = ticket.status === 'answered' && !reply.attachments?.length && isAcknowledgement(text);
+
   return {
     ...ticket,
-    status: reply.from === 'staff' ? 'answered' : 'open',
+    status: reply.from === 'staff' || thanked ? 'answered' : 'open',
     updatedAt: reply.at,
     messages: [
       ...ticket.messages,

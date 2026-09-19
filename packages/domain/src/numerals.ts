@@ -151,7 +151,12 @@ export const numberFromWords = (text: string): number | undefined => {
 
   if (words.length === 0) return undefined;
 
-  const at = words.findIndex((word) => POINT.has(word));
+  // «сто двадцать три и четыре десятых»: запятой нет, доли названы словом,
+  // и разделяет их последнее «и» перед ним.
+  const fractionAt = words.findIndex((word) => FRACTIONS.has(word));
+  const andAt = fractionAt === -1 ? -1 : words.lastIndexOf('и', fractionAt);
+  const pointAt = words.findIndex((word) => POINT.has(word));
+  const at = pointAt !== -1 ? pointAt : andAt;
   const said = at === -1 ? words : words.slice(0, at);
   const whole = asDigits(said) ?? wholeOf(said);
 

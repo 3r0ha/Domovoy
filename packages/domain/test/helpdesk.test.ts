@@ -6,6 +6,7 @@ import {
   addWorkingDays,
   answerDueAt,
   closeTicket,
+  isAcknowledgement,
   isAnswerOverdue,
   openTicket,
   replyToTicket,
@@ -88,6 +89,39 @@ describe('срок ответа на обращение', () => {
 
     assert.equal(isAnswerOverdue(ticket, new Date('2026-09-21T09:00:00Z')), false);
     assert.equal(isAnswerOverdue(ticket, new Date('2026-09-21T11:00:00Z')), true);
+  });
+});
+
+describe('благодарность за ответ', () => {
+  const answered = (): SupportTicket =>
+    replyToTicket(asked(), {
+      at: new Date('2026-09-08T10:00:00Z'),
+      from: 'staff',
+      authorId: 'disp-1',
+      text: 'Подадим тепло 25 сентября',
+    });
+
+  const said = (ticket: SupportTicket, text: string): SupportTicket =>
+    replyToTicket(ticket, { at: new Date('2026-09-08T11:00:00Z'), from: 'resident', authorId: 'res-1', text });
+
+  it('«спасибо, понятно» вопросом не считается', () => {
+    assert.equal(isAcknowledgement('Спасибо, понятно!'), true);
+    assert.equal(isAcknowledgement('Ок'), true);
+    assert.equal(isAcknowledgement('Большое спасибо, всё ясно.'), true);
+    assert.equal(isAcknowledgement('Спасибо, а по батарее?'), false);
+    assert.equal(isAcknowledgement('Спасибо, но не работает'), false);
+    assert.equal(isAcknowledgement('Понятно, когда придут?'), false);
+  });
+
+  it('после благодарности обращение остаётся отвеченным, а после вопроса снова ждёт ответа', () => {
+    const thanked = said(answered(), 'Спасибо, понятно');
+
+    assert.equal(thanked.status, 'answered');
+    assert.equal(thanked.messages.length, 3, 'реплика в переписке остаётся');
+    assert.equal(answerDueAt(thanked), undefined);
+
+    assert.equal(said(answered(), 'Спасибо, но не работает').status, 'open');
+    assert.equal(said(asked(), 'Спасибо').status, 'open', 'без ответа смены благодарить не за что');
   });
 });
 

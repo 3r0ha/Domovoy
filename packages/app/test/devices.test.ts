@@ -6,6 +6,7 @@ import { DomainError } from '@domovoy/domain';
 import {
   type AppDeps,
   InMemoryRepository,
+  VIEW_JOURNAL_MINUTES,
   activeGuestCodes,
   createMockHub,
   revokeGuestCode,
@@ -273,5 +274,32 @@ describe('оборудование дома', () => {
       staff.map((event) => event.deviceId),
       ['barrier-1'],
     );
+  });
+
+  it('серия просмотров камеры идёт в журнале одной записью, открытия остаются все', async () => {
+    let clock = NOW.getTime();
+    const hub = createMockHub({ devices: DEVICES, now: () => new Date(clock), createCode: () => '123456' });
+    const { repository } = setup();
+    const deps = { hub, repository, now: () => new Date(clock), createId: () => 'id-1', defaultBuildingId: BUILDING_ID };
+
+    for (let shown = 0; shown < 5; shown += 1) {
+      await viewDevice(deps, resident(), 'camera-1');
+      clock += 10_000;
+    }
+
+    await openDevice(deps, resident(), 'intercom-1');
+    await openDevice(deps, resident(), 'intercom-1');
+    await viewDevice(deps, resident({ id: 'res-2', maxUserId: 1002, apartmentId: 'apt-2' }), 'camera-1');
+
+    clock += VIEW_JOURNAL_MINUTES * 60_000;
+    await viewDevice(deps, resident(), 'camera-1');
+
+    const journal = await journalFor(deps, resident({ role: 'manager', apartmentId: undefined }));
+
+    assert.deepEqual(
+      journal.map((event) => `${event.action}:${event.residentId}`),
+      ['snapshot:res-1', 'opened:res-1', 'opened:res-1', 'snapshot:res-2', 'snapshot:res-1'],
+    );
+    assert.equal(hub.events.filter((event) => event.action === 'snapshot').length, 7, 'домофония помнит каждый кадр');
   });
 });

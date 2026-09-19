@@ -153,6 +153,15 @@ export const demoData = (): DemoData => ({
     { id: 'apt-6', buildingId: BUILDING_ID, code: 'NRUA8374', number: 6, entrance: 1, riser: 2, area: 25, residents: 1 },
     { id: 'apt-10', buildingId: BUILDING_ID, code: 'YMCF4798', number: 10, entrance: 1, riser: 2, area: 20, residents: 1 },
     { id: 'apt-20', buildingId: BUILDING_ID, code: 'XPTK3947', number: 20, entrance: 2, riser: 1, area: 25, residents: 1 },
+    // Квартиры без жильцов: их привязывают проверяющие, по одному коду на
+    // человека. Стояк 1 первого подъезда и второй подъезд свободны от аварий
+    // посева, поэтому обращение отсюда заводится своей заявкой, а не склейкой.
+    { id: 'apt-5', buildingId: BUILDING_ID, code: 'PRTM4837', number: 5, entrance: 1, riser: 1, area: 44, residents: 0 },
+    { id: 'apt-7', buildingId: BUILDING_ID, code: 'CHWK7394', number: 7, entrance: 1, riser: 1, area: 38, residents: 0 },
+    { id: 'apt-8', buildingId: BUILDING_ID, code: 'FNLA8473', number: 8, entrance: 1, riser: 1, area: 52, residents: 0 },
+    { id: 'apt-9', buildingId: BUILDING_ID, code: 'MVXE3948', number: 9, entrance: 1, riser: 1, area: 41, residents: 0 },
+    { id: 'apt-21', buildingId: BUILDING_ID, code: 'UYPC4739', number: 21, entrance: 2, riser: 1, area: 47, residents: 0 },
+    { id: 'apt-22', buildingId: BUILDING_ID, code: 'RKAH9384', number: 22, entrance: 2, riser: 2, area: 36, residents: 0 },
     { id: 'apt-17-4', buildingId: 'dom17', code: 'VNAL7893', number: 4, entrance: 1, riser: 1, area: 62, residents: 2 },
     { id: 'apt-17-8', buildingId: 'dom17', code: 'CWHE4837', number: 8, entrance: 1, riser: 1, area: 48, residents: 1 },
   ],
@@ -266,7 +275,9 @@ const monthsOf = (now: Date, back: number): Date[] => {
   });
 };
 const SERIALS = { cold_water: 'ХВС', hot_water: 'ГВС', electricity: 'ЭЛ' } as const;
-const HOUSE_FACTOR = { cold_water: 8, hot_water: 8, electricity: 6.2 } as const;
+// Расход дома больше суммы квартирных: разница и есть общедомовое. Квартир
+// в доме двенадцать, поэтому множители держат общедомовое положительным.
+const HOUSE_FACTOR = { cold_water: 24, hot_water: 24, electricity: 14 } as const;
 
 /** Полгода показаний по квартирам и по узлу учёта: из них считается квитанция. */
 export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void> => {
@@ -501,24 +512,34 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     });
   }
 
-  await createServiceRequest(deps, {
+  // Аварии заводятся так, чтобы в течение дня показа не краснеть: срок реакции
+  // у лифта четыре минуты, поэтому заявка сразу принята и в работе у мастера.
+  const stuck = await createServiceRequest(at(-10 * MINUTE), {
     resident: ivan,
     description: 'Застряли в лифте между третьим и четвёртым этажом',
     startParam: 'eqp_dom15_lift-1',
   });
 
-  const contracted = await createServiceRequest(at(-4 * HOUR), {
+  await transitionRequest(at(-8 * MINUTE), { resident: dispatcher, requestId: stuck.id, to: 'accepted' });
+  await transitionRequest(at(-5 * MINUTE), {
+    resident: dispatcher,
+    requestId: stuck.id,
+    to: 'in_progress',
+    assigneeId: 'staff-technician',
+  });
+
+  const contracted = await createServiceRequest(at(-HOUR), {
     resident: maria,
     description: 'Лифт дёргается при закрытии дверей',
     startParam: 'eqp_dom15_lift-2',
   });
 
-  await transitionRequest(at(-4 * HOUR + 10 * MINUTE), {
+  await transitionRequest(at(-HOUR + 10 * MINUTE), {
     resident: dispatcher,
     requestId: contracted.id,
     to: 'accepted',
   });
-  await transitionRequest(at(-3 * HOUR), {
+  await transitionRequest(at(-40 * MINUTE), {
     resident: dispatcher,
     requestId: contracted.id,
     to: 'in_progress',
@@ -637,7 +658,9 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
   await publishAnnouncement(deps, {
     resident: dispatcher,
     title: 'Собрание собственников',
-    body: 'В четверг в 19:00 во дворе. Обсуждаем ремонт подъездов и тариф на содержание.',
+    body:
+      'Голосование по ремонту подъездов открыто в приложении, раздел «Собрания». ' +
+      'Очное обсуждение сметы и тарифа на содержание в четверг в 19:00 во дворе.',
   });
 
   await publishAnnouncement(deps, {

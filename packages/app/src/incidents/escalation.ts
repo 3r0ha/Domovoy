@@ -18,7 +18,6 @@ import { noopNotifier, notifyResident } from '../notifier.js';
 import { rememberResidents } from '../people.js';
 import { type Resident } from '../repository.js';
 import { type AppDeps } from '../use-cases.js';
-import { zoneOf } from '../zone.js';
 
 export interface EscalationOffer {
   possible: boolean;
@@ -86,7 +85,7 @@ const offerFor = async (deps: AppDeps, resident: Resident, request: ServiceReque
       residentName: resident.displayName,
       ...(home ? { residentApartment: home.number } : {}),
       ...(building?.managementCompany ? { managementCompany: building.managementCompany } : {}),
-      timeZone: await zoneOf(deps, request.buildingId),
+      ...(building?.timeZone ? { timeZone: building.timeZone } : {}),
       now,
       actorName: (actorId) => participants.get(actorId) ?? actorId,
     }),

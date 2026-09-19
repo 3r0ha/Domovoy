@@ -50,7 +50,7 @@ export interface AlertAnswerResult {
 
 /** Есть ли кому постучать: соседа без приложения стук не разбудит. */
 export const canKnockUpstairs = async (deps: AppDeps, request: ServiceRequest): Promise<boolean> => {
-  if (request.knockedAt || isFinal(request.status)) return false;
+  if (request.knockedAt || isFinal(request.status) || request.category !== 'plumbing') return false;
 
   const above = await upstairsOf(deps, request);
 

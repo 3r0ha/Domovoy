@@ -92,6 +92,10 @@ const METER_WORDS: Readonly<Record<string, RegExp>> = {
 const NOT_A_READING =
   /не работа|не крут|сломал|слома|теч[ёе]т|протека|подтека|отключ|напор|еле идёт|поверк|замен|сорв|прорв|(?<!\p{L})нет(?!\p{L})[^.!?]{0,24}(вод|свет|газ|тепл|отоплен)/iu;
 
+/** Назван ли в сообщении прибор учёта: по этому отказ отличают от обращения. */
+export const meterNamedIn = (text: string): boolean =>
+  !NOT_A_READING.test(text) && Object.values(METER_WORDS).some((words) => words.test(text));
+
 /** Показание, названное словами: число из той же фразы и приборы, к которым оно подходит. */
 export interface ReadingInWords {
   /** Приборы названного вида. Больше одного означает, что выбирает человек. */
@@ -103,7 +107,7 @@ export interface ReadingInWords {
 const joined = (text: string): string => text.replace(/(\d)\s(?=\d{3}(?!\d))/gu, '$1');
 
 /** Число показания. Знак минус входит в разбор, чтобы отказать, а не взять модуль. */
-const NUMBER = /(?<![\d,.])(-?\d{1,7}(?:[.,]\d{1,4})?)(?![\d,.])/gu;
+const NUMBER = /(?<![\d,.])(-?\d{1,9}(?:[.,]\d{1,4})?)(?![\d,.])/gu;
 
 /** Где в сообщении назван прибор: по этому месту число и достаётся тому, о ком речь. */
 const namedMeters = (text: string): { kind: string; at: number }[] =>
@@ -158,9 +162,10 @@ export const readingInWords = async (
 
   for (const [at, { kind, at: from }] of named.entries()) {
     const value = valueFor(said, from, named[at + 1]?.at ?? said.length, at === 0);
-    const rule = METER_RULES[kind as keyof typeof METER_RULES];
 
-    if (value === undefined || !Number.isFinite(value) || value < 0 || value >= 10 ** rule.digits) continue;
+    // Число за пределами табло или с минусом остаётся показанием: его отвергнет
+    // подача с объяснением, а не тишина. Иначе «хвс 99999999» становилось заявкой.
+    if (value === undefined || !Number.isFinite(value)) continue;
 
     const meters = all.filter(
       (state) => state.meter.kind === kind && verificationState(state.meter, now) !== 'expired',

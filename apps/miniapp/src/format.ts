@@ -145,6 +145,19 @@ export const rubles = (amount: number): string => `${money(amount)} ₽`;
 export const decimal = (value: number, digits = 3): string =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits });
 
+/** Часы с долей через запятую: «14,8 ч». */
+export const hours = (value: number): string => `${decimal(value, 1)} ч`;
+
+/** Российский номер по группам: «+7 999 000-00-00». Чужой формат остаётся как есть. */
+export const formatPhone = (phone: string): string => {
+  const digits = phone.replace(/\D/g, '');
+  const local = digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8')) ? digits.slice(1) : null;
+
+  if (local === null) return phone;
+
+  return `+7 ${local.slice(0, 3)} ${local.slice(3, 6)}-${local.slice(6, 8)}-${local.slice(8)}`;
+};
+
 /** Первая буква имени: её показывает кружок вместо снимка. */
 export const initial = (name: string): string => name.trim().slice(0, 1).toUpperCase() || '?';
 

@@ -2,9 +2,36 @@ import { answerAboutHouse, clarifyTarget, zoneOf, type Resident, type SubmitResu
 import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
-import { cancelKeyboard, whereKeyboard } from './keyboards.js';
-import { expect, inChat, plain, strong, type BotContext } from './max.js';
+import { cancelKeyboard, keyboardOf, PERSONAL, whereKeyboard } from './keyboards.js';
+import { itemFor } from './menu.js';
+import { expect, inChat, plain, shown, strong, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
+
+/**
+ * Ответ при соседях уходит в личную переписку вместе с кнопкой раздела, а в
+ * чате остаётся строка о том, что ответ был: квитанция, свои заявки и подсказка
+ * по разделу читаются только тем, кто спросил.
+ */
+const answerPrivately = async (
+  kit: BotKit,
+  typed: BotContext,
+  resident: Resident,
+  text: string,
+  section?: { title: string; command: string },
+): Promise<boolean> => {
+  if (resident.maxUserId === undefined) return false;
+
+  const keyboard = keyboardOf(
+    section ? [[Keyboard.button.callback(section.title, `menu:${section.command}`)]] : [],
+    PERSONAL,
+  );
+  const ready = shown(text, keyboard);
+
+  await kit.bot.api.sendMessageToUser(resident.maxUserId, ready.text, ready.extra).catch(() => undefined);
+  await typed.reply(`${resident.displayName}, ответил вам лично.`);
+
+  return true;
+};
 
 /** Обращение откладывается до кнопки: жилец решит, нужна ли заявка. */
 const remember = (typed: BotContext, description: string, startParam?: string): void => {
@@ -39,20 +66,17 @@ export const answerQuestion = async (
 
   if (!answer.text) return false;
 
-  // Квитанция и свои заявки при соседях не читаются: в чат уходит строка,
-  // а сам ответ в личную переписку.
-  if (inChat(typed) && PERSONAL_TOPICS.has(answer.topic) && resident.maxUserId !== undefined) {
-    await kit.bot.api.sendMessageToUser(resident.maxUserId, answer.text).catch(() => undefined);
-    await typed.reply(`${resident.displayName}, ответил вам лично.`);
-
-    return true;
-  }
-
-  remember(typed, description, startParam);
-
   // К ответу даётся сам раздел: назвать его словами и не дать кнопку значит
   // оставить человека искать её руками по меню.
   const to = TOPIC_SECTIONS[answer.topic];
+
+  // Квитанция и свои заявки при соседях не читаются: в чат уходит строка,
+  // а сам ответ в личную переписку.
+  const personal = inChat(typed) && PERSONAL_TOPICS.has(answer.topic);
+
+  if (personal && (await answerPrivately(kit, typed, resident, answer.text, to))) return true;
+
+  remember(typed, description, startParam);
 
   await typed.reply(answer.text, {
     attachments: [
@@ -111,6 +135,16 @@ export const announce = async (
 
   // Обращение оказалось вопросом: ответ уже есть, заявку заводит кнопка.
   if (result.kind === 'answered') {
+    // При соседях подсказка по разделу уходит лично: раздел у каждого свой.
+    if (inChat(typed)) {
+      const resident = await kit.residentOf(typed);
+      const command = result.command?.replace(/^\//, '');
+      const item = command ? itemFor(resident, command) : undefined;
+      const section = item && command ? { title: item.title, command } : undefined;
+
+      if (await answerPrivately(kit, typed, resident, result.answer, section)) return;
+    }
+
     remember(typed, description, startParam);
 
     await typed.reply(

@@ -29,6 +29,12 @@ export interface ComposerProps {
 /** Докуда растёт поле, дальше оно прокручивается. */
 const MAX_HEIGHT = 120;
 
+/** На телефоне Enter переносит строку: Shift там нет, а отправляет кнопка рядом. */
+const touchScreen = (): boolean =>
+  typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(pointer: coarse)').matches;
+
+const ENTER_HINT = 'Enter отправляет, Shift+Enter переносит строку';
+
 /** Поле растёт под текст, пока не упрётся в потолок. */
 const fit = (node: HTMLTextAreaElement | null): void => {
   if (!node) return;
@@ -116,6 +122,7 @@ export const Composer = ({
         className="composer-field"
         id={id}
         aria-label={label}
+        title={touchScreen() ? undefined : ENTER_HINT}
         rows={1}
         maxLength={2000}
         value={value}
@@ -123,7 +130,7 @@ export const Composer = ({
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
           // Enter отправляет, перенос строки остаётся на Shift+Enter, как в переписке.
-          if (event.key !== 'Enter' || event.shiftKey) return;
+          if (event.key !== 'Enter' || event.shiftKey || touchScreen()) return;
 
           event.preventDefault();
           if (ready) onSend();

@@ -1452,6 +1452,9 @@
                       "status": {
                         "type": "string"
                       },
+                      "statusTitle": {
+                        "type": "string"
+                      },
                       "title": {
                         "type": "string"
                       },
@@ -1706,6 +1709,11 @@
                   "anyway": {
                     "type": "boolean"
                   },
+                  "apartFrom": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
                   "attachments": {
                     "type": "array",
                     "maxItems": 10,
@@ -1794,6 +1802,9 @@
                           "type": "string"
                         },
                         "status": {
+                          "type": "string"
+                        },
+                        "statusTitle": {
                           "type": "string"
                         },
                         "title": {
@@ -2045,6 +2056,9 @@
                           "type": "string"
                         },
                         "status": {
+                          "type": "string"
+                        },
+                        "statusTitle": {
                           "type": "string"
                         },
                         "title": {
@@ -2337,6 +2351,9 @@
                           "status": {
                             "type": "string"
                           },
+                          "statusTitle": {
+                            "type": "string"
+                          },
                           "title": {
                             "type": "string"
                           },
@@ -2548,6 +2565,9 @@
                             "type": "string"
                           },
                           "status": {
+                            "type": "string"
+                          },
+                          "statusTitle": {
                             "type": "string"
                           },
                           "title": {
@@ -2850,6 +2870,9 @@
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "statusTitle": {
                       "type": "string"
                     },
                     "title": {
@@ -3192,6 +3215,9 @@
                     "status": {
                       "type": "string"
                     },
+                    "statusTitle": {
+                      "type": "string"
+                    },
                     "title": {
                       "type": "string"
                     },
@@ -3507,6 +3533,9 @@
                     "status": {
                       "type": "string"
                     },
+                    "statusTitle": {
+                      "type": "string"
+                    },
                     "title": {
                       "type": "string"
                     },
@@ -3793,6 +3822,9 @@
                     "status": {
                       "type": "string"
                     },
+                    "statusTitle": {
+                      "type": "string"
+                    },
                     "title": {
                       "type": "string"
                     },
@@ -4059,6 +4091,9 @@
                         "type": "string"
                       },
                       "status": {
+                        "type": "string"
+                      },
+                      "statusTitle": {
                         "type": "string"
                       },
                       "title": {
@@ -4329,6 +4364,9 @@
                     "status": {
                       "type": "string"
                     },
+                    "statusTitle": {
+                      "type": "string"
+                    },
                     "title": {
                       "type": "string"
                     },
@@ -4594,6 +4632,9 @@
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "statusTitle": {
                       "type": "string"
                     },
                     "title": {
@@ -16118,6 +16159,9 @@
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "statusTitle": {
                       "type": "string"
                     },
                     "title": {

@@ -77,6 +77,8 @@ export interface RequestView {
   categoryShort?: string;
   priority: string;
   status: string;
+  /** Состояние словами того, кто смотрит: те же, что в выгрузке «Мои данные». */
+  statusTitle?: string;
   /** Короткая суть в одну строку, её показывают в списках. */
   title: string;
   description: string;

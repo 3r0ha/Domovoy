@@ -48,6 +48,7 @@ import {
   reportedDoneAt,
   reportersCount,
   spreadOf,
+  statusTitle,
   verificationState,
   type MeterKind,
   type RequestCategory,
@@ -135,6 +136,9 @@ export const speakerOf = (
 };
 
 /** Заявка в виде, пригодном для отправки клиенту. */
+/** Смотрит смена: состояние называется её словами. */
+const viewedByStaff = (viewer?: Resident): boolean => viewer !== undefined && viewer.role !== 'resident';
+
 export const serializeRequest = (
   request: ServiceRequest,
   now: Date,
@@ -148,6 +152,8 @@ export const serializeRequest = (
   categoryShort: CATEGORY_RULES[request.category].short,
   priority: request.priority,
   status: request.status,
+  // Состояние словами отдаёт сервер: те же слова стоят в выгрузке данных и у бота.
+  statusTitle: statusTitle(request.status, viewedByStaff(viewer)),
   title: request.title,
   description: request.description,
   target: asTitle(describeTarget(request.target)),
@@ -634,6 +640,7 @@ export const requestSchema = {
     categoryShort: { type: 'string' },
     priority: { type: 'string' },
     status: { type: 'string' },
+    statusTitle: { type: 'string' },
     title: { type: 'string' },
     description: { type: 'string' },
     target: { type: 'string' },

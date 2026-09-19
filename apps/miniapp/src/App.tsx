@@ -1,6 +1,6 @@
 import { Button, MaxUI, useSystemColorScheme } from '@maxhub/max-ui';
 import { useBackButton, useBridgeRequest, useLaunchParams } from '@maxkit/react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { DomovoyApi, browserCache, type DeviceView, type Profile, type RoleView } from './api.js';
 import { useHaptics } from './haptics.js';
@@ -95,6 +95,8 @@ interface WorkspaceProps {
   profile: Profile;
   /** Перечитать сессию: изменились квартира, роль или согласия. */
   refreshSession: () => void;
+  /** Поправить профиль на месте, не входя заново. */
+  patchProfile: (update: (profile: Profile) => Profile) => void;
   /** Код объекта из параметров запуска, если приложение открыли по наклейке. */
   launched: string | undefined;
   offline: boolean;
@@ -142,6 +144,33 @@ const FirstRun = ({
   return tour.length > 0 ? <Tour steps={tour} onDone={onTourDone} /> : null;
 };
 
+/**
+ * Стопка при запуске и жизнь отсканированного объекта. Ссылка на стартовый
+ * экран не кладёт его в стопку дважды: иначе над ним висит возврат на самого
+ * себя. Объект живёт, пока его паспорт в стопке: ушли с него, и код с названием забыты.
+ */
+const useEntry = (
+  screens: Screens,
+  launched: { screen: Screen | undefined; param: string | undefined; home: Screen },
+  forget: { scanned: (code: null) => void; title: (title: null) => void },
+): void => {
+  const { seed, stack } = screens;
+  const { screen, param, home } = launched;
+  const { scanned, title } = forget;
+
+  useEffect(() => {
+    if (screen) seed(screen === home ? [home] : [home, screen]);
+    else if (param) seed([home, 'object']);
+  }, [screen, param, home, seed]);
+
+  useEffect(() => {
+    if (stack.includes('object')) return;
+
+    scanned(null);
+    title(null);
+  }, [stack, scanned, title]);
+};
+
 /** «Назад» закрывает сначала помощника, а уже потом уходит с экрана. */
 const useBack = (helper: boolean, closeHelper: () => void, screens: Screens): void => {
   useBackButton({
@@ -167,6 +196,7 @@ const screenContext = (input: {
   openRequest: (id: string) => void;
   openDocument: (title: string, text: string) => void;
   refreshSession: () => void;
+  patchProfile: (update: (profile: Profile) => Profile) => void;
   setScanned: (code: string) => void;
   setDevice: (device: DeviceView) => void;
   setObjectTitle: (title: string | null) => void;
@@ -176,6 +206,8 @@ const screenContext = (input: {
   api: input.api,
   profile: input.profile,
   startParam: input.startParam,
+  // Объект попадает в новую заявку только с его паспорта: иначе код с давней наклейки прилипал бы ко всем заявкам.
+  reportedObject: input.screens.stack.includes('object') ? input.startParam : undefined,
   opened: input.opened,
   device: input.device,
   document: input.document,
@@ -183,6 +215,7 @@ const screenContext = (input: {
   waiting: input.waiting,
   changed: input.changed,
   backTitle: input.backTitle,
+  deep: input.screens.deep,
   open: input.screens.open,
   goDeeper: input.goDeeper,
   back: input.screens.back,
@@ -199,6 +232,7 @@ const screenContext = (input: {
   onObjectTitle: input.setObjectTitle,
   onRequestChanged: () => input.setChanged((version) => version + 1),
   refreshSession: input.refreshSession,
+  patchProfile: input.patchProfile,
   openBuilding: (id, next) => {
     input.setBuilding((current) => ({ id, version: current.version + 1 }));
     input.screens.open(next);
@@ -240,8 +274,11 @@ const topBar = (
   ...(input.onAssistant ? { onAssistant: input.onAssistant } : {}),
 });
 
+/** Экраны, которые рисуют возврат сами: у них он стоит рядом со своей навигацией. */
+const OWN_BACK: readonly Screen[] = ['request', 'document', 'support'];
+
 /** Рабочая область: разделы, шапка и переходы между экранами. */
-const Workspace = ({ api: session, profile, refreshSession, launched, offline }: WorkspaceProps) => {
+const Workspace = ({ api: session, profile, refreshSession, patchProfile, launched, offline }: WorkspaceProps) => {
   const haptics = useHaptics();
   const screens = useScreens();
   const [opened, setOpened] = useState<string | null>(null);
@@ -287,15 +324,9 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
   );
 
   // Тур ждёт квартиру: без неё вкладки пустые, а первый шаг повторял бы заголовок экрана.
-  const { tour, endTour } = useTour(layout.tabs, offer.demo, isStaff || bound);
+  const { tour, endTour, startTour } = useTour(layout.tabs, offer.demo, isStaff || bound);
 
-  const { seed } = screens;
-
-  useEffect(() => {
-    if (launchedScreen) seed([home, launchedScreen]);
-    else if (startParam) seed([home, 'object']);
-  }, [launchedScreen, startParam, home, seed]);
-
+  useEntry(screens, { screen: launchedScreen, param: startParam, home }, { scanned: setScanned, title: setObjectTitle });
   useBack(tip, () => setTip(false), screens);
 
   /** Переход на вкладку: стопка начинается заново, «назад» из корня некуда. */
@@ -306,6 +337,8 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
     }
 
     haptics.picked();
+    // Значки на вкладках считаются заново: ответ поддержки могли прочитать, заявку принять.
+    setChanged((version) => version + 1);
     screens.open(screen);
   };
 
@@ -360,6 +393,7 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
     openRequest,
     openDocument,
     refreshSession,
+    patchProfile,
     setScanned,
     setDevice,
     setObjectTitle,
@@ -399,7 +433,7 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
 
         {/* Возврат виден на самой странице: системная кнопка клиента есть не
             везде, и человек, который зашёл вглубь, оттуда не выбирается. */}
-        {screens.deep && screen !== 'request' && screen !== 'document' ? (
+        {screens.deep && !OWN_BACK.includes(screen) ? (
           <button type="button" className="link back-link" onClick={context.back}>
             <span aria-hidden="true">‹</span> {backTitle}
           </button>
@@ -414,7 +448,10 @@ const Workspace = ({ api: session, profile, refreshSession, launched, offline }:
         <Assistant
           api={api}
           onClose={() => setTip(false)}
-          onGo={(target) => (target === 'new' ? goDeeper('new') : openTab(target as Screen))}
+          // Тур не раздел: помощник его запускает, а не открывает.
+          onGo={(target) =>
+            target === 'tour' ? startTour() : target === 'new' ? goDeeper('new') : openTab(target as Screen)
+          }
         />
       ) : null}
 
@@ -446,6 +483,13 @@ export const App = ({ baseUrl, fetch }: AppProps) => {
   );
 
   const session = useSession(api, launch.initData);
+  // Ссылка запуска ведёт один раз: после смены роли или привязки квартиры человек
+  // начинает со стартового экрана новой роли, а не снова с раздела из ссылки.
+  const [relaunch, setRelaunch] = useState(true);
+  const refresh = useCallback(() => {
+    setRelaunch(false);
+    if (session.status === 'ready') session.refresh();
+  }, [session]);
 
   if (session.status === 'loading') {
     return (
@@ -475,8 +519,9 @@ export const App = ({ baseUrl, fetch }: AppProps) => {
     <Workspace
       api={api}
       profile={session.profile}
-      refreshSession={session.refresh}
-      launched={launch.initDataUnsafe.start_param ?? startParamFromUrl()}
+      refreshSession={refresh}
+      patchProfile={session.patch}
+      launched={relaunch ? (launch.initDataUnsafe.start_param ?? startParamFromUrl()) : undefined}
       offline={offline}
     />
   );

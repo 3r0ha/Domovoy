@@ -320,7 +320,7 @@ export const activeGuestCodes = async (deps: DeviceDeps, resident: Resident): Pr
 };
 
 /** Отзыв своего гостевого кода. @throws {DomainError} */
-export const revokeGuestCode = async (deps: DeviceDeps, resident: Resident, code: string): Promise<void> => {
+export const revokeGuestCode = async (deps: AppDeps, resident: Resident, code: string): Promise<void> => {
   if (!deps.hub) throw new DomainError('devices_unavailable', 'Умный дом не подключён');
 
   const own = (await deps.hub.activeCodes(resident.id)).some((issued) => issued.code === code);
@@ -328,15 +328,47 @@ export const revokeGuestCode = async (deps: DeviceDeps, resident: Resident, code
   if (!own) throw new DomainError('code_not_found', 'Такого кода у вас нет');
 
   await deps.hub.revokeCode(code);
+  await recordAction(deps, { actor: resident, action: 'guest_code_revoked', subject: code });
 };
 
-/** Журнал открытий: кто и когда открывал двери дома. */
+/** Просмотры одной камеры одним человеком ближе этого окна идут в журнале одной записью. */
+export const VIEW_JOURNAL_MINUTES = 5;
+
+/**
+ * Журнал без повторов. Домофония пишет каждый кадр, а смене важно, кто
+ * смотрел камеру, а не сколько раз обновил экран: серия просмотров одной
+ * камеры одним человеком сворачивается в первую запись. Открытия остаются все.
+ */
+export const collapseViews = (events: readonly DeviceEvent[], minutes = VIEW_JOURNAL_MINUTES): DeviceEvent[] => {
+  const lastShown = new Map<string, number>();
+  const window = minutes * 60_000;
+  const kept = new Set<DeviceEvent>();
+
+  for (const event of [...events].sort((left, right) => left.at.getTime() - right.at.getTime())) {
+    if (event.action !== 'snapshot') {
+      kept.add(event);
+      continue;
+    }
+
+    const key = `${event.deviceId}:${event.residentId ?? ''}`;
+    const previous = lastShown.get(key);
+
+    if (previous !== undefined && event.at.getTime() - previous < window) continue;
+
+    lastShown.set(key, event.at.getTime());
+    kept.add(event);
+  }
+
+  return events.filter((event) => kept.has(event));
+};
+
+/** Журнал открытий: кто и когда открывал двери дома и смотрел камеры. */
 export const journalFor = async (deps: DeviceDeps, resident: Resident): Promise<DeviceEvent[]> => {
   if (!deps.hub || !resident.buildingId) return [];
 
   if (!isCompanyStaff(resident.role)) return [];
 
-  return deps.hub.journal(resident.buildingId);
+  return collapseViews(await deps.hub.journal(resident.buildingId));
 };
 
 /** @throws {DomainError} */

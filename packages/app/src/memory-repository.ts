@@ -49,12 +49,17 @@ const replacing = (kept: Map<string, Reading>, reading: Reading): void => {
   }
 };
 
-/** Одно и то же событие заявки: те же время, состояние и автор. */
+/**
+ * Одно и то же событие заявки, доставленное повторно: те же время, состояние,
+ * автор, вид и текст. Без текста два сообщения одного автора в одну секунду
+ * склеивались в одно; база различает их по тем же полям.
+ */
 const sameEvent = (one: RequestEvent, other: RequestEvent): boolean =>
   one.at.getTime() === other.at.getTime() &&
   one.status === other.status &&
   one.actorId === other.actorId &&
-  one.kind === other.kind;
+  one.kind === other.kind &&
+  (one.comment ?? '') === (other.comment ?? '');
 
 /** История двух копий заявки: события обеих, по времени и без повторов. */
 const merged = (known: readonly RequestEvent[], saved: readonly RequestEvent[]): RequestEvent[] => {

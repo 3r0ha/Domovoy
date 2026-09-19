@@ -74,7 +74,7 @@ const setup = async (options: { withGateway?: boolean } = {}) => {
     return response.json<{ token: string }>().token;
   };
 
-  return { app, login };
+  return { app, login, repository };
 };
 
 const authed = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -229,11 +229,79 @@ describe('передача обращения по HTTP', () => {
       method: 'POST',
       url: `/api/requests/${id}/handoff`,
       headers: authed(await login(5005)),
-      payload: { to: 'inspection' },
+      payload: { to: 'municipal' },
     });
 
     assert.equal(response.statusCode, 404);
     assert.equal(response.json().error, 'partner_unknown');
+
+    await app.close();
+  });
+
+  it('в жилищную инспекцию смена не передаёт: это канал жильца', async () => {
+    const { app, login } = await setup();
+    const id = await leak(app, await login(1001));
+
+    const response = await app.inject({
+      method: 'POST',
+      url: `/api/requests/${id}/handoff`,
+      headers: authed(await login(5005)),
+      payload: { to: 'inspection' },
+    });
+
+    assert.equal(response.statusCode, 403);
+
+    await app.close();
+  });
+
+  it('подрядчику адресатов передачи не показывают, закрытой заявке тоже', async () => {
+    const { app, login, repository } = await setup();
+    const residentToken = await login(1001);
+    const id = await leak(app, residentToken);
+
+    const contractor: Resident = {
+      id: 'con-1',
+      maxUserId: 8008,
+      displayName: 'Подрядчик',
+      role: 'contractor',
+      buildingId: BUILDING_ID,
+    };
+
+    await repository.saveResident(contractor);
+    await repository.saveRequest({ ...(await repository.findRequest(id))!, assigneeId: contractor.id });
+
+    const seen = await app.inject({
+      method: 'GET',
+      url: `/api/requests/${id}/responsibility`,
+      headers: authed(await login(8008)),
+    });
+
+    assert.equal(seen.statusCode, 200);
+    assert.deepEqual(seen.json().targets, []);
+
+    const passed = await app.inject({
+      method: 'POST',
+      url: `/api/requests/${id}/handoff`,
+      headers: authed(await login(8008)),
+      payload: { to: 'resource' },
+    });
+
+    assert.equal(passed.statusCode, 403);
+
+    await app.inject({
+      method: 'POST',
+      url: `/api/requests/${id}/transition`,
+      headers: authed(residentToken),
+      payload: { to: 'withdrawn' },
+    });
+
+    const closed = await app.inject({
+      method: 'GET',
+      url: `/api/requests/${id}/responsibility`,
+      headers: authed(await login(5005)),
+    });
+
+    assert.deepEqual(closed.json().targets, []);
 
     await app.close();
   });

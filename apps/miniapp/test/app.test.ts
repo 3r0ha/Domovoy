@@ -130,6 +130,20 @@ describe('стартовый экран приложения', () => {
     assert.match(screen.text, /Код из квитанции/);
     assert.ok(screen.tabs().includes('Квартира'), `вкладки: ${screen.tabs().join(', ')}`);
     assert.ok(screen.tabs().length <= 5, `вкладок: ${screen.tabs().join(', ')}`);
+    // Квитанции без квартиры нет: место «Оплаты» в панели занимают новости.
+    assert.deepEqual(screen.tabs(), ['Квартира', 'Заявки', 'Дом', 'Новости', 'Ещё']);
+
+    await screen.unmount();
+  });
+
+  it('ссылка на стартовый экран не вешает над ним возврат на самого себя', async () => {
+    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: 'apt-1' });
+
+    const screen = await render(fetchStub, 'go-list');
+
+    assert.equal(screen.find('.screen-title')?.textContent, 'Заявки');
+    assert.equal(screen.findAll('.back-link').length, 0);
+    assert.equal(screen.backVisible, false);
 
     await screen.unmount();
   });
@@ -207,7 +221,7 @@ describe('стартовый экран приложения', () => {
 
     const screen = await render(fetchStub);
 
-    assert.deepEqual(screen.tabs(), ['Наряды', 'Профиль', 'Моя квартира']);
+    assert.deepEqual(screen.tabs(), ['Наряды', 'Профиль', 'Квартира']);
     assert.equal(screen.find('.screen-title')?.textContent, 'Наряды');
     assert.equal(screen.findAll('.tabs .tab-active').length, 1);
 

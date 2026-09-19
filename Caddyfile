@@ -9,6 +9,9 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	# Заголовок действует только по https; локальный http браузер его не запоминает.
+	header Strict-Transport-Security "max-age=31536000"
+
 	# Насколько файл живёт в кеше, решает сам продукт: он один знает, у какого
 	# имени есть отпечаток содержимого. Второй такой заголовок здесь только мешал бы.
 	reverse_proxy domovoy:3000
@@ -17,4 +20,9 @@
 		output stdout
 		format console
 	}
+}
+
+# Имя с www ведёт на основной адрес. Локально это имя никто не набирает.
+{$WWW_ADDRESS} {
+	redir https://{$SITE_ADDRESS}{uri} permanent
 }

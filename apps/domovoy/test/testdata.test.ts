@@ -36,8 +36,8 @@ describe('тестовые данные для проверки', () => {
     const result = await importApartments(deps, manager, await read('apartments.csv'));
 
     assert.deepEqual(result.problems, []);
-    assert.equal(result.added, 6);
-    assert.equal(result.meters, 18, 'по три прибора на помещение');
+    assert.equal(result.added, 12);
+    assert.equal(result.meters, 36, 'по три прибора на помещение');
   });
 
   it('оборудование заводится импортом без замечаний', async () => {
@@ -77,7 +77,7 @@ describe('тестовые данные для проверки', () => {
     const main = dump.houses.find((house) => house.id === 'dom15');
 
     assert.ok(main, 'в наборе нет дома dom15');
-    assert.equal(main.apartments.length, 6);
+    assert.equal(main.apartments.length, 12);
     assert.ok(main.requests.length > 0, 'в наборе нет заявок');
   });
 });

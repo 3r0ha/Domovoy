@@ -113,37 +113,58 @@ const PollCard = ({
 
       <p className="description">{poll.question}</p>
 
-      <div className="quorum">
-        <div
-          className="quorum-bar"
-          role="progressbar"
-          aria-label="Участие в собрании"
-          aria-valuenow={Math.round(poll.turnout * 100)}
-          aria-valuemin={0}
-          aria-valuemax={100}
-        >
-          <span className={poll.quorum ? 'quorum-fill quorum-fill-ok' : 'quorum-fill'} style={{ width: percent(Math.min(1, poll.turnout)) }} />
+      {/* У опроса нет ни кворума, ни порога решения: считаются только голоса. */}
+      {poll.mode === 'survey' ? (
+        <div className="quorum">
+          <div
+            className="quorum-bar"
+            role="progressbar"
+            aria-label="Участие в опросе"
+            aria-valuenow={Math.round(poll.turnout * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span className="quorum-fill" style={{ width: percent(Math.min(1, poll.turnout)) }} />
+          </div>
 
-          {poll.quorumShare === undefined ? null : (
-            <span className="quorum-mark" style={{ left: percent(poll.quorumShare) }}>
-              <span className="quorum-mark-label">кворум</span>
-            </span>
-          )}
+          <p className="quorum-meta">
+            Ответили {percent(poll.turnout)} площади · за {percent(poll.shares.for)}, против{' '}
+            {percent(poll.shares.against)}
+          </p>
         </div>
+      ) : (
+        <div className="quorum">
+          <div
+            className="quorum-bar"
+            role="progressbar"
+            aria-label="Участие в собрании"
+            aria-valuenow={Math.round(poll.turnout * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span className={poll.quorum ? 'quorum-fill quorum-fill-ok' : 'quorum-fill'} style={{ width: percent(Math.min(1, poll.turnout)) }} />
 
-        <p className="quorum-meta">
-          {poll.quorum ? (
-            <strong className="quorum-ok">Кворум есть</strong>
-          ) : (
-            <>Не хватает {area(poll.areaToQuorum)} м² до кворума</>
-          )}
-          {' · за '}
-          {percent(poll.shares.for)} площади, против {percent(poll.shares.against)}
-        </p>
+            {poll.quorumShare === undefined ? null : (
+              <span className="quorum-mark" style={{ left: percent(poll.quorumShare) }}>
+                <span className="quorum-mark-label">кворум</span>
+              </span>
+            )}
+          </div>
 
-        {/* Порог задан законом, а не продуктом: основание стоит рядом с полосой. */}
-        {poll.basis ? <p className="hint aside">{poll.basis}</p> : null}
-      </div>
+          <p className="quorum-meta">
+            {poll.quorum ? (
+              <strong className="quorum-ok">Кворум есть</strong>
+            ) : (
+              <>Не хватает {area(poll.areaToQuorum)} м² до кворума</>
+            )}
+            {' · за '}
+            {percent(poll.shares.for)} площади, против {percent(poll.shares.against)}
+          </p>
+
+          {/* Порог задан законом, а не продуктом: основание стоит рядом с полосой. */}
+          {poll.basis ? <p className="hint aside">{poll.basis}</p> : null}
+        </div>
+      )}
 
       {poll.open ? (
         <>

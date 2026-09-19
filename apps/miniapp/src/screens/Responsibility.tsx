@@ -3,8 +3,9 @@ import { useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { formatPublished } from '../format.js';
-import type { HandoffView } from '../views.js';
+import type { HandoffView, ResponsibilityView } from '../views.js';
 import { useFit } from './Composer.js';
+import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
 import { IconSend } from './icons.js';
@@ -14,8 +15,26 @@ export interface ResponsibilityProps {
   requestId: string;
   /** Смена передаёт обращение и записывает ответ, жилец только читает. */
   staff?: boolean;
+  /** Заявка закрыта или снята: передавать её больше некуда. */
+  closed?: boolean;
+  /** Организация смотрящего: подрядчик не передаёт обращение сам себе. */
+  own?: string;
   onChanged?: () => void;
 }
+
+/** Жилинспекция: туда жалуется жилец со своего экрана, смена себя не проверяет. */
+const RESIDENT_ONLY = ['inspection'];
+
+/** Кому смена может передать обращение отсюда. */
+const offered = (
+  targets: NonNullable<ResponsibilityView['targets']>,
+  own: string | undefined,
+  organization: string | undefined,
+): NonNullable<ResponsibilityView['targets']> =>
+  targets.filter(
+    (target) =>
+      !RESIDENT_ONLY.includes(target.to) && target.organization !== own && target.organization !== organization,
+  );
 
 const line = (handoff: HandoffView): string =>
   [
@@ -99,16 +118,18 @@ const Answer = ({
  * Смежная организация ведётся отдельной строкой: её срок ответа не совпадает
  * со сроком работ управляющей организации.
  */
-export const Responsibility = ({ api, requestId, staff, onChanged }: ResponsibilityProps) => {
+export const Responsibility = ({ api, requestId, staff, closed, own, onChanged }: ResponsibilityProps) => {
   const view = useBridgeRequest((alive) => api.until(alive).responsibility(requestId), [api, requestId]);
   const [passing, setPassing] = useState<string | null>(null);
+  // Передача необратима и уходит в другую организацию: сначала спрашиваем.
+  const [asking, setAsking] = useState<{ to: string; organization: string; basis: string } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
   // Ответ без зоны ответственности показывать нечем: раздел просто не рисуется.
   if (!view.data?.title) return null;
 
   const { title, basis, next, organization } = view.data;
-  const targets = view.data.targets ?? [];
+  const targets = staff && !closed ? offered(view.data.targets ?? [], own, organization) : [];
   const handoffs = view.data.handoffs ?? [];
 
   const pass = async (to: string): Promise<void> => {
@@ -117,6 +138,7 @@ export const Responsibility = ({ api, requestId, staff, onChanged }: Responsibil
 
     try {
       await api.passRequest(requestId, to);
+      setAsking(null);
       view.reload();
       onChanged?.();
     } catch (error: unknown) {
@@ -153,7 +175,7 @@ export const Responsibility = ({ api, requestId, staff, onChanged }: Responsibil
           </div>
         ))}
 
-        {staff && targets.length > 0 ? (
+        {targets.length > 0 ? (
           <div className="inline-keys">
             {targets.map((target) => (
               <button
@@ -161,12 +183,24 @@ export const Responsibility = ({ api, requestId, staff, onChanged }: Responsibil
                 type="button"
                 className="inline-btn"
                 disabled={passing !== null}
-                onClick={() => void pass(target.to)}
+                onClick={() => setAsking(target)}
               >
                 {passing === target.to ? 'Передаём…' : `Передать: ${target.organization}`}
               </button>
             ))}
           </div>
+        ) : null}
+
+        {asking ? (
+          <Confirm
+            title={`Передать обращение: ${asking.organization}?`}
+            text={`${asking.basis}. Жилец увидит, кому передано и до какого срока ждать ответа.`}
+            confirmLabel="Передать"
+            busyLabel="Передаём…"
+            busy={passing !== null}
+            onConfirm={() => void pass(asking.to)}
+            onCancel={() => setAsking(null)}
+          />
         ) : null}
 
         {failed ? <ErrorText>{failed}</ErrorText> : null}

@@ -31,6 +31,9 @@ const Saved = ({ api }: { api: DomovoyApi }) => {
   );
 };
 
+/** С какой длины название экрана уже не помещается в строку рядом с помощником. */
+const LONG_TITLE = 16;
+
 /** Шапка: название экрана, переключатели дома и квартиры, обновление. */
 export const TopBar = ({
   api,
@@ -42,7 +45,11 @@ export const TopBar = ({
   onRefresh,
   onAssistant,
 }: TopBarProps) => (
-  <header className={scrolled ? 'topbar topbar-scrolled' : 'topbar'}>
+  <header
+    className={['topbar', scrolled ? 'topbar-scrolled' : '', title.length > LONG_TITLE ? 'topbar-long' : '']
+      .filter(Boolean)
+      .join(' ')}
+  >
     <div className="topbar-line">
       <h1 className="screen-title">{title}</h1>
 

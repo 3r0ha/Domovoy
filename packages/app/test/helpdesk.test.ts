@@ -141,6 +141,21 @@ describe('вопрос в управляющую компанию', () => {
     assert.equal(again.messages.length, 3);
   });
 
+  it('«спасибо, понятно» на отвеченный вопрос его заново не открывает', async () => {
+    const { deps, notifier } = setup();
+
+    const asked = await askSupport(deps, { resident: maria, text: 'Когда включат отопление?' });
+    await answerSupport(deps, { staff: dispatcher, ticketId: asked.id, text: '25 сентября.' });
+    notifier.sent.length = 0;
+
+    const thanked = await askSupport(deps, { resident: maria, text: 'Спасибо, понятно', ticketId: asked.id });
+
+    assert.equal(thanked.status, 'answered');
+    assert.equal(thanked.messages.length, 3);
+    assert.equal((await describeTickets(deps, [thanked]))[0]?.waitingSince, undefined);
+    assert.equal(notifier.sent.length, 0, 'смену благодарностью не будят');
+  });
+
   it('чужое обращение соседу не видно', async () => {
     const { deps } = setup();
 

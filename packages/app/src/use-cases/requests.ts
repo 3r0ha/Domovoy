@@ -41,7 +41,7 @@ import {
   notifyResident,
 } from '../notifier.js';
 import { type Resident } from '../repository.js';
-import { zoneOf } from '../zone.js';
+import { houseZone } from '../zone.js';
 import { assertMayTargetApartment, assertStaffServes, canActNow, canView, entranceOf } from './access.js';
 import { type AppDeps, type RequestPage } from './deps.js';
 
@@ -61,6 +61,8 @@ export interface CreateRequestCommand {
   attachments?: Attachment[];
   /** Завести отдельную заявку, что бы продукт ни думал о совпадении. */
   anyway?: boolean;
+  /** Заявка, к которой обращение только что присоединили: участие в ней снимается. */
+  apartFrom?: string;
 }
 
 /** Дополняет адрес тем, что читает человек: номером квартиры или названием оборудования. */
@@ -98,7 +100,11 @@ export const targetOf = (command: CreateRequestCommand): RequestTarget | null =>
         ? { kind: 'building', buildingId: command.resident.buildingId }
         : command.resident.apartmentId
           ? { kind: 'apartment', apartmentId: command.resident.apartmentId }
-          : null;
+          : // Жилец без квартиры, но с домом: обращение уходит на дом, как из
+            // чата дома, а не отказом «адрес не определён».
+            command.resident.buildingId
+            ? { kind: 'building', buildingId: command.resident.buildingId }
+            : null;
 
 export const createServiceRequest = async (deps: AppDeps, command: CreateRequestCommand): Promise<ServiceRequest> => {
   const { resident, description } = command;
@@ -167,6 +173,11 @@ export interface TransitionCommand {
   rating?: number;
   /** Код с наклейки объекта: им мастер подтверждает, что был на месте. */
   provedBy?: string;
+  /**
+   * Промежуточный шаг, о котором никого не извещают: заявку принимают только
+   * затем, чтобы тут же поручить, и жильцу нужно одно сообщение, а не два.
+   */
+  quiet?: boolean;
 }
 
 export const transitionRequest = async (deps: AppDeps, command: TransitionCommand): Promise<ServiceRequest> => {
@@ -289,6 +300,8 @@ const tellAboutTransition = async (
   saved: ServiceRequest,
   assignment: Assignment | undefined,
 ): Promise<void> => {
+  if (command.quiet) return;
+
   const text = formatStatusChange(saved);
   const notifier = deps.notifier ?? noopNotifier;
   const entrance = entranceOf(saved.target);
@@ -332,7 +345,7 @@ const tellAboutTransition = async (
   await notifyResident(
     notifier,
     assignee,
-    formatAssignment(saved, await zoneOf(deps, saved.buildingId)),
+    formatAssignment(saved, await houseZone(deps, saved.buildingId)),
     assignee ? actionsFor(saved, assignee) : [],
     saved.id,
   );

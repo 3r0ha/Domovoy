@@ -125,7 +125,8 @@ export const startPoll = async (deps: AppDeps, command: StartPollCommand): Promi
         (mode === 'meeting'
           ? `${POLL_RULES[poll.kind].title}. Голосование идёт с ${opens} по ${closes}.`
           : `Ответить можно до ${closes}. Опрос не заменяет собрание собственников.`),
-      { section: 'polls', mutable: 'polls' },
+      // Бюллетень стоит под самим уведомлением: голосовать можно, не открывая приложение.
+      { section: 'polls', mutable: 'polls', voteAbout: poll.id },
     );
   }
 

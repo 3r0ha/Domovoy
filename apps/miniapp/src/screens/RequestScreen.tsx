@@ -48,11 +48,22 @@ export interface RequestScreenProps {
   backTitle?: string;
   /** Кто смотрит: он же берёт наряд на себя. */
   meId?: string;
+  /** Как зовут смотрящего: подрядчику под этим именем обращение не передают, оно у него. */
+  meName?: string;
   /** Роль сама выполняет работу: мастер и подрядчик уходят в работу без выбора. */
   selfAssigned?: boolean;
 }
 
 const CLOSED = ['confirmed', 'rejected'];
+
+/** Что жилец делает с заявкой кнопкой: остальное сервер ему тоже разрешает, но это ход смены. */
+const RESIDENT_ACTIONS = ['withdrawn'];
+
+/** Заявка, по которой ничего больше не делается: закрытая или снятая. */
+const ENDED = [...CLOSED, 'withdrawn'];
+
+/** Категория, где причина бывает этажом выше: протечка идёт сверху. */
+const LEAKS = 'plumbing';
 
 const TONE: Record<string, string> = {
   new: 'dot-work',
@@ -69,6 +80,7 @@ const RATINGS = ['плохо', 'так себе', 'нормально', 'хор�
 /** Срок словами: до приёма считается срок ответа, дальше срок работы. */
 const deadline = (request: RequestView): string => {
   if (request.status === 'rejected') return 'отклонена';
+  if (request.status === 'withdrawn') return 'снята';
   if (CLOSED.includes(request.status)) return 'закрыта';
   if (request.status === 'done') {
     return request.autoConfirmAt
@@ -83,7 +95,7 @@ const deadline = (request: RequestView): string => {
 
 /** Ближайший срок числом и часом: он же стоит в полосе над ним. */
 const dueLine = (request: RequestView): string | null => {
-  if (CLOSED.includes(request.status) || request.status === 'withdrawn') return null;
+  if (ENDED.includes(request.status)) return null;
 
   const when = formatDue(request.status === 'new' ? request.dueAt : request.resolutionDueAt);
 
@@ -94,7 +106,7 @@ const dueLine = (request: RequestView): string | null => {
 
 /** Полоса срока. У нарушенного её нет. */
 const Deadline = ({ request }: { request: RequestView }) => {
-  if (CLOSED.includes(request.status) || request.status === 'done' || request.overdue) return null;
+  if (ENDED.includes(request.status) || request.status === 'done' || request.overdue) return null;
 
   const from = new Date(request.createdAt).getTime();
   const to = new Date(request.dueAt).getTime();
@@ -300,6 +312,7 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
 
 /**
  * Стук к соседу сверху: вопрос уходит от бота, без имён и номеров квартир.
+ * Предлагается только по протечке: в других поломках сосед сверху ни при чём.
  */
 const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestView; onChanged: () => void }) => {
   const [busy, setBusy] = useState(false);
@@ -307,7 +320,9 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
   const haptics = useHaptics();
   const say = useToast();
 
-  if (request.knocked) return <p className="hint">Соседу сверху постучали</p>;
+  if (request.category !== LEAKS) return null;
+
+  if (request.knocked) return <p className="hint">Соседу сверху сообщили</p>;
 
   if (!request.canKnock) return null;
 
@@ -318,11 +333,11 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
     try {
       await api.knockUpstairs(request.id);
       haptics.done();
-      say('Постучали соседу сверху');
+      say('Соседу сверху сообщили');
       onChanged();
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не получилось постучать');
+      setError(reason instanceof ApiError ? reason.message : 'Не получилось сообщить');
     } finally {
       setBusy(false);
     }
@@ -331,8 +346,15 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
   return (
     <>
       <CellList mode="island">
-        <CellAction mode="secondary" disabled={busy} onClick={() => void knock()}>
-          {busy ? 'Стучим…' : 'Постучать'}
+        <CellSimple
+          className="row-split"
+          title="Течёт сверху?"
+          subtitle="Домовой спросит соседа, не у него ли, без вашего имени и номера квартиры"
+          height="compact"
+        />
+
+        <CellAction className="row-split" mode="secondary" disabled={busy} onClick={() => void knock()}>
+          {busy ? 'Отправляем…' : 'Сообщить соседу сверху'}
         </CellAction>
       </CellList>
 
@@ -399,7 +421,7 @@ const Talk = ({
         api={api}
         id={`request-say-${request.id}`}
         label={answering ? 'Ответ на уточнение' : 'Сообщение по заявке'}
-        placeholder={answering ? 'Ваш ответ' : shared ? 'Написать соседям и в УК' : 'Сообщение'}
+        placeholder={answering ? 'Ваш ответ' : shared ? 'Соседям и в УК' : 'Сообщение'}
         value={text}
         busy={busy}
         photos={photos}
@@ -522,6 +544,13 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
   );
 };
 
+/**
+ * Проверенные основания жалоб по заявкам. Экран заявки уходит, пока человек
+ * читает текст жалобы, и по возвращении основание и отметка об отправке
+ * должны быть на месте, а не запрашиваться заново.
+ */
+const OFFERS = new Map<string, ComplaintOffer>();
+
 /** Обращение в жилищную инспекцию. */
 const Complaint = ({
   api,
@@ -532,19 +561,23 @@ const Complaint = ({
   request: RequestView;
   onDocument: (title: string, text: string) => void;
 }) => {
-  const [offer, setOffer] = useState<ComplaintOffer | null>(null);
-  const [sent, setSent] = useState<ComplaintSent | null>(null);
+  const [offer, setOffer] = useState<ComplaintOffer | null>(OFFERS.get(request.id) ?? null);
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const say = useToast();
+
+  const keep = (next: ComplaintOffer): void => {
+    OFFERS.set(request.id, next);
+    setOffer(next);
+  };
 
   const check = async (): Promise<void> => {
     setBusy(true);
     setFailed(null);
 
     try {
-      setOffer(await api.complaint(request.id));
+      keep(await api.complaint(request.id));
     } catch (error) {
       // Отказ проверки кнопку не убирает: попробовать ещё раз есть чем.
       setFailed(error instanceof ApiError ? error.message : 'Не удалось проверить сроки');
@@ -559,9 +592,9 @@ const Complaint = ({
     setFailed(null);
 
     try {
-      const receipt = await api.sendComplaint(request.id);
+      const receipt: ComplaintSent = await api.sendComplaint(request.id);
 
-      setSent(receipt);
+      keep({ ...(offer ?? { possible: true, reason: '' }), sent: receipt });
       setAsking(false);
       say('Обращение отправлено');
     } catch (error) {
@@ -573,11 +606,11 @@ const Complaint = ({
 
   if (!request.overdue) return null;
 
-  const done = sent ?? offer?.sent;
+  const done = offer?.sent;
 
   return (
     <div className="complaint">
-      {offer || done ? null : (
+      {offer ? null : (
         <button type="button" className="link quiet" disabled={busy} onClick={() => void check()}>
           {busy ? 'Проверяем сроки…' : 'Пожаловаться в жилинспекцию'}
         </button>
@@ -590,7 +623,9 @@ const Complaint = ({
         </p>
       ) : null}
 
-      {offer && !done ? <p className="hint">{offer.reason}</p> : null}
+      {offer && !done ? (
+        <p className="hint">{offer.possible ? `Основание: ${offer.reason}` : `Жалобу пока не отправить: ${offer.reason}`}</p>
+      ) : null}
 
       {/* Отправку человек видит там же, где узнал об основании: текст открывается
           отдельно и только если он хочет его прочитать. */}
@@ -613,7 +648,7 @@ const Complaint = ({
       ) : null}
 
       {/* Текст обращения остаётся доступным и после отправки: его иногда просят приложить. */}
-      {done && offer?.complaint ? (
+      {done && offer.complaint ? (
         <button
           type="button"
           className="link"
@@ -664,10 +699,13 @@ export const RequestScreen = ({
   onBack,
   backTitle,
   meId,
+  meName,
   selfAssigned,
 }: RequestScreenProps) => {
   const request = useBridgeRequest((alive) => api.until(alive).getRequest(id), [api, id]);
-  const people = useBridgeRequest(async (alive) => (staff ? api.until(alive).staff() : []), [api, staff]);
+  // Список сотрудников нужен тому, кто выбирает исполнителя: мастер и подрядчик берут наряд на себя.
+  const picks = Boolean(staff) && !selfAssigned;
+  const people = useBridgeRequest(async (alive) => (picks ? api.until(alive).staff() : []), [api, picks]);
 
   const reload = (): void => {
     request.reload();
@@ -683,6 +721,7 @@ export const RequestScreen = ({
   const view = request.data;
   const mine = !staff && view.mine !== false;
   const watching = !staff && view.mine === false;
+  const ended = ENDED.includes(view.status);
   const due = dueLine(view);
 
   return (
@@ -698,7 +737,7 @@ export const RequestScreen = ({
         <p className="request-head">
           <span className="row-state">
             <span className={`dot ${view.overdue ? 'dot-bad' : (TONE[view.status] ?? 'dot-work')}`} />
-            {statusTitle(view.status, staff)}
+            {view.statusTitle ?? statusTitle(view.status, staff)}
           </span>
           <span className="number">{view.number}</span>
         </p>
@@ -731,7 +770,7 @@ export const RequestScreen = ({
 
       {/* Сотрудники не дошли: без этой строки назначение выглядит так, будто
           в компании никого нет. */}
-      {staff && (people.data ?? []).length === 0 && people.error ? (
+      {picks && (people.data ?? []).length === 0 && people.error ? (
         <RetryLink title="Список сотрудников не загрузился" onRetry={people.reload} />
       ) : null}
 
@@ -748,13 +787,20 @@ export const RequestScreen = ({
 
       {/* Уточнение адреса видит автор заявки, кем бы он ни был: продукт
           спрашивает только его, остальным приходит пустой ответ. */}
-      <Clarify api={api} requestId={view.id} onChanged={reload} />
+      {ended ? null : <Clarify api={api} requestId={view.id} onChanged={reload} />}
 
-      <Responsibility api={api} requestId={view.id} staff={staff} onChanged={reload} />
+      <Responsibility
+        api={api}
+        requestId={view.id}
+        staff={staff}
+        closed={ended}
+        {...(selfAssigned && meName ? { own: meName } : {})}
+        onChanged={reload}
+      />
 
-      {watching && !CLOSED.includes(view.status) ? <Support api={api} request={view} onChanged={reload} /> : null}
+      {watching && !ended ? <Support api={api} request={view} onChanged={reload} /> : null}
 
-      {CLOSED.includes(view.status) || watching ? null : <Knock api={api} request={view} onChanged={reload} />}
+      {ended || watching ? null : <Knock api={api} request={view} onChanged={reload} />}
 
       {mine && view.status === 'done' ? <Acceptance api={api} request={view} onChanged={reload} /> : null}
 
@@ -762,13 +808,12 @@ export const RequestScreen = ({
         <h2>История</h2>
         <History api={api} request={view} staff={staff} />
 
-        {CLOSED.includes(view.status) || watching ? null : (
-          <Talk api={api} request={view} staff={staff} onChanged={reload} />
-        )}
+        {ended || watching ? null : <Talk api={api} request={view} staff={staff} onChanged={reload} />}
       </section>
 
+      {/* Жильцу из действий остаётся только отзыв: на уточнение он отвечает сообщением выше. */}
       {mine && view.status !== 'done' ? (
-        <RequestActions api={api} request={view} staff={[]} onChanged={reload} />
+        <RequestActions api={api} request={view} staff={[]} only={RESIDENT_ACTIONS} onChanged={reload} />
       ) : null}
 
       {mine ? <Complaint api={api} request={view} onDocument={onDocument} /> : null}

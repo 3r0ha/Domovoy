@@ -2,7 +2,7 @@ import { Avatar, CellAction, CellList, CellSimple, Switch } from '@maxhub/max-ui
 import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, initial, type DomovoyApi, type NoticeView } from '../api.js';
+import { ApiError, formatDay, formatPhone, initial, type DomovoyApi, type NoticeView } from '../api.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
@@ -27,6 +27,8 @@ export interface ProfileScreenProps {
   onForgotten: () => void;
   /** Квартира отвязана: сессию нужно перечитать. */
   onUnbound?: () => void;
+  /** Телефон сохранён или убран: профиль в сессии узнаёт об этом сразу. */
+  onPhone?: (phone: string) => void;
 }
 
 /** Профиль: данные человека, настройки уведомлений и удаление профиля. */
@@ -42,6 +44,7 @@ export const ProfileScreen = ({
   onDocument,
   onForgotten,
   onUnbound,
+  onPhone,
 }: ProfileScreenProps) => {
   const bridge = useBridge();
   const canShareContact = useSupports('requestContact');
@@ -108,12 +111,18 @@ export const ProfileScreen = ({
     });
 
   const share = (): Promise<void> =>
-    run(async () => setSavedPhone((await api.saveContact(await bridge.requestContact())).phone));
+    run(async () => {
+      const saved = (await api.saveContact(await bridge.requestContact())).phone;
+
+      setSavedPhone(saved);
+      onPhone?.(saved);
+    });
 
   const forgetPhone = (): Promise<void> =>
     run(async () => {
       await api.forgetContact();
       setSavedPhone('');
+      onPhone?.('');
     });
 
   const unbind = (): Promise<void> =>
@@ -186,7 +195,7 @@ export const ProfileScreen = ({
         {canShareContact ? (
           <CellSimple
             title="Телефон"
-            subtitle={number || 'Чтобы дозвонились при аварии'}
+            subtitle={number ? formatPhone(number) : 'Чтобы дозвонились при аварии'}
             showChevron={!number}
             {...(number ? {} : { onClick: () => void share() })}
           />

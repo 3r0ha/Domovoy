@@ -152,7 +152,7 @@ export interface HouseContext {
 const TOPICS: readonly QuestionTopic[] = ['works', 'incident', 'bill', 'request', 'unknown'];
 
 const QUESTION_WORDS =
-  /^(когда|почему|отчего|зачем|сколько|как(ой|ая|ое|ие)?|где|кто|что с|чего|будет ли|есть ли|можно ли|подскажите|скажите)\b/i;
+  /^(когда|почему|отчего|зачем|сколько|как(ой|ая|ое|ие)?|где|кто|что с|чего|будет ли|есть ли|можно ли|подскажите|скажите)(?!\p{L})/iu;
 
 const TOPIC_WORDS: readonly { topic: QuestionTopic; words: RegExp }[] = [
   { topic: 'incident', words: /авари|прорыв|затопил|потоп/i },

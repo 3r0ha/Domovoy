@@ -506,13 +506,39 @@ describe('обращение присоединено к чужой заявке
     await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('textarea'), 'Нет горячей воды'));
     await screen.act(() => screen.find<HTMLButtonElement>('.composer-send').click());
 
-    assert.match(screen.text, /Уже чиним/i);
+    assert.match(screen.text, /Похоже на уже поданную/i);
     assert.match(screen.text, /Течёт кран/);
     assert.match(screen.text, /ообщили: 3/);
     assert.equal(created, 0, 'экран не переключается сам');
 
     await screen.act(() => screen.find<HTMLButtonElement>('button').click());
     assert.equal(created, 1);
+
+    await screen.unmount();
+  });
+
+  it('«это другое» после присоединения снимает участие в чужой заявке', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/requests': { joined: true, request: { ...REQUEST, reporters: 2 } },
+    });
+
+    const screen = await render(
+      createElement(NewRequestScreen as never, { api, where: 'Квартира 1', onCreated: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLTextAreaElement>('textarea'), 'Течёт из-под ванны'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.composer-send').click());
+    await screen.act(() => tap(screen, 'Это другое'));
+
+    const insisted = calls.filter((call) => call.path === '/api/requests' && call.method === 'POST').at(-1);
+
+    assert.deepEqual(JSON.parse(insisted?.body ?? '{}'), {
+      description: 'Течёт из-под ванны',
+      anyway: true,
+      apartFrom: 'req-1',
+    });
 
     await screen.unmount();
   });
@@ -542,6 +568,7 @@ describe('обращение присоединено к чужой заявке
       description: 'Течёт кран на кухне',
       startParam: 'ent_b1_1',
       anyway: true,
+      apartFrom: 'req-1',
     });
 
     await screen.unmount();
@@ -588,7 +615,7 @@ describe('обращение присоединено к чужой заявке
 
     assert.match(sent?.path ?? '', /\/answer$/);
     assert.deepEqual(JSON.parse(sent?.body ?? '{}'), { affected: true });
-    assert.match(screen.text, /Уже чиним/i);
+    assert.match(screen.text, /Похоже на уже поданную/i);
     assert.match(screen.text, /ообщили: 2/);
 
     await screen.unmount();
@@ -606,7 +633,7 @@ describe('обращение присоединено к чужой заявке
       bridge,
     );
 
-    assert.match(screen.text, /4 обращения · ремонт 12 марта/);
+    assert.match(screen.text, /4 обращения · последний ремонт 12 марта/);
 
     await screen.unmount();
   });
@@ -1136,17 +1163,17 @@ describe('экран заявки', () => {
     // Своё сообщение подписи не требует: оно справа и своим цветом, как в переписке.
     assert.equal(said[1]?.querySelectorAll('.bubble-author').length, 0);
     assert.equal(said[1]?.querySelectorAll('.bubble-mine').length, 1);
-    assert.equal(screen.find<HTMLTextAreaElement>('.talk textarea').placeholder, 'Написать соседям и в УК');
+    assert.equal(screen.find<HTMLTextAreaElement>('.talk textarea').placeholder, 'Соседям и в УК');
 
     await screen.unmount();
   });
 
-  it('к соседу сверху стучат из заявки, и только пока не постучали', async () => {
+  it('соседу сверху сообщают из заявки о протечке, и только пока не сообщили', async () => {
     const { screen, calls } = await openRequest({ canKnock: true });
 
     const knock = screen
       .findAll<HTMLElement>('button')
-      .find((button) => (button.textContent ?? '').includes('Постучать'));
+      .find((button) => (button.textContent ?? '').includes('Сообщить соседу сверху'));
 
     assert.notEqual(knock, undefined);
 
@@ -1160,10 +1187,43 @@ describe('экран заявки', () => {
 
     const knocked = await openRequest({ knocked: true });
 
-    assert.match(knocked.screen.text, /Соседу сверху постучали/);
-    assert.equal(/Постучать/.test(knocked.screen.text), false);
+    assert.match(knocked.screen.text, /Соседу сверху сообщили/);
+    assert.equal(/Сообщить соседу/.test(knocked.screen.text), false);
 
     await knocked.screen.unmount();
+
+    // Не горит лампа в подъезде: сосед сверху ни при чём, даже если он есть.
+    const light = await openRequest({ canKnock: true, category: 'electricity', title: 'Не горит лампа' });
+
+    assert.equal(/соседу сверху/i.test(light.screen.text), false);
+
+    await light.screen.unmount();
+  });
+
+  it('снятая заявка не обещает срока и не зовёт писать по ней', async () => {
+    const { screen } = await openRequest({ status: 'withdrawn' });
+
+    assert.match(screen.text, /снята/i);
+    assert.doesNotMatch(screen.text, /осталось|ответ через/);
+    assert.equal(screen.findAll('.talk').length, 0);
+    assert.equal(screen.findAll('.bar').length, 0);
+
+    await screen.unmount();
+  });
+
+  it('жильцу на уточнении не показывают ход смены «В работу»', async () => {
+    const { screen, calls } = await openRequest(
+      { status: 'needs_info' },
+      { replies: { '/api/requests/req-1/actions': { actions: ['in_progress', 'withdrawn'] } } },
+    );
+
+    const labels = screen.findAll('.actions button, .actions-more button').map((button) => button.textContent);
+
+    assert.deepEqual(labels, ['Отозвать заявку']);
+    assert.doesNotMatch(screen.text, /Выберите исполнителя/);
+    assert.equal(calls.some((call) => call.path === '/api/staff'), false, 'жильцу список сотрудников не нужен');
+
+    await screen.unmount();
   });
 
   it('обращение в ГЖИ предлагается только по просроченной заявке', async () => {
@@ -1471,6 +1531,20 @@ describe('действия сотрудника над заявкой', () => {
       screen.findAll('.actions button, .actions-more button').map((button) => button.textContent),
       ['Взять', 'Отклонить'],
     );
+
+    await screen.unmount();
+  });
+
+  it('подрядчик и мастер берут наряд на себя: список сотрудников им не читают', async () => {
+    const { screen, calls } = await openAs(
+      { '/api/requests/req-1/actions': { actions: ['in_progress'] } },
+      { status: 'accepted' },
+      { selfAssigned: true, meId: 'con-1' },
+    );
+
+    assert.equal(calls.some((call) => call.path === '/api/staff'), false);
+    assert.doesNotMatch(screen.text, /Список сотрудников не загрузился/);
+    assert.equal(screen.find<HTMLButtonElement>('.actions button').disabled, false);
 
     await screen.unmount();
   });
@@ -2125,7 +2199,7 @@ describe('сводка по дому', () => {
     assert.match(screen.text, /↓ было 9/);
     assert.match(screen.text, /75%/);
     assert.match(screen.text, /↑ было 50%/);
-    assert.match(screen.text, /18\.5 ч/);
+    assert.match(screen.text, /18,5 ч/, 'дробь через запятую, как и суммы');
     assert.match(screen.text, /Авария: несколько обращений/);
     assert.match(screen.text, /сообщили 3/);
     assert.match(screen.text, /Водоснабжение и канализация2 из 367%/);
@@ -3150,6 +3224,15 @@ describe('отказ вместо пустоты', () => {
 
     assert.ok(pass, 'кнопки передачи нет');
     await screen.act(() => (pass as HTMLButtonElement).click());
+
+    assert.equal(
+      calls.find((call) => call.path === '/api/requests/req-1/handoff'),
+      undefined,
+      'передача в другую организацию спрашивается, а не уходит с одного касания',
+    );
+    assert.match(screen.text, /Передать обращение: Водоканал\?/);
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
     await screen.act(() => {});
 
     const sent = calls.find((call) => call.path === '/api/requests/req-1/handoff');
@@ -3158,6 +3241,64 @@ describe('отказ вместо пустоты', () => {
     assert.deepEqual(JSON.parse(sent?.body ?? '{}'), { to: 'resource' });
 
     await screen.unmount();
+  });
+
+  it('передачу не предлагают по закрытой заявке, в жилинспекцию и подрядчику самому себе', async () => {
+    const { bridge } = createMockBridge();
+    const responsibility = {
+      kind: 'contractor',
+      title: 'Подрядчик',
+      organization: 'Лифтсервис',
+      basis: 'Договор на обслуживание лифтов',
+      targets: [
+        { to: 'contractor', organization: 'Лифтсервис', basis: 'договор' },
+        { to: 'inspection', organization: 'Жилищная инспекция', basis: 'ст. 20 ЖК РФ' },
+        { to: 'resource', organization: 'Водоканал', basis: 'п. 108 Правил № 354' },
+      ],
+      handoffs: [],
+    };
+    const { api } = apiWith({
+      '/api/requests/req-1/actions': { actions: [] },
+      '/api/staff': [],
+      '/api/requests/req-1/responsibility': responsibility,
+      '/api/requests/req-1': REQUEST,
+    });
+
+    const contractor = await render(
+      createElement(RequestScreen as never, { api, id: 'req-1', staff: true, selfAssigned: true, meName: 'Лифтсервис' } as never),
+      bridge,
+    );
+
+    const offered = contractor.findAll('button').filter((button) => (button.textContent ?? '').startsWith('Передать'));
+
+    assert.deepEqual(
+      offered.map((button) => button.textContent),
+      ['Передать: Водоканал'],
+    );
+
+    await contractor.unmount();
+
+    const rejected = apiWith({
+      '/api/requests/req-1/actions': { actions: [] },
+      '/api/staff': [],
+      '/api/requests/req-1/responsibility': responsibility,
+      '/api/requests/req-1/clarify': { question: 'Где именно?', options: [{ label: 'Подъезд 1', startParam: 'ent_b1_1' }] },
+      '/api/requests/req-1': { ...REQUEST, status: 'rejected' },
+    });
+
+    const closed = await render(
+      createElement(RequestScreen as never, { api: rejected.api, id: 'req-1', staff: true } as never),
+      bridge,
+    );
+
+    assert.equal(
+      closed.findAll('button').some((button) => (button.textContent ?? '').startsWith('Передать')),
+      false,
+      'отклонённую заявку передавать некуда',
+    );
+    assert.doesNotMatch(closed.text, /Уточните адрес/);
+
+    await closed.unmount();
   });
 
   it('пустой список мастера не зовёт его заводить заявку', async () => {
@@ -4195,7 +4336,7 @@ describe('профиль жильца', () => {
       bridge,
     );
 
-    assert.match(screen.text, /\+79991234567/);
+    assert.match(screen.text, /\+7 999 123-45-67/, 'номер читается по группам');
     assert.match(screen.text, /Убрать/);
 
     await screen.unmount();
@@ -4615,6 +4756,32 @@ describe('наряды мастера', () => {
     await screen.unmount();
   });
 
+  it('новую заявку, порученную самому мастеру, он берёт из списка', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      'GET /api/requests?scope=mine': [
+        { ...REQUEST, id: 'req-8', number: 'Д15-8', status: 'new', assigneeId: 'tech-1' },
+        { ...REQUEST, id: 'req-9', number: 'Д15-9', status: 'new' },
+      ],
+    });
+
+    const screen = await render(
+      createElement(RequestListScreen as never, { api, staff: true, onOpen: () => {} } as never),
+      bridge,
+    );
+
+    assert.equal(screen.findAll('.row-action').length, 1, 'ничью новую заявку из списка не берут');
+
+    await screen.act(() => tap(screen, 'Взять'));
+
+    const post = calls.find((call) => call.method === 'POST');
+
+    assert.equal(post?.path, '/api/requests/req-8/transition');
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { to: 'accepted' });
+
+    await screen.unmount();
+  });
+
   it('у жильца кнопки перехода в списке нет: это дело смены', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({
@@ -4922,8 +5089,8 @@ describe('наклейки', () => {
 
 describe('история объекта', () => {
   it('средний срок дописывается к числу поломок, а не заменяет его', () => {
-    assert.equal(objectHistory(14, undefined, 38), '14 обращений · раз в 38 дней');
-    assert.equal(objectHistory(14, undefined, 21), '14 обращений · раз в 21 день');
+    assert.equal(objectHistory(14, undefined, 38), '14 обращений · ломается примерно раз в 38 дней');
+    assert.equal(objectHistory(14, undefined, 21), '14 обращений · ломается примерно раз в 21 день');
     assert.equal(objectHistory(1), '1 обращение');
   });
 
@@ -5315,6 +5482,13 @@ describe('приём в управляющей организации', () => {
     assert.match(screen.text, /24 сентября/);
 
     await screen.act(() => tap(screen, '15:30'));
+
+    // Форма стоит под выбранным днём и называет выбранный час: за ним не надо возвращаться наверх.
+    const groups = screen.findAll('.list > .list');
+
+    assert.match(groups[0]?.textContent ?? '', /22 сентября, 15:30/);
+    assert.doesNotMatch(groups[1]?.textContent ?? '', /С чем придёте/);
+
     await screen.act(() => typeInto(screen.find<HTMLInputElement>('#visit-topic'), 'Перерасчёт'));
     await screen.act(() => tap(screen, 'Записаться'));
 
@@ -5339,6 +5513,15 @@ describe('приём в управляющей организации', () => {
     assert.match(screen.text, /Перерасчёт за горячую воду/);
 
     await screen.act(() => tap(screen, 'Отменить запись'));
+
+    assert.equal(
+      calls.some((call) => call.method === 'POST' && call.path === '/api/visits/vis-1/cancel'),
+      false,
+      'отмена спрашивается, а не уходит с одного касания',
+    );
+    assert.match(screen.text, /Отменить запись\?/);
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
 
     assert.ok(
       calls.some((call) => call.method === 'POST' && call.path === '/api/visits/vis-1/cancel'),

@@ -223,6 +223,18 @@ const shortMoment = (isoDate: string, now: Date = new Date()): string => {
   return sameDay ? time : `${at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`;
 };
 
+/** Когда объявление вышло: сегодняшнее и вчерашнее названы словом, старое датой. */
+const publishedAt = (isoDate: string, now: Date = new Date()): string => {
+  const at = new Date(isoDate);
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  const time = at.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+  if (at.toDateString() === now.toDateString()) return `сегодня, ${time}`;
+  if (at.toDateString() === yesterday.toDateString()) return `вчера, ${time}`;
+
+  return `${at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`;
+};
+
 /** Три состояния работ: объявлены, идут, закончились. */
 const Works = ({ works }: { works: NonNullable<AnnouncementView['works']> }) => {
   const now = Date.now();
@@ -289,7 +301,7 @@ const AnnouncementCard = ({ announcement, showReach }: { announcement: Announcem
 
     <footer>
       <span className="where">
-        {shortMoment(announcement.createdAt)} · {announcement.audience}
+        {publishedAt(announcement.createdAt)} · {announcement.audience}
 
         {showReach ? ` · ${countFlats(announcement.recipients)}` : ''}
       </span>

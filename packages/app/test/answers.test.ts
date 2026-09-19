@@ -118,7 +118,7 @@ describe('ответ на вопрос жильца', () => {
     const answer = await answerAboutHouse(deps, maria, 'Что с моей заявкой?');
 
     assert.equal(answer.topic, 'request');
-    assert.match(answer.text ?? '', /Д15-\d{4}-\d{4}: принята/);
+    assert.match(answer.text ?? '', /Д15-\d{4}-\d{4}: новая/);
   });
 
   it('сообщение о поломке ответом не подменяется', async () => {

@@ -8,6 +8,7 @@ import {
   isFinal,
   isSharedInfrastructure,
   joinRequest,
+  leaveRequest,
   MAX_DESCRIPTION_LENGTH,
   OPEN_STATUSES,
   promoteToShared,
@@ -46,7 +47,12 @@ export type SubmitResult =
       again?: boolean;
     }
   | { kind: 'planned'; work: PlannedWork; explanation: string }
-  | { kind: 'answered'; answer: string };
+  | {
+      kind: 'answered';
+      answer: string;
+      /** Команда бота с разделом, о котором ответ: кнопка под ним ведёт туда. */
+      command?: string;
+    };
 
 /** Обращение, которое стало заявкой: плановые работы её не заводят. */
 export type SubmittedRequest = Extract<SubmitResult, { kind: 'created' | 'joined' }>;
@@ -82,6 +88,39 @@ const houseFor = async (deps: AppDeps, command: CreateRequestCommand, buildingId
     entrances: [...new Set(apartments.map((apartment) => apartment.entrance))].sort((left, right) => left - right),
     ...(own ? { apartment: own.number } : {}),
   };
+};
+
+/**
+ * Место по словам, когда модели нет: «в подъезде не горит свет» иначе заводилось
+ * бы на квартиру автора. Слова о квартире перевешивают: «в подъезде» может быть
+ * частью адреса, а не места поломки.
+ */
+const placeByWords = (text: string): Place | undefined => {
+  if (/кварти|в ванн|на кухн|в комнат|в туалет|в коридор|под раковин/iu.test(text)) return undefined;
+  if (/двор|крыш|подвал|фасад|весь дом|по всему дому|у дома|детск(ая|ой) площад|шлагбаум|парковк/iu.test(text)) {
+    return 'house';
+  }
+  if (/подъезд|площадк|лестниц|лифт|домофон|тамбур|перил|ступен/iu.test(text)) return 'entrance';
+
+  return undefined;
+};
+
+/**
+ * Адрес обращения из разбора: объект, названный моделью, идёт первым. Иначе
+ * место по словам: про подъезд и двор человек пишет теми же словами, что про
+ * свою квартиру, и адрес по умолчанию берётся не от привязки, а из текста.
+ */
+const whereFrom = async (
+  deps: AppDeps,
+  command: CreateRequestCommand,
+  read: { equipment?: string | undefined; place?: Place | undefined },
+  buildingId: string,
+): Promise<string | undefined> => {
+  if (!command.startParam && read.equipment) {
+    return encodeTarget({ kind: 'equipment', buildingId, equipmentId: read.equipment });
+  }
+
+  return placeParam(deps, command, read.place ?? placeByWords(command.description), buildingId);
 };
 
 /**
@@ -124,7 +163,7 @@ const answerInstead = async (deps: AppDeps, command: CreateRequestCommand): Prom
 
   const elsewhere = await otherSection(deps, command).catch(() => undefined);
 
-  return elsewhere ? { kind: 'answered', answer: elsewhere } : undefined;
+  return elsewhere ? { kind: 'answered', ...elsewhere } : undefined;
 };
 
 /**
@@ -133,14 +172,18 @@ const answerInstead = async (deps: AppDeps, command: CreateRequestCommand): Prom
  * это или другое место продукта. Без модели остаётся подбор по словам, поэтому
  * продукт ведёт себя так же, только грубее.
  */
-const otherSection = async (deps: AppDeps, command: CreateRequestCommand): Promise<string | undefined> => {
+const otherSection = async (
+  deps: AppDeps,
+  command: CreateRequestCommand,
+): Promise<{ answer: string; command?: string } | undefined> => {
   const elsewhere = await sectionFor(deps, command.resident, command.description);
 
   if (!elsewhere) return undefined;
 
   const help = await askAssistant(deps, command.resident, command.description);
+  const section = help.command ?? elsewhere.command;
 
-  return help.answer;
+  return { answer: help.answer, ...(section ? { command: section } : {}) };
 };
 
 /**
@@ -200,7 +243,9 @@ const fitted = async (deps: AppDeps, text: string): Promise<string> => {
 };
 
 /** Человек спрашивает, а не рассказывает: вопросительный знак или вопросительное слово. */
-const ASKING = /\?|^\s*(когда|почему|отчего|зачем|сколько|как(ой|ая|ое|ие)?|где|кто|что с|будет ли|есть ли|можно ли|подскажите|скажите)\b/i;
+// Граница слова через lookahead: `\b` в JS кириллицу не знает.
+const ASKING =
+  /\?|^\s*(когда|почему|отчего|зачем|сколько|как(ой|ая|ое|ие)?|где|кто|что с|будет ли|есть ли|можно ли|подскажите|скажите)(?!\p{L})/iu;
 
 /** Рассказ о неисправности: слова о ней есть, а вопроса нет. */
 const aboutTrouble = (text: string): boolean => TROUBLE.test(text) && !ASKING.test(text.trim());
@@ -240,16 +285,7 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
   const house = deps.reasoner ? await houseFor(deps, command, buildingId).catch(() => undefined) : undefined;
   const read = await understandRequest(sized.description, deps.reasoner, house);
 
-  // Объект из ответа модели становится адресом обращения, если человек не указал свой.
-  const named =
-    !command.startParam && read.equipment
-      ? encodeTarget({ kind: 'equipment', buildingId, equipmentId: read.equipment })
-      : undefined;
-
-  // Про подъезд и двор человек пишет теми же словами, что про свою квартиру,
-  // поэтому адрес по умолчанию берётся не от привязки, а из разбора текста.
-  const placed = named ? undefined : await placeParam(deps, command, read.place, buildingId);
-  const where = named ?? placed;
+  const where = await whereFrom(deps, command, read, buildingId);
 
   const enriched: CreateRequestCommand = {
     ...sized,
@@ -316,6 +352,36 @@ const recentTwin = async (deps: AppDeps, command: CreateRequestCommand): Promise
   );
 };
 
+/** Сколько назад присоединение считается «только что»: дальше «это другое» к нему не относится. */
+export const APART_WINDOW_MS = 30 * 60_000;
+
+/**
+ * «Это другое»: обращение только что присоединили к чужой заявке, а человек
+ * завёл отдельную. Участие в той заявке снимается вместе с ответом по опросу
+ * соседей, иначе он остаётся сообщившим о проблеме, которой у него нет.
+ */
+const leaveJoined = async (deps: AppDeps, command: CreateRequestCommand, created: ServiceRequest): Promise<void> => {
+  const { resident } = command;
+  const named = command.apartFrom ? await deps.repository.findRequest(command.apartFrom) : undefined;
+  const since = deps.now().getTime() - APART_WINDOW_MS;
+
+  const recent = named
+    ? [named]
+    : (await deps.repository.listRequests({ buildingId: created.buildingId, statuses: [...OPEN_STATUSES] })).filter(
+        (request) =>
+          request.category === created.category &&
+          request.joinedBy.some((join) => join.residentId === resident.id && join.at.getTime() >= since),
+      );
+
+  for (const request of recent) {
+    if (request.id === created.id || isFinal(request.status)) continue;
+
+    const left = leaveRequest(request, resident.id);
+
+    if (left !== request) await deps.repository.saveRequest(left);
+  }
+};
+
 const submit = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const twin = await recentTwin(deps, command);
 
@@ -338,6 +404,9 @@ const submit = async (deps: AppDeps, command: CreateRequestCommand): Promise<Sub
   }
 
   const created = await createServiceRequest(deps, command);
+
+  if (command.anyway) await leaveJoined(deps, command, created);
+
   const request = await attachFlat(deps, created, command.resident);
 
   await notifyStaff(deps, request, reportersCount(request));

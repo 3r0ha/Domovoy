@@ -18,6 +18,13 @@ const MOOD: Record<HouseNowView['mood'], string> = {
   alarmed: 'Авария в доме',
 };
 
+/** Та же строка, когда перечислять нечего: авария, о которой человек сам сообщил, стоит в его заявках. */
+const MOOD_ALONE: Record<HouseNowView['mood'], string> = {
+  sleeping: 'В доме спокойно',
+  walking: 'Есть просрочка по вашим заявкам',
+  alarmed: 'Авария в доме: она в ваших заявках',
+};
+
 /** Что в доме прямо сейчас. */
 export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
   const state = useBridgeRequest((alive) => api.until(alive).houseNow(), [api]);
@@ -36,7 +43,7 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
       {quiet ? (
         <p className={`mood mood-${mood}`}>
           <Domovoy mood={mood} size={44} />
-          {MOOD[mood]}
+          {MOOD_ALONE[mood]}
         </p>
       ) : (
         <Group title={MOOD[mood]} className={`house-now house-now-${mood}`}>

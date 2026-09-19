@@ -83,6 +83,8 @@ export interface RequestActionsProps {
   meId?: string;
   /** Роль сама выполняет работу: мастер и подрядчик уходят в работу без выбора. */
   selfAssigned?: boolean;
+  /** Какие из разрешённых сервером действий показывать кнопками. Без списка все. */
+  only?: readonly string[];
   onChanged: () => void;
 }
 
@@ -93,6 +95,7 @@ export const RequestActions = ({
   staff = [],
   meId,
   selfAssigned,
+  only,
   onChanged,
 }: RequestActionsProps) => {
   const [busy, setBusy] = useState(false);
@@ -119,9 +122,10 @@ export const RequestActions = ({
     setFailed(undefined);
 
     try {
+      // Выбранный исполнитель уходит и с уточнением: после ответа жильца наряд не ищет мастера заново.
       await api.transition(request.id, action, {
         ...(comment ? { comment } : {}),
-        ...(action === 'in_progress' && assigneeId ? { assigneeId } : {}),
+        ...((action === 'in_progress' || action === 'needs_info') && assigneeId ? { assigneeId } : {}),
         ...(action === 'done' && result.photos.length > 0 ? { attachments: result.photos } : {}),
         ...(provedBy ? { provedBy } : {}),
       });
@@ -160,7 +164,7 @@ export const RequestActions = ({
     return <Failure title="Действия не загрузились" error={actions.error} onRetry={actions.reload} />;
   }
 
-  const available = actions.data?.actions ?? [];
+  const available = (actions.data?.actions ?? []).filter((action) => !only || only.includes(action));
   const order = afterDone ? ['confirmed', 'in_progress'] : ['done', 'accepted', 'in_progress'];
   const main = order.find((action) => available.includes(action));
   const rest = available.filter((action) => action !== main);

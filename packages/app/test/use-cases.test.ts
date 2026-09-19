@@ -132,17 +132,31 @@ describe('адрес заявки', () => {
     );
   });
 
-  it('без адреса и привязки заявка не создаётся', async () => {
+  it('без адреса, привязки и дома заявка не создаётся', async () => {
     const deps = setup();
 
     await assert.rejects(
-      createServiceRequest(deps, { resident: resident({ apartmentId: undefined }), description: 'Что-то сломалось' }),
+      createServiceRequest(deps, {
+        resident: resident({ apartmentId: undefined, buildingId: undefined }),
+        description: 'Что-то сломалось',
+      }),
       (error: unknown) => {
         assert.ok(error instanceof DomainError);
         assert.equal(error.code, 'target_required');
         return true;
       },
     );
+  });
+
+  it('жилец без квартиры, но с домом заводит заявку на дом', async () => {
+    const deps = setup();
+
+    const created = await createServiceRequest(deps, {
+      resident: resident({ apartmentId: undefined }),
+      description: 'Не работает домофон в первом подъезде',
+    });
+
+    assert.equal(created.target.kind, 'building');
   });
 
   it('несуществующая квартира заявку не создаёт', async () => {

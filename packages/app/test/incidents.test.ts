@@ -121,6 +121,57 @@ describe('склейка обращений', () => {
     assert.equal((await deps.repository.listRequests({})).length, 1, 'в очереди одна заявка, а не две');
   });
 
+  it('«это другое» заводит отдельную заявку и снимает участие в чужой', async () => {
+    const deps = setup();
+
+    const first = asRequest(await submitProblem(deps, { resident: maria, description: 'Нет горячей воды' }));
+    deps.advance(HOUR);
+
+    const joined = asRequest(await submitProblem(deps, { resident: pavel, description: 'Нет горячей воды' }));
+
+    assert.equal(joined.kind, 'joined');
+    assert.equal(joined.reporters, 2);
+
+    deps.advance(60_000);
+    const apart = asRequest(await submitProblem(deps, { resident: pavel, description: 'Нет горячей воды', anyway: true }));
+
+    assert.equal(apart.kind, 'created');
+    assert.notEqual(apart.request.id, first.request.id);
+
+    const original = (await deps.repository.findRequest(first.request.id))!;
+
+    assert.equal(reportersCount(original), 1, 'сообщивший о чужой проблеме снят');
+    assert.deepEqual(original.joinedBy, []);
+    assert.equal((await listRequestsFor(deps, pavel, 'mine')).map((item) => item.id).includes(first.request.id), false);
+  });
+
+  it('«это другое» снимает ответ по опросу соседей и по названной заявке', async () => {
+    const deps = setup();
+
+    const created = asRequest(
+      await submitProblem(deps, { resident: maria, description: 'Нет горячей воды', startParam: 'rsr_b1_1_1' }),
+    );
+
+    await answerAlert(deps, { resident: pavel, requestId: created.request.id, affected: true });
+    deps.advance(2 * HOUR);
+
+    const apart = asRequest(
+      await submitProblem(deps, {
+        resident: pavel,
+        description: 'У меня не вода, а батарея холодная',
+        anyway: true,
+        apartFrom: created.request.id,
+      }),
+    );
+
+    assert.equal(apart.kind, 'created');
+
+    const original = (await deps.repository.findRequest(created.request.id))!;
+
+    assert.equal(reportersCount(original), 1);
+    assert.equal(spreadOf(original).verdict, 'unknown', 'голос соседа по опросу снят');
+  });
+
   it('обращения одного дома проходят по очереди, а не одновременно', async () => {
     const deps = setup();
 
@@ -584,6 +635,16 @@ describe('домовой стучится к соседу сверху', () => {
     assert.doesNotMatch(deps.notifier.sent[0]?.text ?? '', /Житель|квартир/i);
     assert.equal(deps.notifier.sent[0]?.askAbout, created.request.id);
     assert.notEqual(knocked.knockedAt, undefined);
+  });
+
+  it('стучат только при протечке: сосед сверху ни при чём, когда не работает розетка', async () => {
+    const deps = setup();
+    const created = asRequest(
+      await submitProblem(deps, { resident: maria, description: 'Не работает розетка в комнате', startParam: 'apt_apt-1' }),
+    );
+
+    assert.notEqual(created.request.category, 'plumbing');
+    assert.equal(await canKnockUpstairs(deps, created.request), false);
   });
 
   it('стучат один раз', async () => {
@@ -1704,6 +1765,25 @@ describe('аварийный режим дома', () => {
     assert.match(announcement?.title ?? '', /^Авария: водоснабжение и канализация$/);
     assert.match(announcement?.body ?? '', /Знаем и чиним, заявка Д15-/);
     assert.match(announcement?.body ?? '', /Заводить свою заявку не нужно/);
+    assert.match(announcement?.body ?? '', /Срок: 4 сентября в 13:00 \(время московское\)\./, 'пояс дома не задан');
+  });
+
+  it('срок в объявлении стоит в поясе дома', async () => {
+    const deps = setup();
+
+    await deps.repository.saveBuilding({
+      id: BUILDING_ID,
+      code: 'Д15',
+      address: 'ул. Ленина, 15',
+      timeZone: 'Asia/Vladivostok',
+    });
+
+    await confirm(deps);
+
+    const [announcement] = await deps.repository.listAnnouncements(BUILDING_ID);
+
+    assert.match(announcement?.body ?? '', /Срок: 4 сентября в 20:00\./);
+    assert.doesNotMatch(announcement?.body ?? '', /время московское/);
   });
 
   it('объявляет один раз, сколько бы соседей ни подтвердило', async () => {

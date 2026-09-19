@@ -117,6 +117,50 @@ describe('склейка обращений по HTTP', () => {
     await app.close();
   });
 
+  it('«это другое» заводит отдельную заявку и снимает присоединение к чужой', async () => {
+    const { app, login, repository } = await setup([maria, pavel]);
+    const neighbour = await login(1003);
+
+    const first = await submit(app, await login(1001), { description: 'Нет горячей воды' });
+    const joined = await submit(app, neighbour, { description: 'Нет горячей воды' });
+
+    assert.equal(joined.json().joined, true);
+
+    const apart = await submit(app, neighbour, {
+      description: 'Нет горячей воды',
+      anyway: true,
+      apartFrom: first.json().request.id,
+    });
+
+    assert.equal(apart.statusCode, 201);
+    assert.equal(apart.json().joined, false);
+    assert.notEqual(apart.json().request.id, first.json().request.id);
+
+    const original = (await repository.findRequest(first.json().request.id))!;
+
+    assert.deepEqual(original.joinedBy, []);
+
+    await app.close();
+  });
+
+  it('состояние приходит и кодом, и словами сервера', async () => {
+    const { app, login } = await setup([maria, dispatcher]);
+
+    const created = await submit(app, await login(1001), { description: 'Течёт кран', startParam: 'apt_apt-1' });
+
+    assert.equal(created.json().request.statusTitle, 'новая');
+
+    const queue = await app.inject({
+      method: 'GET',
+      url: '/api/requests?scope=queue',
+      headers: authed(await login(5005)),
+    });
+
+    assert.equal(queue.json()[0].statusTitle, 'новая');
+
+    await app.close();
+  });
+
   it('на общей заявке видно, где своё сообщение, а где соседа', async () => {
     const { app, login } = await setup([maria, pavel]);
 
@@ -333,6 +377,33 @@ describe('очередь с прогнозом', () => {
     const list = await app.inject({ method: 'GET', url: '/api/requests', headers: authed(residentToken) });
 
     assert.equal(list.json()[0].assigneeName, technician.displayName, 'в списке имя тоже есть');
+
+    await app.close();
+  });
+
+  it('мастер берёт записанную на себя новую заявку, а чужую новую ждёт от диспетчера', async () => {
+    const { app, login, repository } = await setup([maria, dispatcher, technician]);
+    const staffToken = await login(6006);
+
+    const created = await submit(app, await login(1001), { description: 'Течёт кран', startParam: 'apt_apt-1' });
+    const id = created.json<{ request: { id: string } }>().request.id;
+
+    const foreign = await app.inject({ method: 'GET', url: `/api/requests/${id}/actions`, headers: authed(staffToken) });
+
+    assert.deepEqual(foreign.json().actions, []);
+
+    const found = (await repository.findRequest(id))!;
+
+    await repository.saveRequest({ ...found, assigneeId: technician.id });
+
+    const own = await app.inject({ method: 'GET', url: `/api/requests/${id}/actions`, headers: authed(staffToken) });
+
+    assert.deepEqual(own.json().actions, ['accepted']);
+
+    const taken = await transition(app, staffToken, id, { to: 'accepted' });
+
+    assert.equal(taken.statusCode, 200);
+    assert.equal(taken.json().status, 'accepted');
 
     await app.close();
   });

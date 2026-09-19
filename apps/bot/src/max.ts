@@ -133,11 +133,12 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
 };
 
 /**
- * Выход с экрана: шаг назад, туда откуда пришли, и первый экран меню.
- * Одного «Назад» мало: из «Мои данные» человек хочет и в «Ещё», и в меню.
+ * Выход с экрана: первый экран меню и шаг назад, туда откуда пришли, в одном
+ * ряду и в таком порядке. Одного «Назад» мало: из «Мои данные» человек хочет
+ * и в «Ещё», и в меню.
  */
-const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
 const MENU_BUTTON = { type: 'callback', text: '🏠 Меню', payload: 'group:back' };
+const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
 
 /**
  * Первый экран меню: возвращаться с него некуда, и у подрядчика, у которого
@@ -293,7 +294,7 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
   // Ответ вообще без кнопок это самый частый тупик: человеку нечего нажать,
   // и он уходит набирать команду заново.
   if (!extra) {
-    return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[BACK_BUTTON, MENU_BUTTON]] } }] };
+    return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[MENU_BUTTON, BACK_BUTTON]] } }] };
   }
 
   const attachments = extra['attachments'];
@@ -314,9 +315,7 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
   // Где человек уже может выйти отменой, второй выход только мешает.
   if (has.back) return extra;
 
-  const added = [BACK_BUTTON, ...(has.menu ? [] : [MENU_BUTTON])];
-
-  if (added.length === 0) return extra;
+  const added = [...(has.menu ? [] : [MENU_BUTTON]), BACK_BUTTON];
 
   return {
     ...extra,

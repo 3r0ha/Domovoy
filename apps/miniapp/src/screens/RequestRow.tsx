@@ -53,7 +53,7 @@ export const RequestDue = ({ dueAt, overdue }: { dueAt: string; overdue: boolean
 
   const left = formatLeft(dueAt);
 
-  return <span className="row-due">{`\u00a0· ${left.startsWith('0 ') ? 'срок истекает' : left}`}</span>;
+  return <span className="row-due">{`\u{a0}· ${left.startsWith('0 ') ? 'срок истекает' : left}`}</span>;
 };
 
 /** Состояние стоит под заголовком. */
@@ -73,7 +73,13 @@ export const RequestRow = ({
   onOpen: () => void;
 }) => (
   <CellSimple
-    className={request.overdue ? 'request-row request-row-overdue' : 'request-row'}
+    className={[
+      'request-row',
+      request.overdue ? 'request-row-overdue' : '',
+      action ? 'request-row-acting' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')}
     before={<CategoryTile category={request.category} title={request.categoryTitle} />}
     title={request.title}
     subtitle={
@@ -87,8 +93,10 @@ export const RequestRow = ({
           ) : (
             <RequestState status={request.status} {...(staff ? { staff } : {})} />
           )}
-          {`\u00a0· ${tight(request.target)}`}
-          {staff ? <span className="row-number">{`\u00a0· ${request.number}`}</span> : null}
+          {/* Точка перед адресом рисуется стилем: в узкой строке рядом с кнопкой
+              адрес встаёт под состоянием целиком, без неё. */}
+          <span className="row-target">{tight(request.target)}</span>
+          {staff ? <span className="row-number">{`\u{a0}· ${request.number}`}</span> : null}
 
           {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы
               на полуслове, а в карточке заявки он виден целиком. */}

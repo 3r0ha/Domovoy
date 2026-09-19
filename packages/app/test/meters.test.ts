@@ -520,10 +520,17 @@ describe('показания словами', () => {
     assert.equal((await only(deps, 'квартира 5, хвс 12345'))?.value, 12345);
   });
 
-  it('показание с минусом не принимают', async () => {
+  it('показание с минусом доходит до подачи и отвергается там с объяснением', async () => {
     const deps = await setup();
 
-    assert.deepEqual(await readingInWords(deps, maria, 'хвс -5'), []);
+    const [said] = await readingInWords(deps, maria, 'хвс -5');
+
+    // Раньше такое молча выбрасывалось, и «хвс -5» становилось заявкой.
+    assert.equal(said?.value, -5);
+    await assert.rejects(
+      submitReading(deps, { resident: maria, meterId: said.meters[0]!.meter.id, value: said.value }),
+      /не меньше нуля/,
+    );
   });
 
   it('о поломке словами показание не подают', async () => {
@@ -566,9 +573,15 @@ describe('показания словами', () => {
     assert.deepEqual(await readingInWords(deps, maria, 'хвс 12345'), []);
   });
 
-  it('число больше табло показанием не считается', async () => {
+  it('число больше табло отвергается подачей, а не тишиной', async () => {
     const deps = await setup();
 
-    assert.deepEqual(await readingInWords(deps, maria, 'холодная вода 1234567'), []);
+    const [said] = await readingInWords(deps, maria, 'холодная вода 1234567');
+
+    assert.equal(said?.value, 1234567);
+    await assert.rejects(
+      submitReading(deps, { resident: maria, meterId: said.meters[0]!.meter.id, value: said.value }),
+      /не поместится/,
+    );
   });
 });

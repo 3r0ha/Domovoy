@@ -416,6 +416,8 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
   const [chosen, setChosen] = useState<string | null>(null);
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
+  // Отмена спрашивается: время приёма человек уже, возможно, выпросил у работы.
+  const [cancelling, setCancelling] = useState(false);
 
   if (reception.loading && !reception.data) return <Skeleton count={3} />;
 
@@ -452,6 +454,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
 
     try {
       await api.cancelVisit(view.mine.id);
+      setCancelling(false);
       toast('Запись отменена');
       reception.reload();
     } catch (reason) {
@@ -475,10 +478,23 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
             subtitle={view.mine.topic}
           />
           {view.office ? <CellSimple title="Адрес" subtitle={view.office} height="compact" separator /> : null}
-          <CellAction mode="destructive" disabled={busy} onClick={() => void cancel()}>
+          <CellAction mode="destructive" disabled={busy} onClick={() => setCancelling(true)}>
             Отменить запись
           </CellAction>
         </Group>
+
+        {cancelling ? (
+          <Confirm
+            title="Отменить запись?"
+            text={`${view.mine.day}, ${view.mine.clock}. Время освободится для других, записаться снова можно будет на свободный час.`}
+            confirmLabel="Отменить запись"
+            busyLabel="Отменяем…"
+            busy={busy}
+            danger
+            onConfirm={() => void cancel()}
+            onCancel={() => setCancelling(false)}
+          />
+        ) : null}
       </section>
     );
   }
@@ -500,6 +516,34 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
   }
 
   const days = [...new Set(view.slots.map((slot) => slot.day))];
+  const picked = view.slots.find((slot) => slot.at === chosen);
+
+  // Форма стоит под выбранным днём, а не в конце списка: выбранный час виден рядом с ней.
+  const form = picked ? (
+    <Group title="С чем придёте">
+      <CellSimple
+        before={
+          <span className="tile tile-green">
+            <IconCalendar />
+          </span>
+        }
+        title={`${picked.day}, ${picked.clock}`}
+        subtitle="Выбранное время"
+        height="compact"
+      />
+      <CellInput
+        className="field-row"
+        id="visit-topic"
+        aria-label="С чем придёте"
+        placeholder="Перерасчёт за горячую воду"
+        value={topic}
+        onChange={(event) => setTopic(event.target.value)}
+      />
+      <CellAction mode="primary" disabled={busy || topic.trim().length === 0} onClick={() => void book()}>
+        {busy ? 'Записываем…' : 'Записаться'}
+      </CellAction>
+    </Group>
+  ) : null;
 
   return (
     <section className="list">
@@ -512,42 +556,31 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
       <p className="hint aside">Выберите час</p>
 
       {days.map((day) => (
-        <Group key={day} title={day}>
-          <div className="chips">
-            {view.slots
-              .filter((slot) => slot.day === day)
-              .map((slot) => (
-                <button
-                  key={slot.at}
-                  type="button"
-                  className={chosen === slot.at ? 'chip chip-on' : 'chip'}
-                  onClick={() => {
-                    haptics.picked();
-                    setChosen(slot.at);
-                  }}
-                >
-                  {slot.clock}
-                </button>
-              ))}
-          </div>
-        </Group>
-      ))}
+        <div key={day} className="list">
+          <Group title={day}>
+            <div className="chips">
+              {view.slots
+                .filter((slot) => slot.day === day)
+                .map((slot) => (
+                  <button
+                    key={slot.at}
+                    type="button"
+                    className={chosen === slot.at ? 'chip chip-on' : 'chip'}
+                    aria-pressed={chosen === slot.at}
+                    onClick={() => {
+                      haptics.picked();
+                      setChosen(slot.at);
+                    }}
+                  >
+                    {slot.clock}
+                  </button>
+                ))}
+            </div>
+          </Group>
 
-      {chosen ? (
-        <Group title="С чем придёте">
-          <CellInput
-            className="field-row"
-            id="visit-topic"
-            aria-label="С чем придёте"
-            placeholder="Перерасчёт за горячую воду"
-            value={topic}
-            onChange={(event) => setTopic(event.target.value)}
-          />
-          <CellAction mode="primary" disabled={busy || topic.trim().length === 0} onClick={() => void book()}>
-            {busy ? 'Записываем…' : 'Записаться'}
-          </CellAction>
-        </Group>
-      ) : null}
+          {picked?.day === day ? form : null}
+        </div>
+      ))}
     </section>
   );
 };

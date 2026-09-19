@@ -76,9 +76,11 @@ export const assertStaffServes = async (deps: AppDeps, resident: Resident, reque
 
 /** Дома, в которых человеку есть что чинить: обслуживаемые у смены, свои у жильца. */
 const housesOpenTo = async (deps: AppDeps, resident: Resident): Promise<Set<string>> => {
-  if (isCompanyStaff(resident.role)) return new Set(servedBy(resident, deps));
-
-  const houses = new Set<string>(resident.buildingId ? [resident.buildingId] : []);
+  // Сотрудник заводит обращения по обслуживаемым домам и, как жилец, по дому,
+  // где живёт сам: у него там своя квартира и свой подъезд.
+  const houses = new Set<string>(
+    isCompanyStaff(resident.role) ? servedBy(resident, deps) : resident.buildingId ? [resident.buildingId] : [],
+  );
 
   for (const apartmentId of apartmentsOf(resident)) {
     const apartment = await deps.repository.findApartment(apartmentId);

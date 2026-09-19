@@ -39,6 +39,11 @@ const tokenFor = async (role) => {
     headers: { 'x-max-init-data': await initDataFor(role) },
   });
 
+  if (response.status === 429) {
+    console.error(`предел входа на ${api}: повторите через ${response.headers.get('retry-after') ?? '60'} с`);
+    process.exit(1);
+  }
+
   if (!response.ok) throw new Error(`сессия для роли ${role}: ${response.status}`);
 
   const { token } = await response.json();

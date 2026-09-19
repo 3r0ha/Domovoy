@@ -47,6 +47,16 @@ const byGroup = (
     objects: objects.filter((object) => group.kinds.includes(object.kind)),
   })).filter((group) => group.objects.length > 0);
 
+/** Приставка кода квартиры в параметре запуска: та же, что в `@domovoy/domain`. */
+const KEY_PREFIX = 'key_';
+
+/** Код из квитанции без приставки, по четыре знака: так его читают с бумаги. */
+const receiptCode = (payload: string): string => {
+  const code = payload.startsWith(KEY_PREFIX) ? payload.slice(KEY_PREFIX.length) : payload;
+
+  return code.replace(/(.{4})(?=.)/g, '$1 ');
+};
+
 const found = (object: StickerObjectView, query: string): boolean => {
   const needle = query.trim().toLowerCase();
 
@@ -186,10 +196,21 @@ const Sticker = ({
     ).catch(() => undefined);
   };
 
+  const flatCode = object.kind === 'apartment' ? receiptCode(object.payload) : null;
+
   return (
     <section className="card sticker">
       <h2>{object.caption}</h2>
-      <p className="hint">Скан открывает заявку по этому объекту</p>
+
+      {/* Код квартиры не объект: его вписывают в квитанцию, а скан привязывает квартиру. */}
+      {flatCode ? (
+        <>
+          <p className="hint">Скан привязывает квартиру к жильцу. Тот же код набирают руками:</p>
+          <p className="sticker-code">{flatCode}</p>
+        </>
+      ) : (
+        <p className="hint">Скан открывает заявку по этому объекту</p>
+      )}
 
       {svg ? (
         <div className="sticker-paper">

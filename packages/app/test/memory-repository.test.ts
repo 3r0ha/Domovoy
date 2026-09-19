@@ -103,4 +103,40 @@ describe('хранилище в памяти', () => {
     assert.equal(saved.status, 'accepted', 'состояние откатилось к прочитанному раньше');
     assert.equal(saved.history.length, created.history.length + 1, 'событие другой стороны пропало');
   });
+
+  it('два разных сообщения в одну секунду остаются двумя, а повтор одного склеивается', async () => {
+    const kept = repository();
+
+    const created = await kept.createRequest({
+      id: 'req-1',
+      buildingId: BUILDING_ID,
+      buildingCode: 'Д15',
+      sequence: 1,
+      authorId: maria.id,
+      description: 'Не горит свет',
+      category: 'electricity',
+      target: { kind: 'apartment', apartmentId: 'apt-1' },
+      createdAt: new Date('2026-09-22T10:00:00Z'),
+    });
+
+    const at = new Date('2026-09-22T11:00:00Z');
+    const first = {
+      at,
+      status: 'new' as const,
+      role: 'resident' as const,
+      actorId: maria.id,
+      kind: 'message' as const,
+      comment: 'Свет мигает',
+    };
+    const second = { ...first, comment: 'Теперь совсем погас' };
+
+    await kept.saveRequest({ ...created, history: [...created.history, first] });
+    await kept.saveRequest({ ...created, history: [...created.history, first, second] });
+    const saved = await kept.saveRequest({ ...created, history: [...created.history, second] });
+
+    assert.deepEqual(
+      saved.history.filter((event) => event.kind === 'message').map((event) => event.comment),
+      ['Свет мигает', 'Теперь совсем погас'],
+    );
+  });
 });

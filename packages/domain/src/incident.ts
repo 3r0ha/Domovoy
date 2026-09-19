@@ -124,6 +124,23 @@ export const markUnaffected = (request: ServiceRequest, residentId: string, at: 
   return { ...request, notAffected: [...request.notAffected, { residentId, at }] };
 };
 
+/**
+ * Снимает участие человека в заявке: его присоединение и ответ по опросу.
+ * Автор из своей заявки не уходит.
+ */
+export const leaveRequest = (request: ServiceRequest, residentId: string): ServiceRequest => {
+  if (request.authorId === residentId) return request;
+
+  const joinedBy = request.joinedBy.filter((join) => join.residentId !== residentId);
+  const notAffected = request.notAffected.filter((check) => check.residentId !== residentId);
+
+  if (joinedBy.length === request.joinedBy.length && notAffected.length === request.notAffected.length) {
+    return request;
+  }
+
+  return { ...request, joinedBy, notAffected };
+};
+
 /** Кто сообщал о проблеме: автор и присоединившиеся. */
 export const reporterIds = (request: ServiceRequest): string[] => [
   request.authorId,

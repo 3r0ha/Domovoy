@@ -11,6 +11,7 @@ import {
   listAudit,
   passRequest,
   responsibilityOf,
+  transitionRequest,
   waitingHandoffs,
   type AppDeps,
   type Resident,
@@ -86,6 +87,36 @@ describe('зона ответственности по заявке', () => {
     );
     assert.match(view.targets[0]?.basis ?? '', /Правил № 354/);
   });
+
+  it('жилищная инспекция в адресатах смены не стоит: это канал жильца', async () => {
+    const deps = setup();
+
+    await deps.repository.saveBuilding({
+      id: BUILDING_ID,
+      code: 'Д15',
+      address: 'ул. Ленина, 15',
+      partners: [...PARTNERS, { kind: 'inspection', title: 'ГЖИ области' }],
+    });
+
+    const request = await leak(deps);
+    const view = await responsibilityOf(deps, request);
+
+    assert.deepEqual(view.targets.map((target) => target.to), ['resource']);
+    await assert.rejects(passRequest(deps, { staff: dispatcher, requestId: request.id, to: 'inspection' }), /жилец/);
+  });
+
+  it('закрытую заявку передавать некуда', async () => {
+    const deps = setup();
+    const request = await leak(deps);
+
+    await transitionRequest(deps, { resident: maria, requestId: request.id, to: 'withdrawn' });
+
+    const closed = (await deps.repository.findRequest(request.id))!;
+    const view = await responsibilityOf(deps, closed);
+
+    assert.deepEqual(view.targets, []);
+    await assert.rejects(passRequest(deps, { staff: dispatcher, requestId: request.id, to: 'resource' }), /закрыта/);
+  });
 });
 
 describe('передача обращения смежной организации', () => {
@@ -105,6 +136,22 @@ describe('передача обращения смежной организац�
     assert.match(said?.text ?? '', /передано в Водоканал/);
     assert.match(said?.text ?? '', /Правил № 354/);
     assert.match(said?.text ?? '', /остаётся на контроле/);
+  });
+
+  it('передача записывается в историю заявки', async () => {
+    const deps = setup();
+    const request = await leak(deps);
+
+    await passRequest(deps, { staff: dispatcher, requestId: request.id, to: 'resource', note: 'Давление в стояке упало' });
+
+    const updated = (await deps.repository.findRequest(request.id))!;
+    const last = updated.history.at(-1);
+
+    assert.equal(last?.kind, 'message');
+    assert.equal(last?.actorId, dispatcher.id);
+    assert.match(last?.comment ?? '', /^Обращение передано: Водоканал, по почте\. Ответ ожидается до /);
+    assert.match(last?.comment ?? '', /\nДавление в стояке упало$/);
+    assert.equal(updated.status, request.status, 'состояние заявки передача не меняет');
   });
 
   it('с настроенным каналом уходит номер во внешней системе', async () => {
@@ -138,7 +185,7 @@ describe('передача обращения смежной организац�
     const deps = setup();
     const request = await leak(deps);
 
-    await assert.rejects(passRequest(deps, { staff: dispatcher, requestId: request.id, to: 'inspection' }), /нет организации/);
+    await assert.rejects(passRequest(deps, { staff: dispatcher, requestId: request.id, to: 'municipal' }), /нет организации/);
   });
 
   it('жилец и чужая организация передать не могут', async () => {

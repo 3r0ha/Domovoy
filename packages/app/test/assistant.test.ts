@@ -77,6 +77,69 @@ describe('помощник по приложению', () => {
     assert.match(answer.answer, /Показания/);
   });
 
+  it('про отключение отвечает данными дома, а не описанием раздела', async () => {
+    const deps = setup();
+
+    const quiet = await askAssistant(deps, maria, 'нет горячей воды');
+
+    assert.equal(quiet.by, 'keywords');
+    assert.equal(quiet.screen, 'news');
+    assert.match(quiet.answer, /ничего не отключено/);
+
+    await submitProblem(deps, {
+      resident: dispatcher,
+      description: 'Прорвало трубу в подвале, вода хлещет',
+      category: 'plumbing',
+      priority: 'emergency',
+      house: true,
+    });
+
+    const alarmed = await askAssistant(deps, maria, 'отключили воду, когда дадут?');
+
+    assert.match(alarmed.answer, /Сейчас в доме:/);
+    assert.match(alarmed.answer, /заявка Д15-/);
+    assert.match((await askAssistant(deps, maria, 'нет света')).answer, /Сейчас в доме/);
+  });
+
+  it('без объявленной аварии называет открытые заявки по дому: свои и соседские', async () => {
+    const deps = setup();
+
+    await deps.repository.saveResident({ ...dispatcher, id: 'res-2', maxUserId: 1002, role: 'resident', apartmentId: 'apt-2' });
+    await deps.repository.saveApartment({ id: 'apt-2', buildingId: BUILDING_ID, number: 2, entrance: 1, riser: 1, area: 50 });
+
+    const neighbour = (await deps.repository.findResident('res-2'))!;
+    const reported = await createServiceRequest(deps, {
+      resident: neighbour,
+      description: 'Нет горячей воды во всём подъезде',
+      startParam: `ent_${BUILDING_ID}_1`,
+    });
+
+    const answer = await askAssistant(deps, maria, 'почему нет горячей воды');
+
+    assert.equal(answer.by, 'keywords');
+    assert.match(answer.answer, /заявки по дому уже есть/);
+    assert.match(answer.answer, new RegExp(reported.number));
+    assert.match(answer.answer, /новая/);
+  });
+
+  it('просьба показать тур ведёт в тур даже при модели', async () => {
+    const deps = setup({
+      understand: () => Promise.resolve(undefined),
+      assist: () => Promise.resolve({ answer: 'Расскажу словами.', screen: 'list' }),
+    });
+
+    for (const asked of ['покажи тур', 'как пользоваться приложением?', 'с чего начать']) {
+      const answer = await askAssistant(deps, maria, asked);
+
+      assert.equal(answer.screen, 'tour', asked);
+      assert.equal(answer.by, 'keywords');
+      assert.equal(answer.title, 'Тур по приложению');
+    }
+
+    assert.equal(capabilityFor('tour', 'dispatcher')?.screen, 'tour', 'тур есть у каждой роли');
+    assert.notEqual(findCapability('туристы шумят в подъезде', 'resident')?.screen, 'tour');
+  });
+
   it('непонятный вопрос не оставляет человека без подсказки', async () => {
     const deps = setup();
 
@@ -437,10 +500,11 @@ describe('разбор обращения с домом', () => {
 
     const result = await submitProblem(deps, { resident: maria, description: 'Не работает лифт' });
 
+    // Выдуманный лифт адресом не стал, а слово «лифт» отнесло обращение к подъезду.
     assert.deepEqual(result.kind === 'created' ? result.request.target : undefined, {
-      kind: 'apartment',
-      apartmentId: 'apt-1',
-      number: 1,
+      kind: 'entrance',
+      buildingId: BUILDING_ID,
+      entrance: 1,
     });
   });
 

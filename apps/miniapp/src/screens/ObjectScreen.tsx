@@ -25,11 +25,14 @@ export interface ObjectScreenProps {
 export const objectHistory = (total: number, lastRepairAt?: string, averageDays?: number): string =>
   [
     plural(total, 'обращение', 'обращения', 'обращений'),
-    lastRepairAt ? `ремонт ${formatDay(lastRepairAt)}` : '',
-    averageDays === undefined ? '' : `раз в ${plural(averageDays, 'день', 'дня', 'дней')}`,
+    lastRepairAt ? `последний ремонт ${formatDay(lastRepairAt)}` : '',
+    averageDays === undefined ? '' : `ломается примерно раз в ${plural(averageDays, 'день', 'дня', 'дней')}`,
   ]
     .filter(Boolean)
     .join(' · ');
+
+/** Подписи стоят не под каждым столбиком: двенадцать названий в строку не помещаются. */
+const LABEL_EVERY = 3;
 
 const MONTHS = 12;
 
@@ -72,7 +75,9 @@ const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
             title={`${columnMonth(index, now)}: ${plural(count, 'поломка', 'поломки', 'поломок')}`}
           >
             <span className={count === 0 ? 'month' : count === 1 ? 'month month-once' : 'month month-often'} />
-            <span className="month-name">{monthShort(columnIndex(index, now))}</span>
+            <span className="month-name">
+              {index % LABEL_EVERY === 0 || index === MONTHS - 1 ? monthShort(columnIndex(index, now)) : ''}
+            </span>
           </span>
         ))}
       </div>
@@ -85,13 +90,10 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
   const passport = useBridgeRequest((alive) => api.until(alive).objectPassport(startParam), [api, startParam]);
   const target = passport.data?.target;
 
-  // Название уходит в шапку отдельно от загрузки и снимается при уходе с экрана.
+  // Название уходит в шапку отдельно от загрузки. Снимает его приложение, когда
+  // паспорт покидает стопку: с экрана заявки по объекту возврат подписан его именем.
   useEffect(() => {
-    if (!target) return undefined;
-
-    onTitle?.(target);
-
-    return () => onTitle?.(null);
+    if (target) onTitle?.(target);
   }, [target, onTitle]);
 
   if (passport.loading && !passport.data) return <Skeleton count={2} />;

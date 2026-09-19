@@ -1,6 +1,5 @@
 import {
   CATEGORY_RULES,
-  DEFAULT_TIME_ZONE,
   INSPECTION_RULES,
   allowedTransitions,
   describeAudience,
@@ -21,6 +20,7 @@ import {
 import type { NoticeKind } from '@domovoy/domain';
 
 import type { Resident } from './repository.js';
+import { formatMomentAt } from './zone.js';
 
 /** Действие, доступное получателю прямо из уведомления. */
 export interface NotificationAction {
@@ -52,6 +52,8 @@ export interface Notification {
   mutable?: NoticeKind;
   /** По этой заявке уже есть основание для жалобы в жилинспекцию. */
   complaintFor?: string;
+  /** Собрание, по которому голосуют кнопками прямо под уведомлением. */
+  voteAbout?: string;
 }
 
 /** Файл в переписку с человеком: наклейка, выгрузка, документ. */
@@ -163,8 +165,8 @@ export const formatStatusChange = (request: ServiceRequest): string => {
 };
 
 /** Наряд исполнителю. */
-export const formatAssignment = (request: ServiceRequest, timeZone: string = DEFAULT_TIME_ZONE): string => {
-  const due = formatMoment(request.resolutionDueAt, timeZone);
+export const formatAssignment = (request: ServiceRequest, timeZone?: string): string => {
+  const due = formatMomentAt(request.resolutionDueAt, timeZone);
 
   return (
     `Вам поручена заявка ${request.number}.\n${request.title}\n` +
@@ -194,6 +196,19 @@ export const formatInspection = (inspection: Inspection): string => {
 export const formatGuestEntry = (device: string, at: Date): string =>
   `Гостевой код сработал: ${device}, ${formatClock(at)}`;
 
+/** Сколько знаков описания входит в уведомление: остальное читают в карточке. */
+export const DESCRIPTION_IN_NOTICE = 300;
+
+/** Описание не длиннее {@link DESCRIPTION_IN_NOTICE}: лишнее отрезается по слову. */
+const shortened = (text: string): string => {
+  if (text.length <= DESCRIPTION_IN_NOTICE) return text;
+
+  const cut = text.slice(0, DESCRIPTION_IN_NOTICE);
+  const lastSpace = cut.lastIndexOf(' ');
+
+  return `${(lastSpace > DESCRIPTION_IN_NOTICE / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+};
+
 /** Новая заявка для диспетчера. */
 export const formatNewRequest = (request: ServiceRequest, reporters: number): string => {
   const urgent = request.priority === 'emergency' ? 'АВАРИЯ. ' : '';
@@ -202,7 +217,7 @@ export const formatNewRequest = (request: ServiceRequest, reporters: number): st
   return (
     `${urgent}Новая заявка: ${request.title}\n` +
     `${describePlace(request)} · ${request.number}\n` +
-    `${request.description}${confirmed}`
+    `${shortened(request.description)}${confirmed}`
   );
 };
 
@@ -301,7 +316,7 @@ export const formatBreachForStaff = (request: ServiceRequest, kind: 'reaction' |
 
 /** Что получатель может сделать с заявкой прямо из уведомления. */
 export const actionsFor = (request: ServiceRequest, resident: Resident): NotificationAction[] =>
-  allowedTransitions(request.status, resident.role).map((to) => ({
+  allowedTransitions(request.status, resident.role, request.assigneeId === resident.id).map((to) => ({
     requestId: request.id,
     from: request.status,
     to,
@@ -328,6 +343,8 @@ export interface NoticeAbout {
   mutable?: NoticeKind;
   /** Заявка, по которой можно составить обращение в жилинспекцию. */
   complaintFor?: string;
+  /** Собрание: бюллетень идёт кнопками под самим уведомлением. */
+  voteAbout?: string;
 }
 
 /**
@@ -348,6 +365,7 @@ export const notifyAbout = async (
     ...(about.section ? { section: about.section } : {}),
     ...(about.mutable ? { mutable: about.mutable } : {}),
     ...(about.complaintFor ? { complaintFor: about.complaintFor } : {}),
+    ...(about.voteAbout ? { voteAbout: about.voteAbout } : {}),
   });
 };
 

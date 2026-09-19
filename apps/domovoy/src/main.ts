@@ -20,7 +20,7 @@ import {
 import { buildServer } from '@domovoy/api';
 import { BOT_COMMANDS, DEMO_COMMAND, createDomovoyBot } from '@domovoy/bot';
 import { canRasterize, renderSticker, renderStickerPng, sheetFor } from '@domovoy/stickers';
-import { PostgresRepository, applyMigrations, fromPool } from '@domovoy/storage';
+import { PostgresRepository, applyMigrations, clearData, fromPool } from '@domovoy/storage';
 import { BOT_API_SECRET_HEADER, FileMarkerStore, WebhookReceiver } from '@maxkit/runtime';
 import { KeyValueSessionTokenStore, type SessionTokenStore } from '@maxkit/server';
 import {
@@ -73,7 +73,12 @@ const DATABASE_RETRY_MS = 2000;
 
 const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const createRepository = async (): Promise<{ repository: Repository; close: () => Promise<void> }> => {
+const createRepository = async (): Promise<{
+  repository: Repository;
+  close: () => Promise<void>;
+  /** Стирает все данные: нужно пересеву набора для показа. */
+  wipe?: () => Promise<void>;
+}> => {
   const url = process.env['DATABASE_URL'];
 
   if (!url) {
@@ -102,7 +107,39 @@ const createRepository = async (): Promise<{ repository: Repository; close: () =
     }
   }
 
-  return { repository: new PostgresRepository(fromPool(pool)), close: () => pool.end() };
+  return {
+    repository: new PostgresRepository(fromPool(pool)),
+    close: () => pool.end(),
+    wipe: () => clearData(pool),
+  };
+};
+
+/** Час по Москве: показ идёт по московскому времени, а сервер живёт по UTC. */
+const MOSCOW_OFFSET_MS = 3 * 3600_000;
+
+const moscowHour = (at: Date): number => new Date(at.getTime() + MOSCOW_OFFSET_MS).getUTCHours();
+const moscowDay = (at: Date): string => new Date(at.getTime() + MOSCOW_OFFSET_MS).toISOString().slice(0, 10);
+
+/**
+ * Ежедневный пересев набора для показа. Данные проверяющих стираются вместе
+ * с остальными, поэтому час выбирают ночной, а сам режим включается явно.
+ */
+const scheduleReseed = (
+  hour: number,
+  reseed: () => Promise<void>,
+  now: () => Date,
+): ReturnType<typeof setInterval> => {
+  let doneOn = moscowDay(now());
+
+  return setInterval(() => {
+    const at = now();
+
+    if (moscowHour(at) !== hour || moscowDay(at) === doneOn) return;
+
+    doneOn = moscowDay(at);
+
+    void reseed().catch((error: unknown) => console.error('Пересев набора для показа не удался', error));
+  }, 60_000);
 };
 
 /** Состояние диалога вне процесса. */
@@ -165,7 +202,7 @@ const main = async (): Promise<void> => {
   const port = Number(env('PORT', '3000'));
   const defaultBuildingId = env('DEFAULT_BUILDING_ID', 'dom15');
 
-  const { repository, close } = await createRepository();
+  const { repository, close, wipe } = await createRepository();
   const { sessionMiddleware, sessionStore, lock, sweepKv, closeSessions } = await createSessions();
 
   const now = (): Date => new Date();
@@ -267,6 +304,28 @@ const main = async (): Promise<void> => {
 
     console.log(`Набор для показа заведён: дом ${data.address}, квартир ${data.apartments.length}`);
   }
+
+  // Установка для показа с базой: набор стареет за сутки (аварии краснеют,
+  // заявки проверяющих копятся), поэтому его переcевают каждую ночь.
+  const reseedHour = Number(process.env['DEMO_RESEED_HOUR'] ?? '');
+  const reseeding =
+    wipe && Number.isInteger(reseedHour) && reseedHour >= 0 && reseedHour < 24
+      ? scheduleReseed(
+          reseedHour,
+          async () => {
+            const run = async (): Promise<void> => {
+              await wipe();
+              await seedDemo(deps, { withRequests: true });
+              console.log('Набор для показа пересеян');
+            };
+
+            await (lock ? lock('domovoy:reseed', run) : run());
+          },
+          now,
+        )
+      : undefined;
+
+  if (reseeding) console.warn(`DEMO_RESEED_HOUR=${reseedHour}: набор для показа пересевается ежедневно в ${reseedHour}:00 МСК`);
 
   const owner = Number(process.env['OWNER_MAX_ID'] ?? '');
 
@@ -431,6 +490,7 @@ const main = async (): Promise<void> => {
     console.log('Останавливаемся…');
 
     clearInterval(sweep);
+    if (reseeding) clearInterval(reseeding);
     await server.close();
     await (receiver ? receiver.drain() : bot.supervisor.stop());
     await close();

@@ -884,7 +884,7 @@ const assign: Button = async (kit, typed, [requestId, staffId]) => {
     const known = await kit.deps.repository.findRequest(requestId);
 
     if (known?.status === 'new') {
-      await transitionRequest(kit.deps, { resident, requestId, to: 'accepted' });
+      await transitionRequest(kit.deps, { resident, requestId, to: 'accepted', quiet: true });
     }
 
     const updated = await transitionRequest(kit.deps, {

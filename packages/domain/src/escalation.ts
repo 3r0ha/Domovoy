@@ -58,7 +58,7 @@ export interface ComplaintInput {
   /** Квартира заявителя. */
   residentApartment?: number;
   managementCompany?: string;
-  /** Часовой пояс дома: в документе стоят местные отметки времени. */
+  /** Часовой пояс дома: в документе стоят местные отметки времени. Без него время московское, и документ это подписывает. */
   timeZone?: string;
   now: Date;
   /** Как показывать участников истории. */
@@ -78,6 +78,9 @@ const STATUS_WORDS: Record<string, string> = {
 /** Дата числами: «ДД.ММ.ГГГГ, ЧЧ:ММ». */
 const official = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string =>
   at.toLocaleString('ru-RU', { timeZone, dateStyle: 'short', timeStyle: 'short' });
+
+/** Подпись пояса, когда у дома он не задан: иначе местный читатель примет московское время за своё. */
+export const MOSCOW_TIME_NOTE = '(время московское)';
 
 /** Как называть участника, имя которого в обращении не место. */
 const ROLE_WORDS: Readonly<Record<Role, string>> = {
@@ -116,7 +119,8 @@ export const buildComplaint = (input: ComplaintInput): string => {
     `Адрес: ${input.address}${input.residentApartment === undefined ? '' : `, кв. ${input.residentApartment}`}`,
     input.managementCompany ? `Управляющая организация: ${input.managementCompany}` : null,
     '',
-    `Обращение № ${request.number} от ${official(request.createdAt, input.timeZone)}`,
+    `Обращение № ${request.number} от ${official(request.createdAt, input.timeZone)}` +
+      (input.timeZone ? '' : ` ${MOSCOW_TIME_NOTE}`),
     `Категория: ${rule.title}. Объект: ${describeTarget(request.target)}.`,
     `Существо обращения: ${request.description}`,
     '',

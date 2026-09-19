@@ -67,6 +67,8 @@ interface SubmitBody {
   house?: boolean;
   attachments?: { kind: 'photo' | 'voice' | 'file'; token: string; transcript?: string }[];
   anyway?: boolean;
+  /** Заявка, к которой обращение только что присоединили: «это другое» снимает участие в ней. */
+  apartFrom?: string;
 }
 
 /** Что отвечает продукт на обращение: заявку, ответ про работы или ответ на вопрос. */
@@ -88,6 +90,7 @@ const submitted = async (
     ...(request.body.house ? { house: true } : {}),
     ...(request.body.attachments?.length ? { attachments: request.body.attachments } : {}),
     ...(request.body.anyway ? { anyway: true } : {}),
+    ...(request.body.anyway && request.body.apartFrom ? { apartFrom: request.body.apartFrom } : {}),
   });
 
   if (result.kind === 'answered') {
@@ -194,6 +197,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
               apartmentId: { type: 'string', minLength: 1, maxLength: 128 },
               house: { type: 'boolean' },
               anyway: { type: 'boolean' },
+              apartFrom: { type: 'string', minLength: 1, maxLength: 128 },
               attachments: attachmentsBodySchema,
             },
           },
@@ -465,8 +469,9 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
         if (!found) throw requestNotFound();
 
+        // Записанная на мастера заявка открывает ему переходы исполнителя.
         const actions = canAct(resident, found)
-          ? allowedTransitions(found.status, resident.role).filter(
+          ? allowedTransitions(found.status, resident.role, found.assigneeId === resident.id).filter(
               (action) => action !== 'withdrawn' || found.authorId === resident.id,
             )
           : [];

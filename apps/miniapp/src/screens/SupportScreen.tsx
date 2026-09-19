@@ -27,6 +27,12 @@ export interface SupportScreenProps {
   api: DomovoyApi;
   /** Смена отвечает на вопросы жильцов, жилец их задаёт. */
   staff?: boolean;
+  /** Вернуться туда, откуда открыли поддержку. Без него раздел стоит корнем. */
+  onBack?: () => void;
+  /** Как называется экран под этим: «Ещё». */
+  backTitle?: string;
+  /** Вопрос задан, отвечен или снят: значки на вкладках считаются заново. */
+  onChanged?: () => void;
 }
 
 /** Кто спросил и сколько ждёт: смене это нужно до открытия переписки. */
@@ -196,8 +202,8 @@ const Thread = ({
 
   return (
     <section className="chat">
-      <button type="button" className="link chat-back" onClick={onBack}>
-        ← Все вопросы
+      <button type="button" className="link back-link" onClick={onBack}>
+        <span aria-hidden="true">‹</span> Все вопросы
       </button>
 
       {/* Кто спрашивает и к какому сроку ждёт ответа: это шапка переписки, а не первое сообщение. */}
@@ -228,7 +234,7 @@ const Thread = ({
               disabled={busy}
               onClick={() => void run(() => api.closeSupport(ticket.id))}
             >
-              {staff ? 'Закрыть вопрос' : 'Вопрос решён'}
+              {staff ? 'Закрыть вопрос' : 'Вопрос закрыт'}
             </button>
           ) : null}
 
@@ -287,8 +293,8 @@ const Ask = ({
 
   return (
     <section className="chat">
-      <button type="button" className="link chat-back" onClick={onBack}>
-        ← Все вопросы
+      <button type="button" className="link back-link" onClick={onBack}>
+        <span aria-hidden="true">‹</span> Все вопросы
       </button>
 
       <div className="chat-flow">
@@ -318,7 +324,7 @@ const Ask = ({
 };
 
 /** Поддержка: контакты дома и переписка с управляющей компанией. */
-export const SupportScreen = ({ api, staff }: SupportScreenProps) => {
+export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: SupportScreenProps) => {
   const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
   const tickets = useBridgeRequest((alive) => api.until(alive).supportTickets(), [api]);
   const [changed, setChanged] = useState<TicketView[]>([]);
@@ -329,7 +335,14 @@ export const SupportScreen = ({ api, staff }: SupportScreenProps) => {
   const remember = (ticket: TicketView): void => {
     setChanged((current) => [ticket, ...current.filter((item) => item.id !== ticket.id)]);
     setOpenId(ticket.id);
+    onChanged?.();
   };
+
+  const back = onBack ? (
+    <button type="button" className="link back-link" onClick={onBack}>
+      <span aria-hidden="true">‹</span> {backTitle ?? 'Назад'}
+    </button>
+  ) : null;
 
   if (tickets.loading && !tickets.data) return <Skeleton count={2} />;
 
@@ -374,6 +387,8 @@ export const SupportScreen = ({ api, staff }: SupportScreenProps) => {
 
   return (
     <section className="list">
+      {back}
+
       {contacts.data && !staff ? <Contacts contacts={contacts.data} /> : null}
 
       {staff ? null : (

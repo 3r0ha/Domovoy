@@ -364,7 +364,7 @@ describe('заявки', () => {
     await app.close();
   });
 
-  it('без адреса и привязки к квартире заявку не принять', async () => {
+  it('без привязки к квартире заявка уходит на дом', async () => {
     const { app, login } = await setup();
     const token = await login(1001);
 
@@ -375,8 +375,8 @@ describe('заявки', () => {
       payload: { description: 'что-то сломалось' },
     });
 
-    assert.equal(response.statusCode, 400);
-    assert.equal(response.json().error, 'target_required');
+    assert.equal(response.statusCode, 201, response.body);
+    assert.match(response.json<{ request: { target: string } }>().request.target, /дом целиком/iu);
 
     await app.close();
   });

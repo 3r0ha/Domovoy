@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { STATUS_TITLES } from '@domovoy/domain';
+
 import {
   FORGOTTEN_NAME,
   InMemoryRepository,
@@ -130,6 +132,19 @@ describe('выгрузка своих данных', () => {
     assert.match(text, /Телефон: \+79991234567/);
     assert.match(text, /Отключено: Объявления дома/);
     assert.match(text, /22 сентября 2026/);
+  });
+
+  it('состояние заявки названо теми же словами, что и в её карточке', async () => {
+    const deps = await setup();
+
+    const request = await createServiceRequest(deps, { resident: maria, description: 'Течёт кран на кухне' });
+    await transitionRequest(deps, { resident: dispatcher, requestId: request.id, to: 'accepted' });
+
+    const data = await exportPersonalData(deps, maria);
+    const text = formatPersonalData(data, 'Europe/Moscow');
+
+    assert.equal(data.requests[0]?.status, STATUS_TITLES.accepted);
+    assert.match(text, new RegExp(`${request.number} · 22 сентября 2026 г\\. · ${STATUS_TITLES.accepted}`));
   });
 
   it('платежи по квартире, тоже сведения о человеке', async () => {

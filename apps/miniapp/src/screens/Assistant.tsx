@@ -54,7 +54,7 @@ const pairs = (lines: readonly Line[]): { asked: string; said: string }[] => {
 export const AssistantButton = ({ onOpen }: { onOpen: () => void }) => (
   <button type="button" className="ask" data-guide="assistant" aria-label="Спросить помощника" onClick={onOpen}>
     <IconHelp />
-    Спросить
+    <span className="ask-word">Спросить</span>
   </button>
 );
 
@@ -162,7 +162,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
                     onGo(line.screen as string);
                   }}
                 >
-                  {line.title ? `Открыть: ${line.title}` : 'Открыть раздел'}
+                  {line.screen === 'tour' ? 'Показать тур' : line.title ? `Открыть: ${line.title}` : 'Открыть раздел'}
                 </button>
               ) : null}
             </div>

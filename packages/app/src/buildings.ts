@@ -24,6 +24,16 @@ export const actingHouse = (deps: AppDeps, actor: Resident, buildingId?: string)
  * смену он ведёт в одном доме, а квартира у него в другом. Для проверок права
  * берётся `homeOf`: он не подставляет дом установки.
  */
+/**
+ * Есть ли у человека свой дом: квартира, обслуживание или, у сотрудника,
+ * рабочий дом. Жильцу дом без квартиры своим не считается: после отвязки или
+ * удаления профиля привязка остаётся, а прав на дом за ней уже нет.
+ */
+export const housed = (resident: Resident): boolean =>
+  (isCompanyStaff(resident.role) && Boolean(resident.buildingId)) ||
+  apartmentsOf(resident).length > 0 ||
+  (resident.servesBuildingIds?.length ?? 0) > 0;
+
 export const homeBuildingOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
   const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
 
@@ -198,6 +208,16 @@ export const servesBuilding = async (deps: AppDeps, resident: Resident, building
   return sameCompany(building, await deps.repository.findBuilding(currentId));
 };
 
+/**
+ * Дом для человека без своего дома: тот, что остался в привязке, если он ещё
+ * есть, иначе дом установки. Открытые сведения дома он читает без проверки прав.
+ */
+export const publicHouseOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
+  const known = resident.buildingId ? await deps.repository.findBuilding(resident.buildingId) : undefined;
+
+  return known?.id ?? deps.defaultBuildingId;
+};
+
 /** Дом чужой организации закрыт и по прямой ссылке на объект. @throws {DomainError} */
 export const assertServes = async (deps: AppDeps, resident: Resident, buildingId: string): Promise<void> => {
   if (await servesBuilding(deps, resident, buildingId)) return;
@@ -257,12 +277,21 @@ export const contactsFor = async (
   resident: Resident,
   buildingId?: string,
 ): Promise<HouseContacts> => {
-  const house = buildingId ?? (await homeBuildingOf(deps, resident));
+  const settled = housed(resident);
 
-  await assertServes(deps, resident, house);
+  // Новому человеку без дома контакты нужны раньше привязки: телефон аварийной
+  // службы стоит на первом экране. Он получает контакты своего дома или дома
+  // по умолчанию, а выбранный дом, оставшийся в приложении, не проверяется.
+  const house = settled ? (buildingId ?? (await homeBuildingOf(deps, resident))) : await publicHouseOf(deps, resident);
+
+  if (settled) await assertServes(deps, resident, house);
 
   const building = await deps.repository.findBuilding(house);
-  const duty = (await deps.repository.listStaff(house)).find((person) => person.onDuty === true);
+  // Имя и телефон дежурного видят только свои: постороннему остаются
+  // телефоны организации.
+  const duty = settled
+    ? (await deps.repository.listStaff(house)).find((person) => person.onDuty === true)
+    : undefined;
 
   return {
     buildingId: house,
