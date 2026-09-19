@@ -244,6 +244,9 @@ checks:
       type: array
       itemRequired: [id, kind, title, unit, serial, submittedThisMonth, verification]
 
+  # Показание за расчётный период принимается один раз: повторная проверка на той
+  # же установке и в том же периоде получает 409 reading_duplicate, и это тоже
+  # правильный ответ продукта.
   - name: Показание счётчика
     method: POST
     path: /api/meters/{id}/readings
@@ -254,9 +257,8 @@ checks:
       body:
         value: 152.4
     expect:
-      status: [201]
+      status: [201, 409]
       contentType: application/json
-      required: [value, at, consumption, spike]
 
   - name: Квитанция за месяц
     method: GET

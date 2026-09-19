@@ -12,7 +12,7 @@ after(async () => {
 
 const { createMockBridge } = await import('@maxkit/bridge/mock');
 const { MaxProvider } = await import('@maxkit/react');
-const { createElement, act } = await import('react');
+const { createElement, act, StrictMode } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { DomovoyApi } = await import('../dist-test/api.js');
 const { Toasts } = await import('../dist-test/toast.js');
@@ -82,13 +82,20 @@ const stubFetch = (replies: Record<string, unknown>) => {
   return { fetchStub, calls };
 };
 
-const render = async (element: unknown, bridge: unknown) => {
+/** Строгий режим стоит над провайдером, как в `main.tsx`: иначе экран монтируется один раз. */
+const render = async (element: unknown, bridge: unknown, options: { strict?: boolean } = {}) => {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container) as unknown as { render: (node: unknown) => void; unmount: () => void };
 
+  const tree = (): unknown => {
+    const provider = createElement(MaxProvider as never, { bridge, autoReady: false } as never, element as never);
+
+    return options.strict === true ? createElement(StrictMode, null, provider as never) : provider;
+  };
+
   await act(async () => {
-    root.render(createElement(MaxProvider as never, { bridge, autoReady: false } as never, element as never));
+    root.render(tree());
   });
 
   await act(async () => {
@@ -133,6 +140,36 @@ const render = async (element: unknown, bridge: unknown) => {
 
 const apiWith = (replies: Record<string, unknown>) => {
   const { fetchStub, calls } = stubFetch(replies);
+  return { api: new DomovoyApi({ baseUrl: 'http://api.test', fetch: fetchStub }), calls };
+};
+
+/**
+ * Сервер, который отвечает не сразу и уважает обрыв, как настоящая сеть.
+ * Двойник, отвечающий мгновенно, ухода экрана застать не успевает.
+ */
+const apiAnswering = (replies: Record<string, unknown>) => {
+  const calls: Recorded[] = [];
+
+  const fetchStub = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const path = url.replace('http://api.test', '');
+
+    calls.push({ path, method: init?.method ?? 'GET' });
+
+    const key = Object.keys(replies).find((candidate) => path.startsWith(candidate));
+    const body = JSON.stringify(key === undefined ? {} : replies[key]);
+
+    return new Promise<Response>((resolve, reject) => {
+      init?.signal?.addEventListener('abort', () =>
+        reject(Object.assign(new Error('brosheno'), { name: 'AbortError' })),
+      );
+
+      queueMicrotask(() =>
+        resolve(new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })),
+      );
+    });
+  };
+
   return { api: new DomovoyApi({ baseUrl: 'http://api.test', fetch: fetchStub }), calls };
 };
 
@@ -5569,6 +5606,44 @@ const stubMicrophone = (options: { refuse?: boolean; absent?: boolean; chunk?: B
     },
   };
 };
+
+describe('двойной монтаж экрана', () => {
+  const QUEUED = [
+    {
+      ...REQUEST,
+      id: 'req-9',
+      number: 'Д15-2609-0009',
+      title: 'Не горит свет на площадке',
+      status: 'new',
+    },
+  ];
+
+  it('строгий режим React не оставляет человека на «Повторить»', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiAnswering({ '/api/requests': QUEUED });
+
+    // Строгий режим монтирует экран дважды подряд: первый уход рвёт запрос.
+    const screen = await render(
+      createElement(QueueScreen as never, { api, version: 0, onOpen: () => undefined } as never),
+      bridge,
+      { strict: true },
+    );
+
+    await screen.act(() => undefined);
+
+    assert.doesNotMatch(screen.text, /Очередь не загрузилась/, 'первое открытие встретило отказом');
+    assert.doesNotMatch(screen.text, /Нет связи с сервером/);
+    assert.match(screen.text, /Не горит свет на площадке/);
+
+    assert.equal(
+      calls.filter((call) => call.path.startsWith('/api/requests')).length,
+      2,
+      'второй монтаж не пошёл на сервер своим запросом',
+    );
+
+    await screen.unmount();
+  });
+});
 
 describe('запись голоса', () => {
   it('расшифровка попадает в поле, а вопросом сама не уходит', async () => {

@@ -542,6 +542,53 @@ describe('пропавшая связь', () => {
     assert.deepEqual(dropped, [true]);
   });
 
+  it('оборванное чтение не достаётся следующему монтажу экрана', async () => {
+    const asked: string[] = [];
+    let offline = false;
+
+    const answering = ((input: unknown, init?: RequestInit) => {
+      asked.push(String(input));
+
+      // Первый запрос только ждёт: его оборвёт ушедший экран.
+      if (asked.length === 1) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('brosheno'), { name: 'AbortError' })),
+          );
+        });
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify([{ id: 'req-1' }]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    }) as typeof globalThis.fetch;
+
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      cache: testCache(),
+      onOffline: (value) => (offline = value),
+      fetch: answering,
+    });
+
+    const first = new AbortController();
+    const gone = client.until(first.signal).listRequests();
+
+    // Строгий режим React: уход и новый монтаж идут подряд, без передышки.
+    first.abort();
+
+    const second = new AbortController();
+    const shown = client.until(second.signal).listRequests();
+
+    await assert.rejects(gone);
+
+    assert.deepEqual(await shown, [{ id: 'req-1' }], 'второй экран получил чужое оборванное чтение');
+    assert.equal(asked.length, 2, 'второй экран на сервер не пошёл');
+    assert.equal(offline, false, 'брошенный запрос выдали за пропавшую связь');
+  });
+
   it('пока чтения ждёт кто-то ещё, уход одного экрана его не бросает', async () => {
     let answer: ((response: Response) => void) | undefined;
 

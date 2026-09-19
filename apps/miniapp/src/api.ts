@@ -174,11 +174,15 @@ const REQUEST_TIMEOUT_MS = 15_000;
 
 /** Общее чтение по адресу: ответ делится, сеть бросается, когда ушли все. */
 interface SharedRead {
+  path: string;
   promise: Promise<unknown>;
   stop: AbortController;
   /** Сколько экранов ждут ответа. */
   waiting: number;
 }
+
+/** Запрос бросили, а не потеряли: связь тут ни при чём. */
+const wasDropped = (error: unknown): boolean => error instanceof Error && error.name === 'AbortError';
 
 /** Что общее у всех ссылок на клиент: сессия, выбранный дом и текущие чтения. */
 interface SharedState {
@@ -1128,16 +1132,20 @@ export class DomovoyApi {
     const stop = new AbortController();
 
     const started: SharedRead = {
+      path,
       stop,
       waiting: 0,
-      promise: this.fresh<T>(path, stop.signal).finally(() => {
-        if (this.shared.reading.get(path) === started) this.shared.reading.delete(path);
-      }),
+      promise: this.fresh<T>(path, stop.signal).finally(() => this.forget(started)),
     };
 
     this.shared.reading.set(path, started);
 
     return started;
+  }
+
+  /** Убрать чтение из общих, если на его месте не успело появиться следующее. */
+  private forget(running: SharedRead): void {
+    if (this.shared.reading.get(running.path) === running) this.shared.reading.delete(running.path);
   }
 
   /**
@@ -1154,7 +1162,15 @@ export class DomovoyApi {
     const leave = (): void => {
       running.waiting -= 1;
 
-      if (running.waiting === 0) running.stop.abort(alive.reason);
+      if (running.waiting > 0) return;
+
+      /*
+       * Запись снимается сразу, а не когда обещание отклонится. Строгий режим
+       * React монтирует экран дважды подряд: второй монтаж успевает подписаться
+       * раньше отклонения и получил бы это же, уже оборванное чтение.
+       */
+      this.forget(running);
+      running.stop.abort(alive.reason);
     };
 
     if (alive.aborted) {
@@ -1179,8 +1195,8 @@ export class DomovoyApi {
 
       return data;
     } catch (error) {
-      // Экран ушёл сам: это не обрыв связи, и запас тут ни при чём.
-      if (alive.aborted) throw error;
+      // Экран ушёл сам: это не обрыв связи, ни запас, ни метка «нет связи» тут ни при чём.
+      if (alive.aborted || wasDropped(error)) throw error;
 
       // Прокси отвечает за сервер своей ошибкой: 502 и 504 значат ровно то же,
       // что оборванное соединение, и сохранённый ответ полезнее «что-то пошло не так».
