@@ -100,6 +100,28 @@ export interface Reasoner {
   clarify?(input: ClarifyInput): Promise<ClarifyFields | undefined>;
   /** Поломка это или дело другого раздела. Модель может метод не поддерживать. */
   route?(input: RouteInput): Promise<RouteFields | undefined>;
+  /**
+   * Дело по открытой заявке: что человек хочет сделать и с какой. Модель только
+   * выбирает из переданных списков, поэтому прав она не добавляет.
+   */
+  doing?(input: DoingInput): Promise<DoingFields | undefined>;
+}
+
+/** Что модель знает, когда разбирает дело по заявке. */
+export interface DoingInput {
+  text: string;
+  /** Дела, доступные этому человеку прямо сейчас: из них и выбирается. */
+  deeds: { deed: string; about: string }[];
+  /** Заявки, с которыми он может что-то сделать: номер, суть и адрес. */
+  requests: { number: string; title: string; where: string; status: string }[];
+}
+
+/** Что решила модель: любое поле может отсутствовать. */
+export interface DoingFields {
+  /** Имя дела из переданного списка. */
+  deed?: string;
+  /** Номер заявки из переданного списка. */
+  number?: string;
 }
 
 /** Что модель знает, когда решает, куда отнести написанное. */

@@ -7,6 +7,7 @@ import {
   commentRequest,
   describeFromAttachments,
   metersFor,
+  readingInWords,
   sectionFor,
   submitProblem,
   submitReading,
@@ -41,6 +42,7 @@ import {
   decimal,
   errorText,
   menuButton,
+  metersKeyboard,
   readingKeyboard,
   readingPrompt,
   replyIfOpen,
@@ -79,6 +81,31 @@ const readFromPhoto = async (kit: BotKit, typed: BotContext, meterId: string, sa
 
 /** Числа в отказе приходят с точкой, а в переписке они везде с запятой. */
 const commas = (text: string): string => text.replace(/(\d)\.(\d)/g, '$1,$2');
+
+/**
+ * Показание, поданное словами: «холодная вода 12345». Прибор назван, число
+ * названо, и ходить за этим в раздел незачем.
+ */
+const readingBySaying = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+  const resident = await kit.residentOf(typed);
+  const said = await readingInWords(kit.deps, resident, text).catch(() => undefined);
+
+  if (!said) return false;
+
+  // Приборов такого вида несколько: чьё это число, знает только человек.
+  if (said.meters.length > 1) {
+    await typed.reply(
+      `Показание ${decimal(said.value)}: счётчиков такого вида у вас несколько. Выберите, чей это.`,
+      metersKeyboard(said.meters),
+    );
+
+    return true;
+  }
+
+  await takeReading(kit, typed, said.meters[0]!.meter.id, String(said.value));
+
+  return true;
+};
 
 /** Показание счётчика: за принятым сразу спрашивается следующий прибор. */
 const takeReading = async (kit: BotKit, typed: BotContext, meterId: string, text: string): Promise<void> => {
@@ -400,6 +427,48 @@ const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<v
   await bindByCode(kit, typed, code);
 };
 
+/**
+ * Что делается по одним словам, без вложений: дело по заявке, показание,
+ * короткая вежливость, код из квитанции и номер заявки. Возвращает, нашлось ли
+ * такое дело: иначе сказанное разбирается как обращение.
+ */
+const doneBySaying = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+  // Дело по открытой заявке разбирается раньше вежливости: «всё сделали,
+  // спасибо» это приёмка работы, а не разговор ни о чём.
+  if (await offerDoing(kit, typed, text)) return true;
+
+  // Показание словами разбирается раньше короткой вежливости: «хвс 145» короче
+  // разговорной реплики, но это поданное показание, а не разговор.
+  if (await readingBySaying(kit, typed, text)) return true;
+
+  if (isChatter(text)) {
+    const who = await kit.residentOf(typed);
+
+    await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
+
+    return true;
+  }
+
+  // Код из квитанции, набранный сообщением: это привязка квартиры, а не обращение.
+  const code = normalizeApartmentCode(text);
+
+  if (isApartmentCode(code)) {
+    await bindByCode(kit, typed, code);
+
+    return true;
+  }
+
+  const number = requestNumberIn(text);
+
+  if (!number) return false;
+
+  if (await showRequestByNumber(kit, typed, number)) return true;
+
+  await typed.reply(`Заявки ${number} у вас нет. Напишите, что случилось, и оформлю новую.`, menuButton(typed));
+
+  return true;
+};
+
 const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> => {
   // Наклейка, геометка или карточка контакта: заявки из них не выйдет, а молчать нельзя.
   // Пустой текст без вложения приходит оттуда же, но человеку нужен другой ответ.
@@ -413,30 +482,9 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
     return;
   }
 
-  // Дело по открытой заявке разбирается раньше вежливости: «всё сделали,
-  // спасибо» это приёмка работы, а не разговор ни о чём.
-  if (said.text && said.attachments.length === 0 && (await offerDoing(kit, typed, said.text))) return;
+  const words = said.attachments.length === 0 ? said.text : undefined;
 
-  if (said.text && said.attachments.length === 0 && isChatter(said.text)) {
-    const who = await kit.residentOf(typed);
-
-    await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
-    return;
-  }
-
-  // Код из квитанции, набранный сообщением: это привязка квартиры, а не обращение.
-  const code = said.text && said.attachments.length === 0 ? normalizeApartmentCode(said.text) : '';
-
-  if (isApartmentCode(code)) return bindByCode(kit, typed, code);
-
-  const number = said.text && said.attachments.length === 0 ? requestNumberIn(said.text) : null;
-
-  if (number) {
-    if (await showRequestByNumber(kit, typed, number)) return;
-
-    await typed.reply(`Заявки ${number} у вас нет. Напишите, что случилось, и оформлю новую.`, menuButton(typed));
-    return;
-  }
+  if (words && (await doneBySaying(kit, typed, words))) return;
 
   return describeProblem(kit, typed, undefined, said);
 };

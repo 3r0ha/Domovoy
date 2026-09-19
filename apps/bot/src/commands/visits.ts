@@ -3,7 +3,7 @@ import { DomainError, isCompanyStaff } from '@domovoy/domain';
 
 import { menuButton, visitCancelKeyboard } from '../keyboards.js';
 import { inApp } from './in-app.js';
-import { inChat, strong } from '../max.js';
+import { inChat, plain, strong } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Сколько ближайших часов показывать кнопками: столько же, сколько строк в списках. */
@@ -103,7 +103,7 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
         await inApp(
           kit,
           typed,
-          `${strong(reception.office ? `Приём: ${reception.office}` : 'Приём по записи')}\n` +
+          `${strong(reception.office ? `Приём: ${plain(reception.office)}` : 'Приём по записи')}\n` +
             `Свободных часов: ${reception.slots.length}. Время выбирается в приложении.`,
           'visits',
           'Выбрать время',

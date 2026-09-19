@@ -1,11 +1,15 @@
 import {
   allowedTransitions,
+  CLOSED_STATUSES,
+  describeTarget,
   findTransition,
   isCompanyStaff,
+  STATUS_TITLES,
   type RequestStatus,
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import { listAssignable, type StaffMember } from './report.js';
 import { listRequestsFor } from './use-cases/requests.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -16,6 +20,15 @@ import type { AppDeps } from './use-cases.js';
  * или причиной перехода, чтобы не заставлять писать то же самое второй раз.
  */
 export type Doing =
+  | {
+      /** Кому поручить наряд: человек назван словами или выбирается кнопкой. */
+      kind: 'assign';
+      request?: ServiceRequest;
+      choices: ServiceRequest[];
+      /** Исполнитель, если в словах назван он один. */
+      staff?: StaffMember;
+      candidates: StaffMember[];
+    }
   | {
       kind: 'transition';
       /** Заявка, если она одна. Пусто означает, что выбрать должен человек. */
@@ -91,6 +104,75 @@ const PHRASES: readonly Phrase[] = [
   },
 ];
 
+/** Дела словами: имя дела для модели и то, как оно называется человеку. */
+const DEEDS: Readonly<Record<string, { to: RequestStatus; about: string }>> = {
+  take: { to: 'in_progress', about: 'взять наряд в работу, выехал, приступил' },
+  accept: { to: 'accepted', about: 'принять заявку в работу' },
+  done: { to: 'done', about: 'сдать работу, починил, заменил, сделал' },
+  confirm: { to: 'confirmed', about: 'принять работу, всё сделали, претензий нет' },
+  reopen: { to: 'in_progress', about: 'вернуть работу, не сделали, опять то же самое' },
+  ask: { to: 'needs_info', about: 'спросить уточнение у жильца' },
+  reject: { to: 'rejected', about: 'отклонить заявку' },
+  withdraw: { to: 'withdrawn', about: 'снять своё обращение, уже не нужно' },
+};
+
+/** Слова о поручении наряда: у них своё дело, потому что нужен ещё и человек. */
+const ASSIGNING = /назнач|поручи|отдай|пусть (сделает|идёт|едет)|отправь(те)? (мастера|на адрес)/iu;
+
+/**
+ * Кого назвали по имени. Имя сверяется началом слова: «назначь Сергея» и
+ * «Сергею» это один и тот же Сергей, а падежи продукт не разбирает.
+ */
+const STEM = 5;
+
+const named = (text: string, people: readonly StaffMember[]): StaffMember[] => {
+  const words = (text.toLowerCase().match(/\p{L}{3,}/gu) ?? []).map((word) => word.slice(0, STEM));
+
+  return people.filter((person) =>
+    person.displayName
+      .toLowerCase()
+      .split(/\s+/u)
+      .some((part) => part.length >= 3 && words.includes(part.slice(0, STEM))),
+  );
+};
+
+/**
+ * Поручение наряда словами: «назначь Сергея на 0007». Заявка и человек берутся
+ * из того, что доступно этой смене: не названное остаётся выбором кнопкой.
+ */
+const assigning = async (
+  deps: AppDeps,
+  resident: Resident,
+  text: string,
+  open: readonly ServiceRequest[],
+): Promise<Doing | undefined> => {
+  if (!ASSIGNING.test(text)) return undefined;
+
+  const candidates = await listAssignable(deps, resident).catch(() => []);
+
+  if (candidates.length === 0) {
+    return { kind: 'denied', reason: 'Поручить наряд может управляющая организация, и в доме нужны мастера.' };
+  }
+
+  const choices = open.filter((request) => !CLOSED_STATUSES.includes(request.status));
+
+  if (choices.length === 0) return { kind: 'denied', reason: 'Открытых заявок, которые можно поручить, сейчас нет.' };
+
+  const numbered = numberIn(text, choices);
+  const person = named(text, candidates);
+
+  return {
+    kind: 'assign',
+    ...(numbered ? { request: numbered } : choices.length === 1 ? { request: choices[0]! } : {}),
+    choices: numbered ? [numbered] : choices,
+    ...(person.length === 1 ? { staff: person[0]! } : {}),
+    candidates,
+  };
+};
+
+/** Сколько заявок уходит модели: дальше список только путает выбор. */
+const LISTED = 10;
+
 /** Человек спрашивает, а не делает: с вопросом это разговор, а не дело. */
 const ASKING = /\?|^\s*(когда|почему|зачем|сколько|как|где|кто|что с|можно ли|подскажите|скажите)\b/iu;
 
@@ -140,19 +222,31 @@ export const doingFor = async (deps: AppDeps, resident: Resident, text: string):
   if (ASKING.test(said)) return undefined;
 
   const matched = PHRASES.filter((item) => item.words.test(said));
-
-  if (matched.length === 0) return undefined;
-
   const open = await around(deps, resident);
 
-  // Номер заявки в тексте снимает выбор: «по 0007 всё сделано» это про неё.
-  const numbered = numberIn(said, open);
+  // Поручение наряда идёт отдельно от перехода состояния: кроме заявки нужен
+  // ещё и человек, которому её отдают.
+  if (isCompanyStaff(resident.role)) {
+    const assign = await assigning(deps, resident, said, open);
+
+    if (assign) return assign;
+  }
+
+  // Модель называет дело и заявку, но выбирает только из того, что человеку и
+  // так доступно: прав она не добавляет, а ошибку в имени дела продукт молча
+  // отбрасывает. Слова остаются страховкой и работают без сети.
+  const read = await asked(deps, resident, said, open);
+
+  if (!read && matched.length === 0) return undefined;
+
+  // Номер заявки снимает выбор: и названный словами, и узнанный моделью.
+  const numbered = numberIn(said, open) ?? open.find((request) => request.number === read?.number);
   const about = numbered ? [numbered] : open;
 
   // Одни и те же слова у разных ролей значат разное: «всё сделали» у мастера
   // это сдача работы, а у жильца её приёмка. Решает не слово, а то, что этот
   // человек вправе сделать с этой заявкой.
-  for (const phrase of matched) {
+  for (const phrase of [...(read ? [read] : []), ...matched]) {
     const choices = about.filter((request) => able(request, phrase.to, resident));
 
     if (choices.length === 0) continue;
@@ -173,5 +267,54 @@ export const doingFor = async (deps: AppDeps, resident: Resident, text: string):
     };
   }
 
+  if (matched.length === 0) return undefined;
+
   return { kind: 'denied', reason: matched[0]!.denied };
+};
+
+/**
+ * Что о деле думает модель. Ответ принимается, только если и дело, и заявка
+ * названы из переданных списков: выдуманное имя дела правом не становится.
+ */
+const asked = async (
+  deps: AppDeps,
+  resident: Resident,
+  text: string,
+  open: readonly ServiceRequest[],
+): Promise<(Phrase & { number?: string }) | undefined> => {
+  if (!deps.reasoner?.doing || open.length === 0) return undefined;
+
+  const deeds = Object.entries(DEEDS)
+    .filter(([, deed]) => open.some((request) => able(request, deed.to, resident)))
+    .map(([name, deed]) => ({ deed: name, about: deed.about }));
+
+  if (deeds.length === 0) return undefined;
+
+  const read = await deps.reasoner
+    .doing({
+      text,
+      deeds,
+      requests: open.slice(0, LISTED).map((request) => ({
+        number: request.number,
+        title: request.title,
+        where: describeTarget(request.target),
+        status: STATUS_TITLES[request.status],
+      })),
+    })
+    .catch(() => undefined);
+
+  const deed = read?.deed ? DEEDS[read.deed] : undefined;
+
+  if (!deed || !deeds.some((item) => item.deed === read?.deed)) return undefined;
+
+  // Номер принимается только из переданного списка: чужую заявку модель назвать
+  // не сможет, а выдуманный номер продукт пропустит мимо.
+  const number = open.find((request) => request.number === read?.number)?.number;
+
+  return {
+    to: deed.to,
+    words: /(?:)/u,
+    denied: 'Такое дело сейчас недоступно.',
+    ...(number ? { number } : {}),
+  };
 };

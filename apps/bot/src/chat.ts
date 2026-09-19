@@ -1,7 +1,7 @@
 import { describeFromAttachments, submitProblem, unheardVoice, type Building, type Resident } from '@domovoy/app';
 import { DomainError, encodeTarget, type Attachment } from '@domovoy/domain';
 
-import { addressed, isChatter, mentionsOf, toAttachments, withoutMention, type BotContext } from './max.js';
+import { addressed, isChatter, mentionsOf, shown, toAttachments, withoutMention, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Обращение из чата заводится по дому, если жилец ещё не привязан к квартире. */
@@ -72,16 +72,19 @@ export const registerComments = (kit: BotKit, onError?: (error: unknown) => void
     extra?: Record<string, unknown>,
   ): Promise<unknown> => {
     const post = typed.message?.recipient?.post_id;
+    const ready = shown(text, extra);
 
     if (post !== undefined && post !== null) {
       try {
-        return await kit.bot.api.sendComment(String(post), text, extra ?? {});
+        return await kit.bot.api.sendComment(String(post), ready.text, ready.extra ?? {});
       } catch (error) {
         onError?.(error);
       }
     }
 
-    return typed.chatId === undefined ? undefined : kit.bot.api.sendMessageToChat(typed.chatId, text, extra);
+    return typed.chatId === undefined
+      ? undefined
+      : kit.bot.api.sendMessageToChat(typed.chatId, ready.text, ready.extra);
   };
 
   kit.bot.on('comment_created', async (context) => {

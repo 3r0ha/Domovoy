@@ -79,6 +79,59 @@ export interface ReadingPeriod {
 /** Сколько показаний показываем: за год. */
 export const HISTORY_LIMIT = 12;
 
+/** Как называют прибор словами: по этим словам показание узнаётся прямо в переписке. */
+const METER_WORDS: Readonly<Record<string, RegExp>> = {
+  cold_water: /хвс|холодн(ая|ой|ую)?( вод\w+)?/iu,
+  hot_water: /гвс|горяч(ая|ей|ую)?( вод\w+)?/iu,
+  electricity: /электр\w*|свет(?!оф)\w*|счётчик света/iu,
+  heating: /отоплен\w*|тепл(о|а)(?!ый)/iu,
+  gas: /газ(?!он)\w*/iu,
+};
+
+/** О поломке, а не о показании: такие слова снимают разбор числом. */
+const NOT_A_READING =
+  /не работа|не крут|сломал|слома|теч[ёе]т|протека|подтека|отключ|напор|еле идёт|поверк|замен|сорв|прорв|(?<!\p{L})нет(?!\p{L})[^.!?]{0,24}(вод|свет|газ|тепл|отоплен)/iu;
+
+/** Показание, названное словами: число из той же фразы и приборы, к которым оно подходит. */
+export interface ReadingInWords {
+  /** Приборы названного вида. Больше одного означает, что выбирает человек. */
+  meters: MeterState[];
+  value: number;
+}
+
+/**
+ * Показание, поданное словами: «холодная вода 12345». Возвращает пусто, если
+ * прибор не назван, числа нет или речь о поломке. Само показание не подаётся:
+ * его принимает обычный путь подачи со всеми проверками.
+ */
+export const readingInWords = async (
+  deps: AppDeps,
+  resident: Resident,
+  text: string,
+): Promise<ReadingInWords | undefined> => {
+  if (!resident.apartmentId || NOT_A_READING.test(text)) return undefined;
+
+  // Номер заявки состоит из тех же цифр: по нему показание подавать нечего.
+  if (/[\p{L}\d]+-\d{4}-\d{4}/u.test(text)) return undefined;
+
+  const kind = Object.keys(METER_WORDS).find((name) => METER_WORDS[name]!.test(text));
+  const digits = /(?<![\d,.])(\d{1,7}(?:[.,]\d{1,4})?)(?![\d,.])/u.exec(text)?.[1];
+
+  if (!kind || digits === undefined) return undefined;
+
+  const value = Number(digits.replace(',', '.'));
+  const rule = METER_RULES[kind as keyof typeof METER_RULES];
+
+  if (!Number.isFinite(value) || value < 0 || value >= 10 ** rule.digits) return undefined;
+
+  const now = deps.now();
+  const meters = (await metersFor(deps, resident).catch(() => [])).filter(
+    (state) => state.meter.kind === kind && verificationState(state.meter, now) !== 'expired',
+  );
+
+  return meters.length > 0 ? { meters, value } : undefined;
+};
+
 /** Чей это счётчик: своей квартиры или дома, который человек обслуживает. */
 export const ownMeter = async (deps: AppDeps, resident: Resident, meter: Meter): Promise<boolean> => {
   if (apartmentsOf(resident).includes(meter.apartmentId)) return true;

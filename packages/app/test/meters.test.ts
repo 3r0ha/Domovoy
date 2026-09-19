@@ -7,6 +7,7 @@ import {
   daysLeftPhrase,
   meterHistory,
   metersFor,
+  readingInWords,
   readingProgress,
   remindAboutReadings,
   submitReading,
@@ -461,5 +462,71 @@ describe('расход выше соседского', () => {
     const result = await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 190 });
 
     assert.equal(/выше, чем у соседей/.test(result.advice ?? ''), false);
+  });
+});
+
+describe('показания словами', () => {
+  it('прибор по названию, число из той же фразы', async () => {
+    const deps = await setup();
+
+    const said = await readingInWords(deps, maria, 'холодная вода 12345');
+
+    assert.equal(said?.value, 12345);
+    assert.deepEqual(said?.meters.map((state) => state.meter.id), ['cold-1']);
+  });
+
+  it('сокращения и дробное число тоже читаются', async () => {
+    const deps = await setup();
+
+    const said = await readingInWords(deps, maria, 'гвс 145,678');
+
+    assert.equal(said?.value, 145.678);
+    assert.deepEqual(said?.meters.map((state) => state.meter.id), ['hot-1']);
+  });
+
+  it('о поломке словами показание не подают', async () => {
+    const deps = await setup();
+
+    assert.equal(await readingInWords(deps, maria, 'нет горячей воды с 5 утра'), undefined);
+    assert.equal(await readingInWords(deps, maria, 'течёт счётчик холодной воды 3 подъезд'), undefined);
+  });
+
+  it('без числа и без названия прибора показания нет', async () => {
+    const deps = await setup();
+
+    assert.equal(await readingInWords(deps, maria, 'холодная вода'), undefined);
+    assert.equal(await readingInWords(deps, maria, '12345'), undefined);
+  });
+
+  it('прибора такого вида нет, значит и показания нет', async () => {
+    const deps = await setup();
+
+    assert.equal(await readingInWords(deps, maria, 'газ 120'), undefined);
+  });
+
+  it('номер заявки показанием не становится', async () => {
+    const deps = await setup();
+
+    assert.equal(await readingInWords(deps, maria, 'что с холодной водой по заявке Д15-2609-0007'), undefined);
+  });
+
+  it('прибор с истёкшей поверкой словами не принимают', async () => {
+    const deps = await setup();
+
+    await deps.repository.saveMeter({
+      id: 'cold-1',
+      apartmentId: 'apt-1',
+      kind: 'cold_water',
+      serial: 'ХВС-1',
+      verifiedUntil: new Date('2026-01-01T00:00:00Z'),
+    });
+
+    assert.equal(await readingInWords(deps, maria, 'хвс 12345'), undefined);
+  });
+
+  it('число больше табло показанием не считается', async () => {
+    const deps = await setup();
+
+    assert.equal(await readingInWords(deps, maria, 'холодная вода 1234567'), undefined);
   });
 });

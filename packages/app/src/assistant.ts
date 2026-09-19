@@ -306,6 +306,9 @@ const dashless = (text: string): string => text.replace(/[—–]/g, '-');
 /** Кавычки в ответе приводим к одним: модель ставит то лапки, то прямые. */
 const quoted = (text: string): string => text.replace(/["'`]([^"'`]{1,60})["'`]/g, '«$1»');
 
+/** Разметку модель иногда добавляет вопреки правилам: в переписке она видна звёздочками. */
+const unmarked = (text: string): string => text.replace(/\*{1,3}([^*\n]+)\*{1,3}/gu, '$1').replace(/^#{1,6}\s*/gmu, '');
+
 /**
  * Денежные суммы строки. Пробелы убираются до разбора: разряды модель отбивает
  * то обычным пробелом, то неразрывным, и одно и то же число иначе не совпадёт.
@@ -586,7 +589,7 @@ const answerByModel = async (
   const capability = capabilityFor(screen, resident.role);
 
   return {
-    answer: quoted(dashless(read.answer.trim())).slice(0, ANSWER_MAX_LENGTH),
+    answer: quoted(dashless(unmarked(read.answer.trim()))).slice(0, ANSWER_MAX_LENGTH),
     ...(screen ? { screen } : {}),
     ...(capability?.title ? { title: capability.title } : {}),
     ...(capability?.command ? { command: capability.command } : {}),

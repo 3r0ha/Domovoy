@@ -53,12 +53,12 @@ import {
   addressed,
   DIALOG_COMMANDS,
   forget,
-  formatted,
   inChat,
   morphing,
   PRIVATE_COMMANDS,
   QUIET_COMMANDS,
   nameOf,
+  shown,
   toast,
   toAttachments,
   screenKeeper,
@@ -223,7 +223,9 @@ export const createBotNotifier = (
                 ], PERSONAL)
               : actionKeyboard(actions, replyTo);
 
-      await bot.api.sendMessageToUser(maxUserId, text, formatted(text, keyboard));
+      const ready = shown(text, keyboard);
+
+      await bot.api.sendMessageToUser(maxUserId, ready.text, ready.extra);
     } catch (error) {
       onError?.(error);
     }
@@ -317,7 +319,11 @@ const inPrivate = async (
 
   const personal = Object.create(typed) as BotContext;
 
-  personal.reply = (text, extra) => bot.api.sendMessageToUser(userId, text, extra);
+  personal.reply = (text, extra) => {
+    const ready = shown(text, extra);
+
+    return bot.api.sendMessageToUser(userId, ready.text, ready.extra);
+  };
 
   try {
     await run(personal);

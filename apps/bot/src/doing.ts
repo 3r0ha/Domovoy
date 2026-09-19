@@ -2,7 +2,7 @@ import { doingFor, type Doing } from '@domovoy/app';
 import { describeTarget } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
-import { actionTitle, keyboardOf, menuButton, screenOf } from './keyboards.js';
+import { actionTitle, assignKeyboard, keyboardOf, menuButton, screenOf } from './keyboards.js';
 import { inChat, plain, strong, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
@@ -28,6 +28,43 @@ const shortly = (request: {
 }): string => `${request.number}, ${request.title.slice(0, 40).toLowerCase()}, ${describeTarget(request.target)}`;
 
 /**
+ * Поручение наряда словами. Заявка и человек, названные в словах, уже выбраны:
+ * остаётся нажать. Не названное спрашивается кнопками, и это тот же выбор,
+ * что и на карточке заявки.
+ */
+const offerAssign = async (
+  kit: BotKit,
+  typed: BotContext,
+  doing: Doing & { kind: 'assign' },
+): Promise<boolean> => {
+  if (!doing.request) {
+    await typed.reply(
+      `${strong('Понял: поручить наряд')}\nПо какой заявке?`,
+      screenOf(
+        keyboardOf([
+          ...doing.choices
+            .slice(0, SHOWN)
+            .map((request) => [Keyboard.button.callback(shortly(request), `assign:${request.id}`)]),
+          [Keyboard.button.callback('✖️ Ни по какой', 'cancel')],
+        ]),
+      ),
+    );
+
+    return true;
+  }
+
+  const people = doing.staff ? [doing.staff] : doing.candidates;
+
+  await typed.reply(
+    `${strong('Понял: поручить наряд')}\n${plain(shortly(doing.request))}\n` +
+      (doing.staff ? `Мастер: ${plain(doing.staff.displayName)}. Поручить?` : 'Кому поручить?'),
+    screenOf(assignKeyboard(doing.request.id, people, kit.miniAppUrl)),
+  );
+
+  return true;
+};
+
+/**
  * Дело, названное словами. Продукт показывает, что понял, и ждёт нажатия:
  * закрыть заявку по одной фразе нельзя, а переспрашивать о каждом слове
  * мучительно. Когда подходящих заявок несколько, человек выбирает кнопкой.
@@ -47,6 +84,8 @@ export const offerDoing = async (kit: BotKit, typed: BotContext, text: string): 
 
     return true;
   }
+
+  if (doing.kind === 'assign') return await offerAssign(kit, typed, doing);
 
   const what = ABOUT[doing.to] ?? 'изменить заявку';
 

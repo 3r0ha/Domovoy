@@ -48,20 +48,26 @@ export const forget = (context: { session?: DialogSession }): void => {
 };
 
 /**
- * Жирным выделяется главное в сообщении: номер заявки, сумма, срок. Разметка
- * включается только там, где она есть: в обычном тексте звёздочка и нижнее
- * подчёркивание жильца остаются самими собой.
+ * Невидимая метка разметки. Она ставится там, где текст собрал сам продукт, и
+ * снимается перед отправкой: звёздочки из письма жильца или из ответа модели
+ * разметку уже не включают и остаются самими собой.
  */
-export const strong = (text: string): string => `**${text}**`;
+const MARKUP = '⁠';
+
+/** Жирным выделяется главное в сообщении: номер заявки, сумма, срок. */
+export const strong = (text: string): string => `${MARKUP}**${text}**`;
 
 /** Чужой текст внутри размеченного сообщения: знаки разметки в нём обезвреживаются. */
 export const plain = (text: string): string => text.replace(/([*_~`[\]()>#])/gu, '\\$1');
 
-/** Разметка включается по самому тексту: так она не портит обычные сообщения. */
-export const formatted = (
+/** Текст к отправке и способ его показа: разметка включается только по метке. */
+export const shown = (
   text: string,
-  extra: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined => (text.includes('**') ? { ...(extra ?? {}), format: 'markdown' } : extra);
+  extra?: Record<string, unknown>,
+): { text: string; extra: Record<string, unknown> | undefined } =>
+  text.includes(MARKUP)
+    ? { text: text.replaceAll(MARKUP, ''), extra: { ...(extra ?? {}), format: 'markdown' } }
+    : { text, extra };
 
 /** Сколько реплик помощник держит в голове: дальше разговор уходит в сторону. */
 export const TALK_DEPTH = 6;
@@ -230,7 +236,8 @@ export const screenKeeper =
       // человек листает вверх, чтобы понять, где он сейчас.
       const previous = extra !== undefined && SCREENS.has(extra) ? typed.session?.screen : undefined;
 
-      const sent = await send(text, formatted(text, withBack(extra, typed)));
+      const ready = shown(text, withBack(extra, typed));
+      const sent = await send(ready.text, ready.extra);
 
       if (extra !== undefined && SCREENS.has(extra)) {
         typed.session ??= {};
@@ -337,10 +344,12 @@ export const replace = async (
 
   context.settled = true;
 
+  // Правка сообщения идёт тем же путём, что и отправка: без пометки формата
+  // переписанный экран показал бы звёздочки вместо жирного.
+  const ready = shown(text, extra);
+
   return context.api
-    // Правка сообщения идёт тем же путём, что и отправка: без пометки формата
-    // переписанный экран показал бы звёздочки вместо жирного.
-    .answerOnCallback(id, { message: { text, ...(formatted(text, extra) ?? {}) } })
+    .answerOnCallback(id, { message: { text: ready.text, ...(ready.extra ?? {}) } })
     .then(() => true)
     .catch(() => {
       // Платформа правку не приняла: обычной отправкой человек хотя бы получит ответ.
@@ -431,9 +440,21 @@ export const SMALL_TALK = /^(спасибо|благодарю|привет|зд
 /** Есть ли в сообщении слова: из одних значков заявку не составить. */
 const HAS_WORDS = /[\p{L}\p{N}]{2}/u;
 
+/**
+ * Слова, по которым короткое сообщение всё-таки дело: «течь», «лифт», «свет».
+ * Ими человек и пишет чаще всего, а порог по длине отправлял их в меню.
+ */
+const SHORT_BUT_CLEAR =
+  /^(теч[ьи]|потоп|залив|лифт|свет|вода|воды|тепло|мусор|засор|шум|домофон|дверь|ворота|кран|труба|батаре[яи]|окно|подвал|крыша)[\s!.,]*$/iu;
+
 /** Сообщение без сути: приветствие, благодарность, пара слов или одни значки. */
-export const isChatter = (text: string): boolean =>
-  text.length < 8 || !HAS_WORDS.test(text) || SMALL_TALK.test(text);
+export const isChatter = (text: string): boolean => {
+  const said = text.trim();
+
+  if (SHORT_BUT_CLEAR.test(said)) return false;
+
+  return said.length < 8 || !HAS_WORDS.test(said) || SMALL_TALK.test(said);
+};
 
 /** Команды, ответ на которые виден только спрашивающему. */
 export const PRIVATE_COMMANDS = new Set([

@@ -193,6 +193,91 @@ describe('дела словами', () => {
     assert.equal(doing?.kind === 'transition' ? doing.to : '', 'accepted');
   });
 
+  it('модель узнаёт дело, которого нет в словаре слов', async () => {
+    const deps = setup();
+    const id = await inWork(deps);
+
+    // Слова «протечку ликвидировал» в словаре не описаны: их разбирает модель.
+    const doing = await doingFor(
+      { ...deps, reasoner: { understand: () => Promise.resolve(undefined), doing: () => Promise.resolve({ deed: 'done' }) } },
+      technician,
+      'протечку ликвидировал, всё сухо',
+    );
+
+    assert.equal(doing?.kind === 'transition' ? doing.to : '', 'done');
+    assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', id);
+  });
+
+  it('модель прав не добавляет: чужое дело отбрасывается', async () => {
+    const deps = setup();
+
+    await inWork(deps);
+
+    // Модель называет дело смены, а спрашивает жилец: продукт её не слушает.
+    const doing = await doingFor(
+      {
+        ...deps,
+        reasoner: { understand: () => Promise.resolve(undefined), doing: () => Promise.resolve({ deed: 'reject' }) },
+      },
+      maria,
+      'тут всё понятно',
+    );
+
+    assert.equal(doing, undefined);
+  });
+
+  it('выдуманный моделью номер заявкой не становится', async () => {
+    const deps = setup();
+    const id = await inWork(deps);
+
+    const doing = await doingFor(
+      {
+        ...deps,
+        reasoner: {
+          understand: () => Promise.resolve(undefined),
+          doing: () => Promise.resolve({ deed: 'done', number: 'Д99-9999-9999' }),
+        },
+      },
+      technician,
+      'сделал',
+    );
+
+    assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', id, 'чужой номер увёл дело не туда');
+  });
+
+  it('поручение по имени выбирает и заявку, и мастера', async () => {
+    const deps = setup();
+
+    const created = await createServiceRequest(deps, { resident: maria, description: 'Нет света в подъезде' });
+    const number = (await deps.repository.findRequest(created.id))!.number;
+
+    const doing = await doingFor(deps, dispatcher, `назначь Сергея на ${number.slice(-4)}`);
+
+    assert.equal(doing?.kind, 'assign');
+    assert.equal(doing?.kind === 'assign' ? doing.request?.id : '', created.id);
+    assert.equal(doing?.kind === 'assign' ? doing.staff?.id : '', technician.id);
+  });
+
+  it('без имени поручение оставляет выбор мастера кнопкой', async () => {
+    const deps = setup();
+
+    const created = await createServiceRequest(deps, { resident: maria, description: 'Нет света в подъезде' });
+
+    const doing = await doingFor(deps, dispatcher, 'поручи кому-нибудь');
+
+    assert.equal(doing?.kind === 'assign' ? doing.request?.id : '', created.id);
+    assert.equal(doing?.kind === 'assign' ? doing.staff : 'есть', undefined);
+    assert.equal(doing?.kind === 'assign' ? doing.candidates.length : 0, 1);
+  });
+
+  it('поручать наряды жилец не может', async () => {
+    const deps = setup();
+
+    await createServiceRequest(deps, { resident: maria, description: 'Нет света в подъезде' });
+
+    assert.equal(await doingFor(deps, maria, 'назначьте Сергея на эту заявку'), undefined);
+  });
+
   it('слов о деле нет, значит дела нет', async () => {
     const deps = setup();
 

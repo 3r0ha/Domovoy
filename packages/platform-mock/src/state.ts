@@ -151,7 +151,9 @@ export class PlatformState {
       if (typeof replacement['text'] === 'string') target.text = replacement['text'];
       if (Array.isArray(replacement['attachments'])) target.attachments = replacement['attachments'];
 
-      target.body = { ...target.body, ...replacement };
+      // Тело сообщения заменяется целиком: не названный формат на платформе
+      // означает обычный текст, а не прежнюю разметку.
+      target.body = replacement;
 
       return sent;
     }
