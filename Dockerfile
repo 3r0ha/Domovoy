@@ -30,8 +30,9 @@ COPY . .
 # Мини-приложение ходит в API относительным путём: их отдаёт один и тот же
 # сервер. Отдельный адрес нужен, только если статику раздаёт кто-то другой.
 ARG VITE_API_URL=
-# Ссылка на бота в MAX: с ней на лендинге появляется кнопка «Открыть в MAX».
-ARG VITE_BOT_LINK=
+# Ссылка на бота в MAX: по ней ведут кнопки «Открыть в MAX» на лендинге.
+# Значение по умолчанию это бот этой установки: со своим ботом задайте своё.
+ARG VITE_BOT_LINK=https://max.ru/t478_hakaton_max_bot
 RUN VITE_API_URL=$VITE_API_URL npm run build \
   && VITE_BOT_LINK=$VITE_BOT_LINK npm run build --workspace @bezslavie/landing
 

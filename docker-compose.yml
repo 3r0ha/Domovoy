@@ -32,7 +32,7 @@ services:
         # сервер. Заполняется, только если статику раздаёт кто-то другой.
         VITE_API_URL: ${VITE_API_URL:-}
         # Ссылка на бота: с ней лендинг ведёт прямо в MAX.
-        VITE_BOT_LINK: ${VITE_BOT_LINK:-}
+        VITE_BOT_LINK: ${VITE_BOT_LINK:-https://max.ru/t478_hakaton_max_bot}
     depends_on:
       postgres:
         condition: service_healthy
