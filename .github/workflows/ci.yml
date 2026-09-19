@@ -45,8 +45,12 @@ jobs:
       - name: Проверить, что мини-приложение собралось
         run: test -f apps/miniapp/dist/index.html
 
+      # Ссылка на бота читается на сборке: без неё лендинг намеренно не собирается,
+      # чтобы кнопки «Открыть в MAX» не уехали в никуда.
       - name: Собрать лендинг
         run: npm run build --workspace @bezslavie/landing
+        env:
+          VITE_BOT_LINK: ${{ vars.BOT_LINK || 'https://max.ru/t478_hakaton_max_bot' }}
 
       # Узоры лежат в репозитории собранными: пересборка не должна их менять.
       - name: Проверить, что узоры собраны из исходника
