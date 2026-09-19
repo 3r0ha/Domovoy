@@ -227,7 +227,7 @@ export const Foot = () => (
 
       <div className="foot-brand">
         <Ink src="/bezslavie-logo.svg" className="foot-logo" when="seen" label="БЕЗЪСЛАВИЕ" pace={0.32} />
-        <p className="foot-note">Команда БЕЗЪСЛАВИЕ для платформы MAX, 2026</p>
+        <p className="foot-note">Команда antihype для платформы MAX, 2026</p>
       </div>
     </div>
   </footer>

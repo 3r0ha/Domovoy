@@ -2,7 +2,7 @@
   "name": "@bezslavie/landing",
   "version": "0.1.0",
   "private": true,
-  "description": "Лендинг продукта «Домовой» команды БЕЗЪСЛАВИЕ",
+  "description": "Лендинг продукта «Домовой» команды antihype",
   "type": "module",
   "scripts": {
     "dev": "vite",
