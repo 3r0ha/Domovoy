@@ -14,7 +14,10 @@ export const isWorkingHours = (
 ): boolean => {
   const hour = hourIn(at, timeZone);
 
-  return hour >= hours.from && hour < hours.to;
+  // Смена через полночь: «с 20 до 8» это вечер и утро, а не пустой промежуток.
+  return hours.from > hours.to
+    ? hour >= hours.from || hour < hours.to
+    : hour >= hours.from && hour < hours.to;
 };
 
 /** Минимум от сотрудника, который нужен правилу дежурства. */

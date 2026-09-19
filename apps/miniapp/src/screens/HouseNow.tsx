@@ -1,7 +1,7 @@
 import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 
-import { formatDeadline, formatTime, type DomovoyApi, type HouseNowView } from '../api.js';
+import { formatDeadline, formatDue, type DomovoyApi, type HouseNowView } from '../api.js';
 import { Domovoy } from './Domovoy.js';
 import { Group } from './Group.js';
 import { IconNews, IconWarning } from './icons.js';
@@ -20,7 +20,7 @@ const MOOD: Record<HouseNowView['mood'], string> = {
 
 /** Что в доме прямо сейчас. */
 export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
-  const state = useBridgeRequest(() => api.houseNow(), [api]);
+  const state = useBridgeRequest((alive) => api.until(alive).houseNow(), [api]);
   const incidents = state.data?.incidents ?? [];
   const works = state.data?.works ?? [];
   const mood = state.data?.mood;
@@ -65,7 +65,7 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
                 </span>
               }
               title={item.title}
-              subtitle={`${item.audience} · до ${formatTime(item.until)}`}
+              subtitle={`${item.audience} · до ${formatDue(item.until)}`}
               separator={index > 0 || incidents.length > 0}
             />
           ))}

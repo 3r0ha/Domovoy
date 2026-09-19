@@ -2,7 +2,7 @@ import { CellAction, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, plural, type DebtorView, type DomovoyApi } from '../api.js';
+import { ApiError, money, plural, rubles, type DebtorView, type DomovoyApi } from '../api.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -14,11 +14,6 @@ import { Skeleton } from './Skeleton.js';
 export interface DebtorsScreenProps {
   api: DomovoyApi;
 }
-
-const money = (amount: number): string =>
-  amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const rubles = (amount: number): string => `${money(amount)} ₽`;
 
 /** Квартира должника и с каких пор идёт просрочка. */
 const describe = (debtor: DebtorView): string =>
@@ -107,7 +102,7 @@ const DebtorRow = ({
 
 /** Долги дома: крупные должники сверху. */
 export const DebtorsScreen = ({ api }: DebtorsScreenProps) => {
-  const debt = useBridgeRequest(() => api.debtors(), [api]);
+  const debt = useBridgeRequest((alive) => api.until(alive).debtors(), [api]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   if (debt.loading && !debt.data) return <Skeleton count={3} />;

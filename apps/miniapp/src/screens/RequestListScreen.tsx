@@ -60,7 +60,7 @@ const Rows = ({
         {...(onStart && request.status === 'accepted'
           ? {
               action: {
-                title: starting === request.id ? '…' : 'В работу',
+                title: starting === request.id ? 'Берём…' : 'В работу',
                 busy: starting !== null && starting !== undefined,
                 run: () => onStart(request.id),
               },
@@ -81,7 +81,7 @@ export const RequestListScreen = ({
   onQueue,
   onOpen,
 }: RequestListScreenProps) => {
-  const requests = useBridgeRequest(() => api.listRequests('mine'), [api, version]);
+  const requests = useBridgeRequest((alive) => api.until(alive).listRequests('mine'), [api, version]);
   const [showClosed, setShowClosed] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);

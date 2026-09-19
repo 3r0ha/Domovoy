@@ -87,6 +87,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
         ...(resident.role === 'resident' ? {} : { onDuty: resident.onDuty ?? false }),
         readingWindow: { fromDay: READING_WINDOW.fromDay, toDay: READING_WINDOW.toDay },
         meterPhoto: Boolean(deps.vision),
+        // Расшифровка речи: без неё микрофон в приложении не показывают.
+        voice: Boolean(deps.transcriber),
         // Приём по записи ведут не все организации: без окон раздела нет.
         // У смены он про дом смены, у жильца про дом его квартиры.
         reception: Boolean(building?.reception?.length || workHouse?.reception?.length),
@@ -298,8 +300,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
             required: ['phone'],
             properties: {
               phone: { type: 'string', maxLength: 32 },
-              authDate: { type: 'string', maxLength: 32 },
-              hash: { type: 'string', maxLength: 128 },
+              authDate: { type: 'string', maxLength: 32, pattern: '^[0-9]+$' },
+              hash: { type: 'string', maxLength: 128, pattern: '^[0-9a-fA-F]+$' },
             },
           },
           response: {
@@ -337,6 +339,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       const resident = await currentResident(request.max.userId);
 
       await forgetResident(deps, resident);
+      // Токен переживал бы удалённый профиль: сессия закрывается вместе с ним.
+      await deps.auth?.revoke(request.maxSessionToken);
 
       return reply.code(204).send();
     });

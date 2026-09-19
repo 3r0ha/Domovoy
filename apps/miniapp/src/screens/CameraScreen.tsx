@@ -12,7 +12,7 @@ export interface CameraScreenProps {
 
 /** Камера отдельным экраном: кадр занимает его целиком. */
 export const CameraScreen = ({ api, device }: CameraScreenProps) => {
-  const shot = useBridgeRequest(() => api.deviceSnapshot(device.id), [api, device.id]);
+  const shot = useBridgeRequest((alive) => api.until(alive).deviceSnapshot(device.id), [api, device.id]);
 
   if (shot.loading && !shot.data) return <Skeleton count={1} />;
 

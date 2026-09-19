@@ -141,6 +141,18 @@ export const announce = async (
 
   const hint = emergencyHint(created.category, created.priority);
 
+  // Повтор того же текста: человек не понимает, завелись ли три заявки.
+  if (result.again) {
+    await typed.reply(
+      `Это та же заявка ${strong(created.number)}, новую не завожу.\n` +
+        `${rule.title}, ${plain(describeTarget(created.target))}.\n` +
+        `Починят до ${strong(formatMoment(created.resolutionDueAt, zone))}.`,
+      kit.openApp(startParam, typed),
+    );
+
+    return;
+  }
+
   const receipt =
     `Заявка ${strong(created.number)} принята. Номер пригодится, если будете звонить.\n` +
     `Что: ${rule.title.toLowerCase()}, ${plain(describeTarget(created.target))}.\n` +
@@ -170,5 +182,6 @@ export const announce = async (
   typed.session ??= {};
   expect(typed, { kind: 'message', requestId: created.id });
 
-  await typed.reply(`${ask}\nМожно не отвечать, заявка уже в работе.`, cancelKeyboard());
+  // «Уже в работе» обещает больше, чем есть: заявка только принята.
+  await typed.reply(`${ask}\nМожно не отвечать, заявка уже принята.`, cancelKeyboard());
 };

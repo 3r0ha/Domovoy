@@ -2,6 +2,7 @@ import { commonNeedsTitle } from './common.js';
 import { roundMoney } from './numbers.js';
 import { METER_RULES, type MeterKind } from './meters.js';
 import type { ConsumptionBasis } from './norms.js';
+import { DomainError } from './types.js';
 
 /** Строка квитанции. */
 export interface ChargeLine {
@@ -79,36 +80,73 @@ export interface ChargeInput {
   paid?: number;
 }
 
-/** Начисление за месяц. */
+/** Ставка на ресурс. Без неё начисление вышло бы нечислом. @throws {DomainError} */
+const rateFor = (tariffs: Tariffs, kind: MeterKind): number => {
+  const rate = tariffs.meters[kind];
+
+  if (!Number.isFinite(rate) || rate < 0) {
+    throw new DomainError('tariff_invalid', `Нет тарифа на ресурс «${METER_RULES[kind].title}»: начислять нечем`);
+  }
+
+  return rate;
+};
+
+/** Числа, из которых складываются деньги. @throws {DomainError} */
+const checkAmount = (amount: number, title: string): number => {
+  if (!Number.isFinite(amount)) {
+    throw new DomainError('tariff_invalid', `Расход по строке «${title}» задан не числом`);
+  }
+
+  return amount;
+};
+
+/** Начисление за месяц. @throws {DomainError} */
 export const chargesFor = (input: ChargeInput): Charges => {
+  for (const item of input.consumption) checkAmount(item.amount, item.title);
+
+  // Ноль в квитанцию не идёт, а отрицательная строка идёт: это перерасчёт,
+  // и вместе со строкой из квитанции исчезли бы деньги жильца.
   const lines: ChargeLine[] = input.consumption
-    .filter((item) => item.amount > 0)
-    .map((item) => ({
-      title: item.title,
-      amount: roundMoney(item.amount * input.tariffs.meters[item.kind]),
-      detail:
-        `${decimal(item.amount)} ${item.unit} × ${decimal(input.tariffs.meters[item.kind])} ₽` +
-        (item.basis && item.basis !== 'meter' ? ` · ${BASIS_TITLES[item.basis]}` : ''),
-      ...(item.basis && item.basis !== 'meter' ? { basis: item.basis } : {}),
-    }));
+    .filter((item) => item.amount !== 0)
+    .map((item) => {
+      const rate = rateFor(input.tariffs, item.kind);
+
+      return {
+        title: item.title,
+        amount: roundMoney(item.amount * rate),
+        detail:
+          `${decimal(item.amount)} ${item.unit} × ${decimal(rate)} ₽` +
+          (item.basis && item.basis !== 'meter' ? ` · ${BASIS_TITLES[item.basis]}` : ''),
+        ...(item.basis && item.basis !== 'meter' ? { basis: item.basis } : {}),
+      };
+    });
 
   for (const item of input.common ?? []) {
-    if (item.amount <= 0) continue;
+    const title = commonNeedsTitle(item.kind);
 
-    const rate = input.tariffs.meters[item.kind];
+    // Отрицательную разницу дома и квартир по общедомовым нуждам не распределяют.
+    if (checkAmount(item.amount, title) <= 0) continue;
+
+    const rate = rateFor(input.tariffs, item.kind);
 
     lines.push({
-      title: commonNeedsTitle(item.kind),
+      title,
       amount: roundMoney(item.amount * rate),
       detail: `${decimal(item.amount)} ${METER_RULES[item.kind].unit} × ${decimal(rate)} ₽`,
     });
   }
 
-  if (input.area > 0 && input.tariffs.maintenance > 0) {
+  const maintenance = input.tariffs.maintenance;
+
+  if (!Number.isFinite(input.area) || !Number.isFinite(maintenance)) {
+    throw new DomainError('tariff_invalid', 'Площадь помещения и тариф на содержание задаются числами');
+  }
+
+  if (input.area > 0 && maintenance > 0) {
     lines.push({
       title: 'Содержание и текущий ремонт',
-      amount: roundMoney(input.area * input.tariffs.maintenance),
-      detail: `${decimal(input.area)} м² × ${decimal(input.tariffs.maintenance)} ₽`,
+      amount: roundMoney(input.area * maintenance),
+      detail: `${decimal(input.area)} м² × ${decimal(maintenance)} ₽`,
     });
   }
 

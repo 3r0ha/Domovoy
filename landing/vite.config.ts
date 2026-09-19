@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, loadEnv, type Plugin } from 'vite';
 
 import { precompress } from '../scripts/precompress.mjs';
 
@@ -131,13 +131,33 @@ const extras = (): Plugin => ({
 /** Документы продукта: свои страницы, чтобы на них можно было дать ссылку из чата. */
 const LEGAL = ['privacy', 'terms'];
 
+/** Адрес бота обязателен: без него кнопки «Открыть в MAX» и noscript ведут в никуда. */
+const botLink = (): Plugin => ({
+  name: 'domovoy-bot-link',
+  config(_config, { mode }) {
+    const link = loadEnv(mode, fileURLToPath(new URL('.', import.meta.url)), 'VITE_').VITE_BOT_LINK?.trim();
+
+    if (!link) {
+      throw new Error(
+        'VITE_BOT_LINK не задан: кнопкам «Открыть в MAX» некуда вести. Укажите адрес бота, например VITE_BOT_LINK=https://max.ru/имя_бота.',
+      );
+    }
+
+    if (!/^https:\/\/\S+$/.test(link)) {
+      throw new Error(`VITE_BOT_LINK должен быть адресом вида https://max.ru/имя_бота, а задано «${link}».`);
+    }
+
+    return undefined;
+  },
+});
+
 const page = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
 const pages: Record<string, string> = { home: page('index.html') };
 
 for (const id of [...SECTIONS, ...LEGAL]) pages[id] = page(`${id}/index.html`);
 
 export default defineConfig({
-  plugins: [react(), extras(), precompress()],
+  plugins: [botLink(), react(), extras(), precompress()],
   server: { port: 4173 },
   build: { target: 'es2022', outDir: 'dist', rollupOptions: { input: pages } },
 });

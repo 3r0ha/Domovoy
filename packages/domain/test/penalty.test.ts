@@ -40,6 +40,14 @@ describe('пени за просрочку', () => {
     assert.equal(penaltyFor(10_000, 365, 0), 0, 'ставку не задали, начислять не по чему');
   });
 
+  it('нечисло в начисление не проходит', () => {
+    // Ни одно сравнение с NaN не истинно, поэтому без проверки он доходит до квитанции.
+    assert.throws(() => penaltyFor(Number.NaN, 100, RATE), /по числам/);
+    assert.throws(() => penaltyFor(10_000, Number.NaN, RATE), /по числам/);
+    assert.throws(() => penaltyFor(10_000, 100, Number.NaN), /по числам/);
+    assert.throws(() => penaltyFor(Number.POSITIVE_INFINITY, 100, RATE), /по числам/);
+  });
+
   it('дни просрочки считаются от срока и не уходят в минус', () => {
     const due = new Date('2026-04-10T00:00:00Z');
 

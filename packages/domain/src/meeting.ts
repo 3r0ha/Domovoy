@@ -1,3 +1,4 @@
+import { addYears } from './calendar.js';
 import { DomainError } from './types.js';
 
 /**
@@ -73,9 +74,7 @@ export const meetingSchedule = ({ announcedAt, days }: MeetingScheduleInput): Me
   const votingFrom = new Date(announcedAt.getTime() + NOTICE_TO_OWNERS_DAYS * DAY_MS);
   const votingTo = new Date(votingFrom.getTime() + days * DAY_MS);
   const protocolBy = new Date(votingTo.getTime() + PUBLISH_HOURS * 60 * 60 * 1000);
-  const storageUntil = new Date(votingTo.getTime());
-
-  storageUntil.setUTCFullYear(storageUntil.getUTCFullYear() + PROTOCOL_STORAGE_YEARS);
+  const storageUntil = addYears(votingTo, PROTOCOL_STORAGE_YEARS);
 
   return {
     noticeBy: announcedAt,

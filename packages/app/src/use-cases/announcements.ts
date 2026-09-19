@@ -1,6 +1,7 @@
 import {
   describeAudience,
   DomainError,
+  isCompanyStaff,
   selectAudience,
   type AnnouncementAudience,
   type RequestCategory,
@@ -9,7 +10,7 @@ import {
 
 import { apartmentsOf } from '../apartments.js';
 import { postToChat } from '../broadcast.js';
-import { homeBuildingOf, houseHintFor } from '../buildings.js';
+import { assertServes, homeOf, houseHintFor } from '../buildings.js';
 import { wanting } from '../notices.js';
 import { formatAnnouncement, noopNotifier, notifyAbout } from '../notifier.js';
 import { type Announcement, type Resident } from '../repository.js';
@@ -43,6 +44,9 @@ export const publishAnnouncement = async (
   }
 
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
+
+  await assertServes(deps, command.resident, buildingId);
+
   const { entrance, riser } = command;
 
   const audience: AnnouncementAudience =
@@ -100,18 +104,19 @@ export const listAnnouncementsFor = async (
   resident: Resident,
   page: RequestPage = {},
 ): Promise<Announcement[]> => {
-  const buildingId = resident.buildingId ?? deps.defaultBuildingId;
-  const home = await homeBuildingOf(deps, resident);
-  const isStaff = resident.role !== 'resident';
+  const buildingId = resident.buildingId;
+  const home = await homeOf(deps, resident);
+  // Подрядчик не сотрудник компании: объявления дома целиком ему не предназначены.
+  const isStaff = isCompanyStaff(resident.role);
   const own = apartmentsOf(resident);
 
   const addressed = (announcement: Announcement): boolean =>
     announcement.audience.kind === 'building' ||
     own.some((apartmentId) => announcement.recipientIds.includes(apartmentId));
 
-  const mine = isStaff ? await deps.repository.listAnnouncements(buildingId) : [];
+  const mine = isStaff && buildingId ? await deps.repository.listAnnouncements(buildingId) : [];
 
-  if (!isStaff || home !== buildingId) {
+  if (home !== undefined && (!isStaff || home !== buildingId)) {
     for (const announcement of await deps.repository.listAnnouncements(home)) {
       if (addressed(announcement)) mine.push(announcement);
     }

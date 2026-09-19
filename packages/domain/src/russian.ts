@@ -1,6 +1,8 @@
-/** Деньги: «5 240,00 ₽». */
+import { roundMoney } from './numbers.js';
+
+/** Деньги: «5 240,00 ₽». Копейки округляются до печати, иначе бывает «-0,00 ₽». */
 export const formatMoney = (amount: number): string =>
-  `${amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+  `${roundMoney(amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
 
 /** Показание прибора: «137,1». */
 export const formatMeterValue = (value: number): string =>

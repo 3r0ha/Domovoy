@@ -38,6 +38,7 @@ import { demoDevices, demoDoorHistory, demoSensorContact, seedDemo } from './dem
 import { meterVisionFromEnv } from './meter-vision.js';
 import { fileSweepStore, sharedSweepStore } from './sweep-store.js';
 import { gigaChatFromEnv } from './gigachat.js';
+import { gigaChatFilesFromEnv } from './gigachat-files.js';
 import { reasonerFromEnv } from './reasoner.js';
 import { transcriberFromEnv } from './transcriber.js';
 
@@ -206,9 +207,16 @@ const main = async (): Promise<void> => {
   if (!handoffs) console.warn('HANDOFF не задан, передача обращений записывается как ручная');
   if (!meetings) console.warn('MEETINGS не задан, собрание остаётся подготовкой без передачи в систему');
 
-  const vision = meterVisionFromEnv(process.env, (error) =>
-    console.error('Не удалось распознать показание с фотографии', error),
+  // Снимки табло и голосовые разбирает тот же GigaChat, что и текст: отдельные
+  // службы нужны, только если их задали отдельно, и тогда они идут первыми.
+  const files = gigaChatFilesFromEnv(process.env, (error) =>
+    console.error('GigaChat не разобрал файл', error),
   );
+
+  const vision =
+    meterVisionFromEnv(process.env, (error) =>
+      console.error('Не удалось распознать показание с фотографии', error),
+    ) ?? files?.vision;
 
   // Сначала GigaChat: у него бесплатный режим и российская инфраструктура.
   // Дальше любая служба, совместимая с форматом OpenAI.
@@ -268,11 +276,16 @@ const main = async (): Promise<void> => {
     console.log(`Управляющий: ${manager.displayName} (MAX ${owner})`);
   }
 
-  const transcriber = transcriberFromEnv(process.env, (error) =>
-    console.error('Не удалось расшифровать голосовое сообщение', error),
-  );
+  const transcriber =
+    transcriberFromEnv(process.env, (error) =>
+      console.error('Не удалось расшифровать голосовое сообщение', error),
+    ) ?? files?.transcriber;
 
-  if (!transcriber) console.warn('SPEECH_URL не задан, голосовые заявки придут без расшифровки');
+  if (!transcriber) {
+    console.warn('Ни SPEECH_URL, ни GIGACHAT_AUTH_KEY не заданы, голосовые заявки придут без расшифровки');
+  }
+
+  if (!vision) console.warn('Показание с фотографии табло разобрать нечем, его вводят цифрами');
 
   // Проверка жюри идёт под одной учётной записью MAX: роль примеряется прямо в продукте.
   const demo = process.env['DEMO_ROLES'] === '1';
@@ -361,6 +374,7 @@ const main = async (): Promise<void> => {
     frameAncestors: (process.env['FRAME_ANCESTORS'] || "'self' https://max.ru https://*.max.ru").split(' '),
     ...(process.env['HUB_SECRET'] ? { hubSecret: process.env['HUB_SECRET'] } : {}),
     ...(vision ? { vision } : {}),
+    ...(transcriber ? { transcriber } : {}),
     ...(reasoner ? { reasoner } : {}),
     ...(sessionStore ? { sessionStore } : {}),
     ...(process.env['METRICS_TOKEN'] ? { metrics: { token: process.env['METRICS_TOKEN'] } } : {}),

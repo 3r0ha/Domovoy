@@ -59,7 +59,8 @@ export const closeAcceptedBySilence = async (deps: AppDeps): Promise<ServiceRequ
     const text = formatAutoConfirmed(confirmed, AUTO_CONFIRM_AFTER_HOURS);
 
     for (const id of reporterIds(confirmed)) {
-      await notifyResident(deps.notifier ?? noopNotifier, await personOf(id), text);
+      // Текст зовёт оформить новую заявку, если проблема осталась: кнопка ведёт туда же.
+      await notifyResident(deps.notifier ?? noopNotifier, await personOf(id), text, [], { section: 'new' });
     }
 
     closed.push(confirmed);
@@ -181,7 +182,10 @@ export const remindAboutWorks = async (
           ? formatWorksStarted(work, now)
           : formatWorksFinished(work);
 
-    for (const resident of wanting(residents, 'works')) await notifyResident(notifier, resident, text);
+    // После завершённых работ человеку нужна заявка, если стало не лучше.
+    const where = event === 'finished' ? { section: 'new' } : {};
+
+    for (const resident of wanting(residents, 'works')) await notifyResident(notifier, resident, text, [], where);
 
     if (event === 'started') await postTextToChat(deps, buildingId, text, { pin: true });
     if (event === 'finished') await postTextToChat(deps, buildingId, text, { unpin: true });

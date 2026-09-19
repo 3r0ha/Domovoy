@@ -5,6 +5,7 @@ import { describeFailure, type DomovoyApi } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
+import { RetryLink } from './Retry.js';
 
 export interface ClarifyProps {
   api: DomovoyApi;
@@ -19,7 +20,7 @@ export interface ClarifyProps {
  * список квартир: заявку по телефону она заводит за жильца.
  */
 export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
-  const asked = useBridgeRequest(() => api.clarify(requestId), [api, requestId]);
+  const asked = useBridgeRequest((alive) => api.until(alive).clarify(requestId), [api, requestId]);
   const [busy, setBusy] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -28,7 +29,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
 
   const anyApartment = asked.data?.anyApartment === true;
   const flats = useBridgeRequest(
-    async () => (anyApartment ? api.apartments().catch(() => []) : []),
+    async (alive) => (anyApartment ? api.until(alive).apartments() : []),
     [api, anyApartment],
   );
 
@@ -59,6 +60,12 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
       <div className="block">
         <p className="description">{asked.data.question}</p>
 
+        {/* Список квартир не дошёл: без этой строки выбор просто отсутствует,
+            и заявку не к чему привязать. */}
+        {anyApartment && all.length === 0 && flats.error ? (
+          <RetryLink title="Список квартир не загрузился" onRetry={flats.reload} />
+        ) : null}
+
         {anyApartment && all.length > 0 ? (
           <div className="clarify-flat">
             <select className="chat-flat" aria-label="Квартира" value={flat} onChange={(event) => setFlat(event.target.value)}>
@@ -76,7 +83,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
               disabled={flat === '' || busy !== null}
               onClick={() => void choose(`apt_${flat}`)}
             >
-              {busy === `apt_${flat}` ? '…' : 'Указать квартиру'}
+              {busy === `apt_${flat}` ? 'Отправляем…' : 'Указать квартиру'}
             </button>
           </div>
         ) : null}
@@ -90,7 +97,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
               disabled={busy !== null}
               onClick={() => void choose(option.startParam)}
             >
-              {busy === option.startParam ? '…' : option.label}
+              {busy === option.startParam ? 'Отправляем…' : option.label}
             </button>
           ))}
         </div>

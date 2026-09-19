@@ -20,6 +20,14 @@ describe('дежурство', () => {
     assert.equal(isWorkingHours(NIGHT, { from: 0, to: 24 }), true, 'круглосуточная служба');
   });
 
+  it('ночная смена идёт через полночь', () => {
+    const night = { from: 20, to: 8 };
+
+    assert.equal(isWorkingHours(NIGHT, night), true, '03:30 по Москве, смена идёт');
+    assert.equal(isWorkingHours(new Date('2026-09-03T18:00:00Z'), night), true, '21:00 по Москве');
+    assert.equal(isWorkingHours(NOON, night), false, 'полдень в ночную смену не входит');
+  });
+
   it('днём заявку видит вся смена', () => {
     assert.deepEqual(
       onCall(staff, NOON).map((person) => person.id),

@@ -134,12 +134,22 @@ export const SERVICE_STATUS = {
   schema_mismatch: 400,
   /** Границы периода выгрузки не годятся: перевёрнуты или шире года. */
   range_invalid: 400,
+  /** Тело запроса не разобралось: битый JSON, подстановка в прототип, не та длина. */
+  body_not_json: 400,
+  /** Речь в записи не разобрана: тишина, шум или чужой язык. */
+  speech_not_recognized: 400,
   /** Нет общего секрета: домофония, вебхук платформы, метрики. */
   unauthorized: 401,
   /** Такого адреса в API нет. */
   not_found: 404,
+  /** Хранилище не приняло запись: такой объект уже есть. */
+  storage_conflict: 409,
+  /** Содержимое прислано типом, который сервер не разбирает. */
+  media_type_unsupported: 415,
   /** Региональная программа капитального ремонта не отвечает. */
   capital_unavailable: 503,
+  /** Расшифровка речи не подключена или служба не ответила. */
+  speech_unavailable: 503,
   /** Сбой сервера: подробности уходят в журнал, наружу только код. */
   internal: 500,
 } as const;
@@ -160,6 +170,38 @@ export class ServiceError extends Error {
 /** Заявки нет или она не видна этому человеку: ответ один и тот же. */
 export const requestNotFound = (): DomainError => new DomainError('request_not_found', 'Заявка не найдена');
 
+type AnswerCode = ServiceCode | ErrorCode;
+
+const statusFor = (code: AnswerCode): number =>
+  code in SERVICE_STATUS ? SERVICE_STATUS[code as ServiceCode] : STATUS_BY_CODE[code as ErrorCode];
+
+/**
+ * Отказы транспорта: до сценария дело не дошло, запрос отвергла сама библиотека.
+ * Наружу уходит код из таблиц, а не её внутреннее имя.
+ */
+const TRANSPORT_ANSWERS: Record<string, { code: AnswerCode; message: string }> = {
+  FST_ERR_CTP_INVALID_MEDIA_TYPE: { code: 'media_type_unsupported', message: 'Такой тип содержимого не принимается' },
+  FST_ERR_CTP_BODY_TOO_LARGE: { code: 'payload_too_long', message: 'Тело запроса больше разрешённого' },
+  FST_ERR_CTP_INVALID_JSON_BODY: { code: 'body_not_json', message: 'Тело запроса не разобралось как JSON' },
+  FST_ERR_CTP_EMPTY_JSON_BODY: { code: 'body_not_json', message: 'Тело запроса не разобралось как JSON' },
+  FST_ERR_CTP_INVALID_CONTENT_LENGTH: { code: 'body_not_json', message: 'Длина тела не совпала с заявленной' },
+  FST_ERR_BAD_URL: { code: 'schema_mismatch', message: 'Адрес запроса разобрать не удалось' },
+};
+
+/** Нарушение уникального индекса в хранилище: SQLSTATE 23505. */
+const UNIQUE_VIOLATION = '23505';
+
+/** Отказ без своего кода: он выбирается по статусу, иначе это сбой сервера. */
+const CODE_BY_STATUS: Record<number, AnswerCode> = {
+  400: 'schema_mismatch',
+  401: 'unauthorized',
+  403: 'forbidden',
+  404: 'not_found',
+  413: 'payload_too_long',
+  415: 'media_type_unsupported',
+  429: 'too_many_requests',
+};
+
 /** Единый ответ на отказ: коды домена по смыслу, остальное как внутренняя ошибка. */
 export const domainErrorHandler =
   (fastify: FastifyInstance) =>
@@ -177,11 +219,31 @@ export const domainErrorHandler =
       return reply.code(400).send({ error: 'schema_mismatch', message: error.message });
     }
 
-    fastify.log.error(error);
+    const raw = typeof error.code === 'string' ? error.code : undefined;
+    const transport = raw === undefined ? undefined : TRANSPORT_ANSWERS[raw];
+
+    if (transport) {
+      return reply.code(statusFor(transport.code)).send({ error: transport.code, message: transport.message });
+    }
+
+    if (raw === UNIQUE_VIOLATION) {
+      return reply
+        .code(statusFor('storage_conflict'))
+        .send({ error: 'storage_conflict', message: 'Такая запись уже есть' });
+    }
 
     const status = typeof error.statusCode === 'number' ? error.statusCode : 500;
-    const message = status < 500 ? error.message : 'Внутренняя ошибка';
+    const known = CODE_BY_STATUS[status];
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    return reply.code(status).send({ error: error.code ?? 'internal', message });
+    // Журнал нужен только для сбоя: отвергнутый запрос это обычная работа.
+    if (!known) {
+      fastify.log.error(error);
+
+      return reply.code(status >= 400 && status < 500 ? status : 500).send({
+        error: 'internal',
+        message: 'Внутренняя ошибка',
+      });
+    }
+
+    return reply.code(status).send({ error: known, message: error.message });
   };

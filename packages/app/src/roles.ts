@@ -23,6 +23,12 @@ export interface Person {
 /** Роли раздаёт только управляющий. */
 const CAN_ASSIGN: readonly Role[] = ['manager'];
 
+/**
+ * Дежурство ставит тот, кто ведёт смену. Мастеру это не поручено: дежурный
+ * забирает ночной поток заявок дома, а его телефон уходит жильцам в контакты.
+ */
+const CAN_SET_DUTY: readonly Role[] = ['dispatcher', 'manager'];
+
 const ROLE_TITLES: Record<Role, string> = {
   resident: 'жилец',
   dispatcher: 'диспетчер',
@@ -51,6 +57,9 @@ export const listPeople = async (deps: AppDeps, staff: Resident): Promise<Person
   }
 
   const buildingId = staff.buildingId ?? deps.defaultBuildingId;
+
+  await assertServes(deps, staff, buildingId);
+
   const people = await deps.repository.listResidents(buildingId);
   const flats = new Map((await deps.repository.listApartments(buildingId)).map((flat) => [flat.id, flat]));
   const listed: Person[] = [];
@@ -157,8 +166,11 @@ export const assignRole = async (
 
   const buildingId = manager.buildingId ?? deps.defaultBuildingId;
   const reachable = new Set((await listServedBuildings(deps, manager)).map((building) => building.id));
+  const home = await homeOf(deps, person);
 
-  if (person.buildingId !== undefined && !reachable.has(person.buildingId)) {
+  // Человек без дома прежде проходил эту проверку, и его делал своим сотрудником
+  // любой управляющий установки.
+  if (home === undefined || !reachable.has(home)) {
     throw new DomainError('forbidden', 'Этот человек относится к другой управляющей организации');
   }
 
@@ -166,11 +178,10 @@ export const assignRole = async (
     return { id: person.id, displayName: person.displayName, role: person.role };
   }
 
-  const home = await homeOf(deps, person);
   const saved = await deps.repository.saveResident({
     ...person,
     role: input.role,
-    buildingId: input.role === 'resident' ? (home ?? buildingId) : buildingId,
+    buildingId: input.role === 'resident' ? home : buildingId,
   });
 
   await recordAction(deps, {
@@ -199,8 +210,8 @@ export const setDuty = async (
   staff: Resident,
   input: { residentId: string; onDuty: boolean },
 ): Promise<Person> => {
-  if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Дежурство назначает управляющая компания');
+  if (!CAN_SET_DUTY.includes(staff.role)) {
+    throw new DomainError('forbidden', 'Дежурство назначает диспетчер или управляющий');
   }
 
   const person = await deps.repository.findResident(input.residentId);
@@ -211,7 +222,11 @@ export const setDuty = async (
     throw new DomainError('duty_for_staff_only', 'Дежурят сотрудники, а не жильцы');
   }
 
-  await assertServes(deps, staff, person.buildingId ?? deps.defaultBuildingId);
+  if (person.buildingId === undefined) {
+    throw new DomainError('forbidden', 'У этого сотрудника нет дома, в котором он ведёт смену');
+  }
+
+  await assertServes(deps, staff, person.buildingId);
 
   const saved = await deps.repository.saveResident({ ...person, onDuty: input.onDuty });
 

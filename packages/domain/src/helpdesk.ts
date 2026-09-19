@@ -145,26 +145,63 @@ export const waitingSince = (ticket: SupportTicket): Date | undefined => {
 
 /**
  * Сколько рабочих дней есть у организации на письменный ответ по обращению,
- * не связанному с аварией: п. 36 Правил № 416. Праздники здесь не учитываются,
- * считаются суббота и воскресенье.
+ * не связанному с аварией: п. 36 Правил № 416.
  */
 export const SUPPORT_ANSWER_DAYS = 10;
 
 const DAY_MS = 24 * 3600_000;
 
 /**
- * Дата через столько рабочих дней: выходные пропускаются. День недели берётся
- * по календарю дома, иначе ночь субботы по местному времени ещё пятница по UTC
- * и срок съезжает на сутки.
+ * Нерабочие праздничные дни в виде `ММ-ДД` (ТК РФ, ст. 112). Переносы выходных
+ * правительство утверждает на каждый год отдельно, поэтому их здесь нет:
+ * управляющая организация задаёт свой календарь, если ведёт его.
  */
-export const addWorkingDays = (from: Date, days: number, timeZone: string = DEFAULT_TIME_ZONE): Date => {
+export const PUBLIC_HOLIDAYS: readonly string[] = [
+  '01-01',
+  '01-02',
+  '01-03',
+  '01-04',
+  '01-05',
+  '01-06',
+  '01-07',
+  '01-08',
+  '02-23',
+  '03-08',
+  '05-01',
+  '05-09',
+  '06-12',
+  '11-04',
+];
+
+/** Рабочий ли это день по календарю дома. */
+const isWorkingDay = (at: Date, timeZone: string, holidays: readonly string[]): boolean => {
+  const local = partsIn(at, timeZone);
+  const date = `${String(local.month).padStart(2, '0')}-${String(local.day).padStart(2, '0')}`;
+
+  return local.weekday <= 5 && !holidays.includes(date);
+};
+
+/**
+ * Дата через столько рабочих дней: выходные и праздники пропускаются. День
+ * недели берётся по календарю дома, иначе ночь субботы по местному времени ещё
+ * пятница по UTC и срок съезжает на сутки. Ноль рабочих дней тоже даёт рабочий
+ * день: срок, назначенный на субботу, истекал бы в нерабочее время.
+ */
+export const addWorkingDays = (
+  from: Date,
+  days: number,
+  timeZone: string = DEFAULT_TIME_ZONE,
+  holidays: readonly string[] = PUBLIC_HOLIDAYS,
+): Date => {
   const due = new Date(from.getTime());
 
   for (let left = days; left > 0; left -= 1) {
     do {
       due.setTime(due.getTime() + DAY_MS);
-    } while (partsIn(due, timeZone).weekday > 5);
+    } while (!isWorkingDay(due, timeZone, holidays));
   }
+
+  while (!isWorkingDay(due, timeZone, holidays)) due.setTime(due.getTime() + DAY_MS);
 
   return due;
 };
@@ -174,10 +211,11 @@ export const answerDueAt = (
   ticket: SupportTicket,
   days = SUPPORT_ANSWER_DAYS,
   timeZone: string = DEFAULT_TIME_ZONE,
+  holidays: readonly string[] = PUBLIC_HOLIDAYS,
 ): Date | undefined => {
   const since = waitingSince(ticket);
 
-  return since ? addWorkingDays(since, days, timeZone) : undefined;
+  return since ? addWorkingDays(since, days, timeZone, holidays) : undefined;
 };
 
 /** Срок ответа нарушен. */
@@ -186,8 +224,9 @@ export const isAnswerOverdue = (
   now: Date,
   days = SUPPORT_ANSWER_DAYS,
   timeZone: string = DEFAULT_TIME_ZONE,
+  holidays: readonly string[] = PUBLIC_HOLIDAYS,
 ): boolean => {
-  const due = answerDueAt(ticket, days, timeZone);
+  const due = answerDueAt(ticket, days, timeZone, holidays);
 
   return due !== undefined && now.getTime() > due.getTime();
 };

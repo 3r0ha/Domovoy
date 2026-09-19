@@ -51,6 +51,14 @@ describe('окно подачи показаний', () => {
     assert.equal(daysLeftInWindow(new Date('2026-09-22T10:00:00Z')), 3);
     assert.equal(daysLeftInWindow(new Date('2026-09-27T10:00:00Z')), -2, 'окно закрылось');
   });
+
+  it('до открытия окна считает не будущий остаток, а прошедшее закрытие', () => {
+    assert.equal(
+      daysLeftInWindow(new Date('2026-09-01T10:00:00Z')),
+      -7,
+      'прошлое окно закрылось двадцать пятого августа',
+    );
+  });
 });
 
 describe('приём показания', () => {
@@ -82,6 +90,29 @@ describe('приём показания', () => {
     );
   });
 
+  it('округление до точности прибора идёт раньше проверки табло', () => {
+    assert.throws(
+      () => acceptReading({ id: 'r12', meter, value: 99999.9999, at: AT, submittedBy: 'res-1' }),
+      /не поместится/,
+      'после округления это шестизначное 100000',
+    );
+  });
+
+  it('после перехода через разрядность табло показание принимается', () => {
+    const previous = reading(99998.5, new Date('2026-08-22T10:00:00Z'));
+    const accepted = acceptReading({
+      id: 'r13',
+      meter,
+      value: 12.3,
+      at: AT,
+      submittedBy: 'res-1',
+      previous,
+    });
+
+    assert.equal(accepted.value, 12.3);
+    assert.equal(consumption(previous, accepted), 13.8, 'остаток до полного круга плюс новое показание');
+  });
+
   it('за один месяц показание подаётся один раз', () => {
     assert.throws(
       () =>
@@ -94,6 +125,35 @@ describe('приём показания', () => {
           previous: reading(125, new Date('2026-09-21T10:00:00Z')),
         }),
       /уже подано/,
+    );
+  });
+
+  it('показание, поданное до открытия окна, относится к прошлому периоду', () => {
+    const december = reading(120, new Date('2026-01-03T10:00:00Z'));
+
+    const accepted = acceptReading({
+      id: 'r14',
+      meter,
+      value: 130,
+      at: new Date('2026-01-25T10:00:00Z'),
+      submittedBy: 'res-1',
+      previous: december,
+    });
+
+    assert.equal(accepted.value, 130, 'третьего января сдавали декабрь, а это январь');
+
+    assert.throws(
+      () =>
+        acceptReading({
+          id: 'r15',
+          meter,
+          value: 125,
+          at: new Date('2026-01-05T10:00:00Z'),
+          submittedBy: 'res-1',
+          previous: december,
+        }),
+      /уже подано/,
+      'оба показания за декабрь',
     );
   });
 
@@ -152,6 +212,10 @@ describe('расход', () => {
 
   it('первое показание расхода не даёт', () => {
     assert.equal(consumption(undefined, reading(120, AT)), 0);
+  });
+
+  it('падение показания без перехода через разрядность расхода не даёт', () => {
+    assert.equal(consumption(reading(120, new Date('2026-08-22T10:00:00Z')), reading(100, AT)), 0);
   });
 });
 

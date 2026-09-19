@@ -167,7 +167,9 @@ describe('лендинг и приложение с того же адреса',
     });
 
     assert.equal(packed.headers['content-encoding'], 'gzip');
-    assert.equal(String(packed.headers.vary), 'accept-encoding');
+    // Приватный ответ разный для разных людей: к сжатию добавляется и сессия.
+    assert.match(String(packed.headers.vary), /accept-encoding/);
+    assert.match(String(packed.headers.vary), /authorization/);
     assert.equal(JSON.parse(gunzipSync(packed.rawPayload).toString()).displayName, 'Мария');
 
     const plain = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
@@ -1538,8 +1540,8 @@ describe('несколько домов у одной компании', () => {
   const twoBuildings = async (residents: Resident[] = [dispatcher, neighbourHouse]): Promise<Harness> => {
     const repository = new InMemoryRepository({
       buildings: [
-        { id: BUILDING_ID, code: 'Д15', address: 'ул. Ленина, 15' },
-        { id: SECOND, code: 'Д17', address: 'ул. Ленина, 17' },
+        { id: BUILDING_ID, code: 'Д15', address: 'ул. Ленина, 15', companyId: 'ук-первая' },
+        { id: SECOND, code: 'Д17', address: 'ул. Ленина, 17', companyId: 'ук-первая' },
       ],
       apartments: [
         ...APARTMENTS,

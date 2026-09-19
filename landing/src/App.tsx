@@ -84,7 +84,7 @@ export const App = () => {
       <Top />
       <Rail />
 
-      <main id="top">
+      <main id="top" tabIndex={-1}>
         <section className="hero">
           <Hem open className="hero-hem hero-hem-open" />
 
@@ -106,7 +106,7 @@ export const App = () => {
           <Hem className="hero-hem" />
 
           <div className="hero-foot">
-            <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
+            <a className="cta cta-max" href={BOT_LINK} target="_blank" rel="noreferrer">
               Открыть в MAX
             </a>
 
@@ -137,7 +137,7 @@ export const App = () => {
             </p>
 
             <div className="final-acts">
-              <a className="cta cta-max" href={BOT_LINK} rel="noreferrer">
+              <a className="cta cta-max" href={BOT_LINK} target="_blank" rel="noreferrer">
                 Открыть в MAX
               </a>
 

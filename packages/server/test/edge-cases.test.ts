@@ -165,6 +165,19 @@ describe('проверка телефона из requestContact', () => {
   it('подпись другой длины не проходит', () => {
     assert.equal(verifyContact({ botToken: BOT_TOKEN, phone, authDate, userId, hash: 'abcd' }), false);
   });
+
+  it('подпись из не-hex символов отвечает отказом, а не исключением', () => {
+    const hash = 'ю'.repeat(64);
+
+    assert.equal(verifyContact({ botToken: BOT_TOKEN, phone, authDate, userId, hash }), false);
+  });
+
+  it('подпись нужной длины из не-hex символов тоже не проходит', () => {
+    // Столько же символов, сколько в настоящей подписи: длина строк совпадает.
+    const hash = 'z'.repeat(64);
+
+    assert.equal(verifyContact({ botToken: BOT_TOKEN, phone, authDate, userId, hash }), false);
+  });
 });
 
 describe('чистка сессий в памяти', () => {

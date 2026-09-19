@@ -30,8 +30,11 @@ export const commonNeedsFor = ({ house, apartments, area, totalArea }: CommonNee
 
   if (extra <= 0) return 0;
 
-  return Math.round(extra * (area / totalArea) * 1000) / 1000;
+  // Доля не округляется: округлённые поквартирные доли в сумме не дают
+  // распределяемый объём. Округление до копеек делает квитанция.
+  return extra * (area / totalArea);
 };
 
 /** Как общедомовая строка называется в квитанции. */
-export const commonNeedsTitle = (kind: MeterKind): string => `${METER_RULES[kind].title}, ОДН`;
+export const commonNeedsTitle = (kind: MeterKind): string =>
+  `${METER_RULES[kind].title} на общие нужды дома`;

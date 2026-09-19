@@ -40,6 +40,15 @@ const COMMON = [
   'Грязно в подъезде',
 ];
 
+/** Что окажется в поле после нажатия на частую поломку. */
+const replaced = (typed: string, problem: string): string => {
+  const written = typed.trim();
+
+  if (written.length === 0 || COMMON.includes(written)) return problem;
+
+  return `${written}. ${problem}`;
+};
+
 /** Оформление заявки: обязательное поле одно, что случилось. */
 export const NewRequestScreen = ({
   api,
@@ -67,16 +76,19 @@ export const NewRequestScreen = ({
   useClosingConfirmation(description.trim().length > 0);
 
   const context = useBridgeRequest(
-    async () => (startParam ? api.context(startParam) : null),
+    async (alive) => (startParam ? api.until(alive).context(startParam) : null),
     [api, startParam],
   );
 
   const passport = useBridgeRequest(
-    async () => (startParam ? api.objectPassport(startParam).catch(() => null) : null),
+    async (alive) => (startParam ? api.until(alive).objectPassport(startParam).catch(() => null) : null),
     [api, startParam],
   );
 
-  const flats = useBridgeRequest(async () => (staff ? api.apartments().catch(() => []) : []), [api, staff]);
+  const flats = useBridgeRequest(
+    async (alive) => (staff ? api.until(alive).apartments().catch(() => []) : []),
+    [api, staff],
+  );
   const [apartmentId, setApartmentId] = useState('');
 
   const send = async (text: string, anyway: boolean): Promise<void> => {
@@ -231,7 +243,10 @@ export const NewRequestScreen = ({
                 className="chip"
                 onClick={() => {
                   haptics.picked();
-                  setDescription(description.trim().length > 0 ? description : problem);
+                  // Второе нажатие раньше не делало ничего, хотя отвечало
+                  // вибрацией: поставленную подсказку оно теперь заменяет,
+                  // а к своим словам дописывается.
+                  setDescription(replaced(description, problem));
                 }}
               >
                 {problem}
@@ -272,7 +287,7 @@ export const NewRequestScreen = ({
                 disabled={confirming !== null}
                 onClick={() => void confirmSame(request.id)}
               >
-                {confirming === request.id ? '…' : 'У меня то же самое'}
+                {confirming === request.id ? 'Отправляем…' : 'И у меня'}
               </button>
             )}
           </div>
@@ -301,7 +316,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void send(answered.description, true)}
             >
-              {sending ? '…' : 'Всё равно оформить'}
+              {sending ? 'Отправляем…' : 'Всё равно оформить'}
             </button>
 
             <button
@@ -339,7 +354,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void send(planned.description, true)}
             >
-              {sending ? '…' : 'Это другое'}
+              {sending ? 'Отправляем…' : 'Это другое'}
             </button>
           </div>
         ) : null}
@@ -366,7 +381,7 @@ export const NewRequestScreen = ({
                 if (sent) void send(sent, true);
               }}
             >
-              {sending ? '…' : 'Это другое'}
+              {sending ? 'Отправляем…' : 'Это другое'}
             </button>
           </div>
         ) : null}
@@ -404,6 +419,7 @@ export const NewRequestScreen = ({
         ) : null}
 
         <Composer
+          api={api}
           id="description"
           label={asked ? 'Уточнение' : 'Что случилось'}
           placeholder="Опишите, что случилось"

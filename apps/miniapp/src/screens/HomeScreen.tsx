@@ -58,7 +58,7 @@ const ScanRow = ({ onScanned }: { onScanned: (startParam: string) => void }) => 
 
 /** Выданные коды: их видно и после выдачи, отозвать можно в любой момент. */
 const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly DeviceView[] }) => {
-  const codes = useBridgeRequest(() => api.guestCodes(), [api]);
+  const codes = useBridgeRequest((alive) => api.until(alive).guestCodes(), [api]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
@@ -106,7 +106,7 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
               disabled={busy === code.code}
               onClick={() => void revoke(code.code)}
             >
-              {busy === code.code ? '…' : 'Отозвать'}
+              {busy === code.code ? 'Отзываем…' : 'Отозвать'}
             </Button>
           }
         />
@@ -119,7 +119,7 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
 
 /** Датчики и время последней связи. */
 const Sensors = ({ api }: { api: DomovoyApi }) => {
-  const sensors = useBridgeRequest(() => api.sensors(), [api]);
+  const sensors = useBridgeRequest((alive) => api.until(alive).sensors(), [api]);
   const list = sensors.data ?? [];
 
   if (sensors.error) return <ErrorText>Датчики не загрузились</ErrorText>;
@@ -152,7 +152,7 @@ const Sensors = ({ api }: { api: DomovoyApi }) => {
 
 /** Дом: двери, камеры и журнал открытий. */
 export const HomeScreen = ({ api, staff, model, onCamera, onGuest, onJournal, onScan }: HomeScreenProps) => {
-  const devices = useBridgeRequest(() => api.devices(), [api]);
+  const devices = useBridgeRequest((alive) => api.until(alive).devices(), [api]);
 
   if (devices.loading && !devices.data) return <Skeleton count={2} />;
 

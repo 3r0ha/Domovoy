@@ -15,6 +15,7 @@ import {
 } from '@domovoy/domain';
 
 import { apartmentsOf, locateTarget } from '../apartments.js';
+import { servesBuilding } from '../buildings.js';
 import { type Resident } from '../repository.js';
 import { withReadableAddress, type AppDeps } from '../use-cases.js';
 
@@ -68,8 +69,10 @@ export interface ObjectPassport {
 }
 
 /**
- * Кому виден объект: сотруднику в своём доме, жильцу общее имущество его дома
- * и собственная квартира. Чужая квартира не показывается никому, кроме смены.
+ * Кому виден объект: смене в обслуживаемых домах, жильцу общее имущество его дома
+ * и собственная квартира. Чужая квартира не показывается никому, кроме смены
+ * того же дома: номера квартир предсказуемы, и без границы дома по ним читается
+ * вся установка.
  */
 const canSeeObject = async (
   deps: AppDeps,
@@ -77,10 +80,10 @@ const canSeeObject = async (
   target: RequestTarget,
   buildingId: string,
 ): Promise<boolean> => {
-  if (isCompanyStaff(viewer.role)) return true;
+  if (isCompanyStaff(viewer.role)) return servesBuilding(deps, viewer, buildingId);
 
   const own = apartmentsOf(viewer);
-  const houses = new Set([viewer.buildingId ?? deps.defaultBuildingId]);
+  const houses = new Set(viewer.buildingId ? [viewer.buildingId] : []);
 
   for (const apartmentId of own) {
     const apartment = await deps.repository.findApartment(apartmentId);
@@ -97,7 +100,7 @@ const canSeeObject = async (
 export const objectPassport = async (
   deps: AppDeps,
   startParam: string,
-  viewer?: Resident,
+  viewer: Resident,
 ): Promise<ObjectPassport | null> => {
   const target = decodeTarget(startParam);
 
@@ -107,7 +110,7 @@ export const objectPassport = async (
 
   if (!audience) return null;
 
-  if (viewer && !(await canSeeObject(deps, viewer, target, audience.buildingId))) {
+  if (!(await canSeeObject(deps, viewer, target, audience.buildingId))) {
     throw new DomainError('forbidden', 'Этот объект относится к другому дому');
   }
 

@@ -1,3 +1,4 @@
+import { daysInMonth } from './calendar.js';
 import { median as middleOf } from './numbers.js';
 import { DEFAULT_TIME_ZONE, DomainError } from './types.js';
 
@@ -40,8 +41,15 @@ export interface Reading {
   submittedBy: string;
 }
 
-/** Окно подачи показаний. */
-export const READING_WINDOW = { fromDay: 20, toDay: 25 } as const;
+/** Окно подачи показаний: числа месяца. */
+export interface ReadingWindow {
+  /** С какого числа месяца принимают показания. */
+  fromDay: number;
+  /** По какое число включительно. Число меньше начала означает переход через конец месяца. */
+  toDay: number;
+}
+
+export const READING_WINDOW: ReadingWindow = { fromDay: 20, toDay: 25 };
 
 /** За сколько дней предупреждать о поверке. */
 export const VERIFICATION_WARNING_DAYS = 60;
@@ -86,15 +94,40 @@ const dateIn = (at: Date, timeZone: string): { day: number; month: number; year:
   return { day: day ?? 0, month: month ?? 0, year: year ?? 0 };
 };
 
-export const isReadingWindow = (at: Date, window = READING_WINDOW, timeZone = DEFAULT_TIME_ZONE): boolean => {
+/** Окно переходит через конец месяца: с двадцать пятого по третье. */
+const isWrapping = (window: ReadingWindow): boolean => window.fromDay > window.toDay;
+
+export const isReadingWindow = (
+  at: Date,
+  window: ReadingWindow = READING_WINDOW,
+  timeZone = DEFAULT_TIME_ZONE,
+): boolean => {
   const { day } = dateIn(at, timeZone);
 
-  return day >= window.fromDay && day <= window.toDay;
+  return isWrapping(window)
+    ? day >= window.fromDay || day <= window.toDay
+    : day >= window.fromDay && day <= window.toDay;
 };
 
-/** Сколько дней осталось до конца окна. Отрицательное, окно закрылось. */
-export const daysLeftInWindow = (at: Date, window = READING_WINDOW, timeZone = DEFAULT_TIME_ZONE): number =>
-  window.toDay - dateIn(at, timeZone).day;
+/** Сколько дней осталось до конца окна. Отрицательное, окно закрылось столько дней назад. */
+export const daysLeftInWindow = (
+  at: Date,
+  window: ReadingWindow = READING_WINDOW,
+  timeZone = DEFAULT_TIME_ZONE,
+): number => {
+  const { day, month, year } = dateIn(at, timeZone);
+
+  if (isReadingWindow(at, window, timeZone)) {
+    return isWrapping(window) && day >= window.fromDay
+      ? window.toDay + daysInMonth(year, month) - day
+      : window.toDay - day;
+  }
+
+  // Окно ещё не открывалось в этом месяце, значит, прошлое закрылось в прошлом.
+  return !isWrapping(window) && day < window.fromDay
+    ? window.toDay - day - daysInMonth(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1)
+    : window.toDay - day;
+};
 
 /** Что нужно от прибора, чтобы принять показание. Квартирный он или общедомовой, неважно. */
 export type MeteringDevice = Pick<Meter, 'id' | 'kind' | 'serial' | 'verifiedUntil'>;
@@ -109,6 +142,8 @@ export interface SubmitReadingInput {
   previous?: Reading;
   /** Часовой пояс дома: по нему считается месяц подачи. */
   timeZone?: string;
+  /** Окно подачи: по нему показание относят к расчётному периоду. */
+  window?: ReadingWindow;
 }
 
 /** Принимает показание. @throws {DomainError} */
@@ -119,10 +154,14 @@ export const acceptReading = (input: SubmitReadingInput): Reading => {
     throw new DomainError('reading_invalid', 'Показание должно быть числом не меньше нуля');
   }
 
-  if (input.value >= 10 ** rule.digits) {
+  // Округление идёт до проверки табло: 99999.9999 на пятизначном приборе это
+  // шестизначное 100000, а не принятое показание.
+  const value = round(input.value, rule.decimals);
+
+  if (value >= 10 ** rule.digits) {
     throw new DomainError(
       'reading_too_large',
-      `На табло ${rule.digits} цифр: значение ${input.value} туда не поместится`,
+      `На табло ${rule.digits} цифр: значение ${value} туда не поместится`,
     );
   }
 
@@ -134,22 +173,24 @@ export const acceptReading = (input: SubmitReadingInput): Reading => {
   }
 
   if (input.previous) {
-    if (input.value < input.previous.value) {
+    if (value < input.previous.value && !isOverflow(input.previous.value, value, rule.digits)) {
       throw new DomainError(
         'reading_decreased',
         `Предыдущее показание ${input.previous.value} ${rule.unit}: счётчик не может показать меньше`,
       );
     }
 
-    if (isSameMonth(input.previous.at, input.at, input.timeZone)) {
-      throw new DomainError('reading_duplicate', 'Показание за этот месяц уже подано');
+    const window = input.window ?? READING_WINDOW;
+
+    if (periodOf(input.previous.at, window, input.timeZone) === periodOf(input.at, window, input.timeZone)) {
+      throw new DomainError('reading_duplicate', 'Показание за этот расчётный период уже подано');
     }
   }
 
   return {
     id: input.id,
     meterId: input.meter.id,
-    value: round(input.value, rule.decimals),
+    value,
     at: input.at,
     submittedBy: input.submittedBy,
   };
@@ -163,11 +204,45 @@ export const isSameMonth = (left: Date, right: Date, timeZone = DEFAULT_TIME_ZON
   return first.year === second.year && first.month === second.month;
 };
 
+/**
+ * Расчётный период показания в виде `ГГГГ-ММ`. Показание, поданное до открытия
+ * окна, относится к прошлому месяцу: третьего января жилец сдаёт декабрь и
+ * весь январь остаётся временем подачи январского показания.
+ */
+export const periodOf = (at: Date, window: ReadingWindow = READING_WINDOW, timeZone = DEFAULT_TIME_ZONE): string => {
+  const { day, month, year } = dateIn(at, timeZone);
+  const shifted = day < window.fromDay ? month - 1 : month;
+
+  return shifted < 1 ? `${year - 1}-12` : `${year}-${String(shifted).padStart(2, '0')}`;
+};
+
 const round = (value: number, decimals: number): number => Number(value.toFixed(decimals));
 
-/** Расход между двумя показаниями. */
-export const consumption = (previous: Reading | undefined, current: Reading): number =>
-  previous ? round(current.value - previous.value, 4) : 0;
+/**
+ * Табло перешло через разрядность: было почти полным, стало почти нулевым.
+ * Показание после такого перехода меньше предыдущего, но счётчик исправен.
+ */
+const isOverflow = (previous: number, current: number, digits: number): boolean =>
+  previous > 0.9 * 10 ** digits && current < 0.1 * 10 ** digits;
+
+/** Сколько цифр до запятой занимает значение: разрядность табло, если вид прибора неизвестен. */
+const digitsOf = (value: number): number => String(Math.trunc(Math.abs(value))).length;
+
+/**
+ * Расход между двумя показаниями. Переход через разрядность считается остатком
+ * до полного круга плюс новое показание, а не отрицательной разницей.
+ */
+export const consumption = (previous: Reading | undefined, current: Reading, kind?: MeterKind): number => {
+  if (!previous) return 0;
+
+  if (current.value >= previous.value) return round(current.value - previous.value, 4);
+
+  const digits = kind ? METER_RULES[kind].digits : digitsOf(previous.value);
+
+  if (!isOverflow(previous.value, current.value, digits)) return 0;
+
+  return round(10 ** digits - previous.value + current.value, 4);
+};
 
 /** Резкий скачок расхода. */
 export const SPIKE_FACTOR = 3;

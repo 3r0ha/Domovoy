@@ -23,14 +23,15 @@ const STAFF_STATUS_TITLES: Record<string, string> = {
 export const statusTitle = (status: string, staff = false): string =>
   (staff ? STAFF_STATUS_TITLES[status] : undefined) ?? STATUS_TITLES[status] ?? status;
 
+/** Те же слова, что на кнопках бота: одно действие называется одинаково везде. */
 const ACTION_TITLES: Record<string, string> = {
   accepted: 'Взять',
   in_progress: 'В работу',
   needs_info: 'Уточнить',
   done: 'Сдать работу',
-  confirmed: 'Принять работу',
+  confirmed: 'Всё сделали, спасибо',
   rejected: 'Отклонить',
-  withdrawn: 'Снять',
+  withdrawn: 'Отозвать заявку',
 };
 
 export const actionTitle = (action: string): string => ACTION_TITLES[action] ?? action;
@@ -38,7 +39,11 @@ export const actionTitle = (action: string): string => ACTION_TITLES[action] ?? 
 /** Срок в человеческом виде. */
 const spanWords = (minutes: number): string => {
   if (minutes < 60) return `${minutes} мин`;
-  if (minutes < 24 * 60) return `${Math.round(minutes / 60)} ч`;
+
+  const hours = Math.round(minutes / 60);
+
+  // Округлившееся до суток считается днём: «24 ч» никто в уме не переводит.
+  if (hours < 24) return `${hours} ч`;
 
   const days = Math.round(minutes / (60 * 24));
   const tail = days % 100;
@@ -93,7 +98,7 @@ export const formatDeadline = (isoDate: string, now: Date = new Date()): string 
 
   const diffMinutes = Math.round((due - now.getTime()) / 60_000);
 
-  if (diffMinutes < 0) return `просрочено ${spanWords(Math.abs(diffMinutes))}`;
+  if (diffMinutes < 0) return `просрочено на ${spanWords(Math.abs(diffMinutes))}`;
 
   const left = formatLeft(isoDate, now);
   const count = Number.parseInt(left, 10);
@@ -103,10 +108,6 @@ export const formatDeadline = (isoDate: string, now: Date = new Date()): string 
 
   return `${verb} ${left}`;
 };
-
-/** Когда объявление появилось. */
-export const formatPublished = (isoDate: string): string =>
-  new Date(isoDate).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
 /** Часы и минуты: гостевой код живёт минуты, и «через 15 мин» стареет на глазах. */
 export const formatTime = (isoDate: string): string =>
@@ -178,4 +179,30 @@ export const formatDue = (isoDate: string, now: Date = new Date()): string => {
   if (days === -1) return `вчера в ${clock}`;
 
   return `${formatDay(isoDate, now)} в ${clock}`;
+};
+
+/**
+ * Когда сказанное появилось: тот же день и час, что у срока. Прошлогодняя
+ * переписка без года выглядит свежей, а вчерашняя строка читается словом.
+ */
+export const formatPublished = (isoDate: string, now: Date = new Date()): string => formatDue(isoDate, now);
+
+/** Целое число из поля ввода в заданных пределах. Пусто и мусор дают пусто. */
+export const parseCount = (value: string, least: number, most: number): number | null => {
+  const parsed = parseDecimal(value);
+
+  if (parsed === null || !Number.isInteger(parsed) || parsed < least || parsed > most) return null;
+
+  return parsed;
+};
+
+/** Число из поля ввода: пустое поле числом не считается, запятая это точка. */
+export const parseDecimal = (value: string): number | null => {
+  const text = value.trim().replaceAll(',', '.');
+
+  if (text.length === 0) return null;
+
+  const parsed = Number(text);
+
+  return Number.isFinite(parsed) ? parsed : null;
 };

@@ -103,7 +103,7 @@ describe('что помощник знает о человеке', () => {
     assert.doesNotMatch(debt, new RegExp(period), 'месяц квитанции в долге не повторяется');
   });
 
-  it('смене видно, кому поручить и сколько должников', async () => {
+  it('смене видно, кому поручить и сколько должников, но без имён', async () => {
     const deps = await setup();
 
     await submitProblem(deps, { resident: maria, description: 'Не горит лампа в подъезде' });
@@ -111,9 +111,13 @@ describe('что помощник знает о человеке', () => {
     const facts = await dossierFor(deps, olga);
 
     assert.match(facts, /Кому можно поручить: /);
-    assert.match(facts, /Сергей \(мастер, нарядов \d+\)/);
+    assert.match(facts, /мастер, нарядов \d+/);
     assert.match(facts, /Долг дома /);
-    assert.match(facts, /Должник: кв\. \d+, /);
+
+    // Имена и квартиры жильцов в службу разбора не уходят: они видны смене
+    // в самом разделе, а в запросе им делать нечего.
+    assert.doesNotMatch(facts, /Сергей/, 'имя сотрудника ушло в запрос к модели');
+    assert.doesNotMatch(facts, /Должник: кв\./, 'имя должника ушло в запрос к модели');
   });
 
   it('очередь идёт в факты строками: на «что горит» отвечают ими', async () => {

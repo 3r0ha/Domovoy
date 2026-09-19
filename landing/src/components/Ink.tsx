@@ -62,6 +62,16 @@ const rename = (node: HTMLElement, tag: number): void => {
   }
 };
 
+/** Разметка узора разбирается разборщиком, а не присваиванием в innerHTML. */
+const parse = (markup: string): SVGElement | undefined => {
+  const document_ = new DOMParser().parseFromString(markup, 'image/svg+xml');
+  const root = document_.documentElement;
+
+  if (document_.querySelector('parsererror') || !(root instanceof SVGElement)) return undefined;
+
+  return root;
+};
+
 /** Отрисовка начинается после загрузки страницы. */
 const settled = (): Promise<void> =>
   document.readyState === 'complete'
@@ -94,12 +104,19 @@ export const Ink = ({ src, className, when = 'load', label, pace = 1 }: InkProps
 
       if (!alive) return;
 
-      if (!markup.includes('<svg')) {
-        node.innerHTML = `<img src="${src}" alt="">`;
+      const root = markup.includes('<svg') ? parse(markup) : undefined;
+
+      if (!root) {
+        const picture = document.createElement('img');
+
+        picture.src = src;
+        picture.alt = '';
+        node.replaceChildren(picture);
+
         return;
       }
 
-      node.innerHTML = markup;
+      node.replaceChildren(document.importNode(root, true));
 
       rename(node, (drawn += 1));
 

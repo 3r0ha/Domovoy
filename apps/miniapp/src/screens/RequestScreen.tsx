@@ -27,6 +27,7 @@ import { ErrorText } from './ErrorText.js';
 import { Attachments } from './Attachments.js';
 import { Composer } from './Composer.js';
 import { RequestActions } from './RequestActions.js';
+import { RetryLink } from './Retry.js';
 import { Clarify } from './Clarify.js';
 import { Confirm } from './Confirm.js';
 import { Responsibility } from './Responsibility.js';
@@ -159,10 +160,11 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
   );
 };
 
+/** Ответы соседей называются теми же словами, что кнопки, которыми их дают. */
 const SURVEY_TITLES: Record<string, string> = {
-  affected: 'то же самое',
-  fine: 'всё работает',
-  silent: 'не отвечали',
+  affected: 'И у меня',
+  fine: 'Всё работает',
+  silent: 'Не отвечали',
 };
 
 const VERDICTS: Record<string, string> = {
@@ -287,7 +289,7 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
         />
 
         <CellAction className="row-split" mode="primary" disabled={busy} onClick={() => void support()}>
-          {busy ? 'Отправляем…' : 'У меня тоже'}
+          {busy ? 'Отправляем…' : 'И у меня'}
         </CellAction>
       </CellList>
 
@@ -394,6 +396,7 @@ const Talk = ({
       {error ? <ErrorText>{error}</ErrorText> : null}
 
       <Composer
+        api={api}
         id={`request-say-${request.id}`}
         label={answering ? 'Ответ на уточнение' : 'Сообщение по заявке'}
         placeholder={answering ? 'Ваш ответ' : shared ? 'Написать соседям и в УК' : 'Сообщение'}
@@ -640,7 +643,7 @@ const Complaint = ({
 /** Заявка целиком: что случилось, что с ней происходит и что можно сделать. */
 /** Телефон жильца, если он им поделился: ссылка сразу набирает номер. */
 const Contact = ({ api, id }: { api: DomovoyApi; id: string }) => {
-  const contact = useBridgeRequest(() => api.requestContact(id).catch(() => null), [api, id]);
+  const contact = useBridgeRequest((alive) => api.until(alive).requestContact(id).catch(() => null), [api, id]);
   const phone = contact.data?.phone;
 
   if (!phone) return null;
@@ -663,8 +666,8 @@ export const RequestScreen = ({
   meId,
   selfAssigned,
 }: RequestScreenProps) => {
-  const request = useBridgeRequest(() => api.getRequest(id), [api, id]);
-  const people = useBridgeRequest(async () => (staff ? api.staff().catch(() => []) : []), [api, staff]);
+  const request = useBridgeRequest((alive) => api.until(alive).getRequest(id), [api, id]);
+  const people = useBridgeRequest(async (alive) => (staff ? api.until(alive).staff() : []), [api, staff]);
 
   const reload = (): void => {
     request.reload();
@@ -725,6 +728,12 @@ export const RequestScreen = ({
         {staff ? <Contact api={api} id={view.id} /> : null}
         {view.rating ? <p className="hint">Оценка жильца: {view.rating} из 5</p> : null}
       </section>
+
+      {/* Сотрудники не дошли: без этой строки назначение выглядит так, будто
+          в компании никого нет. */}
+      {staff && (people.data ?? []).length === 0 && people.error ? (
+        <RetryLink title="Список сотрудников не загрузился" onRetry={people.reload} />
+      ) : null}
 
       {staff ? (
         <RequestActions

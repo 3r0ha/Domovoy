@@ -17,6 +17,7 @@ import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
 import { IconCalendar, IconPerson } from './icons.js';
+import { RetryLink } from './Retry.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface VisitsScreenProps {
@@ -60,6 +61,15 @@ const Hours = ({
 
   const save = async (): Promise<void> => {
     if (!windows) return;
+
+    // Окно, которое кончается раньше, чем начинается, не оставляет ни одного
+    // времени для записи: жилец видит день приёма и не может в него попасть.
+    const wrong = windows.findIndex((window) => window.from >= window.to);
+
+    if (wrong >= 0) {
+      setError(`Окно ${wrong + 1}: время «до» должно быть позже времени «с»`);
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -183,7 +193,7 @@ const Hours = ({
 
 /** Пришедший без записи: сотрудник заносит его сам. */
 const WalkIn = ({ api, onRecorded }: { api: DomovoyApi; onRecorded: () => void }) => {
-  const people = useBridgeRequest(() => api.people().catch(() => []), [api]);
+  const people = useBridgeRequest((alive) => api.until(alive).people(), [api]);
   const [open, setOpen] = useState(false);
   const [residentId, setResidentId] = useState('');
   const [topic, setTopic] = useState('');
@@ -236,6 +246,11 @@ const WalkIn = ({ api, onRecorded }: { api: DomovoyApi; onRecorded: () => void }
         <label className="cell-label" htmlFor="walk-in-resident">
           Кто пришёл
         </label>
+        {/* Жильцы не дошли: пустой список без этой строки читается как «в доме никого». */}
+        {residents.length === 0 && people.error ? (
+          <RetryLink title="Список жильцов не загрузился" onRetry={people.reload} />
+        ) : null}
+
         <select id="walk-in-resident" value={residentId} onChange={(event) => setResidentId(event.target.value)}>
           <option value="">Выберите жильца</option>
           {residents.map((person) => (
@@ -276,8 +291,11 @@ const WalkIn = ({ api, onRecorded }: { api: DomovoyApi; onRecorded: () => void }
 
 /** Записи дома: их ведёт смена. */
 const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: boolean }) => {
-  const visits = useBridgeRequest(() => api.visits(), [api]);
-  const reception = useBridgeRequest(() => api.reception().catch((): ReceptionView | null => null), [api]);
+  const visits = useBridgeRequest((alive) => api.until(alive).visits(), [api]);
+  const reception = useBridgeRequest(
+    (alive) => api.until(alive).reception().catch((): ReceptionView | null => null),
+    [api],
+  );
   const [saved, setSaved] = useState<ReceptionView | null>(null);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -392,7 +410,7 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
 
 /** Свободные часы и своя запись: их выбирает жилец. */
 const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) => {
-  const reception = useBridgeRequest(() => api.reception(), [api]);
+  const reception = useBridgeRequest((alive) => api.until(alive).reception(), [api]);
   const toast = useToast();
   const haptics = useHaptics();
   const [chosen, setChosen] = useState<string | null>(null);

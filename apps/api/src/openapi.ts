@@ -1,5 +1,12 @@
 import type { FastifyInstance, RouteOptions } from 'fastify';
 
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /** Маршрут открыт: сессия ему не нужна. */
+    open?: boolean;
+  }
+}
+
 export interface OpenApiOptions {
   title?: string;
   version?: string;
@@ -20,6 +27,8 @@ interface Collected {
   method: string;
   path: string;
   schema: RouteSchema;
+  /** Маршрут открыт: сессия ему не нужна. */
+  open: boolean;
 }
 
 /** Адрес Fastify (`/api/requests/:id`) в записи OpenAPI (`/api/requests/{id}`). */
@@ -71,6 +80,7 @@ const responsesOf = (route: Collected): JsonSchema => {
     '404': { description: 'Объект не найден или не виден этому человеку' },
     '409': { description: 'Состояние объекта не позволяет выполнить действие' },
     '413': { description: 'Вложение или сообщение больше разрешённого' },
+    '415': { description: 'Тип содержимого запроса сервер не разбирает' },
     '429': { description: 'Превышена частота запросов' },
     '503': { description: 'Подключённая служба не отвечает' },
   };
@@ -88,7 +98,12 @@ export const applyOpenApi = (fastify: FastifyInstance, options: OpenApiOptions =
       if (route.url === '/openapi.json') continue;
       if (route.url.includes('*')) continue;
 
-      routes.push({ method: method.toLowerCase(), path: route.url, schema: (route.schema ?? {}) as RouteSchema });
+      routes.push({
+        method: method.toLowerCase(),
+        path: route.url,
+        schema: (route.schema ?? {}) as RouteSchema,
+        open: route.config?.open === true,
+      });
     }
   });
 
@@ -97,7 +112,8 @@ export const applyOpenApi = (fastify: FastifyInstance, options: OpenApiOptions =
 
     for (const route of routes) {
       const path = toOpenApiPath(route.path);
-      const secured = path.startsWith('/api/');
+      // Маршрут, который отмечен открытым, сессии не требует: так он и зарегистрирован.
+      const secured = path.startsWith('/api/') && !route.open;
 
       paths[path] = {
         ...paths[path],

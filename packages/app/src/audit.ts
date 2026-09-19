@@ -8,6 +8,7 @@ export const AUDIT_ACTIONS = {
   role_assigned: 'Назначена роль',
   duty_changed: 'Дежурство',
   buildings_changed: 'Дома сотрудника',
+  apartment_bound: 'Привязана квартира',
   apartment_unbound: 'Отвязана квартира',
   door_opened: 'Открыта дверь',
   guest_code_revoked: 'Отозван гостевой код',

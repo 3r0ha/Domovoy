@@ -3,7 +3,7 @@ import { LEGAL_DOCUMENTS } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { appRow, keyboardOf } from '../keyboards.js';
-import type { BotContext } from '../max.js';
+import { ROOT_MENUS, type BotContext } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Сайт по умолчанию: там же, где лежит лендинг продукта. */
@@ -28,11 +28,21 @@ export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> =>
   const emergency = house?.service?.emergencyPhone ?? house?.service?.phone;
   const urgent = emergency ? `\nАварийная служба круглосуточно: ${emergency}.` : '';
 
+  // Экран согласия остаётся сам по себе: с «Назад» и «Меню» человек уходил
+  // в меню, выбирал дело и упирался в те же документы новой копией сообщения.
+  const screen = keyboardOf(
+    [[Keyboard.button.callback('✅ Принимаю', 'legal:accept')], ...documentRows(kit)],
+    typed,
+  );
+
+  if (screen) ROOT_MENUS.add(screen);
+
   await typed.reply(
     'Домовой обрабатывает персональные данные по поручению управляющей организации дома.\n' +
       'Политика обработки и пользовательское соглашение, по кнопкам ниже.\n' +
-      `Нажимая «Принимаю», вы соглашаетесь с ними.${urgent}`,
-    keyboardOf([[Keyboard.button.callback('✅ Принимаю', 'legal:accept')], ...documentRows(kit)], typed),
+      `Нажимая «Принимаю», вы соглашаетесь с ними. Без согласия я не смогу принять заявку ` +
+      `и сохранить показания.${urgent}`,
+    screen,
   );
 };
 

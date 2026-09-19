@@ -233,6 +233,7 @@ const Thread = ({
           ) : null}
 
           <Composer
+            api={api}
             id={`support-reply-${ticket.id}`}
             label={staff ? 'Ответ жильцу' : 'Сообщение'}
             placeholder={staff ? 'Ответ жильцу' : 'Сообщение'}
@@ -300,6 +301,7 @@ const Ask = ({
         {error ? <ErrorText>{error}</ErrorText> : null}
 
         <Composer
+          api={api}
           id="support-ask"
           label="Вопрос"
           placeholder="Вопрос"
@@ -317,8 +319,8 @@ const Ask = ({
 
 /** Поддержка: контакты дома и переписка с управляющей компанией. */
 export const SupportScreen = ({ api, staff }: SupportScreenProps) => {
-  const contacts = useBridgeRequest(() => api.houseContacts(), [api]);
-  const tickets = useBridgeRequest(() => api.supportTickets(), [api]);
+  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
+  const tickets = useBridgeRequest((alive) => api.until(alive).supportTickets(), [api]);
   const [changed, setChanged] = useState<TicketView[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);

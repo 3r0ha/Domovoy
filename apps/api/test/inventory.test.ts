@@ -114,6 +114,7 @@ const ROUTES = [
   'POST /api/me/apartment/use',
   'POST /api/me/contact',
   'POST /api/me/legal',
+  'POST /api/me/logout',
   'POST /api/me/notices',
   'POST /api/meters/{id}/photo',
   'POST /api/meters/{id}/readings',
@@ -146,6 +147,7 @@ const ROUTES = [
   'POST /api/visits/record',
   'POST /api/visits/{id}/cancel',
   'POST /api/visits/{id}/done',
+  'POST /api/voice',
   'POST /auth/session',
 ];
 

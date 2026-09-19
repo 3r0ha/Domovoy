@@ -818,6 +818,31 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     );
   });
 
+  it('две заявки, поданные одновременно, получают разные номера', async () => {
+    const [first, second] = await Promise.all([
+      createServiceRequest(deps, { resident: author, description: 'Течёт кран' }),
+      createServiceRequest(deps, { resident: neighbour, description: 'Не горит лампа в подъезде' }),
+    ]);
+
+    assert.deepEqual([first.number, second.number].sort(), ['Д15-2609-0001', 'Д15-2609-0002']);
+  });
+
+  it('счётчик номеров продолжает уже записанные заявки', async () => {
+    if (!pool) return;
+
+    await pool.query('delete from request_sequence where building_id = $1', [BUILDING_ID]);
+
+    const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
+
+    assert.equal(created.number, 'Д15-2609-0001');
+
+    await pool.query('delete from request_sequence where building_id = $1', [BUILDING_ID]);
+
+    const next = await createServiceRequest(deps, { resident: neighbour, description: 'Не закрывается дверь' });
+
+    assert.equal(next.number, 'Д15-2609-0002', 'потерянный счётчик поднимается с заявок месяца');
+  });
+
   it('заявка сохраняется целиком или не сохраняется вовсе', async () => {
     if (!pool) return;
 
@@ -983,19 +1008,67 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
     assert.equal((await deps.repository.listHouseReadingsFor(['house-cold'])).length, 1);
   });
 
-  it('два показания одного счётчика в одну секунду база не принимает', async () => {
-    if (!pool) return;
-
+  it('два показания одного счётчика в одну секунду заменяют друг друга', async () => {
     await deps.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
 
     const at = new Date('2026-09-22T10:00:00Z');
 
     await deps.repository.saveReading({ id: 'r-1', meterId: 'cold-1', value: 100, at, submittedBy: author.id });
 
-    await assert.rejects(
-      deps.repository.saveReading({ id: 'r-2', meterId: 'cold-1', value: 101, at, submittedBy: author.id }),
-      /duplicate key|unique/i,
-    );
+    const saved = await deps.repository.saveReading({
+      id: 'r-2',
+      meterId: 'cold-1',
+      value: 101,
+      at,
+      submittedBy: author.id,
+    });
+
+    const readings = await deps.repository.listReadings('cold-1');
+
+    assert.equal(readings.length, 1, 'показание на момент времени одно');
+    assert.equal(readings[0]?.value, 101);
+    assert.equal(saved.id, 'r-1', 'возвращается идентификатор записанной строки');
+  });
+
+  it('показание дома в тот же момент тоже заменяется', async () => {
+    await deps.repository.saveHouseMeter({
+      id: 'house-cold',
+      buildingId: BUILDING_ID,
+      kind: 'cold_water',
+      serial: 'ОДПУ-1',
+    });
+
+    const at = new Date('2026-09-22T10:00:00Z');
+
+    await deps.repository.saveHouseReading({ id: 'hr-1', meterId: 'house-cold', value: 1000, at, submittedBy: author.id });
+    await deps.repository.saveHouseReading({ id: 'hr-2', meterId: 'house-cold', value: 1001, at, submittedBy: author.id });
+
+    const readings = await deps.repository.listHouseReadingsFor(['house-cold']);
+
+    assert.equal(readings.length, 1);
+    assert.equal(readings[0]?.value, 1001);
+  });
+
+  it('повторное заведение общедомового прибора не падает на ключе', async () => {
+    const first = await deps.repository.saveHouseMeter({
+      id: 'house-a',
+      buildingId: BUILDING_ID,
+      kind: 'cold_water',
+      serial: 'ОДПУ-1',
+    });
+
+    const second = await deps.repository.saveHouseMeter({
+      id: 'house-b',
+      buildingId: BUILDING_ID,
+      kind: 'cold_water',
+      serial: 'ОДПУ-2',
+    });
+
+    const meters = await deps.repository.listHouseMeters(BUILDING_ID);
+
+    assert.equal(meters.length, 1, 'прибор на ресурс в доме один');
+    assert.equal(meters[0]?.serial, 'ОДПУ-2');
+    assert.equal(second.id, first.id, 'строка остаётся прежней');
   });
 
   it('площадь помещения возвращается числом', async () => {
@@ -1651,6 +1724,101 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
       loaded?.history.slice(1).map((event) => event.comment).sort(),
       ['Мастер выехал', 'Течёт всё сильнее'],
     );
+  });
+
+  it('одновременное сохранение не разводит колонку статуса с историей', async () => {
+    if (!pool) return;
+
+    const transactional = new PostgresRepository(fromPool(pool));
+    const created = await createServiceRequest(deps, { resident: author, description: 'Течёт кран' });
+    const base = await transactional.findRequest(created.id);
+
+    assert.ok(base);
+
+    // Смена берёт заявку в работу, жилец в ту же секунду её снимает.
+    const accepted = {
+      ...base,
+      status: 'accepted' as const,
+      assigneeId: dispatcher.id,
+      history: [
+        ...base.history,
+        {
+          at: new Date(NOW.getTime() + 60_000),
+          status: 'accepted' as const,
+          role: dispatcher.role,
+          actorId: dispatcher.id,
+        },
+      ],
+    };
+
+    const withdrawn = {
+      ...base,
+      status: 'withdrawn' as const,
+      history: [
+        ...base.history,
+        {
+          at: new Date(NOW.getTime() + 120_000),
+          status: 'withdrawn' as const,
+          role: author.role,
+          actorId: author.id,
+        },
+      ],
+    };
+
+    await Promise.all([transactional.saveRequest(accepted), transactional.saveRequest(withdrawn)]);
+
+    const loaded = await transactional.findRequest(created.id);
+
+    assert.equal(loaded?.history.length, 3, 'оба перехода записаны');
+    assert.equal(loaded?.history.at(-1)?.status, 'withdrawn');
+    assert.equal(loaded?.status, 'withdrawn', 'колонка повторяет последний переход истории');
+  });
+
+  it('повторное сохранение заявки не удваивает вложения', async () => {
+    const created = await createServiceRequest(deps, {
+      resident: author,
+      description: 'Течёт кран',
+      attachments: [
+        { kind: 'photo', token: 'p1' },
+        { kind: 'voice', token: 'v1' },
+      ],
+    });
+
+    const base = await deps.repository.findRequest(created.id);
+
+    assert.ok(base);
+
+    await deps.repository.saveRequest(base);
+    await deps.repository.saveRequest(base);
+
+    const loaded = await deps.repository.findRequest(created.id);
+
+    assert.deepEqual(
+      loaded?.attachments.map((attachment) => attachment.token),
+      ['p1', 'v1'],
+    );
+  });
+
+  it('объявление без адресатов в базе не остаётся', async () => {
+    if (!pool) return;
+
+    const transactional = new PostgresRepository(fromPool(pool));
+
+    await assert.rejects(
+      transactional.saveAnnouncement({
+        id: 'ann-broken',
+        buildingId: BUILDING_ID,
+        audience: { kind: 'building' },
+        title: 'Отключение воды',
+        body: 'С 10 до 14',
+        createdAt: NOW,
+        recipientIds: ['нет-такой-квартиры'],
+      }),
+    );
+
+    const { rows } = await pool.query('select id from announcement where id = $1', ['ann-broken']);
+
+    assert.deepEqual(rows, [], 'объявление без адресатов откатилось целиком');
   });
 
   it('сосед, ответивший «у меня работает», а потом присоединившийся, считается затронутым', async () => {

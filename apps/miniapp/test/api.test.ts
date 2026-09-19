@@ -9,6 +9,8 @@ import {
   formatLeft,
   formatPublished,
   formatSince,
+  parseCount,
+  parseDecimal,
   statusTitle,
 } from '../dist-test/api.js';
 
@@ -287,9 +289,42 @@ describe('человеческие подписи', () => {
   it('просрочка называется просрочкой теми же словами, что и в списках', () => {
     const now = new Date('2026-09-03T10:00:00Z');
 
-    assert.equal(formatDeadline('2026-09-03T09:30:00Z', now), 'просрочено 30 мин');
-    assert.equal(formatDeadline('2026-09-03T07:00:00Z', now), 'просрочено 3 ч');
-    assert.equal(formatDeadline('2026-08-31T10:00:00Z', now), 'просрочено 3 дня');
+    assert.equal(formatDeadline('2026-09-03T09:30:00Z', now), 'просрочено на 30 мин');
+    assert.equal(formatDeadline('2026-09-03T07:00:00Z', now), 'просрочено на 3 ч');
+    assert.equal(formatDeadline('2026-08-31T10:00:00Z', now), 'просрочено на 3 дня');
+  });
+
+  it('почти сутки называются днём, а не двадцатью четырьмя часами', () => {
+    const now = new Date('2026-09-03T10:00:00Z');
+
+    assert.equal(formatSince('2026-09-02T10:30:00Z', now), '1 день');
+    assert.equal(formatLeft('2026-09-04T09:30:00Z', now), '1 день');
+    assert.equal(formatSince('2026-09-02T21:00:00Z', now), '13 ч', 'до суток всё ещё часы');
+  });
+
+  it('сказанное вчера названо вчерашним, а позапрошлогоднее с годом', () => {
+    const now = new Date('2026-09-03T10:00:00Z');
+
+    assert.match(formatPublished('2026-09-03T08:30:00Z', now), /^сегодня в /);
+    assert.match(formatPublished('2026-09-02T08:30:00Z', now), /^вчера в /);
+    assert.match(formatPublished('2024-05-06T08:30:00Z', now), /2024/);
+  });
+
+  it('пустое поле числом не считается, а запятые считаются точками', () => {
+    assert.equal(parseDecimal(''), null);
+    assert.equal(parseDecimal('   '), null);
+    assert.equal(parseDecimal('не число'), null);
+    assert.equal(parseDecimal(' 137,1 '), 137.1);
+    assert.equal(parseDecimal('1,2,3'), null, 'две запятые дают две точки, а это не число');
+    assert.equal(parseDecimal('0'), 0, 'настоящий ноль принимается');
+  });
+
+  it('счёт дней принимается только целым и в пределах', () => {
+    assert.equal(parseCount('', 1, 90), null);
+    assert.equal(parseCount('0', 1, 90), null);
+    assert.equal(parseCount('91', 1, 90), null);
+    assert.equal(parseCount('7,5', 1, 90), null);
+    assert.equal(parseCount(' 14 ', 1, 90), 14);
   });
 
   it('неразобранная дата не превращается в «NaN мин»', () => {
@@ -390,6 +425,142 @@ describe('пропавшая связь', () => {
     client.useToken('второй');
 
     assert.equal(cache.size(), 0, 'чужие экраны новому человеку не показывают');
+  });
+
+  it('холодный запуск с сохранённым токеном запас не стирает', async () => {
+    const cache = testCache();
+
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      cache,
+      fetch: () =>
+        Promise.resolve(
+          new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } }),
+        ),
+    });
+
+    client.useToken('свой');
+    await client.listRequests();
+
+    const saved = cache.size();
+
+    assert.ok(saved > 0);
+
+    // Новый заход приложения: клиент пустой, токен тот же, что лежал в хранилище.
+    const cold = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      cache,
+      fetch: () => Promise.reject(new TypeError('Failed to fetch')),
+    });
+
+    cold.useToken('свой');
+
+    assert.equal(cache.size(), saved, 'режим «нет связи» после перезапуска не пуст');
+  });
+
+  it('выход стирает запас: экраны ушедшего человека следующему не показывают', async () => {
+    const cache = testCache();
+
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      cache,
+      fetch: () =>
+        Promise.resolve(
+          new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } }),
+        ),
+    });
+
+    client.useToken('свой');
+    await client.listRequests();
+    client.useToken(null);
+
+    assert.equal(cache.size(), 0);
+  });
+
+  it('отказ прокси подменяется сохранённым экраном, а не «что-то пошло не так»', async () => {
+    const cache = testCache();
+    let alive = true;
+
+    const client = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      cache,
+      onOffline: (value) => (offline = value),
+      fetch: () =>
+        Promise.resolve(
+          alive
+            ? new Response(JSON.stringify([{ id: 'req-1' }]), {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              })
+            : new Response('<html>502 Bad Gateway</html>', { status: 502 }),
+        ),
+    });
+
+    let offline = false;
+
+    await client.listRequests();
+    alive = false;
+
+    assert.deepEqual(await client.listRequests(), [{ id: 'req-1' }], 'экран остался');
+    assert.equal(offline, true);
+  });
+
+  it('молчание сервера кончается отказом, а не вечным скелетом', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+
+    const silent = ((_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      })) as typeof globalThis.fetch;
+
+    const client = new DomovoyApi({ baseUrl: 'http://api.test', fetch: silent });
+    const asked = client.listRequests();
+
+    t.mock.timers.tick(15_000);
+
+    await assert.rejects(asked, (error: unknown) => error instanceof ApiError && error.status === 408);
+  });
+
+  it('ушедший экран свой запрос бросает', async () => {
+    const dropped: boolean[] = [];
+
+    const silent = ((_input: unknown, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          dropped.push(true);
+          reject(new Error('aborted'));
+        });
+      })) as typeof globalThis.fetch;
+
+    const client = new DomovoyApi({ baseUrl: 'http://api.test', fetch: silent });
+    const gone = new AbortController();
+    const asked = client.until(gone.signal).listRequests();
+
+    gone.abort();
+
+    await assert.rejects(asked);
+    assert.deepEqual(dropped, [true]);
+  });
+
+  it('пока чтения ждёт кто-то ещё, уход одного экрана его не бросает', async () => {
+    let answer: ((response: Response) => void) | undefined;
+
+    const slow = (() =>
+      new Promise<Response>((resolve) => {
+        answer = resolve;
+      })) as typeof globalThis.fetch;
+
+    const client = new DomovoyApi({ baseUrl: 'http://api.test', fetch: slow });
+    const gone = new AbortController();
+
+    const first = client.until(gone.signal).listRequests();
+    const second = client.listRequests();
+
+    gone.abort();
+    answer?.(new Response(JSON.stringify([{ id: 'req-1' }]), { status: 200 }));
+
+    assert.deepEqual(await second, [{ id: 'req-1' }]);
+    assert.deepEqual(await first, [{ id: 'req-1' }]);
   });
 });
 

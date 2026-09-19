@@ -2,7 +2,7 @@ import { CellAction, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, formatPublished, type DomovoyApi, type MeterView } from '../api.js';
+import { ApiError, formatDay, formatPublished, parseDecimal, type DomovoyApi, type MeterView } from '../api.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -46,9 +46,12 @@ const HouseMeterCard = ({
   const [editing, setEditing] = useState(false);
 
   const submit = async (): Promise<void> => {
-    const parsed = Number(value.replace(',', '.'));
+    // Повтор по Enter, пока показание ещё летит, подал бы его дважды.
+    if (sending) return;
 
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseDecimal(value);
+
+    if (parsed === null) {
       setError('Отправьте показание цифрами');
       return;
     }
@@ -138,7 +141,7 @@ const HouseMeterCard = ({
             value={value}
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') void submit();
+              if (event.key === 'Enter' && !sending) void submit();
             }}
             placeholder={`Показание, ${meter.unit}`}
           />
@@ -301,7 +304,7 @@ const ExportReadings = ({ api, toChat }: { api: DomovoyApi; toChat: boolean }) =
 
 /** Узел учёта дома: по его показаниям считается общедомовой расход. */
 export const HouseMetersScreen = ({ api, canAdd, toChat }: HouseMetersScreenProps) => {
-  const meters = useBridgeRequest(() => api.houseMeters(), [api]);
+  const meters = useBridgeRequest((alive) => api.until(alive).houseMeters(), [api]);
 
   if (meters.loading && !meters.data) return <Skeleton count={2} />;
 

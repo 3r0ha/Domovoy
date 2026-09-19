@@ -305,6 +305,26 @@ describe('дела словами', () => {
     assert.equal(doing, undefined);
   });
 
+  it('отказ объясняется делом той роли, которая спросила', async () => {
+    const deps = setup();
+
+    await inWork(deps);
+
+    const doing = await doingFor(deps, maria, 'всё сделали, спасибо');
+
+    // «Сделали» есть и в сдаче работы, и в её приёмке: жильцу отказ нужен про приёмку.
+    assert.equal(doing?.kind, 'denied');
+    assert.match(doing?.kind === 'denied' ? doing.reason : '', /Принять работу/);
+  });
+
+  it('просьба починить делом не считается', async () => {
+    const deps = setup();
+
+    await inWork(deps);
+
+    assert.equal(await doingFor(deps, maria, 'когда почините стояк, сколько можно ждать'), undefined);
+  });
+
   it('слов о деле нет, значит дела нет', async () => {
     const deps = setup();
 

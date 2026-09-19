@@ -379,11 +379,15 @@ const rows = (items: readonly MenuItem[]): ReturnType<typeof Keyboard.button.cal
 export const groupWith = (resident: Resident, command: string, offer: MenuOffer = {}): string | undefined =>
   menuFor(resident, offer).groups.find((group) => group.items.some((item) => item.command === command))?.key;
 
-/** Пункт меню по имени: по нему собирается рассказ о разделе приложения. */
-export const itemFor = (resident: Resident, command: string, offer: MenuOffer = {}): MenuItem | undefined =>
-  menuFor(resident, offer)
-    .groups.flatMap((group) => group.items)
-    .find((item) => item.command === command);
+/**
+ * Пункт меню по имени: по нему собирается рассказ о разделе приложения. Частые
+ * дела лежат на первом экране, а не в группах, и их тоже называет помощник.
+ */
+export const itemFor = (resident: Resident, command: string, offer: MenuOffer = {}): MenuItem | undefined => {
+  const menu = menuFor(resident, offer);
+
+  return [...menu.top, ...menu.groups.flatMap((group) => group.items)].find((item) => item.command === command);
+};
 
 /**
  * Первый экран меню: частые дела кнопками, остальное группами. Так в чате

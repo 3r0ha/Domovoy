@@ -53,7 +53,7 @@ const Alerts = ({ alerts, onOpen }: { alerts: PlanAlertView[]; onOpen: (id: stri
 
 /** Дом на схеме. */
 export const PlanScreen = ({ api, onOpen }: PlanScreenProps) => {
-  const plan = useBridgeRequest(() => api.housePlan(), [api]);
+  const plan = useBridgeRequest((alive) => api.until(alive).housePlan(), [api]);
 
   if (plan.loading && !plan.data) return <Skeleton count={2} />;
 

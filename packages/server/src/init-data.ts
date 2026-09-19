@@ -48,9 +48,22 @@ const DEFAULT_CLOCK_SKEW_SECONDS = 60;
 const deriveSecretKey = (botToken: string): Buffer =>
   createHmac('sha256', SECRET_KEY_SALT).update(botToken).digest();
 
+const HEX = /^[0-9a-f]*$/i;
+
+/**
+ * Сравнение подписей. Длина считается в байтах, а не в символах: `timingSafeEqual`
+ * на буферах разной длины бросает исключение, и не-hex символы дают короткий буфер.
+ */
 const equalHex = (left: string, right: string): boolean => {
   if (left.length !== right.length) return false;
-  return timingSafeEqual(Buffer.from(left, 'hex'), Buffer.from(right, 'hex'));
+  if (!HEX.test(left) || !HEX.test(right)) return false;
+
+  const first = Buffer.from(left, 'hex');
+  const second = Buffer.from(right, 'hex');
+
+  if (first.length !== second.length) return false;
+
+  return timingSafeEqual(first, second);
 };
 
 /** Проверяет подпись параметров запуска мини-приложения. @throws {InitDataError} */

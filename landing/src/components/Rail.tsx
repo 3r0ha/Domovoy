@@ -38,7 +38,7 @@ export const Rail = () => {
           key={section.id}
           className={section.id === current ? 'rail-dot rail-dot-on' : 'rail-dot'}
           href={`#${section.id}`}
-          aria-current={section.id === current ? 'true' : undefined}
+          aria-current={section.id === current ? 'location' : undefined}
         >
           <span className="rail-name">{section.navTitle ?? section.pageTitle}</span>
         </a>

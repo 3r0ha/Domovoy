@@ -36,18 +36,22 @@ export const MAX_DESCRIPTION_LENGTH = 2000;
 /** Длина заголовка. */
 export const MAX_TITLE_LENGTH = 60;
 
+/** Заголовок не длиннее {@link MAX_TITLE_LENGTH}: лишнее отрезается по слову. */
+const shorten = (text: string): string => {
+  if (text.length <= MAX_TITLE_LENGTH) return text;
+
+  const cut = text.slice(0, MAX_TITLE_LENGTH);
+  const lastSpace = cut.lastIndexOf(' ');
+
+  return `${(lastSpace > MAX_TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+};
+
 /** Заголовок из описания. */
 export const summarizeDescription = (description: string): string => {
   const text = description.replace(/\s+/g, ' ').trim();
   const sentence = text.split(/(?<=[.!?])\s/)[0] ?? text;
-  const candidate = sentence.replace(/[.!]+$/, '');
 
-  if (candidate.length <= MAX_TITLE_LENGTH) return candidate;
-
-  const cut = candidate.slice(0, MAX_TITLE_LENGTH);
-  const lastSpace = cut.lastIndexOf(' ');
-
-  return `${(lastSpace > MAX_TITLE_LENGTH / 2 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+  return shorten(sentence.replace(/[.!]+$/, ''));
 };
 
 /**
@@ -68,10 +72,18 @@ export const formatRequestNumber = (
   return `${buildingCode}-${year}${month}-${String(sequence).padStart(4, '0')}`;
 };
 
-/** Номер заявки в тексте: «Д15-2609-0007». Код дома задаёт компания, поэтому он любой. */
-const REQUEST_NUMBER = /^\s*([^\s]+-\d{4}-\d{4})\s*$/;
+/**
+ * Номер заявки: «Д15-2609-0007». Код дома задаёт компания, поэтому он любой,
+ * а год с месяцем и порядковый номер всегда по четыре цифры, и дата вида
+ * 2026-09-19 под это не подходит. Границы заданы через `\p{L}`: `\b` в JS
+ * считает кириллицу границей слова и рвёт номер посреди строки.
+ */
+const REQUEST_NUMBER = /(?<![\p{L}\p{N}])([\p{L}\p{N}][\p{L}\p{N}-]*-\d{4}-\d{4})(?![\p{L}\p{N}])/u;
 
-/** Сообщение целиком это номер заявки: человек спрашивает о ней, а не заводит новую. */
+/**
+ * Номер заявки в сообщении. Человек редко присылает один номер: он пишет
+ * «что там по Д15-2609-0007», и это вопрос о заявке, а не новая заявка.
+ */
 export const requestNumberIn = (text: string): string | null => REQUEST_NUMBER.exec(text)?.[1] ?? null;
 
 /** Засор внутридомовой системы водоотведения или мусоропровода: у него свой срок. */
@@ -101,6 +113,9 @@ export const createRequest = (input: CreateRequestInput): ServiceRequest => {
     );
   }
 
+  // Заголовок, заданный руками, идёт через ту же длину, что и сделанный из
+  // описания: в списке заявок строка одна и та же.
+  const title = input.title?.replace(/\s+/g, ' ').trim();
   const priority = input.priority ?? CATEGORY_RULES[input.category].defaultPriority;
   const { reactionDueAt, resolutionDueAt } = computeDeadlines(
     input.category,
@@ -117,7 +132,7 @@ export const createRequest = (input: CreateRequestInput): ServiceRequest => {
     category: input.category,
     priority,
     target: input.target,
-    title: input.title?.trim() || summarizeDescription(description),
+    title: title ? shorten(title) : summarizeDescription(description),
     description,
     status: 'new',
     createdAt: input.createdAt,

@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { ApiError, type DomovoyApi } from '../api.js';
 import { useToast } from '../toast.js';
+import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
 import { IconChat, IconDocument, IconPerson } from './icons.js';
 
@@ -18,9 +19,15 @@ export interface BindApartmentScreenProps {
 /** Сколько знаков в коде квартиры: столько же, сколько печатает квитанция. */
 const CODE_LENGTH = 8;
 
+/** Сколько знаков помещается в поле: код плюс разделители, которыми его разбивают. */
+const TYPED_LENGTH = CODE_LENGTH + 4;
+
+/** Код из квитанции набирают с пробелами и дефисами: разделители не его часть. */
+const plainCode = (typed: string): string => typed.replaceAll(/[\s‐-―-]/gu, '').toUpperCase();
+
 /** Куда звонить, если код не нашёлся. Контакты приходят вместе с домом. */
 const Help = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) => {
-  const contacts = useBridgeRequest(() => api.houseContacts().catch(() => null), [api]);
+  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts().catch(() => null), [api]);
   const phone = contacts.data?.service?.phone;
   const hours = contacts.data?.service?.hours;
 
@@ -77,31 +84,38 @@ const Help = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) =
 export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentScreenProps) => {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const say = useToast();
-  const contacts = useBridgeRequest(() => api.houseContacts().catch(() => null), [api]);
+  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
   const house = contacts.data?.address ?? '';
 
   const bind = async (): Promise<void> => {
-    if (code.trim().length === 0) {
-      say('Введите код из квитанции', 'error');
+    // Второе нажатие, пока код проверяется, отправило бы его ещё раз.
+    if (busy) return;
+
+    const plain = plainCode(code);
+
+    if (plain.length === 0) {
+      setError('Введите код из квитанции');
       return;
     }
 
     // Длину проверяем до отправки: ответ сервера про неё человек ждёт зря.
-    if (code.trim().length !== CODE_LENGTH) {
-      say(`В коде ${CODE_LENGTH} знаков, а вы набрали ${code.trim().length}`, 'error');
+    if (plain.length !== CODE_LENGTH) {
+      setError(`В коде ${CODE_LENGTH} знаков, а вы набрали ${plain.length}`);
       return;
     }
 
     setBusy(true);
+    setError(null);
 
     try {
-      const flat = await api.bindApartment(code.trim());
+      const flat = await api.bindApartment(plain);
 
       say(`Квартира ${flat.number} привязана`);
       onBound();
     } catch (reason) {
-      say(reason instanceof ApiError ? reason.message : 'Не удалось привязать квартиру', 'error');
+      setError(reason instanceof ApiError ? reason.message : 'Не удалось привязать квартиру');
     } finally {
       setBusy(false);
     }
@@ -124,17 +138,27 @@ export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentSc
           className="field"
           id="apartment-code"
           value={code}
-          maxLength={CODE_LENGTH}
+          maxLength={TYPED_LENGTH}
           withClearButton={false}
           placeholder="8 букв и цифр"
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
-          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          aria-describedby={error ? 'apartment-code-error' : undefined}
+          onChange={(event) => {
+            setCode(event.target.value.toUpperCase());
+            setError(null);
+          }}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') void bind();
+            if (event.key === 'Enter' && !busy) void bind();
           }}
         />
+
+        {/* Причина отказа остаётся на экране: всплывающая плашка уходит раньше,
+            чем человек успевает прочитать её и сверить код с квитанцией. */}
+        {error ? (
+          <ErrorText id="apartment-code-error">{error}</ErrorText>
+        ) : null}
 
         <Button type="button" stretched disabled={busy} onClick={() => void bind()}>
           {busy ? 'Проверяем…' : 'Привязать'}

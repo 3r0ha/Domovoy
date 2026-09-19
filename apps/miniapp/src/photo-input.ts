@@ -1,3 +1,5 @@
+import { asBase64 } from './base64.js';
+
 /** Наибольшая сторона снимка после уменьшения. */
 const MAX_SIDE = 1600;
 
@@ -43,16 +45,4 @@ export const preparePhoto = async (file: File): Promise<PreparedPhoto> => {
   } catch {
     return original;
   }
-};
-
-/** Содержимое файла строкой base64. */
-const asBase64 = async (file: File): Promise<string> => {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const chunks: string[] = [];
-
-  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)));
-  }
-
-  return btoa(chunks.join(''));
 };

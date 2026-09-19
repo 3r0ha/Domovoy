@@ -289,7 +289,7 @@ const Sheet = ({ api }: { api: DomovoyApi }) => {
 
 /** Наклейки с кодами объектов: их печатают, пересылают и сохраняют. */
 export const StickersScreen = ({ api, staff }: StickersScreenProps) => {
-  const stickers = useBridgeRequest(() => api.stickers(), [api]);
+  const stickers = useBridgeRequest((alive) => api.until(alive).stickers(), [api]);
   const [payload, setPayload] = useState<string | null>(null);
   const [query, setQuery] = useState('');
 

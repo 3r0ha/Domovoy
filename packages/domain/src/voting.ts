@@ -1,3 +1,4 @@
+import { addYears } from './calendar.js';
 import { DomainError, type Apartment } from './types.js';
 
 /** Голосование собственников. */
@@ -76,29 +77,40 @@ export interface Eldership {
   until: Date;
 }
 
-/** Кто сейчас старший по подъезду: истёкшие полномочия не считаются. */
+/**
+ * Кто сейчас старший по подъезду: истёкшие полномочия не считаются. Подъезд
+ * номер один есть в каждом доме, поэтому список полномочий либо относится
+ * к одному дому, либо дом называют отдельно. @throws {DomainError}
+ */
 export const elderNow = (
   elderships: readonly Eldership[],
   entrance: number,
   at: Date,
-): Eldership | undefined =>
-  elderships
+  buildingId?: string,
+): Eldership | undefined => {
+  if (buildingId === undefined && new Set(elderships.map((item) => item.buildingId)).size > 1) {
+    throw new DomainError('wrong_object', 'В списке полномочия разных домов: укажите дом');
+  }
+
+  return elderships
     .filter(
       (item) =>
+        (buildingId === undefined || item.buildingId === buildingId) &&
         item.entrance === entrance &&
         item.since.getTime() <= at.getTime() &&
         item.until.getTime() > at.getTime(),
     )
     .sort((left, right) => right.since.getTime() - left.since.getTime())[0];
+};
 
 /** Полномочия, начавшиеся сегодня. */
-export const electElder = (poll: Poll, candidate: ElderCandidate, at: Date): Eldership => {
-  const until = new Date(at.getTime());
-
-  until.setUTCFullYear(until.getUTCFullYear() + ELDER_TERM_YEARS);
-
-  return { buildingId: poll.buildingId, entrance: candidate.entrance, residentId: candidate.residentId, since: at, until };
-};
+export const electElder = (poll: Poll, candidate: ElderCandidate, at: Date): Eldership => ({
+  buildingId: poll.buildingId,
+  entrance: candidate.entrance,
+  residentId: candidate.residentId,
+  since: at,
+  until: addYears(at, ELDER_TERM_YEARS),
+});
 
 export interface Vote {
   pollId: string;
@@ -165,9 +177,14 @@ export interface PollResult {
   support: number;
   /** Решение принято: и кворум есть, и порог «за» набран. */
   passed: boolean;
+  /**
+   * У скольких помещений дома площадь не внесена. Пока их больше нуля, доли
+   * считаются по помещениям, а кворум и решение не подтверждаются.
+   */
+  areasMissing: number;
 }
 
-/** Итоги голосования. */
+/** Итоги голосования. @throws {DomainError} */
 export const countVotes = (
   poll: Poll,
   apartments: readonly Apartment[],
@@ -175,7 +192,13 @@ export const countVotes = (
 ): PollResult => {
   const rule = POLL_RULES[poll.kind];
   const byId = new Map(apartments.map((apartment) => [apartment.id, apartment]));
-  const totalArea = apartments.reduce((sum, apartment) => sum + areaOf(apartment), 0);
+
+  // Голос весит долей площади. Если площади внесены не у всех, считать по ним
+  // нельзя: половина дома выглядела бы стопроцентной явкой. Тогда помещения
+  // весят поровну, счёт голосов виден, а решение по нему не принимается.
+  const areasMissing = apartments.filter((apartment) => areaOf(apartment) <= 0).length;
+  const weightOf = (apartment: Apartment): number => (areasMissing > 0 ? 1 : areaOf(apartment));
+  const totalArea = apartments.reduce((sum, apartment) => sum + weightOf(apartment), 0);
 
   const shares: Record<VoteChoice, number> = { for: 0, against: 0, abstain: 0 };
   let votedArea = 0;
@@ -195,7 +218,7 @@ export const countVotes = (
 
     if (!apartment) continue;
 
-    const area = areaOf(apartment);
+    const area = weightOf(apartment);
 
     votedArea += area;
     shares[vote.choice] += area;
@@ -205,7 +228,7 @@ export const countVotes = (
   // нельзя, иначе недобранные две трети становятся принятым решением.
   const exact = (value: number): number => (totalArea === 0 ? 0 : value / totalArea);
   const turnout = exact(votedArea);
-  const quorum = turnout > rule.quorum;
+  const quorum = areasMissing === 0 && turnout > rule.quorum;
 
   const support =
     rule.base === 'building' ? exact(shares.for) : votedArea === 0 ? 0 : shares.for / votedArea;
@@ -221,24 +244,53 @@ export const countVotes = (
     shares: { for: share(shares.for), against: share(shares.against), abstain: share(shares.abstain) },
     support: round(support),
     passed: quorum && enough,
+    areasMissing,
   };
 };
 
 /** Площадь помещения. */
 const areaOf = (apartment: Apartment): number => apartment.area ?? 0;
 
+/** Сколько номеров помещений называть в отказе. */
+const MISSING_SHOWN = 5;
+
+/**
+ * Почему кворум не подтверждается: площади внесены не у всех помещений. Пусто,
+ * если внесены у всех. Этой строкой продукт и объясняет, что надо дозаполнить.
+ */
+export const areasMissingNote = (apartments: readonly Apartment[]): string | undefined => {
+  const missing = apartments.filter((apartment) => areaOf(apartment) <= 0);
+
+  if (missing.length === 0) return undefined;
+
+  const numbers = missing
+    .slice(0, MISSING_SHOWN)
+    .map((apartment) => apartment.number)
+    .join(', ');
+
+  return (
+    `Голоса считаются долями площади, а у ${missing.length} помещений она не внесена (${numbers}` +
+    `${missing.length > MISSING_SHOWN ? ' и другие' : ''}). ` +
+    'Пока площади не внесены, голоса считаются по помещениям, а решение не принимается.'
+  );
+};
+
 const round = (value: number): number => Number(value.toFixed(4));
+
+/** Наименьшая площадь, которую есть смысл называть жильцу. */
+const AREA_STEP = 0.01;
 
 /**
  * Сколько площади не хватает до кворума. Ноль, кворум уже есть. Кворум берётся
- * строго больше порога, поэтому ровно половина площади его не даёт.
+ * строго больше порога, поэтому ровно половина площади его не даёт: не хватает
+ * ещё немного, а не нуля.
  */
 export const areaToQuorum = (poll: Poll, result: PollResult): number => {
-  if (result.quorum) return 0;
+  if (result.quorum || result.totalArea <= 0) return 0;
 
   const needed = POLL_RULES[poll.kind].quorum * result.totalArea;
 
-  return Math.max(0, round(needed - result.votedArea));
+  return Math.max(AREA_STEP, round(needed - result.votedArea));
 };
 
 /** С какой доли площади собственники вправе требовать созыва собрания. */

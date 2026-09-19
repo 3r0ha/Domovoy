@@ -14,6 +14,9 @@ import {
 
 const BUILDING_ID = 'b1';
 
+/** Дома одной организации: без владельца каждый дом сам себе организация. */
+const COMPANY = 'ук-первая';
+
 const APARTMENTS = [{ id: 'apt-1', buildingId: BUILDING_ID, number: 1, entrance: 1, riser: 1 }];
 
 const maria: Resident = {
@@ -49,7 +52,7 @@ const setup = (residents: Resident[] = [maria, manager, dispatcher]): AppDeps & 
 
   return {
     repository: new InMemoryRepository({
-      buildings: [{ id: BUILDING_ID, code: 'Д15' }],
+      buildings: [{ id: BUILDING_ID, code: 'Д15', companyId: COMPANY }],
       apartments: APARTMENTS,
       residents,
     }),
@@ -140,7 +143,7 @@ describe('роли в управляющей компании', () => {
 
     const deps = setup([maria, manager, neighbour]);
 
-    await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Ленина, 17' });
+    await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Ленина, 17', companyId: COMPANY });
     await deps.repository.saveApartment({ id: 'apt-17', buildingId: 'b2', number: 17, entrance: 1, riser: 1 });
 
     const saved = await assignRole(deps, manager, { residentId: neighbour.id, role: 'technician' });
@@ -174,13 +177,32 @@ describe('роли в управляющей компании', () => {
     assert.equal(people.find((person) => person.id === maria.id)?.apartmentNumber, 1);
   });
 
-  it('дежурство ставит любой сотрудник, а не только управляющий', async () => {
+  it('дежурство ставит диспетчер, а не только управляющий', async () => {
     const deps = setup();
 
     const onDuty = await setDuty(deps, dispatcher, { residentId: dispatcher.id, onDuty: true });
 
     assert.equal(onDuty.onDuty, true);
     assert.equal((await deps.repository.findResident(dispatcher.id))?.onDuty, true);
+  });
+
+  it('мастер дежурство себе не ставит: ночной поток заявок он на себя не заберёт', async () => {
+    const technician: Resident = {
+      id: 'tech-1',
+      maxUserId: 6006,
+      displayName: 'Сергей',
+      role: 'technician',
+      buildingId: BUILDING_ID,
+    };
+
+    const deps = setup([maria, manager, dispatcher, technician]);
+
+    await assert.rejects(
+      setDuty(deps, technician, { residentId: technician.id, onDuty: true }),
+      /назначает диспетчер или управляющий/,
+    );
+
+    assert.equal((await deps.repository.findResident(technician.id))?.onDuty, undefined);
   });
 
   it('о постановке на дежурство сообщают, а себе, нет', async () => {
@@ -208,8 +230,26 @@ describe('роли в управляющей компании', () => {
 
     await assert.rejects(
       setDuty(deps, maria, { residentId: dispatcher.id, onDuty: true }),
-      /назначает управляющая компания/,
+      /назначает диспетчер или управляющий/,
     );
+  });
+
+  it('человека без дома своим сотрудником не делают', async () => {
+    const nobody: Resident = {
+      id: 'res-nobody',
+      maxUserId: 2004,
+      displayName: 'Ничей',
+      role: 'resident',
+    };
+
+    const deps = setup([maria, manager, nobody]);
+
+    await assert.rejects(
+      assignRole(deps, manager, { residentId: nobody.id, role: 'dispatcher' }),
+      /другой управляющей организации/,
+    );
+
+    assert.equal((await deps.repository.findResident(nobody.id))?.role, 'resident');
   });
 
   it('жильцу список людей дома закрыт', async () => {
@@ -223,7 +263,7 @@ describe('дома сотрудника', () => {
   it('заявка из соседнего дома доходит до того, кто его обслуживает', async () => {
     const deps = setup([manager, dispatcher]);
 
-    await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Ленина, 17' });
+    await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Ленина, 17', companyId: COMPANY });
     await deps.repository.saveApartment({ id: 'apt-b2', buildingId: 'b2', number: 7, entrance: 1, riser: 1 });
 
     assert.deepEqual(await deps.repository.listStaff('b2'), []);

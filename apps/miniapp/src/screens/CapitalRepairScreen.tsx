@@ -35,7 +35,7 @@ const FUNDS: Record<string, string> = {
 
 /** Капитальный ремонт дома: что и в каком году делают по программе. */
 export const CapitalRepairScreen = ({ api }: CapitalRepairScreenProps) => {
-  const plan = useBridgeRequest(() => api.capitalRepair(), [api]);
+  const plan = useBridgeRequest((alive) => api.until(alive).capitalRepair(), [api]);
 
   if (plan.loading && !plan.data) return <Skeleton count={3} />;
 

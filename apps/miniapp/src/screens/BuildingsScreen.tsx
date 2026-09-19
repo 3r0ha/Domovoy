@@ -37,7 +37,7 @@ const summary = (line: BuildingLineView): string => {
 
 /** Дома компании в одном списке. */
 export const BuildingsScreen = ({ api, onPick, onAdd, opens = 'queue', canAdd = false }: BuildingsScreenProps) => {
-  const report = useBridgeRequest(() => api.buildingsReport(), [api]);
+  const report = useBridgeRequest((alive) => api.until(alive).buildingsReport(), [api]);
   const [card, setCard] = useState<{ code: string; address: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,5 +1,6 @@
 import { DomainError, isCompanyStaff, type Attachment, type ServiceRequest } from '@domovoy/domain';
 
+import { servesBuilding } from './buildings.js';
 import type { Resident, StoredFile } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -54,10 +55,11 @@ export const readFile = async (deps: AppDeps, resident: Resident, id: string): P
 
   if (!file) throw new DomainError('file_not_found', 'Файл не найден');
 
-  const sameBuilding = (resident.buildingId ?? deps.defaultBuildingId) === file.buildingId;
-
   if (file.uploadedBy === resident.id) return file;
-  if (isCompanyStaff(resident.role) && sameBuilding) return file;
+
+  // Дом снимка сверяется с границей организации, а не с полем `buildingId`:
+  // у сотрудника без дома им прежде оказывался дом установки.
+  if (isCompanyStaff(resident.role) && (await servesBuilding(deps, resident, file.buildingId))) return file;
 
   if (await attachedToOwn(deps, resident, id)) return file;
 

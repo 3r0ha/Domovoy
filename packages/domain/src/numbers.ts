@@ -1,5 +1,14 @@
-/** Рубли до копеек. */
-export const roundMoney = (value: number): number => Math.round(value * 100) / 100;
+/**
+ * Рубли до копеек. Полкопейки округляется от нуля, как принято в расчётах:
+ * двоичная дробь даёт 100.49999999999999 там, где в рублях ровно полкопейки,
+ * поэтому сравнение идёт с поправкой на неё. Минус ноль не возвращается.
+ */
+export const roundMoney = (value: number): number => {
+  const cents = Math.abs(value) * 100;
+  const rounded = Math.round(cents * (1 + Number.EPSILON));
+
+  return (value < 0 ? -rounded : rounded) / 100 + 0;
+};
 
 /** Середина ряда; пустой ряд даёт ноль. */
 export const median = (values: readonly number[]): number => {

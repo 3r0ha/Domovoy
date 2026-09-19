@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+import { useTrapped } from '../focus.js';
+
 export interface ConfirmProps {
   /** О чём спрашивают: «Отправить рассылку?». */
   title: string;
@@ -39,6 +41,8 @@ export const Confirm = ({
   onConfirm,
   onCancel,
 }: ConfirmProps) => {
+  const sheet = useTrapped<HTMLElement>(true);
+
   useEffect(() => {
     const close = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onCancel();
@@ -55,7 +59,7 @@ export const Confirm = ({
     <div className="guide" role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" className="guide-veil" aria-label="Отмена" onClick={onCancel} />
 
-      <section className="guide-sheet confirm">
+      <section className="guide-sheet confirm" ref={sheet}>
         <h2 className="guide-title">{title}</h2>
         {text ? <p className="guide-hint">{text}</p> : null}
 

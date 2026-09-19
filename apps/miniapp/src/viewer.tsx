@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
+import { useTrapped } from './focus.js';
+
 type Show = (source: string, alt?: string) => void;
 
 const ViewerContext = createContext<Show>(() => undefined);
@@ -10,6 +12,7 @@ export const useViewer = (): Show => useContext(ViewerContext);
 /** Снимок целиком: на маленькой картинке в переписке половины не разглядеть. */
 export const Viewer = ({ children }: { children: ReactNode }) => {
   const [shown, setShown] = useState<{ source: string; alt: string } | null>(null);
+  const box = useTrapped<HTMLDivElement>(shown !== null);
 
   useEffect(() => {
     if (!shown) return undefined;
@@ -33,8 +36,23 @@ export const Viewer = ({ children }: { children: ReactNode }) => {
           role="dialog"
           aria-modal="true"
           aria-label={shown.alt || 'Снимок'}
+          ref={box}
           onClick={() => setShown(null)}
         >
+          {/* Выход виден, а не угадывается: касание мимо снимка закрывает его
+              не на всяком клиенте, а искать его вслепую пожилому человеку нечем. */}
+          <button
+            type="button"
+            className="viewer-close"
+            aria-label="Закрыть снимок"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShown(null);
+            }}
+          >
+            ×
+          </button>
+
           <img src={shown.source} alt={shown.alt} />
         </div>
       ) : null}

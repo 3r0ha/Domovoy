@@ -44,6 +44,11 @@
   fill: var(--red);
 }
 
+/* На тёмном основной красный даёт 2.94 при пороге 3 для значков. */
+.dark .mark {
+  fill: var(--red-light);
+}
+
 .mark-hole {
   fill: var(--paper);
 }
@@ -88,6 +93,7 @@
   gap: 20px;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
   height: var(--header);
 }
 
@@ -96,6 +102,7 @@
   gap: 9px;
   align-items: center;
   flex: none;
+  min-width: 0;
   color: var(--ink);
   text-decoration: none;
 }
@@ -110,10 +117,11 @@
   font-size: 18px;
 }
 
+/* Без обрезки: скрытый пункт оставался бы в табуляции, но не под курсором. */
 .top-nav {
   display: flex;
-  gap: 22px;
-  overflow: hidden;
+  gap: clamp(14px, 1.8vw, 22px);
+  min-width: 0;
 }
 
 .top-link {
@@ -157,7 +165,10 @@
   display: none;
   gap: 6px;
   align-items: center;
-  flex: none;
+  justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 44px;
   padding: 7px 14px;
   border: 0;
   border-radius: 999px;
@@ -166,6 +177,17 @@
   font-size: 14px;
   color: var(--ink);
   cursor: pointer;
+}
+
+/* Длинное название раздела жмётся: иначе на 320 пикселях кнопка уезжает за край. */
+.top-toggle-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-toggle svg {
+  flex: none;
 }
 
 .top-sheet {
@@ -192,7 +214,7 @@
 }
 
 .top-sheet-link span {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 400;
   color: var(--ink-faint);
 }
@@ -234,7 +256,10 @@
 }
 
 .top-open-max {
+  display: inline-flex;
+  align-items: center;
   flex: none;
+  min-height: 44px;
   padding: 7px 14px;
   border-radius: 999px;
   background: var(--ink);
@@ -257,7 +282,6 @@
   max-width: 54ch;
 }
 
-.slavic,
 .hero h1,
 .page-hero h1 {
   font-family: var(--display);
@@ -285,10 +309,6 @@
   font-size: clamp(17px, 1.7vw, 21px);
 }
 
-.hero-cta {
-  margin-top: clamp(28px, 4vw, 44px);
-}
-
 .rail {
   position: fixed;
   top: 50%;
@@ -296,15 +316,18 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   align-items: flex-end;
   transform: translateY(-50%);
 }
 
+/* Точка мелкая, но нажимают по всей высоте строки: меньше 44 пикселей не берётся. */
 .rail-dot {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 44px;
+  min-height: 44px;
   text-decoration: none;
 }
 
@@ -313,7 +336,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--line);
+  background: var(--line-strong);
   transition: background 0.18s ease, transform 0.18s ease;
 }
 
@@ -329,7 +352,7 @@
 }
 
 .rail-name {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--ink-soft);
   white-space: nowrap;
   opacity: 0;
@@ -400,7 +423,7 @@
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.4;
   color: var(--ink-soft);
 }
@@ -569,10 +592,6 @@
   pointer-events: none;
 }
 
-.phone-crop .phone-screen {
-  max-height: clamp(300px, 40vw, 440px);
-}
-
 .cta {
   display: inline-flex;
   gap: 7px;
@@ -604,10 +623,6 @@
   .cta:hover svg {
     transform: translateX(2px);
   }
-
-  .hero-cta:hover svg {
-    transform: translateY(2px);
-  }
 }
 
 .cta:active {
@@ -617,11 +632,12 @@
 .ghost {
   display: inline-flex;
   align-items: center;
+  min-height: 44px;
   padding: 11px 20px;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--ink);
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
   background: var(--paper-card);
 }
@@ -787,7 +803,7 @@
 }
 
 .extras-list p {
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   color: var(--ink-soft);
 }
@@ -813,6 +829,7 @@
   display: inline-flex;
   gap: 10px;
   align-items: center;
+  min-height: 44px;
   color: var(--ink);
   text-decoration: none;
 }
@@ -908,7 +925,7 @@
 
 .phone figcaption {
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--ink-faint);
   text-align: center;
 }
@@ -930,16 +947,19 @@
 }
 
 .foot-note {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--ink-faint);
 }
 
 .foot-max {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   padding: 10px 22px;
   border-radius: 999px;
   background: var(--ink);
   color: var(--paper);
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
 }
 
@@ -1002,7 +1022,8 @@
   }
 }
 
-@media (width <= 1080px) {
+/* Ниже этой ширины одиннадцать пунктов в строку не встают, и вместо них кнопка. */
+@media (width <= 1200px) {
   .top-nav {
     display: none;
   }
@@ -1028,10 +1049,6 @@
   .hero-text {
     align-items: center;
     max-width: 34ch;
-  }
-
-  .hero-crown {
-    margin-inline: auto;
   }
 
   .hero-art {
@@ -1131,10 +1148,6 @@
     margin-top: 14px;
   }
 
-  .scene-points li {
-    font-size: 16px;
-  }
-
   .hero {
     padding-top: 20px;
   }
@@ -1148,7 +1161,6 @@
   }
 
   .top-inner {
-    height: 50px;
     gap: 10px;
   }
 
@@ -1167,6 +1179,22 @@
   .top-sheet-inner {
     grid-template-columns: minmax(0, 1fr);
     padding-block: 8px 14px;
+  }
+}
+
+/* Самые узкие телефоны: слово рядом с маркой отнимает место у навигации. */
+@media (width <= 380px) {
+  .top-inner {
+    gap: 8px;
+  }
+
+  .top-brand span {
+    display: none;
+  }
+
+  .top-open-max,
+  .top-toggle {
+    padding-inline: 10px;
   }
 }
 
@@ -1201,6 +1229,7 @@
 
 .paper-version {
   margin-top: 6px;
+  color: var(--ink-soft);
 }
 
 .paper-part {
@@ -1229,8 +1258,11 @@
 }
 
 .foot-legal a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink-soft);
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
 }
 

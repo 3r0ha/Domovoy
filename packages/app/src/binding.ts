@@ -2,7 +2,7 @@ import { DomainError, isApartmentCode, isCompanyStaff, normalizeApartmentCode, t
 
 import { apartmentsOf, useApartment, withApartment, withoutApartment } from './apartments.js';
 import { recordAction } from './audit.js';
-import { atBuilding, servesBuilding } from './buildings.js';
+import { atBuilding, homeOf, servesBuilding } from './buildings.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -71,7 +71,10 @@ export const bindApartment = async (deps: AppDeps, resident: Resident, code: str
   return { resident: saved, apartment, alreadyBound: false };
 };
 
-/** Привязка сотрудником. */
+/**
+ * Привязка сотрудником. Себя сотрудник не привязывает: иначе он получал бы
+ * показания, квитанцию, долг и голос собственника чужой квартиры. @throws {DomainError}
+ */
 export const bindApartmentByStaff = async (
   deps: AppDeps,
   staff: Resident,
@@ -79,6 +82,10 @@ export const bindApartmentByStaff = async (
 ): Promise<BindResult> => {
   if (!isCompanyStaff(staff.role)) {
     throw new DomainError('forbidden', 'Привязывать жильцов может управляющая компания');
+  }
+
+  if (input.residentId === staff.id) {
+    throw new DomainError('forbidden', 'Свою квартиру привязывают по коду из квитанции, как жилец');
   }
 
   const resident = await deps.repository.findResident(input.residentId);
@@ -91,8 +98,23 @@ export const bindApartmentByStaff = async (
 
   await atBuilding(deps, staff, apartment.buildingId);
 
+  // Человека из чужой организации привязать нельзя: он её житель, а не этого дома.
+  const home = await homeOf(deps, resident);
+
+  if (home !== undefined && !(await servesBuilding(deps, staff, home))) {
+    throw new DomainError('forbidden', 'Этот человек относится к другой управляющей организации');
+  }
+
   const alreadyBound = apartmentsOf(resident).includes(apartment.id);
   const saved = await deps.repository.saveResident(withApartment(resident, apartment));
+
+  await recordAction(deps, {
+    actor: staff,
+    action: 'apartment_bound',
+    subject: saved.displayName,
+    details: `квартира ${apartment.number}`,
+    buildingId: apartment.buildingId,
+  });
 
   await notifyResident(
     deps.notifier ?? noopNotifier,
@@ -165,10 +187,12 @@ export const listUnbound = async (deps: AppDeps, staff: Resident): Promise<Unbou
   const found = await deps.repository.listUnboundResidents();
   const mine: UnboundResident[] = [];
 
+  // Человек без дома не относится ни к одной организации: показывать его всем
+  // значит отдавать каждому управляющему список всех, кто вообще зашёл в продукт.
   for (const resident of found) {
     const home = resident.buildingId;
 
-    if (home && !(await servesBuilding(deps, staff, home))) continue;
+    if (!home || !(await servesBuilding(deps, staff, home))) continue;
 
     mine.push({ id: resident.id, displayName: resident.displayName });
   }

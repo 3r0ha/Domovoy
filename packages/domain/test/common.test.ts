@@ -25,7 +25,14 @@ describe('общедомовые нужды', () => {
     assert.equal(commonNeedsFor({ house: 100, apartments: 40, area: 200, totalArea: 200 }), 60);
   });
 
+  it('доли помещений в сумме дают весь распределяемый объём', () => {
+    const shares = [1, 1, 1].map((area) => commonNeedsFor({ house: 101, apartments: 100, area, totalArea: 3 }));
+    const total = shares.reduce((sum, share) => sum + share, 0);
+
+    assert.ok(Math.abs(total - 1) < 1e-9, `в сумме вышло ${total}, а распределяли 1`);
+  });
+
   it('строка квитанции называет ресурс, а не одно сокращение', () => {
-    assert.equal(commonNeedsTitle('cold_water'), 'Холодная вода, ОДН');
+    assert.equal(commonNeedsTitle('cold_water'), 'Холодная вода на общие нужды дома');
   });
 });

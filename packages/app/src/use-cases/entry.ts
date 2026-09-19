@@ -4,14 +4,13 @@ import { type Resident } from '../repository.js';
 import { type AppDeps } from './deps.js';
 import { withReadableAddress } from './requests.js';
 
-/** Дом для только что пришедшего человека. */
+/**
+ * Дом для только что пришедшего человека. Дом установки не подставляется: в
+ * установке из нескольких домов он сделал бы постороннего жильцом дома по
+ * умолчанию, с его контактами, дежурным, собраниями и файлами. Единственный
+ * дом базы другим домам не мешает.
+ */
 const buildingForNewcomer = async (deps: AppDeps): Promise<string | undefined> => {
-  if (deps.defaultBuildingId) {
-    const configured = await deps.repository.findBuilding(deps.defaultBuildingId);
-
-    if (configured) return configured.id;
-  }
-
   const buildings = await deps.repository.listBuildings();
 
   return buildings.length === 1 ? buildings[0]?.id : undefined;

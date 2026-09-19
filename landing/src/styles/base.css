@@ -70,7 +70,12 @@ a {
   outline-offset: 4px;
 }
 
-/* Первая остановка табуляции: до шапки с десятью пунктами. */
+/* На тёмном основной красный даёт 2.94 при пороге 3: обводку видно хуже поля. */
+.dark :focus-visible {
+  outline-color: var(--red-light);
+}
+
+/* Первая остановка табуляции: до шапки с одиннадцатью пунктами. */
 .skip {
   position: absolute;
   left: 50%;
@@ -80,7 +85,7 @@ a {
   border-radius: 999px;
   background: var(--red);
   color: #fff;
-  font-size: 15px;
+  font-size: 16px;
   text-decoration: none;
   transform: translate(-50%, -200%);
 }
@@ -96,10 +101,15 @@ a {
 }
 
 .eyebrow {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--red);
+}
+
+/* На тёмном основной красный даёт 2.94 при пороге 4.5. */
+.dark .eyebrow {
+  color: var(--red-light);
 }
 
 .lead {
@@ -107,10 +117,6 @@ a {
   line-height: 1.4;
   color: var(--ink-soft);
   text-wrap: pretty;
-}
-
-.muted {
-  color: var(--ink-soft);
 }
 
 @media (prefers-reduced-motion: reduce) {

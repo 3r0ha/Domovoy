@@ -38,8 +38,10 @@ const setup = async () => {
   let clock = NOW.getTime();
   let counter = 0;
 
-  await repository.saveBuilding({ id: FIRST, code: 'Д15', address: 'ул. Ленина, 15', managementCompany: 'УК' });
-  await repository.saveBuilding({ id: SECOND, code: 'Д17', address: 'ул. Ленина, 17', managementCompany: 'УК' });
+  const company = 'ук-первая';
+
+  await repository.saveBuilding({ id: FIRST, code: 'Д15', address: 'ул. Ленина, 15', managementCompany: 'УК', companyId: company });
+  await repository.saveBuilding({ id: SECOND, code: 'Д17', address: 'ул. Ленина, 17', managementCompany: 'УК', companyId: company });
   await repository.saveApartment({ id: 'apt-1', buildingId: FIRST, number: 1, entrance: 1, riser: 1, area: 40 });
   await repository.saveApartment({ id: 'apt-9', buildingId: SECOND, number: 9, entrance: 1, riser: 1, area: 40 });
   await repository.saveResident(MANAGER);

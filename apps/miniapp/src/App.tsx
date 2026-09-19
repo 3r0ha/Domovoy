@@ -53,11 +53,14 @@ export type Waiting = Partial<Record<Screen, number>>;
 const useWaiting = (api: DomovoyApi, role: RoleView, version: number): Waiting => {
   const queue = role === 'dispatcher' || role === 'manager';
 
-  const list = useBridgeRequest(() => api.listRequests(queue ? 'queue' : 'mine'), [api, queue, version]);
+  const list = useBridgeRequest(
+    (alive) => api.until(alive).listRequests(queue ? 'queue' : 'mine'),
+    [api, queue, version],
+  );
 
   /** Смене, вопросы без ответа, жильцу, ответы, которые он ещё не читал. */
   const support = useBridgeRequest(
-    () => api.supportWaiting().catch(() => ({ waiting: 0 })),
+    (alive) => api.until(alive).supportWaiting().catch(() => ({ waiting: 0 })),
     [api, version],
   );
 

@@ -5,6 +5,8 @@ import {
   APARTMENT_CODE_ALPHABET,
   APARTMENT_CODE_LENGTH,
   apartmentCodeFrom,
+  apartmentKeyOf,
+  apartmentKeyParam,
   isApartmentCode,
   normalizeApartmentCode,
 } from '../dist/index.js';
@@ -46,5 +48,12 @@ describe('код квартиры из строки-семени', () => {
     assert.equal(normalizeApartmentCode('key_ACEFHKLM'), 'ACEFHKLM');
     assert.equal(isApartmentCode('ACEFHKL'), false, 'короткий код не принимается');
     assert.equal(isApartmentCode('ACEFHKLB'), false, 'знака B в алфавите нет');
+  });
+
+  it('регистр приставки в параметре запуска не важен', () => {
+    assert.equal(apartmentKeyOf(apartmentKeyParam('ACEFHKLM')), 'ACEFHKLM');
+    assert.equal(apartmentKeyOf('KEY_ACEFHKLM'), 'ACEFHKLM', 'набрано заглавными вручную');
+    assert.equal(apartmentKeyOf('Key_acefhklm'), 'ACEFHKLM');
+    assert.equal(apartmentKeyOf('go-queue'), null, 'это не о квартире');
   });
 });

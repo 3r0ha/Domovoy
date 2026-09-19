@@ -6,6 +6,7 @@ import {
   ApiError,
   formatDay,
   needsApartment,
+  parseCount,
   type DomovoyApi,
   type InitiativeView,
   type PollView,
@@ -309,9 +310,7 @@ const InitiativeCard = ({
           <Input
             className="field"
             id={`meeting-days-${initiative.id}`}
-            type="number"
-            min={1}
-            max={90}
+            inputMode="numeric"
             value={days}
             withClearButton={false}
             onChange={(event) => setDays(event.target.value)}
@@ -321,7 +320,17 @@ const InitiativeCard = ({
             type="button"
             stretched
             disabled={busy}
-            onClick={() => void run(() => api.callMeeting(initiative.id, Number(days), kind), 'Собрание не объявлено')}
+            onClick={() => {
+              const asked = parseCount(days, 1, 90);
+
+              // Пустое поле раньше уходило нулём дней: голосование закрывалось сразу.
+              if (asked === null) {
+                setError('Срок от 1 до 90 дней');
+                return;
+              }
+
+              void run(() => api.callMeeting(initiative.id, asked, kind), 'Собрание не объявлено');
+            }}
           >
             {busy ? 'Объявляем…' : 'Объявить'}
           </Button>
@@ -427,11 +436,20 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
       return;
     }
 
+    const least = mode === 'meeting' ? 7 : 1;
+    const asked = parseCount(days, least, 60);
+
+    // Пустое поле раньше уходило нулём дней: голосование закрывалось сразу.
+    if (asked === null) {
+      setError(`Срок от ${least} до 60 дней`);
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
     try {
-      await api.startPoll({ kind, title: title.trim(), question: question.trim(), days: Number(days), mode });
+      await api.startPoll({ kind, title: title.trim(), question: question.trim(), days: asked, mode });
       setTitle('');
       setQuestion('');
       setOpen(false);
@@ -503,9 +521,7 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
       <Input
         className="field"
         id="poll-days"
-        type="number"
-        min={mode === 'meeting' ? 7 : 1}
-        max={60}
+        inputMode="numeric"
         value={days}
         withClearButton={false}
         onChange={(event) => setDays(event.target.value)}
@@ -525,8 +541,8 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
 
 /** Собрания собственников. */
 export const PollsScreen = ({ api, canStart, onDocument, onBind }: PollsScreenProps) => {
-  const polls = useBridgeRequest(() => api.polls(), [api]);
-  const initiatives = useBridgeRequest(() => api.initiatives(), [api]);
+  const polls = useBridgeRequest((alive) => api.until(alive).polls(), [api]);
+  const initiatives = useBridgeRequest((alive) => api.until(alive).initiatives(), [api]);
 
   if (polls.loading && !polls.data) return <Skeleton count={1} />;
 

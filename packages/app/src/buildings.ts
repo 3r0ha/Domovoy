@@ -4,18 +4,25 @@ import { apartmentIn, apartmentsOf } from './apartments.js';
 import type { Building, HouseContact, HouseService, Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
-/** Дома сотрудника: свой и те, что ему добавили. */
-export const servedBy = (resident: Resident, deps: AppDeps): string[] => [
-  ...new Set([resident.buildingId ?? deps.defaultBuildingId, ...(resident.servesBuildingIds ?? [])]),
+/**
+ * Дома сотрудника: свой и те, что ему добавили. Дом установки не подставляется:
+ * иначе сотрудник без дома получал бы права на дом по умолчанию.
+ */
+export const servedBy = (resident: Resident, _deps: AppDeps): string[] => [
+  ...new Set([...(resident.buildingId ? [resident.buildingId] : []), ...(resident.servesBuildingIds ?? [])]),
 ];
 
-/** Дом, в котором человек сейчас действует: выбранный, рабочий или дом установки. */
+/**
+ * Дом, в котором человек сейчас действует: выбранный, рабочий или дом установки.
+ * Умолчание здесь для сценариев создания: права проверяет `assertServes`.
+ */
 export const actingHouse = (deps: AppDeps, actor: Resident, buildingId?: string): string =>
   buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
 
 /**
  * Дом, в котором человек живёт. У сотрудника он может не совпадать с рабочим:
- * смену он ведёт в одном доме, а квартира у него в другом.
+ * смену он ведёт в одном доме, а квартира у него в другом. Для проверок права
+ * берётся `homeOf`: он не подставляет дом установки.
  */
 export const homeBuildingOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
   const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
@@ -32,7 +39,7 @@ export const houseHint = async (
   buildingId: string,
 ): Promise<string | undefined> => {
   const houses = new Set<string>(
-    isCompanyStaff(resident.role) ? [resident.buildingId ?? deps.defaultBuildingId] : [],
+    isCompanyStaff(resident.role) && resident.buildingId ? [resident.buildingId] : [],
   );
 
   for (const apartmentId of apartmentsOf(resident)) {
@@ -87,7 +94,7 @@ export const houseHintFor = (deps: AppDeps, buildingId: string, known?: readonly
 
   return async (resident) => {
     const own = new Set<string>(
-      isCompanyStaff(resident.role) ? [resident.buildingId ?? deps.defaultBuildingId] : [],
+      isCompanyStaff(resident.role) && resident.buildingId ? [resident.buildingId] : [],
     );
 
     for (const apartmentId of apartmentsOf(resident)) {
@@ -106,9 +113,10 @@ export const houseHintFor = (deps: AppDeps, buildingId: string, known?: readonly
  * и собрания дома, где ведёт смену.
  */
 export const housesOf = async (deps: AppDeps, resident: Resident): Promise<string[]> => {
-  const houses = new Set<string>([await homeBuildingOf(deps, resident)]);
+  const home = await homeOf(deps, resident);
+  const houses = new Set<string>(home ? [home] : []);
 
-  if (isCompanyStaff(resident.role)) houses.add(resident.buildingId ?? deps.defaultBuildingId);
+  if (isCompanyStaff(resident.role) && resident.buildingId) houses.add(resident.buildingId);
 
   return [...houses];
 };
@@ -137,34 +145,41 @@ export interface ServedBuilding {
 }
 
 /**
- * Организация дома. Дома без владельца составляют один общий парк.
+ * Дома одной организации. Дом без владельца не принадлежит никому: он свой
+ * только сам себе, иначе дома разных компаний сошлись бы в один общий парк.
  */
-const companyOf = (building?: Building): string => building?.companyId ?? '';
+const sameCompany = (left?: Building, right?: Building): boolean => {
+  if (!left || !right) return false;
+
+  if (left.companyId !== undefined || right.companyId !== undefined) return left.companyId === right.companyId;
+
+  return left.id === right.id;
+};
 
 /** Дома, доступные человеку. */
 export const listServedBuildings = async (deps: AppDeps, resident: Resident): Promise<ServedBuilding[]> => {
-  const currentId = resident.buildingId ?? deps.defaultBuildingId;
-  const own = await deps.repository.findBuilding(currentId);
+  const currentId = resident.buildingId;
+  const own = currentId ? await deps.repository.findBuilding(currentId) : undefined;
 
-  if (!isCompanyStaff(resident.role)) return own ? [describe(own, currentId)] : [];
+  if (!isCompanyStaff(resident.role)) return own ? [describe(own, own.id)] : [];
 
   const granted = new Set(servedBy(resident, deps));
-  const company = companyOf(own);
 
   return (await deps.repository.listBuildings())
-    .filter((building) => companyOf(building) === company || granted.has(building.id))
+    .filter((building) => sameCompany(building, own) || granted.has(building.id))
     .sort((left, right) => left.code.localeCompare(right.code, 'ru'))
-    .map((building) => describe(building, currentId));
+    .map((building) => describe(building, currentId ?? ''));
 };
 
 /**
  * Дом в границах человека: свой, отданный вручную или дом той же организации.
- * Жильцу доступен только его собственный.
+ * Жильцу доступен только его собственный. Дом установки не подставляется:
+ * иначе дом по умолчанию доставался бы каждому, кто ещё нигде не живёт.
  */
 export const servesBuilding = async (deps: AppDeps, resident: Resident, buildingId: string): Promise<boolean> => {
-  const currentId = resident.buildingId ?? deps.defaultBuildingId;
+  const currentId = resident.buildingId;
 
-  if (buildingId === currentId) return true;
+  if (currentId !== undefined && buildingId === currentId) return true;
 
   if (!isCompanyStaff(resident.role)) {
     const apartment = await apartmentIn(deps, resident, buildingId);
@@ -174,11 +189,13 @@ export const servesBuilding = async (deps: AppDeps, resident: Resident, building
 
   if (servedBy(resident, deps).includes(buildingId)) return true;
 
+  if (currentId === undefined) return false;
+
   const building = await deps.repository.findBuilding(buildingId);
 
   if (!building) return false;
 
-  return companyOf(building) === companyOf(await deps.repository.findBuilding(currentId));
+  return sameCompany(building, await deps.repository.findBuilding(currentId));
 };
 
 /** Дом чужой организации закрыт и по прямой ссылке на объект. @throws {DomainError} */
@@ -194,20 +211,16 @@ export const atBuilding = async (
   resident: Resident,
   buildingId?: string,
 ): Promise<Resident> => {
-  const currentId = resident.buildingId ?? deps.defaultBuildingId;
-
-  if (!buildingId || buildingId === currentId) return resident;
+  if (!buildingId || buildingId === resident.buildingId) return resident;
 
   if (!isCompanyStaff(resident.role)) {
     throw new DomainError('forbidden', 'Чужой дом видят только сотрудники управляющей компании');
   }
 
-  if (!(await deps.repository.findBuilding(buildingId))) {
+  // Несуществующий дом и дом чужой организации отвечают одинаково: иначе
+  // перебором идентификаторов читается состав установки.
+  if (!(await deps.repository.findBuilding(buildingId)) || !(await servesBuilding(deps, resident, buildingId))) {
     throw new DomainError('building_not_found', 'Дом не найден');
-  }
-
-  if (!(await servesBuilding(deps, resident, buildingId))) {
-    throw new DomainError('forbidden', 'Дом обслуживает другая управляющая организация');
   }
 
   return { ...resident, buildingId };

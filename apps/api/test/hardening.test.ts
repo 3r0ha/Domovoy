@@ -390,6 +390,25 @@ describe('таблица кодов отказа', () => {
       app.inject({ method: 'GET', url: '/api/objects/непонятно', headers: authed(token) }),
       app.inject({ method: 'POST', url: '/api/me/notices', headers: authed(token), payload: { kind: 'x', on: true } }),
       app.inject({ method: 'POST', url: '/api/requests', headers: authed(token), payload: {} }),
+      // Отказы транспорта: до сценария дело не дошло, отвечает сама библиотека.
+      app.inject({
+        method: 'POST',
+        url: '/api/requests',
+        headers: { ...authed(token), 'content-type': 'application/xml' },
+        payload: '<заявка/>',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/requests',
+        headers: { ...authed(token), 'content-type': 'application/json' },
+        payload: '{',
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/files',
+        headers: { ...authed(token), 'content-type': 'application/json' },
+        payload: JSON.stringify({ contentType: 'image/jpeg', data: 'A'.repeat(3 * 1024 * 1024) }),
+      }),
     ]);
 
     for (const answer of answers) {
@@ -413,6 +432,235 @@ describe('таблица кодов отказа', () => {
 
     assert.equal(response.statusCode, 400);
     assert.equal(response.json().error, 'notice_unknown');
+
+    await app.close();
+  });
+});
+
+describe('отказы транспорта', () => {
+  it('подпись телефона не из hex отвечает отказом, а не сбоем сервера', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/me/contact',
+      headers: authed(token),
+      payload: { phone: '79990001122', authDate: '1756800000', hash: 'ю'.repeat(64) },
+    });
+
+    assert.equal(response.statusCode, 400, response.body);
+    assert.equal(response.json().error, 'schema_mismatch');
+
+    await app.close();
+  });
+
+  it('подпись телефона из hex, но чужая, не подтверждает номер', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/me/contact',
+      headers: authed(await login(1001)),
+      payload: { phone: '79990001122', authDate: '1756800000', hash: 'a'.repeat(64) },
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'contact_not_verified');
+
+    await app.close();
+  });
+
+  it('битое тело запроса это отказ разбора, а не сбой сервера', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/requests',
+      headers: { ...authed(await login(1001)), 'content-type': 'application/json' },
+      payload: '{',
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'body_not_json');
+
+    await app.close();
+  });
+
+  it('подстановка в прототип до обработчика не доходит', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/me/notices',
+      headers: { ...authed(await login(1001)), 'content-type': 'application/json' },
+      payload: '{"kind":"meters","on":true,"__proto__":{"подставлено":true}}',
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'body_not_json', 'тело отвергнуто на разборе');
+    assert.equal(({} as Record<string, unknown>)['подставлено'], undefined, 'прототип остался чистым');
+
+    await app.close();
+  });
+
+  it('пустое тело на ручке без обязательных полей принимается', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/me/logout',
+      headers: { ...authed(await login(1001)), 'content-type': 'application/json' },
+      payload: '',
+    });
+
+    assert.equal(response.statusCode, 204);
+
+    await app.close();
+  });
+
+  it('незнакомый тип содержимого отвечает 415, а не сбоем', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    for (const type of ['application/xml', 'чепуха']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/requests',
+        headers: { ...authed(token), 'content-type': type },
+        payload: '<заявка/>',
+      });
+
+      assert.equal(response.statusCode, 415, type);
+      assert.equal(response.json().error, 'media_type_unsupported', type);
+    }
+
+    await app.close();
+  });
+
+  it('тело сверх предела ручки снимков отвечает 413', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/files',
+      headers: { ...authed(await login(1001)), 'content-type': 'application/json' },
+      payload: JSON.stringify({ contentType: 'image/jpeg', data: 'A'.repeat(3 * 1024 * 1024) }),
+    });
+
+    assert.equal(response.statusCode, 413);
+    assert.equal(response.json().error, 'payload_too_long');
+
+    await app.close();
+  });
+
+  it('слишком длинный код объекта в адресе разбирается схемой, а не теряется маршрутом', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/context/${'a'.repeat(600)}`,
+      headers: authed(await login(1001)),
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, 'schema_mismatch');
+
+    await app.close();
+  });
+});
+
+describe('токен бота', () => {
+  it('без токена сервер не поднимается', async () => {
+    await assert.rejects(
+      buildServer({
+        botToken: '   ',
+        repository: new InMemoryRepository({ buildings: [], apartments: [] }),
+        defaultBuildingId: BUILDING_ID,
+      }),
+      /токен бота/i,
+    );
+  });
+});
+
+describe('выход из приложения', () => {
+  it('после выхода токен не работает', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    assert.equal((await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) })).statusCode, 200);
+
+    const out = await app.inject({ method: 'POST', url: '/api/me/logout', headers: authed(token) });
+
+    assert.equal(out.statusCode, 204);
+
+    const after = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
+
+    assert.equal(after.statusCode, 401);
+    assert.equal(after.json().error, 'session_invalid');
+
+    await app.close();
+  });
+
+  it('удаление профиля закрывает и сессию', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    assert.equal((await app.inject({ method: 'DELETE', url: '/api/me', headers: authed(token) })).statusCode, 204);
+
+    const after = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
+
+    assert.equal(after.statusCode, 401);
+    assert.equal(after.json().error, 'session_invalid', 'токен удалённого профиля не работает');
+
+    await app.close();
+  });
+});
+
+describe('заголовки приватных ответов', () => {
+  it('ответ по токену в общий кеш не кладётся', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({ method: 'GET', url: '/api/me', headers: authed(await login(1001)) });
+
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.match(String(response.headers['vary']), /authorization/i);
+
+    await app.close();
+  });
+
+  it('сжатие перечисляет в vary и кодировку, и токен', async () => {
+    const { app } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/legal',
+      headers: { 'accept-encoding': 'gzip' },
+    });
+
+    assert.equal(response.headers['content-encoding'], 'gzip');
+    assert.match(String(response.headers['vary']), /accept-encoding/i);
+    assert.match(String(response.headers['vary']), /authorization/i);
+
+    await app.close();
+  });
+
+  it('свой заголовок кеша ручка снимков не теряет', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/files',
+      headers: authed(token),
+      payload: { contentType: 'image/png', data: Buffer.from('снимок').toString('base64') },
+    });
+
+    const id = (created.json().token as string).replace('file:', '');
+    const file = await app.inject({ method: 'GET', url: `/api/files/${id}`, headers: authed(token) });
+
+    assert.equal(file.statusCode, 200);
+    assert.match(String(file.headers['cache-control']), /private/);
 
     await app.close();
   });

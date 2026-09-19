@@ -13,6 +13,7 @@ import {
   type Meter,
   type Poll,
   type Reading,
+  type RequestEvent,
   type ServiceRequest,
   type SupportTicket,
   type Visit,
@@ -36,10 +37,42 @@ import type {
   VisitFilter,
 } from './repository.js';
 
+/**
+ * Показание за тот же момент по тому же прибору одно: в базе это ключ, здесь
+ * прежняя запись убирается перед новой. Иначе расход считался бы по любой из двух.
+ */
+const replacing = (kept: Map<string, Reading>, reading: Reading): void => {
+  for (const [id, known] of kept) {
+    if (id !== reading.id && known.meterId === reading.meterId && known.at.getTime() === reading.at.getTime()) {
+      kept.delete(id);
+    }
+  }
+};
+
+/** Одно и то же событие заявки: те же время, состояние и автор. */
+const sameEvent = (one: RequestEvent, other: RequestEvent): boolean =>
+  one.at.getTime() === other.at.getTime() &&
+  one.status === other.status &&
+  one.actorId === other.actorId &&
+  one.kind === other.kind;
+
+/** История двух копий заявки: события обеих, по времени и без повторов. */
+const merged = (known: readonly RequestEvent[], saved: readonly RequestEvent[]): RequestEvent[] => {
+  const all = [...known];
+
+  for (const event of saved) {
+    if (!all.some((kept) => sameEvent(kept, event))) all.push(event);
+  }
+
+  return all.sort((one, other) => one.at.getTime() - other.at.getTime());
+};
+
 export class InMemoryRepository implements Repository {
   private readonly residents = new Map<string, Resident>();
   private readonly apartments = new Map<string, Apartment>();
   private readonly requests = new Map<string, ServiceRequest>();
+  /** Выданные номера заявок по дому и месяцу: номер не повторяется. */
+  private readonly sequences = new Map<string, number>();
   private readonly announcements = new Map<string, Announcement>();
   private readonly meters = new Map<string, Meter>();
   private readonly polls = new Map<string, Poll>();
@@ -168,15 +201,28 @@ export class InMemoryRepository implements Repository {
     return this.equipment.get(`${buildingId}:${code}`);
   }
 
+  /**
+   * Счётчик номеров, а не пересчёт заявок: два обращения, поданные разом, до
+   * записи первого видели одну и ту же длину списка и получали один номер.
+   */
   async nextRequestSequence(buildingId: string, at: Date): Promise<number> {
-    const sameMonth = [...this.requests.values()].filter(
-      (request) =>
-        request.buildingId === buildingId &&
-        request.createdAt.getUTCFullYear() === at.getUTCFullYear() &&
-        request.createdAt.getUTCMonth() === at.getUTCMonth(),
-    );
+    const period = `${at.getUTCFullYear()}-${at.getUTCMonth()}`;
+    const key = `${buildingId}:${period}`;
 
-    return sameMonth.length + 1;
+    const taken =
+      this.sequences.get(key) ??
+      [...this.requests.values()].filter(
+        (request) =>
+          request.buildingId === buildingId &&
+          request.createdAt.getUTCFullYear() === at.getUTCFullYear() &&
+          request.createdAt.getUTCMonth() === at.getUTCMonth(),
+      ).length;
+
+    const next = taken + 1;
+
+    this.sequences.set(key, next);
+
+    return next;
   }
 
   async buildingCode(buildingId: string): Promise<string | undefined> {
@@ -197,9 +243,25 @@ export class InMemoryRepository implements Repository {
     return request;
   }
 
+  /**
+   * История сливается, а не заменяется: сохранивший заявку по копии, прочитанной
+   * раньше, иначе стирал бы событие другой стороны. Состояние берётся из
+   * последнего перехода слитой истории, как это делает база.
+   */
   async saveRequest(request: ServiceRequest): Promise<ServiceRequest> {
-    this.requests.set(request.id, request);
-    return request;
+    const known = this.requests.get(request.id);
+    const history = known ? merged(known.history, request.history) : request.history;
+    const settled = [...history].reverse().find((event) => event.kind !== 'message');
+
+    const saved: ServiceRequest = {
+      ...request,
+      history,
+      ...(settled ? { status: settled.status } : {}),
+    };
+
+    this.requests.set(saved.id, saved);
+
+    return saved;
   }
 
   async findRequest(id: string): Promise<ServiceRequest | undefined> {
@@ -319,7 +381,9 @@ export class InMemoryRepository implements Repository {
   }
 
   async saveReading(reading: Reading): Promise<Reading> {
+    replacing(this.readings, reading);
     this.readings.set(reading.id, reading);
+
     return reading;
   }
 
@@ -340,7 +404,15 @@ export class InMemoryRepository implements Repository {
   }
 
   async saveHouseMeter(meter: HouseMeter): Promise<HouseMeter> {
+    // Прибор учёта на дом один на ресурс: база держит это ключом, память тоже.
+    for (const [id, known] of this.houseMeters) {
+      if (id !== meter.id && known.buildingId === meter.buildingId && known.kind === meter.kind) {
+        this.houseMeters.delete(id);
+      }
+    }
+
     this.houseMeters.set(meter.id, meter);
+
     return meter;
   }
 
@@ -353,7 +425,9 @@ export class InMemoryRepository implements Repository {
   }
 
   async saveHouseReading(reading: Reading): Promise<Reading> {
+    replacing(this.houseReadings, reading);
     this.houseReadings.set(reading.id, reading);
+
     return reading;
   }
 

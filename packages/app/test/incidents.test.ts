@@ -679,7 +679,7 @@ describe('паспорт объекта', () => {
 
     await transitionRequest(deps, { resident: dispatcher, requestId: first.request.id, to: 'accepted' });
 
-    const passport = await objectPassport(deps, 'eqp_b1_lift-1');
+    const passport = await objectPassport(deps, 'eqp_b1_lift-1', dispatcher);
 
     assert.equal(passport?.target, 'оборудование lift-1');
     assert.equal(passport?.totalRequests, 1);
@@ -709,7 +709,7 @@ describe('паспорт объекта', () => {
     deps.advance(HOUR);
     await transitionRequest(deps, { resident: maria, requestId: created.request.id, to: 'confirmed' });
 
-    const passport = await objectPassport(deps, 'eqp_b1_lift-1');
+    const passport = await objectPassport(deps, 'eqp_b1_lift-1', dispatcher);
 
     assert.equal(passport?.open.length, 0);
     assert.equal(passport?.lastRepairAt?.getTime(), START.getTime() + HOUR);
@@ -718,7 +718,7 @@ describe('паспорт объекта', () => {
   it('на чужой объект паспорта нет', async () => {
     const deps = setup();
 
-    assert.equal(await objectPassport(deps, 'ерунда'), null);
+    assert.equal(await objectPassport(deps, 'ерунда', dispatcher), null);
   });
 
   it('история одного объекта не смешивается с историей соседнего', async () => {
@@ -740,7 +740,7 @@ describe('паспорт объекта', () => {
     }
 
     for (const item of cases) {
-      const passport = await objectPassport(deps, item.startParam);
+      const passport = await objectPassport(deps, item.startParam, dispatcher);
 
       assert.equal(passport?.totalRequests, 1, `лишние заявки в паспорте «${item.startParam}»`);
       assert.equal(passport?.open[0]?.description, item.description);
@@ -753,7 +753,7 @@ describe('паспорт объекта', () => {
     asRequest(await submitProblem(deps, { resident: maria, description: 'Течёт кран', apartmentId: 'apt-1' }));
     asRequest(await submitProblem(deps, { resident: sonya, description: 'Течёт кран', apartmentId: 'apt-2' }));
 
-    const passport = await objectPassport(deps, 'apt_apt-1');
+    const passport = await objectPassport(deps, 'apt_apt-1', dispatcher);
 
     assert.equal(passport?.totalRequests, 1);
     assert.equal(passport?.target, 'квартира 1');
@@ -1067,7 +1067,7 @@ describe('сообщение о нарушенном сроке', () => {
 
     const text = deps.notifier.sent[0]?.text ?? '';
 
-    assert.match(text, /работы не выполнены в нормативный срок/);
+    assert.match(text, /работы не сделали в обещанный срок/);
     assert.match(text, /Сообщим об изменениях/);
     assert.equal(/жилищную инспекцию/.test(text), false);
   });
@@ -1383,7 +1383,7 @@ describe('человеческий адрес объекта', () => {
     assert.equal(created.kind, 'created');
     assert.equal(describeTarget(created.request.target), 'Лифт, подъезд 1');
 
-    const passport = await objectPassport(deps, 'eqp_b1_lift-1');
+    const passport = await objectPassport(deps, 'eqp_b1_lift-1', dispatcher);
 
     assert.equal(passport?.target, 'Лифт, подъезд 1');
   });
@@ -1391,7 +1391,7 @@ describe('человеческий адрес объекта', () => {
   it('наклейка, напечатанная раньше справочника, оставляет код', async () => {
     const deps = setup();
 
-    const passport = await objectPassport(deps, 'eqp_b1_lift-9');
+    const passport = await objectPassport(deps, 'eqp_b1_lift-9', dispatcher);
 
     assert.equal(passport?.target, 'оборудование lift-9');
   });

@@ -1,7 +1,7 @@
 import { promisify } from 'node:util';
 import { brotliCompress, constants, gzip } from 'node:zlib';
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 
 const toBrotli = promisify(brotliCompress);
 const toGzip = promisify(gzip);
@@ -13,6 +13,18 @@ export interface CompressOptions {
 
 /** Что сжимается: ответы API это текст, картинки и шрифты сжаты своим форматом. */
 const TEXTUAL = /json|text\/|javascript|xml|svg/;
+
+/** Добавляет заголовок в `vary`, не затирая уже перечисленные. */
+export const appendVary = (reply: FastifyReply, name: string): void => {
+  const current = String(reply.getHeader('vary') ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (current.some((part) => part.toLowerCase() === name)) return;
+
+  reply.header('vary', [...current, name].join(', '));
+};
 
 /** Сжатая статика лежит готовой рядом с файлами, её трогать не нужно. */
 const encodingOf = (accepted: string): 'br' | 'gzip' | undefined => {
@@ -46,7 +58,7 @@ export const applyCompression = (fastify: FastifyInstance, options: CompressOpti
 
     reply.header('content-encoding', encoding);
     reply.header('content-length', packed.length);
-    reply.header('vary', 'accept-encoding');
+    appendVary(reply, 'accept-encoding');
 
     return packed;
   });

@@ -2,7 +2,7 @@ import { Button, IconButton, Input, Textarea } from '@maxhub/max-ui';
 import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState, type FormEvent } from 'react';
 
-import { ApiError, type AnnouncementView, type DomovoyApi } from '../api.js';
+import { ApiError, parseCount, plural, type AnnouncementView, type DomovoyApi } from '../api.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -17,16 +17,7 @@ export interface AnnouncementsScreenProps {
   showReach?: boolean;
 }
 
-const countFlats = (count: number): string => {
-  const tail = count % 100;
-  const last = count % 10;
-
-  if (tail >= 11 && tail <= 14) return `${count} квартир`;
-  if (last === 1) return `${count} квартира`;
-  if (last >= 2 && last <= 4) return `${count} квартиры`;
-
-  return `${count} квартир`;
-};
+const countFlats = (count: number): string => plural(count, 'квартира', 'квартиры', 'квартир');
 
 /** Вид работ теми же категориями, что и заявки. */
 const WORK_KINDS: { value: string; title: string }[] = [
@@ -63,6 +54,23 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
       return;
     }
 
+    const porch = entrance ? parseCount(entrance, 1, 99) : undefined;
+    const pipe = entrance && riser ? parseCount(riser, 1, 99) : undefined;
+
+    if (porch === null || pipe === null) {
+      setError('Подъезд и стояк это номера от 1 до 99');
+      return;
+    }
+
+    const started = from ? new Date(from) : new Date();
+    const ends = until ? new Date(until) : null;
+
+    // Окончание раньше начала прошло бы на сервер и закрыло работы до их начала.
+    if (ends && ends.getTime() <= started.getTime()) {
+      setError('Работы не могут кончиться раньше, чем начались');
+      return;
+    }
+
     setSending(true);
     setError(null);
 
@@ -70,14 +78,14 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
       const published = await api.publishAnnouncement({
         title: title.trim(),
         body: body.trim(),
-        ...(entrance ? { entrance: Number(entrance) } : {}),
-        ...(entrance && riser ? { riser: Number(riser) } : {}),
-        ...(works && until
+        ...(porch === undefined ? {} : { entrance: porch }),
+        ...(pipe === undefined ? {} : { riser: pipe }),
+        ...(works && ends
           ? {
               works: {
                 category: works,
-                from: from ? new Date(from).toISOString() : new Date().toISOString(),
-                until: new Date(until).toISOString(),
+                from: started.toISOString(),
+                until: ends.toISOString(),
               },
             }
           : {}),
@@ -134,8 +142,7 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
             <Input
               className="field"
               id="entrance"
-              type="number"
-              min={1}
+              inputMode="numeric"
               value={entrance}
               withClearButton={false}
               placeholder="весь дом"
@@ -148,8 +155,7 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
             <Input
               className="field"
               id="riser"
-              type="number"
-              min={1}
+              inputMode="numeric"
               value={riser}
               withClearButton={false}
               placeholder="весь подъезд"
@@ -297,7 +303,7 @@ const AnnouncementCard = ({ announcement, showReach }: { announcement: Announcem
 const PAGE = 20;
 
 export const AnnouncementsScreen = ({ api, showReach }: AnnouncementsScreenProps) => {
-  const announcements = useBridgeRequest(() => api.listAnnouncements(), [api]);
+  const announcements = useBridgeRequest((alive) => api.until(alive).listAnnouncements(), [api]);
   const older = usePages<AnnouncementView>((cursor) => api.listAnnouncements(cursor), PAGE);
   const feed = [...(announcements.data ?? []), ...older.items];
 

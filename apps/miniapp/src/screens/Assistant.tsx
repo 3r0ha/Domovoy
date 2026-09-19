@@ -2,11 +2,13 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
+import { useTrapped } from '../focus.js';
 import { useHaptics } from '../haptics.js';
 import { useFit } from './Composer.js';
 import { Domovoy } from './Domovoy.js';
 import { ErrorText } from './ErrorText.js';
 import { IconHelp, IconSend } from './icons.js';
+import { VoiceButton } from './VoiceButton.js';
 
 export interface AssistantProps {
   api: DomovoyApi;
@@ -69,9 +71,13 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
   const haptics = useHaptics();
   const tail = useRef<HTMLDivElement>(null);
   const field = useFit(question);
+  const sheet = useTrapped<HTMLElement>(true);
 
   // Подсказки зависят от роли, поэтому приходят с сервера. Без них помощник работает.
-  const opening = useBridgeRequest(() => api.assistantStarters().catch(() => ({ starters: [] })), [api]);
+  const opening = useBridgeRequest(
+    (alive) => api.until(alive).assistantStarters().catch(() => ({ starters: [] })),
+    [api],
+  );
   const starters = opening.data?.starters ?? [];
 
   // Свежая реплика всегда на виду: разговор прокручивается сам. Первый показ
@@ -128,7 +134,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
     <div className="guide" role="dialog" aria-modal="true" aria-label="Помощник">
       <button type="button" className="guide-veil" aria-label="Закрыть помощника" onClick={onClose} />
 
-      <section className="guide-sheet assistant">
+      <section className="guide-sheet assistant" ref={sheet}>
         <header className="assistant-head">
           <Domovoy mood="walking" />
 
@@ -184,6 +190,17 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
         {failed ? <ErrorText>{failed}</ErrorText> : null}
 
         <div className="composer assistant-ask">
+          {/* Сказанное попадает в поле, а не уходит вопросом само: человек
+              должен увидеть, что распознали, и поправить. */}
+          <VoiceButton
+            api={api}
+            compact
+            label="Вопрос помощнику"
+            onText={(said) =>
+              setQuestion((current) => (current.trim().length === 0 ? said : `${current.trimEnd()} ${said}`))
+            }
+          />
+
           <textarea
             ref={field}
             className="composer-field"

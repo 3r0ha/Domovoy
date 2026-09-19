@@ -1116,10 +1116,10 @@ describe('общедомовой узел учёта', () => {
     const charges = await app.inject({ method: 'GET', url: '/api/charges', headers: authed(token) });
     const line = charges
       .json<{ lines: { title: string; amount: number }[] }>()
-      .lines.find((item) => item.title.includes('ОДН'));
+      .lines.find((item) => item.title.includes('общие нужды'));
 
     assert.ok(line, 'общедомовой строки в квитанции нет');
-    assert.equal(line.title, 'Холодная вода, ОДН');
+    assert.equal(line.title, 'Холодная вода на общие нужды дома');
   });
 });
 

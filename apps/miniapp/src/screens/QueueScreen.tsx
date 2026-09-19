@@ -93,7 +93,7 @@ const summarize = (all: readonly RequestView[]): Summary => {
 
 /** Очередь дома: просроченное сверху, дальше по сроку. */
 export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: QueueScreenProps) => {
-  const queue = useBridgeRequest(() => api.listRequests('queue'), [api, version]);
+  const queue = useBridgeRequest((alive) => api.until(alive).listRequests('queue'), [api, version]);
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [limit, setLimit] = useState(QUEUE_PAGE);
   const [query, setQuery] = useState('');
@@ -258,7 +258,7 @@ export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: Q
               {...(canAccept && request.status === 'new'
                 ? {
                     action: {
-                      title: taking === request.id ? '…' : actionTitle('accepted'),
+                      title: taking === request.id ? 'Берём…' : actionTitle('accepted'),
                       busy: taking !== null,
                       run: () => void accept(request.id),
                     },

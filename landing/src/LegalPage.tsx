@@ -17,14 +17,14 @@ export const LegalPage = ({ slug }: { slug: string }) => {
     <>
       <Top />
 
-      <main id="top">
+      <main id="top" tabIndex={-1}>
         <article className="paper">
           <Hem open className="paper-hem" />
 
           <div className="wrap paper-inner">
             <h1 className="paper-title">{document.title}</h1>
             <p className="lead">{document.about}</p>
-            <p className="hint paper-version">Редакция от {LEGAL_UPDATED}</p>
+            <p className="paper-version">Редакция от {LEGAL_UPDATED}</p>
 
             {document.parts.map((part) => (
               <section key={part.heading} className="paper-part">

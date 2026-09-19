@@ -1,11 +1,14 @@
 import { useClosingConfirmation } from '@maxkit/react';
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 
+import type { DomovoyApi } from '../api.js';
 import type { PhotoUpload } from '../use-photos.js';
 import { ErrorText } from './ErrorText.js';
 import { IconCamera, IconSend } from './icons.js';
+import { VoiceButton } from './VoiceButton.js';
 
 export interface ComposerProps {
+  api: DomovoyApi;
   value: string;
   /** Что написано в пустом поле. */
   placeholder: string;
@@ -50,6 +53,7 @@ export const useFit = (value: string): RefObject<HTMLTextAreaElement | null> => 
 
 /** Строка ответа: поле во всю ширину, кнопки внутри него, как в переписке. */
 export const Composer = ({
+  api,
   value,
   placeholder,
   label,
@@ -74,17 +78,36 @@ export const Composer = ({
     <div className="composer">
       {photos.error ? <ErrorText className="composer-error">{photos.error}</ErrorText> : null}
 
+      {/* Подпись поля файла с клавиатуры недостижима: своя роль и свой Enter
+          дают ей то же, что есть у кнопки рядом. */}
       <label
         className={photos.uploading ? 'composer-icon composer-busy' : 'composer-icon'}
         htmlFor={pick}
         title="Приложить фото"
         aria-label="Приложить фото"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+
+          event.preventDefault();
+          event.currentTarget.click();
+        }}
       >
         <IconCamera />
         {photos.photos.length > 0 ? <span className="photo-count">{photos.photos.length}</span> : null}
       </label>
 
       <input id={pick} className="composer-file" type="file" accept="image/*" onChange={photos.attach} />
+
+      {/* Сказанное дописывается к набранному, а не отправляется само: человек
+          должен увидеть, что распознали, и поправить. */}
+      <VoiceButton
+        api={api}
+        compact
+        label={label}
+        onText={(said) => onChange(value.trim().length === 0 ? said : `${value.trimEnd()} ${said}`)}
+      />
 
       {extra}
 

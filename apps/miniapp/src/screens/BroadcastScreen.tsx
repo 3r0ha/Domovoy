@@ -107,7 +107,7 @@ const Chips = ({
 
 /** Рассылка по личным перепискам: адресат, охват и текст на одном экране. */
 export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
-  const targets = useBridgeRequest(() => api.broadcastTargets(), [api]);
+  const targets = useBridgeRequest((alive) => api.until(alive).broadcastTargets(), [api]);
   const haptics = useHaptics();
 
   const [kind, setKind] = useState<Kind>('building');

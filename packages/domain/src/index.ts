@@ -143,6 +143,7 @@ export {
   INITIATIVE_SHARE,
   POLL_RULES,
   areaToQuorum,
+  areasMissingNote,
   castVote,
   countVotes,
   electElder,
@@ -180,11 +181,13 @@ export {
   isReadingWindow,
   isSameMonth,
   isSpike,
+  periodOf,
   verificationState,
   type Meter,
   type MeterKind,
   type MeteringDevice,
   type MeterRule,
+  type ReadingWindow,
   type ConsumptionComparison,
   type Reading,
   type SubmitReadingInput,
@@ -337,6 +340,7 @@ export {
 
 export { days, formatArea, formatMeterValue, formatMoney, months, plural } from './russian.js';
 export { crossedIn, inPeriod, median, roundMoney } from './numbers.js';
+export { mentionsNumber, numberFromWords } from './numerals.js';
 export {
   addWorkingDays,
   answerDueAt,
@@ -344,6 +348,7 @@ export {
   compareTickets,
   isAnswerOverdue,
   openTicket,
+  PUBLIC_HOLIDAYS,
   replyToTicket,
   SUPPORT_ANSWER_DAYS,
   TICKET_STATUS_TITLES,

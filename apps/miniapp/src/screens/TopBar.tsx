@@ -1,4 +1,4 @@
-import { type DomovoyApi } from '../api.js';
+import { formatPublished, type DomovoyApi } from '../api.js';
 import { ApartmentPicker } from './ApartmentPicker.js';
 import { AssistantButton } from './Assistant.js';
 import { BuildingPicker } from './BuildingPicker.js';
@@ -20,6 +20,17 @@ export interface TopBarProps {
   onAssistant?: () => void;
 }
 
+/** Нет связи: что показано на экране и насколько оно старое. */
+const Saved = ({ api }: { api: DomovoyApi }) => {
+  const at = api.savedAt();
+
+  return (
+    <p className="offline-note" role="status">
+      Нет связи. {at ? `Показываем сохранённое ${formatPublished(at)}` : 'Показывать пока нечего'}
+    </p>
+  );
+};
+
 /** Шапка: название экрана, переключатели дома и квартиры, обновление. */
 export const TopBar = ({
   api,
@@ -35,12 +46,6 @@ export const TopBar = ({
     <div className="topbar-line">
       <h1 className="screen-title">{title}</h1>
 
-      {offline ? (
-        <span className="badge badge-offline" role="status">
-          нет связи
-        </span>
-      ) : null}
-
       <div className="topbar-acts">
         {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
 
@@ -49,6 +54,10 @@ export const TopBar = ({
         </button>
       </div>
     </div>
+
+    {/* Связи нет: важно не только это, но и на какой момент показано то, что
+        на экране. Значком в углу такое не сказать, поэтому строкой и словами. */}
+    {offline ? <Saved api={api} /> : null}
 
     {/* Дом и квартира идут своей строкой: адрес длинный, а название экрана
         и помощник не должны из-за него ужиматься. */}

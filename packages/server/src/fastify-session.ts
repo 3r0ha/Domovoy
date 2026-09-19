@@ -7,6 +7,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Сессия, выданная в обмен на параметры запуска. */
     maxSession: SessionRecord;
+    /** Токен этой сессии: им она отзывается при выходе. */
+    maxSessionToken: string;
   }
 }
 
@@ -32,6 +34,7 @@ const bearerToken = (request: FastifyRequest): string | null => {
 const plugin: FastifyPluginAsync<MaxSessionOptions> = async (fastify, options) => {
   if (!fastify.hasRequestDecorator('max')) fastify.decorateRequest('max');
   if (!fastify.hasRequestDecorator('maxSession')) fastify.decorateRequest('maxSession');
+  if (!fastify.hasRequestDecorator('maxSessionToken')) fastify.decorateRequest('maxSessionToken');
 
   fastify.addHook('onRequest', async (request, reply) => {
     if (options.skip?.(request)) return;
@@ -41,6 +44,7 @@ const plugin: FastifyPluginAsync<MaxSessionOptions> = async (fastify, options) =
     try {
       const session = await options.auth.verify(token);
 
+      request.maxSessionToken = token as string;
       request.maxSession = session;
       request.max = { data: session.data, userId: session.userId, raw: session.initData };
     } catch (error) {

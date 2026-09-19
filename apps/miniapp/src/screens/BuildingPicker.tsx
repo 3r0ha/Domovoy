@@ -1,6 +1,7 @@
 import { useBridgeRequest } from '@maxkit/react';
 
 import { type BuildingView, type DomovoyApi } from '../api.js';
+import { RetryLink } from './Retry.js';
 
 export interface BuildingPickerProps {
   api: DomovoyApi;
@@ -13,12 +14,17 @@ const title = (building: BuildingView): string => `${building.code} · ${buildin
 
 /** Выбор дома. Показывается, только когда домов больше одного. */
 export const BuildingPicker = ({ api, value, onChange }: BuildingPickerProps) => {
-  const buildings = useBridgeRequest(() => api.buildings().catch(() => []), [api]);
+  const buildings = useBridgeRequest((alive) => api.until(alive).buildings(), [api]);
   const all = buildings.data ?? [];
 
   // С одним домом выбирать нечего, но адрес на экране нужен: по нему видно,
   // за какой дом идёт очередь и сводка.
   if (all.length === 1) return <span className="building building-one">{title(all[0]!)}</span>;
+
+  // Отказ сети без этой строки читается как «домов нет»: выбор просто пропадает.
+  if (all.length === 0 && buildings.error) {
+    return <RetryLink title="Дома не загрузились" onRetry={buildings.reload} />;
+  }
 
   if (all.length === 0) return null;
 

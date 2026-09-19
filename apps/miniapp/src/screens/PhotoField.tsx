@@ -32,10 +32,20 @@ export const PhotoField = ({ label, count, uploading, error, withLabel, size, on
         disabled={uploading}
         aria-label={label}
       >
+        {/* Подпись поля файла с клавиатуры недостижима: своя роль и свой Enter
+            дают ей то же, что есть у обычной кнопки. */}
         <label
           className={`${withLabel ? 'photo-wide' : 'photo-pick'}${uploading ? ' photo-busy' : ''}`}
           htmlFor={id}
           title={label}
+          role="button"
+          tabIndex={uploading ? -1 : 0}
+          onKeyDown={(event) => {
+            if (uploading || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+            event.preventDefault();
+            event.currentTarget.click();
+          }}
         >
           <IconCamera />
           {withLabel ? <span>{uploading ? 'Отправляем…' : label}</span> : null}

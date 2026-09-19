@@ -71,6 +71,31 @@ describe('сводка по дому', () => {
     assert.equal(summary.rejected, 1);
   });
 
+  it('нарушенный норматив считается одним правилом со сводкой по категориям', () => {
+    const late = new Date(CREATED_AT.getTime() + 100 * HOUR);
+    const closed = step(step(step(request(), 'accepted'), 'in_progress', { assigneeId: 'tech-1' }), 'done', {
+      at: late,
+    });
+
+    const now = new Date(late.getTime() + HOUR);
+    const [load] = categoryLoad([closed], now);
+    const summary = summarize([closed], now);
+
+    assert.equal(summary.missed, 1, 'норматив нарушен, хоть работа и сдана');
+    assert.equal(load?.overdue, 1);
+
+    // «Горит сейчас» это другой вопрос: по сданной работе смене бежать некуда.
+    assert.equal(summary.overdue, 0);
+  });
+
+  it('горящей считается открытая заявка, у которой вышел срок', () => {
+    const now = new Date(CREATED_AT.getTime() + 100 * HOUR);
+    const summary = summarize([request()], now);
+
+    assert.equal(summary.overdue, 1);
+    assert.equal(summary.missed, 1);
+  });
+
   it('показывает, сколько обращений сэкономила склейка', () => {
     const merged = joinRequest(joinRequest(request(), 'res-2', CREATED_AT), 'res-3', CREATED_AT);
 
@@ -296,10 +321,11 @@ describe('итоги за период', () => {
     assert.equal(summarizePeriod([edge], before, now).created, 1);
   });
 
-  it('пустой период даёт стопроцентную долю, а не деление на ноль', () => {
+  it('на пустом периоде доли нет: обещать сто процентов не по чему', () => {
     const summary = summarizePeriod([], month, now);
 
-    assert.equal(summary.inTimeRate, 1);
+    assert.equal(summary.closed, 0);
+    assert.equal(summary.inTimeRate, 0);
     assert.equal(summary.averageHours, 0);
     assert.equal(summary.rated, 0);
     assert.equal(summary.averageRating, 0);

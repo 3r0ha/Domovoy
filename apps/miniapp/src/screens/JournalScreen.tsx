@@ -30,7 +30,11 @@ const title = (event: DoorEventView): string => {
 
 /** Журнал открытий дверей и выданных кодов. */
 export const JournalScreen = ({ api }: JournalScreenProps) => {
-  const journal = useBridgeRequest(async () => Promise.all([api.doorJournal(), api.devices()]), [api]);
+  const journal = useBridgeRequest(async (alive) => {
+    const reading = api.until(alive);
+
+    return Promise.all([reading.doorJournal(), reading.devices()]);
+  }, [api]);
   const older = usePages<DoorEventView>((cursor) => api.doorJournal(cursor), PAGE);
 
   if (journal.loading && !journal.data) return <Skeleton count={3} />;

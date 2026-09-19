@@ -24,7 +24,7 @@ const LOOKS: Readonly<Record<string, { icon: () => ReactNode; tone: string }>> =
 
 /** Роль для проверки: один аккаунт смотрит продукт глазами любой из сторон. */
 export const DemoScreen = ({ api, onSwitched }: DemoScreenProps) => {
-  const roles = useBridgeRequest(() => api.demoRoles(), [api]);
+  const roles = useBridgeRequest((alive) => api.until(alive).demoRoles(), [api]);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
 

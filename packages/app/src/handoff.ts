@@ -19,6 +19,7 @@ import {
 
 import { recordAction } from './audit.js';
 import { assertServes } from './buildings.js';
+import { assertStaffServes, canView } from './use-cases/access.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Building, HousePartner, Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -192,19 +193,19 @@ export interface AnswerHandoffInput {
   status: HandoffStatus;
   answer?: string;
   externalId?: string;
-  /** Кто записал ответ. Пусто означает, что ответ пришёл каналом. */
-  staff?: Resident;
+  /** Кто записал ответ. */
+  staff: Resident;
 }
 
 /** Записывает ответ принимающей стороны. @throws {DomainError} */
 export const answerHandoff = async (deps: AppDeps, input: AnswerHandoffInput): Promise<Handoff> => {
-  if (input.staff) assertStaff(input.staff);
+  assertStaff(input.staff);
 
   const handoff = await deps.repository.findHandoff(input.handoffId);
 
   if (!handoff) throw new DomainError('handoff_not_found', 'Переданное обращение не найдено');
 
-  if (input.staff) await assertServes(deps, input.staff, handoff.buildingId);
+  await assertServes(deps, input.staff, handoff.buildingId);
 
   const now = deps.now();
   const answered = input.status === 'answered' || input.status === 'failed';
@@ -231,9 +232,18 @@ export const answerHandoff = async (deps: AppDeps, input: AnswerHandoffInput): P
   return saved;
 };
 
-/** Переданные обращения по заявке. */
-export const handoffsOf = async (deps: AppDeps, requestId: string): Promise<Handoff[]> =>
-  deps.repository.listHandoffs({ requestId });
+/** Переданные обращения по заявке: их читает тот, кому видна сама заявка. @throws {DomainError} */
+export const handoffsOf = async (deps: AppDeps, requestId: string, viewer: Resident): Promise<Handoff[]> => {
+  const request = await deps.repository.findRequest(requestId);
+
+  if (!request || !canView(viewer, request)) {
+    throw new DomainError('request_not_found', 'Заявка не найдена');
+  }
+
+  await assertStaffServes(deps, viewer, request);
+
+  return deps.repository.listHandoffs({ requestId });
+};
 
 /** Переданные обращения дома, по которым ответа ещё нет. @throws {DomainError} */
 export const waitingHandoffs = async (deps: AppDeps, staff: Resident, buildingId?: string): Promise<Handoff[]> => {

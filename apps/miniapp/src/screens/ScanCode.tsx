@@ -1,3 +1,4 @@
+import { MaxBridgeError } from '@maxkit/bridge';
 import { Button } from '@maxhub/max-ui';
 import { useBridge, useSupports } from '@maxkit/react';
 import { useState } from 'react';
@@ -27,6 +28,21 @@ export const codeFromScan = (scanned: string): string | undefined => {
   }
 };
 
+/**
+ * Почему камера не открылась. Отказ без слов выглядит как несработавшее
+ * нажатие: человек жмёт ещё раз и снова ничего не получает.
+ */
+const cameraRefusal = (reason: unknown): string | null => {
+  if (!(reason instanceof MaxBridgeError)) return 'Камера не открылась, введите код вручную';
+
+  // Закрытое самим человеком окно камеры объяснять нечего.
+  if (reason.isAborted) return null;
+  if (reason.isPermissionDenied) return 'Нет доступа к камере: разрешите его в настройках клиента MAX';
+  if (reason.isUnsupported || reason.isOutsideMax) return 'Этот клиент MAX не читает коды, введите код вручную';
+
+  return 'Камера не открылась, введите код вручную';
+};
+
 /** Чтение наклейки камерой клиента MAX. */
 export const useCodeScanner = (
   onScanned: (startParam: string) => void,
@@ -48,8 +64,8 @@ export const useCodeScanner = (
       }
 
       onScanned(code);
-    } catch {
-      setError(null);
+    } catch (reason) {
+      setError(cameraRefusal(reason));
     }
   };
 

@@ -18,6 +18,7 @@ import {
   surveyOf,
   transitionRequest,
   CLOSED_PAGE,
+  MAX_FILE_BYTES,
   type RequestScope,
 } from '@domovoy/app';
 import {
@@ -48,6 +49,12 @@ import {
   STATUSES,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
+
+/** Снимок в base64 весит на треть больше, и перед данными бывает заголовок data-URL. */
+const FILE_BASE64_MAX = Math.ceil(MAX_FILE_BYTES / 3) * 4 + 64;
+
+/** Предел тела запроса со снимком: больше разрешённого файла читать незачем. */
+const FILE_BODY_LIMIT = FILE_BASE64_MAX + 1024;
 
 /** Обращение как его присылает клиент. */
 interface SubmitBody {
@@ -472,14 +479,14 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     scope.post<{ Body: { contentType: string; data: string } }>(
       '/api/files',
       {
-        bodyLimit: 4 * 1024 * 1024,
+        bodyLimit: FILE_BODY_LIMIT,
         schema: {
           body: {
             type: 'object',
             required: ['contentType', 'data'],
             properties: {
               contentType: { type: 'string', maxLength: 100 },
-              data: { type: 'string', maxLength: 3 * 1024 * 1024 },
+              data: { type: 'string', maxLength: FILE_BASE64_MAX },
             },
           },
           response: {

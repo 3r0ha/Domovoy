@@ -6,9 +6,14 @@
   box-sizing: border-box;
 }
 
+/*
+ * Размер в rem, а не в пикселях: при системном увеличении шрифта пиксели
+ * остаются на месте, и весь интерфейс мимо настройки человека, которому
+ * приложение и нужно крупнее.
+ */
 body {
   margin: 0;
-  font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font: 1rem/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .app {
@@ -16,20 +21,30 @@ body {
   --card: var(--background-card, #ffffff);
   --text: var(--text-primary, #060708);
   --muted: var(--text-secondary, rgb(6 7 8 / 68%));
-  /* Этим цветом написаны сроки и подсказки: ниже 62% они плохо читаются. */
-  --faint: var(--text-tertiary, rgb(6 7 8 / 62%));
+  /*
+   * Этим цветом написаны сроки и подсказки. Считается от цвета текста темы,
+   * а не берётся из --text-tertiary: там 52% чёрного, а это 4,1:1 на карточке
+   * при пороге 4,5. Здесь 62%, то есть 5,8:1 на карточке и 5:1 на подложке.
+   */
+  --faint: color-mix(in srgb, var(--text) 62%, transparent);
   --accent: var(--text-themed, #007aff);
   --danger: var(--text-negative, #ed0a34);
   --border: var(--divider-primary, rgb(12 13 14 / 16%));
   --warning: color-mix(in srgb, #e07b00 65%, var(--text));
   --success: color-mix(in srgb, #12b76a 62%, var(--text));
   --danger-text: color-mix(in srgb, var(--danger) 74%, var(--text));
+  /* Цвет акцента буквами: сам акцент даёт 4:1 на белом и 3,3:1 на подложке 14%. */
+  --accent-text: color-mix(in srgb, var(--accent) 82%, var(--text));
+  /* Тот же красный под белыми буквами: на исходном белое читается хуже порога. */
+  --danger-solid: color-mix(in srgb, var(--danger) 82%, #000000);
   --sunk: var(--background-tertiary, rgb(9 9 9 / 5%));
 
-  --font-meta: 15px;
-  --font-body: 15px;
-  --font-item: 17px;
-  --font-head: 20px;
+  --font-small: 0.875rem;
+  --font-meta: 1rem;
+  --font-body: 1rem;
+  --font-item: 1.0625rem;
+  --font-title: 1.125rem;
+  --font-head: 1.25rem;
 
   min-height: 100dvh;
   background: var(--bg);
@@ -87,7 +102,7 @@ h1 {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: 24px;
+  font-size: 1.5rem;
   letter-spacing: -0.02em;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -262,7 +277,7 @@ button.now-row {
 .now-chevron {
   margin-left: auto;
   color: var(--faint);
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
 }
 
@@ -384,12 +399,13 @@ button.link.danger-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 40px;
+  /* Палец промахивается по цели ниже 44: помощник вызывается отсюда. */
+  min-height: 44px;
   padding: 0 14px 0 10px;
   border: 0;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  color: var(--accent-text);
   font: inherit;
   font-size: var(--font-meta);
   font-weight: 500;
@@ -406,10 +422,17 @@ button.link.danger-link {
   height: 20px;
 }
 
-.badge-offline {
-  flex: none;
-  background: var(--sunk);
-  color: var(--muted);
+/*
+ * Нет связи и на какой момент показано то, что на экране. Строкой, а не
+ * значком в углу: значком срок не назвать, а знак вместо слов не читается.
+ */
+.offline-note {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+  color: var(--warning);
+  font-size: var(--font-meta);
 }
 
 .badge {
@@ -417,13 +440,13 @@ button.link.danger-link {
   border-radius: 999px;
   background: var(--counter-themed, var(--accent));
   color: var(--text-primary-inverse-static, #fff);
-  font-size: 11px;
+  font-size: var(--font-small);
 }
 
 /* Столько дел ждёт человека: тот же знак, что в нижней панели. */
 .badge-waiting {
-  min-width: 20px;
-  background: var(--danger);
+  min-width: 22px;
+  background: var(--danger-solid);
   color: #fff;
   font-weight: 600;
   text-align: center;
@@ -592,6 +615,23 @@ button.link.danger-link {
   font-weight: 500;
 }
 
+/* Часть экрана не загрузилась: отказ назван и его есть чем повторить. */
+.retry-title {
+  margin: 0 0 4px;
+  font-size: var(--font-item);
+  font-weight: 600;
+}
+
+.retry .hint {
+  margin: 0 0 12px;
+}
+
+.link.retry-link {
+  align-self: flex-start;
+  color: var(--danger-text);
+  text-align: left;
+}
+
 .block > button {
   margin-top: 10px;
 }
@@ -620,7 +660,7 @@ button.link.danger-link {
 }
 
 .badge-incident {
-  background: var(--danger);
+  background: var(--danger-solid);
 }
 
 .badge-risk,
@@ -746,7 +786,7 @@ input[type='search']::-webkit-search-decoration {
 /* Подпись столбца переносится: обрезанное «Подъ…» не читается. */
 .rows-head {
   align-items: flex-end;
-  font-size: 12px;
+  font-size: var(--font-small);
   line-height: 1.2;
 }
 
@@ -801,7 +841,7 @@ input[type='search']::-webkit-search-decoration {
   border-radius: 12px;
   background: none;
   color: var(--faint);
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -1005,6 +1045,23 @@ main > * > .loading:only-child {
   padding: 24px;
   background: rgb(0 0 0 / 88%);
   cursor: zoom-out;
+}
+
+/* Выход из просмотра снимка: кнопка на виду, а не только касание мимо картинки. */
+.viewer-close {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 18%);
+  color: #fff;
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .viewer img {
@@ -1241,7 +1298,8 @@ main > * > .loading:only-child {
   align-items: center;
   gap: 8px;
   padding: 0 16px;
-  height: 40px;
+  /* Снять табло счётчика нечем, если промахиваться по кнопке ниже 44. */
+  min-height: 44px;
   border-radius: 12px;
   cursor: pointer;
 }
@@ -1260,15 +1318,15 @@ main > * > .loading:only-child {
   position: absolute;
   top: 0;
   right: 0;
-  min-width: 16px;
-  height: 16px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--accent);
   color: #fff;
-  font-size: 10px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 16px;
+  line-height: 18px;
   text-align: center;
 }
 
@@ -1286,6 +1344,8 @@ main > * > .loading:only-child {
 /* Подпись на кнопке меняется по ходу дела: ширина держится, чтобы строка не дёргалась. */
 .steady {
   min-width: 7.5rem;
+  /* Дверь открывают на ходу, одной рукой: цель не мельче 44. */
+  min-height: 44px;
   justify-content: center;
 }
 
@@ -1458,7 +1518,7 @@ main > * > .empty:only-child {
   display: block;
   margin-top: 2px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--font-small);
   font-weight: 400;
 }
 
@@ -1520,6 +1580,9 @@ main > * > .empty:only-child {
 }
 
 button.flat {
+  /* Нажимаемая квартира, а не подпись: цель не мельче 44, иначе попадают в соседнюю. */
+  min-width: 44px;
+  min-height: 44px;
   border: 0;
   font-family: inherit;
   cursor: pointer;
@@ -1615,7 +1678,7 @@ button.flat {
 
 .amount {
   margin: 0;
-  font-size: 34px;
+  font-size: 2.125rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -1652,7 +1715,7 @@ button.flat {
 
 .guest-code {
   margin: 8px 0 4px;
-  font-size: 40px;
+  font-size: 2.5rem;
   font-weight: 600;
   letter-spacing: 0.14em;
   font-variant-numeric: tabular-nums;
@@ -1725,7 +1788,7 @@ button.flat {
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: var(--font-small);
   line-height: 1;
   white-space: nowrap;
   color: var(--muted);
@@ -1846,16 +1909,16 @@ button.flat {
   position: absolute;
   top: -5px;
   left: 13px;
-  min-width: 17px;
-  height: 17px;
+  min-width: 19px;
+  height: 19px;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: 10px;
   box-shadow: 0 0 0 2px var(--background-card, var(--card));
-  background: var(--danger);
+  background: var(--danger-solid);
   color: #fff;
-  font-size: 11px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 17px;
+  line-height: 19px;
   text-align: center;
 }
 
@@ -1872,8 +1935,8 @@ button.flat {
   background: none;
   color: var(--muted);
   font: inherit;
-  /* Подпись раздела читают пожилые глаза: меньше 12 пикселей нельзя. */
-  font-size: clamp(12px, 3.2vw, 13px);
+  /* Подпись раздела читают пожилые глаза: в rem, чтобы её увеличивала система. */
+  font-size: clamp(0.8125rem, 3.2vw, 0.875rem);
   line-height: 1.15;
   cursor: pointer;
 }
@@ -1892,7 +1955,7 @@ button.flat {
 }
 
 .tabs .tab-active {
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 600;
   background: none;
 }
@@ -2037,7 +2100,7 @@ button.flat {
 .said-who {
   display: block;
   margin-bottom: 2px;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: var(--font-meta);
   font-weight: 600;
 }
@@ -2046,7 +2109,7 @@ button.flat {
   display: block;
   margin-top: 2px;
   color: var(--faint);
-  font-size: 12px;
+  font-size: var(--font-small);
   text-align: right;
 }
 
@@ -2101,8 +2164,9 @@ button.flat {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  /* Камера и отправка стоят вплотную: ниже 44 палец бьёт по соседней. */
+  width: 44px;
+  height: 44px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -2154,14 +2218,93 @@ button.flat {
   color: var(--faint);
 }
 
+/*
+ * Запись голоса рядом с полем ввода. В строке ответа обёртка растворяется,
+ * чтобы кнопка встала в ряд с камерой, а объяснение легло своей строкой.
+ */
+.voice-flat {
+  display: contents;
+}
+
+.voice-key {
+  position: relative;
+  flex: none;
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* Цель не мельче 44: по ней целятся пальцем на ходу. */
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.voice-round {
+  border-radius: 50%;
+}
+
+.voice-wide {
+  padding: 0 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-text);
+}
+
+/* Идёт запись: кнопка красная и называет время, чтобы это было видно издали. */
+.voice-on {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger-text);
+}
+
+.voice-time {
+  font-size: var(--font-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-key:disabled,
+.voice-busy {
+  color: var(--faint);
+  cursor: default;
+  /* Пока прошлая запись расшифровывается, вторую начать нечем. */
+  pointer-events: none;
+}
+
+/* Само поле файла не показывается: его открывает подпись рядом. */
+.voice-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.voice-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: var(--font-meta);
+}
+
 .composer-send {
   flex: none;
   align-self: flex-end;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -2317,14 +2460,15 @@ button.chat-back {
 /* Действие прямо из строки списка: принять заявку, не открывая её. */
 .row-action {
   flex: none;
-  min-height: 40px;
+  /* Заявка принимается прямо отсюда: цель не мельче 44, промах уводит в карточку. */
+  min-height: 44px;
   margin-left: 4px;
   padding: 9px 14px;
   border: 0;
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
-  font-size: 13px;
+  color: var(--accent-text);
+  font-size: var(--font-small);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -2528,15 +2672,16 @@ select {
 .assistant-close {
   flex: none;
   align-self: flex-start;
-  width: 36px;
-  height: 36px;
+  /* Выход из разговора: цель не мельче 44, иначе окно не закрыть с первого раза. */
+  width: 44px;
+  height: 44px;
   margin: -6px -6px 0 auto;
   border: 0;
   border-radius: 50%;
   background: var(--sunk);
   color: var(--muted);
   font: inherit;
-  font-size: 22px;
+  font-size: 1.5rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -2578,7 +2723,7 @@ select {
   font: inherit;
   font-weight: 500;
   text-align: center;
-  color: var(--accent);
+  color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   cursor: pointer;
 }
@@ -2641,7 +2786,7 @@ select {
 }
 
 .consent-note a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Окно согласия: вопрос и два ответа, чтобы действие не уходило вторым нажатием. */
@@ -2692,7 +2837,7 @@ select {
 }
 
 .confirm-danger {
-  background: var(--danger);
+  background: var(--danger-solid);
 }
 
 /* Ширину колонки задаёт само облако, поэтому доля общей ширины тут лишняя. */
@@ -2779,7 +2924,8 @@ select.building {
   min-width: 0;
   max-width: 100%;
   padding: 4px 24px 4px 12px;
-  min-height: 40px;
+  /* Выбор квартиры и дома: цель не мельче 44. */
+  min-height: 44px;
   margin-bottom: 0;
   border-radius: 10px;
   color: var(--muted);
@@ -3074,7 +3220,7 @@ button.link.danger-action {
   border-radius: 6px;
   background: color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--success);
-  font-size: 11px;
+  font-size: var(--font-small);
 }
 
 .together {
@@ -3148,7 +3294,7 @@ button.link.danger-action {
 .month-name {
   overflow: hidden;
   color: var(--faint);
-  font-size: 10px;
+  font-size: var(--font-small);
   text-align: center;
   text-overflow: clip;
   white-space: nowrap;
@@ -3338,7 +3484,7 @@ button.link.danger-action {
 }
 
 .toast-bad {
-  background: var(--danger);
+  background: var(--danger-solid);
   color: #fff;
 }
 

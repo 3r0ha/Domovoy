@@ -3,6 +3,8 @@ import {
   releaseHouseChat,
   buildingReport,
   formatReportShort,
+  listRequestsFor,
+  queueLine,
   setDuty,
   summariseReport,
   waitingHandoffs,
@@ -16,6 +18,9 @@ import { afterError, appRow, errorText, keyboardOf, menuButton, oneKeyboard } fr
 import { showDebtors } from '../pages.js';
 import { inChat } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
+
+/** Сколько строк очереди читается в переписке: остальное листают на экране. */
+const QUEUE_LINES = 3;
 
 /** Дела смены: сводка, долги дома и привязка чата. */
 export const staffCommands = (kit: BotKit): Record<string, Handler> => {
@@ -46,10 +51,17 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
       const report = await buildingReport(deps, resident);
       const { open, overdue } = report.summary;
 
+      // Одного числа смене мало: «что горит» это первые строки очереди, где
+      // видно номер, адрес и остаток времени. Остальное листают на экране.
+      const queue = open === 0 ? [] : await listRequestsFor(deps, resident, 'queue').catch(() => []);
+      const now = deps.now();
+      const first = queue.slice(0, QUEUE_LINES).map((request) => queueLine(request, now));
+
       await typed.reply(
         open === 0
           ? 'Открытых заявок нет.'
-          : `Открыто заявок: ${open}${overdue > 0 ? `, просрочено ${overdue}` : ''}.`,
+          : `Открыто заявок: ${open}${overdue > 0 ? `, просрочено ${overdue}` : ''}.` +
+            (first.length > 0 ? `\n\n${first.join('\n')}` : ''),
         keyboardOf([...appRow(kit.miniAppUrl, 'Очередь в приложении', 'queue')], typed),
       );
     } catch (error) {

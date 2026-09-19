@@ -11,7 +11,7 @@ import {
 } from '@domovoy/domain';
 
 import { apartmentIn, apartmentsOf } from './apartments.js';
-import { homeBuildingOf, housesOf } from './buildings.js';
+import { assertServes, homeBuildingOf, housesOf } from './buildings.js';
 import { wanting } from './notices.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
@@ -213,6 +213,10 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
   if (!found) throw new DomainError('initiative_not_found', 'Предложение не найдено');
 
   if (found.pollId) throw new DomainError('initiative_closed', 'Собрание по этой инициативе уже объявлено');
+
+  // Собрание созывают по инициативе своего дома: startPoll заводит опрос в доме
+  // созывающего, и без этой сверки чужая инициатива увела бы собрание к нему.
+  await assertServes(deps, command.resident, found.buildingId);
 
   const poll = await startPoll(deps, {
     resident: command.resident,

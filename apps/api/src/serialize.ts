@@ -1001,6 +1001,7 @@ export const emptyResult = {
   shares: { for: 0, against: 0, abstain: 0 },
   support: 0,
   passed: false,
+  areasMissing: 0,
 };
 
 /** Счётчик для клиента: с подписью, единицей и прошлым показанием. */

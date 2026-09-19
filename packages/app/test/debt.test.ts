@@ -239,11 +239,12 @@ describe('пени на долг', () => {
     assert.notEqual(debt.penalty, 0);
   });
 
-  it('в напоминании пени названы отдельной строкой', async () => {
+  it('в напоминании пени названы отдельной строкой словами жильца', async () => {
     const deps = await setup(new Date('2026-09-15T10:00:00Z'));
     const text = formatDebt(await arrearsFor(deps, maria)) ?? '';
 
-    assert.match(text, /Пени за просрочку: /);
+    assert.match(text, /Штраф за просрочку: /);
+    assert.match(text, /Итого заплатить: /);
   });
 
   it('оплата долга закрывает и пени', async () => {

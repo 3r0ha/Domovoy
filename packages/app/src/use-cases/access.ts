@@ -74,19 +74,43 @@ export const assertStaffServes = async (deps: AppDeps, resident: Resident, reque
   await assertServes(deps, resident, request.buildingId);
 };
 
+/** Дома, в которых человеку есть что чинить: обслуживаемые у смены, свои у жильца. */
+const housesOpenTo = async (deps: AppDeps, resident: Resident): Promise<Set<string>> => {
+  if (isCompanyStaff(resident.role)) return new Set(servedBy(resident, deps));
+
+  const houses = new Set<string>(resident.buildingId ? [resident.buildingId] : []);
+
+  for (const apartmentId of apartmentsOf(resident)) {
+    const apartment = await deps.repository.findApartment(apartmentId);
+
+    if (apartment) houses.add(apartment.buildingId);
+  }
+
+  return houses;
+};
+
 /**
  * Заявку от чужой квартиры заводит смена того дома: диспетчер принимает звонок
  * и оформляет обращение от квартиры, из которой позвонили. Жилец называет
  * только свою квартиру: соседу заявка приходит как своя и видна в его списке.
  *
  * Проверяется итоговый адрес заявки: квартиру называет и поле запроса, и код
- * с наклейки, а прежде смотрели только на поле. @throws {DomainError}
+ * с наклейки. Общее имущество проверяется так же: код `bld_` с чужого дома
+ * иначе заводил бы заявку там, будил его смену и открывал переписку по ней.
+ * @throws {DomainError}
  */
 export const assertMayTargetApartment = async (deps: AppDeps, command: CreateRequestCommand): Promise<void> => {
   const { resident } = command;
   const target = targetOf(command);
 
-  if (target?.kind !== 'apartment') return;
+  if (!target) return;
+
+  if (target.kind !== 'apartment') {
+    if ((await housesOpenTo(deps, resident)).has(target.buildingId)) return;
+
+    throw new DomainError('forbidden', 'Заявку по чужому дому заводит управляющая организация этого дома');
+  }
+
   if (apartmentsOf(resident).includes(target.apartmentId)) return;
 
   if (!isCompanyStaff(resident.role)) {

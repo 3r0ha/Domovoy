@@ -476,7 +476,7 @@ describe('чат-бот управляющей компании', () => {
     );
 
     assert.match(order?.text ?? '', /Течёт кран/);
-    assert.match(JSON.stringify(order?.attachments ?? []), /Выполнена/, 'наряд закрывается кнопкой');
+    assert.match(JSON.stringify(order?.attachments ?? []), /Сдать работу/, 'наряд закрывается кнопкой');
 
     await bot.stop();
   });
@@ -947,7 +947,7 @@ describe('чат-бот управляющей компании', () => {
 
     const [said] = await platform.waitForOutgoing(1, 3000);
 
-    assert.match(said?.text ?? '', /Попробуйте ещё раз/);
+    assert.match(said?.text ?? '', /Нажмите ещё раз или выберите в меню/);
 
     await bot.stop();
   });
@@ -1138,7 +1138,20 @@ describe('чат-бот управляющей компании', () => {
 
     const found = (await bot.deps.repository.findRequest(request.id))!;
 
-    await bot.deps.repository.saveRequest({ ...found, status: 'confirmed' });
+    // Состояние идёт вместе со своим событием: по истории его и читают.
+    await bot.deps.repository.saveRequest({
+      ...found,
+      status: 'confirmed',
+      history: [
+        ...found.history,
+        {
+          at: new Date('2026-09-03T11:00:00Z'),
+          status: 'confirmed',
+          role: 'resident',
+          actorId: RESIDENT_WITH_FLAT.id,
+        },
+      ],
+    });
 
     platform.userPressesButton(`same:${request.id}`, { userId: 3003, chatId: 3003 });
 
@@ -1601,7 +1614,12 @@ describe('чат-бот управляющей компании', () => {
     // Отправляет продукт, а не жилец: переписывать текст в чужую форму не нужно.
     const [request] = await bot.deps.repository.listRequests({});
 
+    // Обращение в надзорный орган отзыву не подлежит, поэтому между текстом
+    // и отправкой стоит подтверждение.
     platform.userPressesButton(`gzhi:${request!.id}:send`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Отправить это обращение/);
+
+    platform.userPressesButton(`gzhi:${request!.id}:yes`, { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Обращение отправлено/);
 
     const sent = await bot.deps.repository.listHandoffs({ requestId: request!.id });
@@ -2407,6 +2425,141 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('заявка отзывается только после подтверждения', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    const request = await createServiceRequest(bot.deps, {
+      resident: RESIDENT_WITH_FLAT,
+      description: 'Разбито стекло в подъезде',
+    });
+
+    platform.userPressesButton(`req:${request.id}:withdrawn`, { userId: 3003, chatId: 3003 });
+
+    const asked = await waitForMessage(3003, /Отозвать заявку|Заявка/);
+
+    assert.match(asked, /Отозвать заявку/, 'заявку сняли одним нажатием');
+    assert.equal((await bot.deps.repository.findRequest(request.id))?.status, 'new');
+
+    platform.userPressesButton(`req:${request.id}:withdrawn:yes`, { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /снята|отозвана|Заявка/);
+
+    assert.equal((await bot.deps.repository.findRequest(request.id))?.status, 'withdrawn');
+
+    await bot.stop();
+  });
+
+  it('повторённое слово в слово обращение новой заявкой не становится', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('В подъезде не горит свет на площадке', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    platform.userSends('В подъезде не горит свет на площадке', { userId: 3003, chatId: 3003 });
+
+    await waitForMessage(3003, /та же заявка/);
+
+    assert.equal((await bot.deps.repository.listRequests({ buildingId: BUILDING_ID })).length, 1);
+
+    await bot.stop();
+  });
+
+  it('разряды показания, разделённые пробелом, читаются одним числом', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('хвс 12 350', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято/);
+
+    const readings = await bot.deps.repository.listReadingsFor(['cold-1']);
+
+    assert.equal(readings[0]?.value, 12350, 'разряды с пробелом потеряли тысячи');
+
+    await bot.stop();
+  });
+
+  it('два прибора в одном сообщении дают два показания, каждое своему счётчику', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+    await bot.repository.saveMeter({ id: 'hot-1', apartmentId: 'apt-1', kind: 'hot_water', serial: 'ГВС-1' });
+
+    platform.userSends('гвс 9800 хвс 12350', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято: 12\s350/u);
+
+    const cold = await bot.deps.repository.listReadingsFor(['cold-1']);
+    const hot = await bot.deps.repository.listReadingsFor(['hot-1']);
+
+    assert.equal(cold[0]?.value, 12350, 'холодной воде досталось чужое число');
+    assert.equal(hot[0]?.value, 9800, 'горячая вода осталась без показания');
+
+    await bot.stop();
+  });
+
+  it('показание с минусом не принимается', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('хвс -5', { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /./u);
+
+    assert.doesNotMatch(answer, /Принято/, 'минус принят как показание');
+    assert.equal((await bot.deps.repository.listReadingsFor(['cold-1'])).length, 0, 'минус записан как показание');
+
+    await bot.stop();
+  });
+
+  it('рассказ о поломке в ожидании показания становится заявкой, а не повтором вопроса', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Отправьте показание/);
+
+    platform.userSends('у меня в ванной потоп, вода хлещет из трубы', { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /принята|Не похоже на число/);
+
+    assert.match(answer, /принята/, 'авария осталась в вопросе о цифрах');
+
+    await bot.stop();
+  });
+
+  it('восемь знаков внутри фразы кодом квартиры не считаются', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('хвс 99999999', { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /Код|принята|Показание/);
+
+    assert.doesNotMatch(answer, /Код/, 'показание прочитали как код квартиры');
+
+    await bot.stop();
+  });
+
+  it('код чужой квартиры перепривязывает только после ответа человека', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('LMNPRT47', { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /Привязать|Теперь я знаю/);
+
+    assert.match(answer, /Привязать/, 'квартиру сменили без подтверждения');
+    assert.equal((await bot.deps.repository.findResident('res-1'))?.apartmentId, 'apt-1');
+
+    platform.userPressesButton('bind:LMNPRT47', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /квартире 2/);
+
+    assert.equal((await bot.deps.repository.findResident('res-1'))?.apartmentId, 'apt-2');
+
+    await bot.stop();
+  });
+
   it('жалоба на воду с числом заявкой остаётся, а показанием не становится', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
@@ -2429,7 +2582,8 @@ describe('чат-бот управляющей компании', () => {
       id: 'r-old',
       meterId: 'cold-1',
       value: 120,
-      at: new Date('2026-08-22T10:00:00Z'),
+      // Прошлый расчётный период: он начинается с 20 числа, а не с первого.
+      at: new Date('2026-07-22T10:00:00Z'),
       submittedBy: RESIDENT_WITH_FLAT.id,
     });
 
@@ -2934,7 +3088,8 @@ describe('чат-бот управляющей компании', () => {
       id: 'r-old',
       meterId: 'cold-1',
       value: 120.5,
-      at: new Date('2026-08-22T10:00:00Z'),
+      // Прошлый расчётный период: он начинается с 20 числа, а не с первого.
+      at: new Date('2026-07-22T10:00:00Z'),
       submittedBy: RESIDENT_WITH_FLAT.id,
     });
 
@@ -3966,7 +4121,7 @@ describe('чат-бот управляющей компании', () => {
 
       platform.chatSends('в подъезде выбило пробки', { userId: 4004, chatId: HOUSE_CHAT, mention: true });
 
-      assert.match(await waitForMessage(HOUSE_CHAT, /Попробуйте ещё раз/), /Попробуйте ещё раз/);
+      assert.match(await waitForMessage(HOUSE_CHAT, /ещё раз/), /ещё раз/);
 
       await bot.stop();
     });
@@ -4015,7 +4170,9 @@ describe('чат-бот управляющей компании', () => {
 
       platform.chatSends('/new', { userId: 3003, chatId: HOUSE_CHAT });
 
-      assert.match(await waitForMessage(HOUSE_CHAT, /личные сообщения/), /\/new/);
+      // Команду в чате набирать не предлагают: разговор продолжается в личной
+      // переписке, и попасть туда можно кнопкой.
+      assert.match(await waitForMessage(HOUSE_CHAT, /личные сообщения/), /отвечу вам лично/);
 
       await bot.stop();
     });
@@ -4025,7 +4182,7 @@ describe('чат-бот управляющей компании', () => {
 
       platform.chatSends('/meters', { userId: 3003, chatId: HOUSE_CHAT });
 
-      assert.match(await waitForMessage(HOUSE_CHAT, /личные сообщения/), /\/meters/);
+      assert.match(await waitForMessage(HOUSE_CHAT, /личные сообщения/), /отвечу вам лично/);
 
       await bot.stop();
     });

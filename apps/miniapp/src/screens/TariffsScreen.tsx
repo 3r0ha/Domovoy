@@ -2,7 +2,7 @@ import { Button, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, type DomovoyApi, formatDay, type TariffView } from '../api.js';
+import { ApiError, type DomovoyApi, formatDay, parseDecimal, type TariffView } from '../api.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Skeleton } from './Skeleton.js';
@@ -25,7 +25,7 @@ const since = (tariff: TariffView): string =>
 
 /** Тарифы дома: из них складывается квитанция. */
 export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
-  const tariffs = useBridgeRequest(() => api.tariffs(), [api]);
+  const tariffs = useBridgeRequest((alive) => api.until(alive).tariffs(), [api]);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -41,9 +41,12 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
   const bases = [...new Set(list.map((tariff) => tariff.basis).filter((basis): basis is string => Boolean(basis)))];
 
   const save = async (tariff: TariffView): Promise<void> => {
-    const parsed = Number(draft.replace(',', '.'));
+    // Повтор по Enter, пока тариф ещё сохраняется, отправил бы его дважды.
+    if (busy) return;
 
-    if (!Number.isFinite(parsed) || parsed < 0) {
+    const parsed = parseDecimal(draft);
+
+    if (parsed === null || parsed < 0) {
       setError('Тариф должен быть неотрицательным числом');
       return;
     }
@@ -76,11 +79,11 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
                 before={<span className="hint">{tariff.title}</span>}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') void save(tariff);
+                  if (event.key === 'Enter' && !busy) void save(tariff);
                 }}
               />
               <Button className="tariff-save" type="button" size="small" disabled={busy} onClick={() => void save(tariff)}>
-                {busy ? '…' : 'Сохранить'}
+                {busy ? 'Сохраняем…' : 'Сохранить'}
               </Button>
             </div>
           ) : (

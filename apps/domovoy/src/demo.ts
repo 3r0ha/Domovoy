@@ -16,7 +16,13 @@ import {
   type Resident,
 } from '@domovoy/app';
 import type { Device, DeviceEvent, Equipment, HouseContact, HousePartner, HouseService } from '@domovoy/app';
-import { LEGAL_VERSION, type Apartment, type ReceptionWindow, type RequestCategory } from '@domovoy/domain';
+import {
+  LEGAL_VERSION,
+  READING_WINDOW,
+  type Apartment,
+  type ReceptionWindow,
+  type RequestCategory,
+} from '@domovoy/domain';
 
 export interface DemoData {
   buildingId: string;
@@ -231,7 +237,34 @@ export interface SeedOptions {
 const START_VALUES = { cold_water: 120, hot_water: 64, electricity: 4300 } as const;
 const MONTHLY = { cold_water: 3, hot_water: 2, electricity: 180 } as const;
 const SEASONAL = [0, 0.8, 1.3, 1, 1.5, 1.1];
-const MONTHS = ['2026-03-22', '2026-04-22', '2026-05-22', '2026-06-22', '2026-07-22', '2026-08-22'];
+/** Сколько месяцев показаний заводится: из них и считается расход. */
+const MONTHS_SHOWN = 6;
+
+/**
+ * Даты показаний считаются от сегодняшнего дня, а не задаются списком: иначе
+ * набор стареет и последнее показание попадает в текущий расчётный период,
+ * после чего демонстрация не даёт подать своё.
+ */
+const monthsOf = (now: Date, back: number): Date[] => {
+  const period = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+  // Расчётный период начинается с окна подачи, а не с первого числа.
+  if (now.getUTCDate() < READING_WINDOW.fromDay) period.setUTCMonth(period.getUTCMonth() - 1);
+
+  period.setUTCMonth(period.getUTCMonth() - back);
+
+  const last = new Date(
+    Date.UTC(period.getUTCFullYear(), period.getUTCMonth(), READING_WINDOW.fromDay + 2, 10),
+  );
+
+  return Array.from({ length: MONTHS_SHOWN }, (_, index) => {
+    const at = new Date(last.getTime());
+
+    at.setUTCMonth(at.getUTCMonth() - (MONTHS_SHOWN - 1 - index));
+
+    return at;
+  });
+};
 const SERIALS = { cold_water: 'ХВС', hot_water: 'ГВС', electricity: 'ЭЛ' } as const;
 const HOUSE_FACTOR = { cold_water: 8, hot_water: 8, electricity: 6.2 } as const;
 
@@ -239,18 +272,23 @@ const HOUSE_FACTOR = { cold_water: 8, hot_water: 8, electricity: 6.2 } as const;
 export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void> => {
   const { repository } = deps;
 
+  // Своё показание жилец подаёт сам, поэтому последнее из заведённых за прошлый
+  // период. Узел учёта снимает управляющая компания, у неё текущий период закрыт.
+  const months = monthsOf(deps.now(), 1);
+  const houseMonths = monthsOf(deps.now(), 0);
+
   for (const [residentId, apartmentId, until] of [
-    ['res-maria', 'apt-1', MONTHS.length],
-    ['res-ivan', 'apt-2', MONTHS.length],
-    ['res-anna', 'apt-3', MONTHS.length],
+    ['res-maria', 'apt-1', months.length],
+    ['res-ivan', 'apt-2', months.length],
+    ['res-anna', 'apt-3', months.length],
     ['res-petr', 'apt-6', 2],
-    ['staff-dispatcher', 'apt-10', MONTHS.length],
-    ['staff-dispatcher', 'apt-20', MONTHS.length],
+    ['staff-dispatcher', 'apt-10', months.length],
+    ['staff-dispatcher', 'apt-20', months.length],
   ] as const) {
     for (const kind of ['cold_water', 'hot_water', 'electricity'] as const) {
       let value = START_VALUES[kind];
 
-      for (const [index, month] of MONTHS.entries()) {
+      for (const [index, month] of months.entries()) {
         value = Math.round((value + MONTHLY[kind] * (SEASONAL[index] ?? 1)) * 100) / 100;
 
         if (index >= until) continue;
@@ -259,7 +297,7 @@ export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void>
           id: `reading-${apartmentId}-${kind}-${index}`,
           meterId: `${kind}-${apartmentId}`,
           value,
-          at: new Date(`${month}T10:00:00Z`),
+          at: month,
           submittedBy: residentId,
         });
       }
@@ -277,14 +315,14 @@ export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void>
 
     let value = START_VALUES[kind] * 20;
 
-    for (const [index, month] of MONTHS.entries()) {
+    for (const [index, month] of houseMonths.entries()) {
       value = Math.round((value + MONTHLY[kind] * (SEASONAL[index] ?? 1) * HOUSE_FACTOR[kind]) * 100) / 100;
 
       await repository.saveHouseReading({
         id: `house-reading-${kind}-${index}`,
         meterId: `house-${kind}`,
         value,
-        at: new Date(`${month}T10:00:00Z`),
+        at: month,
         submittedBy: 'staff-dispatcher',
       });
     }
@@ -296,11 +334,16 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
   const data = demoData();
   const { repository } = deps;
 
+  // Оба дома ведёт одна организация: без общего владельца они считаются
+  // домами разных компаний и в списке сотрудника остаётся только свой.
+  const companyId = 'demo-uk';
+
   await repository.saveBuilding({
     id: data.buildingId,
     code: data.buildingCode,
     address: data.address,
     managementCompany: data.managementCompany,
+    companyId,
     contact: data.contact,
     service: data.service,
     reception: data.reception,
@@ -312,6 +355,7 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     code: 'Д17',
     address: 'ул. Ленина, 17',
     managementCompany: data.managementCompany,
+    companyId,
     contact: data.contact,
     service: data.service,
   });
@@ -373,6 +417,10 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
   ) => {
     const created = await createServiceRequest(at(offsetMs), { resident: ivan, description, startParam, category });
 
+    // Работа не может быть сдана раньше, чем её взяли: у заявок того же дня
+    // сдача отодвигается за приём, иначе история идёт назад во времени.
+    const finished = Math.max(doneOffsetMs, offsetMs + 2 * HOUR);
+
     await transitionRequest(at(offsetMs + 10 * MINUTE), {
       resident: dispatcher,
       requestId: created.id,
@@ -384,13 +432,13 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
       to: 'in_progress',
       assigneeId: 'staff-technician',
     });
-    await transitionRequest(at(doneOffsetMs), {
+    await transitionRequest(at(finished), {
       resident: person('staff-technician'),
       requestId: created.id,
       to: 'done',
       comment: 'Работа выполнена, проверено на месте',
     });
-    await transitionRequest(at(doneOffsetMs + 3 * HOUR), {
+    await transitionRequest(at(finished + 3 * HOUR), {
       resident: ivan,
       requestId: created.id,
       to: 'confirmed',

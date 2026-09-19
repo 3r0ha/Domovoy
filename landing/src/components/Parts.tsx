@@ -34,6 +34,7 @@ const ROLES: Record<string, string> = {
   work: 'Экран мастера',
   survey: 'Экран мастера',
   inspections: 'Экран мастера',
+  sticker: 'Экран смены',
   queue: 'Экран диспетчера',
   'staff-news': 'Экран диспетчера',
   'support-staff': 'Экран диспетчера',
@@ -70,12 +71,17 @@ export const Shot = ({ name, alt, className }: { name: string; alt: string; clas
   </figure>
 );
 
-/** Куда ведёт кнопка, пока адрес бота не задан на сборке. */
-const MAX_LINK = 'https://max.ru';
+const botLink = (import.meta.env as { VITE_BOT_LINK?: string }).VITE_BOT_LINK?.trim();
+
+// Без адреса бота четыре главные кнопки вели бы в никуда, поэтому сборка останавливается.
+if (!botLink) {
+  throw new Error(
+    'VITE_BOT_LINK не задан: кнопкам «Открыть в MAX» некуда вести. Укажите адрес бота, например VITE_BOT_LINK=https://max.ru/имя_бота.',
+  );
+}
 
 /** Ссылка на бота в MAX: задаётся на сборке переменной VITE_BOT_LINK. */
-export const BOT_LINK: string =
-  (import.meta.env as { VITE_BOT_LINK?: string }).VITE_BOT_LINK?.trim() || MAX_LINK;
+export const BOT_LINK: string = botLink;
 
 /** Шапка с разделами страницы. */
 
@@ -83,6 +89,8 @@ export const Top = ({ current }: { current?: string }) => {
   const [open, setOpen] = useState(false);
   const [stuck, setStuck] = useState(false);
   const read = useRef<HTMLSpanElement | null>(null);
+  const toggle = useRef<HTMLButtonElement | null>(null);
+  const sheet = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const onScroll = (): void => {
@@ -108,8 +116,14 @@ export const Top = ({ current }: { current?: string }) => {
   useEffect(() => {
     if (!open) return undefined;
 
+    // Открыли список: фокус уходит в него, по Escape возвращается на кнопку.
+    sheet.current?.querySelector('a')?.focus();
+
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+
+      setOpen(false);
+      toggle.current?.focus();
     };
 
     document.addEventListener('keydown', onKey);
@@ -143,7 +157,13 @@ export const Top = ({ current }: { current?: string }) => {
           ))}
         </nav>
 
-        <a className="top-open-max" href={BOT_LINK} rel="noreferrer" aria-label="Открыть в MAX">
+        <a
+          className="top-open-max"
+          href={BOT_LINK}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Открыть в MAX"
+        >
           <span className="top-max-long">Открыть в MAX</span>
           <span className="top-max-short">В MAX</span>
         </a>
@@ -151,12 +171,16 @@ export const Top = ({ current }: { current?: string }) => {
         <button
           type="button"
           className="top-toggle"
+          ref={toggle}
           aria-expanded={open}
+          aria-controls="top-sheet"
           onClick={() => setOpen((state) => !state)}
         >
-          {open ? 'Закрыть' : (SECTIONS.find((section) => section.id === current)?.navTitle ??
-            SECTIONS.find((section) => section.id === current)?.pageTitle ??
-            'Разделы')}
+          <span className="top-toggle-name">
+            {open ? 'Закрыть' : (SECTIONS.find((section) => section.id === current)?.navTitle ??
+              SECTIONS.find((section) => section.id === current)?.pageTitle ??
+              'Разделы')}
+          </span>
           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
             <path d={open ? 'M4 10l4-4 4 4' : 'M4 6l4 4 4-4'} />
           </svg>
@@ -164,7 +188,7 @@ export const Top = ({ current }: { current?: string }) => {
       </div>
 
       {open ? (
-        <div className="top-sheet">
+        <div className="top-sheet" id="top-sheet" ref={sheet}>
           <div className="wrap top-sheet-inner">
             <a className="top-sheet-link" href="/">
               Главная
@@ -197,7 +221,7 @@ export const Foot = () => (
         ))}
       </nav>
 
-      <a className="foot-max" href={BOT_LINK} rel="noreferrer">
+      <a className="foot-max" href={BOT_LINK} target="_blank" rel="noreferrer">
         Открыть в MAX
       </a>
 

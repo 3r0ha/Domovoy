@@ -214,7 +214,7 @@ const Item = ({
 
 /** Осмотры общего имущества. */
 export const InspectionsScreen = ({ api, onOpen }: InspectionsScreenProps) => {
-  const rounds = useBridgeRequest(() => api.inspections(), [api]);
+  const rounds = useBridgeRequest((alive) => api.until(alive).inspections(), [api]);
   const [changed, setChanged] = useState<Record<string, InspectionView>>({});
   const [opened, setOpened] = useState<string | null>(null);
 

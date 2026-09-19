@@ -42,6 +42,8 @@ export type SubmitResult =
       question?: string;
       /** Чем определена категория: разбором текста моделью или ключевыми словами. */
       categoryBy?: 'model' | 'keywords';
+      /** То же самое обращение только что уже приняли: новой заявки нет. */
+      again?: boolean;
     }
   | { kind: 'planned'; work: PlannedWork; explanation: string }
   | { kind: 'answered'; answer: string };
@@ -317,7 +319,7 @@ const recentTwin = async (deps: AppDeps, command: CreateRequestCommand): Promise
 const submit = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const twin = await recentTwin(deps, command);
 
-  if (twin) return { kind: 'created', request: twin, reporters: reportersCount(twin) };
+  if (twin) return { kind: 'created', request: twin, reporters: reportersCount(twin), again: true };
 
   await checkRate(deps, command);
 

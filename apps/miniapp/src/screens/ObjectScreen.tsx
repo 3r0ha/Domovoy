@@ -82,7 +82,7 @@ const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
 
 /** Объект с наклейки: его оборудование, открытые заявки и история. */
 export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest }: ObjectScreenProps) => {
-  const passport = useBridgeRequest(() => api.objectPassport(startParam), [api, startParam]);
+  const passport = useBridgeRequest((alive) => api.until(alive).objectPassport(startParam), [api, startParam]);
   const target = passport.data?.target;
 
   // Название уходит в шапку отдельно от загрузки и снимается при уходе с экрана.

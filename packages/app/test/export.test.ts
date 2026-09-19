@@ -69,7 +69,9 @@ describe('выгрузка показаний', () => {
     deps.setNow(new Date('2026-08-22T10:00:00Z'));
     await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 120.5 });
 
-    deps.setNow(new Date('2026-09-05T10:00:00Z'));
+    // Сентябрьское показание идёт в своё окно: подача 5 сентября относилась бы
+    // ещё к августовскому расчётному периоду.
+    deps.setNow(new Date('2026-09-22T10:00:00Z'));
     await submitReading(deps, { resident: maria, meterId: 'cold-1', value: 124 });
 
     const { csv, filename } = await readingsCsv(deps, BUILDING_ID, AUGUST);

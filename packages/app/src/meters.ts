@@ -99,37 +99,77 @@ export interface ReadingInWords {
   value: number;
 }
 
+/** Разряды в показании разделяют пробелом: «12 350» это одно число, а не два. Пробел бывает и неразрывным. */
+const joined = (text: string): string => text.replace(/(\d)\s(?=\d{3}(?!\d))/gu, '$1');
+
+/** Число показания. Знак минус входит в разбор, чтобы отказать, а не взять модуль. */
+const NUMBER = /(?<![\d,.])(-?\d{1,7}(?:[.,]\d{1,4})?)(?![\d,.])/gu;
+
+/** Где в сообщении назван прибор: по этому месту число и достаётся тому, о ком речь. */
+const namedMeters = (text: string): { kind: string; at: number }[] =>
+  Object.keys(METER_WORDS)
+    .map((kind) => ({ kind, at: METER_WORDS[kind]!.exec(text)?.index }))
+    .filter((named): named is { kind: string; at: number } => named.at !== undefined)
+    .sort((one, other) => one.at - other.at);
+
 /**
- * Показание, поданное словами: «холодная вода 12345». Возвращает пусто, если
- * прибор не назван, числа нет или речь о поломке. Само показание не подаётся:
- * его принимает обычный путь подачи со всеми проверками.
+ * Число, сказанное об этом приборе: то, что стоит после его названия и до
+ * названия следующего. Число перед первым названием тоже его: «12350 хвс».
+ */
+const valueFor = (text: string, from: number, to: number, first: boolean): number | undefined => {
+  let before: number | undefined;
+
+  for (const found of text.matchAll(NUMBER)) {
+    const at = found.index;
+    const value = Number(found[1]!.replace(',', '.'));
+
+    if (at >= to) break;
+    if (at >= from) return value;
+    if (first) before = value;
+  }
+
+  return before;
+};
+
+/**
+ * Показание, поданное словами: «холодная вода 12345». Приборов в сообщении
+ * может быть несколько: «гвс 9800 хвс 12350» это два показания. Пусто означает,
+ * что прибор не назван, числа нет или речь о поломке. Сами показания не
+ * подаются: их принимает обычный путь подачи со всеми проверками.
  */
 export const readingInWords = async (
   deps: AppDeps,
   resident: Resident,
   text: string,
-): Promise<ReadingInWords | undefined> => {
-  if (!resident.apartmentId || NOT_A_READING.test(text)) return undefined;
+): Promise<ReadingInWords[]> => {
+  if (!resident.apartmentId || NOT_A_READING.test(text)) return [];
 
   // Номер заявки состоит из тех же цифр: по нему показание подавать нечего.
-  if (/[\p{L}\d]+-\d{4}-\d{4}/u.test(text)) return undefined;
+  if (/[\p{L}\d]+-\d{4}-\d{4}/u.test(text)) return [];
 
-  const kind = Object.keys(METER_WORDS).find((name) => METER_WORDS[name]!.test(text));
-  const digits = /(?<![\d,.])(\d{1,7}(?:[.,]\d{1,4})?)(?![\d,.])/u.exec(text)?.[1];
+  const said = joined(text);
+  const named = namedMeters(said);
 
-  if (!kind || digits === undefined) return undefined;
-
-  const value = Number(digits.replace(',', '.'));
-  const rule = METER_RULES[kind as keyof typeof METER_RULES];
-
-  if (!Number.isFinite(value) || value < 0 || value >= 10 ** rule.digits) return undefined;
+  if (named.length === 0) return [];
 
   const now = deps.now();
-  const meters = (await metersFor(deps, resident).catch(() => [])).filter(
-    (state) => state.meter.kind === kind && verificationState(state.meter, now) !== 'expired',
-  );
+  const all = await metersFor(deps, resident).catch(() => []);
+  const found: ReadingInWords[] = [];
 
-  return meters.length > 0 ? { meters, value } : undefined;
+  for (const [at, { kind, at: from }] of named.entries()) {
+    const value = valueFor(said, from, named[at + 1]?.at ?? said.length, at === 0);
+    const rule = METER_RULES[kind as keyof typeof METER_RULES];
+
+    if (value === undefined || !Number.isFinite(value) || value < 0 || value >= 10 ** rule.digits) continue;
+
+    const meters = all.filter(
+      (state) => state.meter.kind === kind && verificationState(state.meter, now) !== 'expired',
+    );
+
+    if (meters.length > 0) found.push({ meters, value });
+  }
+
+  return found;
 };
 
 /** Чей это счётчик: своей квартиры или дома, который человек обслуживает. */

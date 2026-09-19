@@ -250,10 +250,11 @@ export const formatDebt = (debt: Debt): string | undefined => {
       (item.penalty > 0 ? ` и пени ${formatMoney(item.penalty)}` : ''),
   );
 
+  // «Пени» и «погашение» знают не все: в переписке это штраф и общая сумма.
   const tail =
     debt.penalty > 0
-      ? `\n\nПени за просрочку: ${formatMoney(debt.penalty)}` +
-        `\nВсего к погашению: ${formatMoney(roundMoney(debt.total + debt.penalty))}`
+      ? `\n\nШтраф за просрочку: ${formatMoney(debt.penalty)}` +
+        `\nИтого заплатить: ${formatMoney(roundMoney(debt.total + debt.penalty))}`
       : '';
 
   return `Не оплачено ${formatMoney(debt.total)}:\n${lines.join('\n')}${tail}`;
@@ -319,7 +320,9 @@ export const remindAboutDebt = async (deps: AppDeps, buildingId: string): Promis
     await notifyResident(
       notifier,
       resident,
-      `${house ? `${house}\n` : ''}${text}\n\nОплатить можно в разделе «Оплата».`,
+      `${house ? `${house}\n` : ''}${text}\n\nОплатить можно кнопкой ниже.`,
+      [],
+      { section: 'bill' },
     );
     reminded.push(resident);
   }

@@ -45,6 +45,9 @@ export const houseMetersFor = async (
   onlyStaff(actor);
 
   const house = actingHouse(deps, actor, buildingId);
+
+  await assertServes(deps, actor, house);
+
   const meters = await deps.repository.listHouseMeters(house);
   const readings = await deps.repository.listHouseReadingsFor(meters.map((meter) => meter.id));
 
@@ -73,6 +76,10 @@ export const addHouseMeter = async (
   if (serial.length === 0) throw new DomainError('serial_required', 'Нужен заводской номер прибора');
 
   const buildingId = actingHouse(deps, actor, command.buildingId);
+
+  // Узел учёта чужого дома искажает общедомовые нужды всем его квартирам.
+  await assertServes(deps, actor, buildingId);
+
   const known = await deps.repository.listHouseMeters(buildingId);
 
   if (known.some((meter) => meter.kind === command.kind)) {

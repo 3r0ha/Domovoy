@@ -96,6 +96,50 @@ describe('ограничение частоты запросов', () => {
     await app.close();
   });
 
+  it('за обратным прокси счёт идёт по адресу человека, а не по адресу прокси', async () => {
+    const { app } = await setup({ requests: { limit: 1, windowMs: 60_000 } });
+
+    await app.inject({ method: 'GET', url: '/api/me', headers: { 'x-forwarded-for': '203.0.113.1' } });
+
+    const same = await app.inject({ method: 'GET', url: '/api/me', headers: { 'x-forwarded-for': '203.0.113.1' } });
+    const other = await app.inject({ method: 'GET', url: '/api/me', headers: { 'x-forwarded-for': '198.51.100.7' } });
+
+    assert.equal(same.statusCode, 429, 'тот же человек считается дальше');
+    assert.notEqual(other.statusCode, 429, 'соседи за тем же прокси счётчик не делят');
+
+    await app.close();
+  });
+
+  it('описание API считается вместе с остальными запросами', async () => {
+    const { app } = await setup({ requests: { limit: 1, windowMs: 60_000 } });
+
+    assert.equal((await app.inject({ method: 'GET', url: '/openapi.json' })).statusCode, 200);
+    assert.equal((await app.inject({ method: 'GET', url: '/openapi.json' })).statusCode, 429);
+
+    await app.close();
+  });
+
+  it('приём снимка считается дорогим, а выдача нет', async () => {
+    const { app } = await setup({ requests: { limit: 100, windowMs: 60_000 }, heavy: { limit: 2, windowMs: 60_000 } });
+    const headers = { authorization: 'Bearer someone' };
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await app.inject({ method: 'POST', url: '/api/files', headers, payload: {} });
+
+      assert.notEqual(response.statusCode, 429, `снимок ${attempt + 1} отклонён преждевременно`);
+    }
+
+    const blocked = await app.inject({ method: 'POST', url: '/api/files', headers, payload: {} });
+
+    assert.equal(blocked.statusCode, 429);
+
+    const shown = await app.inject({ method: 'GET', url: '/api/files/id-1', headers });
+
+    assert.notEqual(shown.statusCode, 429, 'снимки на экране идут в обычном темпе');
+
+    await app.close();
+  });
+
   it('смена заголовка авторизации предел не снимает', async () => {
     const { app } = await setup({ requests: { limit: 2, windowMs: 60_000 } });
 

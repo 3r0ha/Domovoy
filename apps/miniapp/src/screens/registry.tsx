@@ -1,45 +1,51 @@
 import { Button } from '@maxhub/max-ui';
-import { type ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 
 import { type DomovoyApi, type DeviceView, type Profile } from '../api.js';
 import { type Screen } from '../navigation.js';
 import type { Waiting } from '../App.js';
 import { type Section } from '../sections.js';
 import { AnnouncementsScreen } from './AnnouncementsScreen.js';
-import { AuditScreen } from './AuditScreen.js';
 import { BindApartmentScreen } from './BindApartmentScreen.js';
-import { BroadcastScreen } from './BroadcastScreen.js';
-import { BuildingsScreen } from './BuildingsScreen.js';
 import { CapitalRepairScreen } from './CapitalRepairScreen.js';
 import { CameraScreen } from './CameraScreen.js';
-import { DebtorsScreen } from './DebtorsScreen.js';
 import { DemoScreen } from './DemoScreen.js';
 import { DocumentScreen } from './DocumentScreen.js';
 import { Empty } from './Empty.js';
-import { EquipmentScreen } from './EquipmentScreen.js';
 import { GuestScreen } from './GuestScreen.js';
 import { HomeScreen } from './HomeScreen.js';
-import { HouseMetersScreen } from './HouseMetersScreen.js';
-import { ImportScreen } from './ImportScreen.js';
-import { InspectionsScreen } from './InspectionsScreen.js';
 import { JournalScreen } from './JournalScreen.js';
 import { MetersScreen } from './MetersScreen.js';
 import { MoreScreen } from './TabBar.js';
 import { NewRequestScreen } from './NewRequestScreen.js';
 import { ObjectScreen } from './ObjectScreen.js';
-import { PlanScreen } from './PlanScreen.js';
 import { PollsScreen } from './PollsScreen.js';
 import { ProfileScreen } from './ProfileScreen.js';
 import { QualityScreen } from './QualityScreen.js';
-import { QueueScreen } from './QueueScreen.js';
-import { ReportScreen } from './ReportScreen.js';
 import { RequestListScreen } from './RequestListScreen.js';
 import { RequestScreen } from './RequestScreen.js';
-import { ResidentsScreen } from './ResidentsScreen.js';
+import { Skeleton } from './Skeleton.js';
 import { StickersScreen } from './StickersScreen.js';
 import { SupportScreen } from './SupportScreen.js';
-import { TariffsScreen } from './TariffsScreen.js';
 import { VisitsScreen } from './VisitsScreen.js';
+
+/*
+ * Разделы смены идут отдельными кусками сборки. Жилец их не открывает, а на
+ * слабой связи он ждёт своего первого экрана вместе с ними.
+ */
+const AuditScreen = lazy(async () => ({ default: (await import('./AuditScreen.js')).AuditScreen }));
+const BroadcastScreen = lazy(async () => ({ default: (await import('./BroadcastScreen.js')).BroadcastScreen }));
+const BuildingsScreen = lazy(async () => ({ default: (await import('./BuildingsScreen.js')).BuildingsScreen }));
+const DebtorsScreen = lazy(async () => ({ default: (await import('./DebtorsScreen.js')).DebtorsScreen }));
+const EquipmentScreen = lazy(async () => ({ default: (await import('./EquipmentScreen.js')).EquipmentScreen }));
+const HouseMetersScreen = lazy(async () => ({ default: (await import('./HouseMetersScreen.js')).HouseMetersScreen }));
+const ImportScreen = lazy(async () => ({ default: (await import('./ImportScreen.js')).ImportScreen }));
+const InspectionsScreen = lazy(async () => ({ default: (await import('./InspectionsScreen.js')).InspectionsScreen }));
+const PlanScreen = lazy(async () => ({ default: (await import('./PlanScreen.js')).PlanScreen }));
+const QueueScreen = lazy(async () => ({ default: (await import('./QueueScreen.js')).QueueScreen }));
+const ReportScreen = lazy(async () => ({ default: (await import('./ReportScreen.js')).ReportScreen }));
+const ResidentsScreen = lazy(async () => ({ default: (await import('./ResidentsScreen.js')).ResidentsScreen }));
+const TariffsScreen = lazy(async () => ({ default: (await import('./TariffsScreen.js')).TariffsScreen }));
 
 /** Всё, что экраны просят у приложения: данные сессии и переходы. */
 export interface ScreenContext {
@@ -308,4 +314,9 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
 };
 
 /** Тело текущего экрана. Неизвестному имени соответствует пустая страница. */
-export const screenBody = (screen: Screen, context: ScreenContext): ReactNode => REGISTRY[screen]?.(context) ?? null;
+export const screenBody = (screen: Screen, context: ScreenContext): ReactNode => {
+  const body = REGISTRY[screen]?.(context) ?? null;
+
+  // Пока кусок раздела едет, на экране скелет, а не пустота.
+  return body === null ? null : <Suspense fallback={<Skeleton count={3} />}>{body}</Suspense>;
+};

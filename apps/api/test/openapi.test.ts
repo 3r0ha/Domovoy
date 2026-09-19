@@ -97,6 +97,8 @@ describe('описание API', () => {
     assert.deepEqual(paths['/auth/session']?.['post']?.security, []);
     assert.deepEqual(paths['/health']?.['get']?.security, []);
     assert.deepEqual(paths['/api/meters']?.['get']?.security, [{ session: [] }]);
+    // Документы продукта открыты по закону: описание говорит то же, что маршрут.
+    assert.deepEqual(paths['/api/legal']?.['get']?.security, []);
 
     await app.close();
   });

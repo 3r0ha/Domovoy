@@ -39,7 +39,7 @@ const requestLine = (request: ServiceRequest, now: Date): string =>
   `срок до ${formatMoment(request.resolutionDueAt)}${request.resolutionDueAt < now ? ' (просрочен)' : ''}`;
 
 /** Строка очереди для смены: кто ведёт, сколько осталось и что просрочено. */
-const queueLine = (request: ServiceRequest, now: Date): string => {
+export const queueLine = (request: ServiceRequest, now: Date): string => {
   const late = request.resolutionDueAt.getTime() < now.getTime();
   const due = late
     ? `просрочено на ${formatSpan(request.resolutionDueAt, now)}`
@@ -142,27 +142,22 @@ const shiftFacts = async (deps: AppDeps, resident: Resident): Promise<string[]> 
 
   if (waiting > 0) lines.push(`  Вопросов жильцов без ответа: ${waiting}`);
 
-  // Кому поручить, спрашивают чаще прочего: имена и нагрузка идут сразу.
+  // Кому поручить, спрашивают чаще прочего. Имён здесь нет: в службу разбора
+  // уходит только роль и нагрузка, а имена человек видит на самом наряде.
   if (staff.length > 0) {
     lines.push(
       `  Кому можно поручить: ${staff
         .slice(0, SHOWN)
-        .map((person) => `${person.displayName} (${roleTitle(person.role)}, нарядов ${person.load})`)
+        .map((person) => `${roleTitle(person.role)}, нарядов ${person.load}`)
         .join('; ')}`,
     );
   }
 
+  // Должники названы числом и суммой: имя и квартира жильца в службу разбора
+  // не уходят, список открывается кнопкой в разделе долгов.
   if (debt && debt.debtors.length > 0) {
     lines.push(`  ${formatHouseDebtShort(debt)}`);
-    lines.push(
-      ...debt.debtors
-        .slice(0, SHOWN)
-        .map(
-          (debtor) =>
-            `  Должник: кв. ${debtor.apartmentNumber ?? '?'}, ${debtor.displayName}, ` +
-            `${formatMoney(debtor.debt + debtor.penalty)}`,
-        ),
-    );
+    lines.push(`  Список должников открывается в разделе долгов дома`);
   }
 
   if (passed.length > 0) {

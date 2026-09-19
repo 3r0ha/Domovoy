@@ -11,6 +11,7 @@ import {
   isFinal,
   isSharedInfrastructure,
   OPEN_STATUSES,
+  plural,
   provesPresence,
   reporterIds,
   selectAudience,
@@ -381,8 +382,13 @@ export const commentRequest = async (deps: AppDeps, command: CommentCommand): Pr
 /** Кому уходит сообщение по заявке. */
 const notifyAboutMessage = async (deps: AppDeps, request: ServiceRequest, command: CommentCommand): Promise<void> => {
   const notifier = deps.notifier ?? noopNotifier;
-  const text = command.text.trim();
   const reporters = reporterIds(request);
+  const files = command.attachments?.length ?? 0;
+
+  // Снимок без подписи уходил пустой строкой: получатель видел «пишет:» и ничего.
+  const text =
+    command.text.trim() ||
+    (files > 0 ? `прислал ${plural(files, 'вложение', 'вложения', 'вложений')}` : '');
 
   const send = async (ids: readonly string[], author: string): Promise<void> => {
     for (const id of new Set(ids)) {

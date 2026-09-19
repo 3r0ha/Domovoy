@@ -9,6 +9,7 @@ import {
   formatPublished,
   monthName,
   needsApartment,
+  parseDecimal,
   type DomovoyApi,
   type MeterView,
 } from '../api.js';
@@ -77,7 +78,7 @@ const silence = (meter: MeterView, now: Date): string | null => {
 
 /** Расход по месяцам столбиками. */
 const History = ({ api, meter, version }: { api: DomovoyApi; meter: MeterView; version: number }) => {
-  const history = useBridgeRequest(() => api.meterHistory(meter.id), [api, meter.id, version]);
+  const history = useBridgeRequest((alive) => api.until(alive).meterHistory(meter.id), [api, meter.id, version]);
   const periods = (history.data ?? []).filter((period) => period.consumption > 0);
 
   if (periods.length < 2) return null;
@@ -152,9 +153,12 @@ const MeterCard = ({
   }, [snapshot, api, meter.id]);
 
   const submit = async (): Promise<void> => {
-    const parsed = Number(value.replace(',', '.'));
+    // Повтор по Enter, пока показание ещё летит, подал бы его дважды.
+    if (sending) return;
 
-    if (!Number.isFinite(parsed)) {
+    const parsed = parseDecimal(value);
+
+    if (parsed === null) {
       setError('Отправьте показание цифрами');
       return;
     }
@@ -247,7 +251,7 @@ const MeterCard = ({
             value={value}
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') void submit();
+              if (event.key === 'Enter' && !sending) void submit();
             }}
             placeholder={`Показание, ${meter.unit}`}
           />
@@ -292,7 +296,7 @@ const MeterCard = ({
  * Сколько квартир дома уже подали показания. Имён в полосе нет.
  */
 const Together = ({ api, version }: { api: DomovoyApi; version: number }) => {
-  const progress = useBridgeRequest(() => api.readingProgress(), [api, version]);
+  const progress = useBridgeRequest((alive) => api.until(alive).readingProgress(), [api, version]);
   const total = progress.data?.total ?? 0;
   const submitted = progress.data?.submitted ?? 0;
 
@@ -319,7 +323,7 @@ export const MetersScreen = ({
   onBind,
   onSupport,
 }: MetersScreenProps) => {
-  const meters = useBridgeRequest(() => api.meters(), [api]);
+  const meters = useBridgeRequest((alive) => api.until(alive).meters(), [api]);
   const [submitted, setSubmitted] = useState(0);
 
   if (meters.loading && !meters.data) return <Skeleton count={3} />;

@@ -208,6 +208,31 @@ const assigneeFor = (request: ServiceRequest, input: ApplyTransitionInput): stri
   return input.actorId;
 };
 
+/**
+ * Время в истории идёт вперёд. Событие раньше предыдущего даёт отрицательное
+ * время выполнения в отчётах и путает хронологию в обращении в инспекцию.
+ * @throws {DomainError}
+ */
+const checkOrder = (request: ServiceRequest, at: Date): void => {
+  const last = request.history.at(-1)?.at;
+
+  if (last && at.getTime() < last.getTime()) {
+    throw new DomainError('request_stale', `Заявка ${request.number}: событие раньше последнего в её истории`);
+  }
+};
+
+/** Переход, требующий объяснения, без объяснения не выполняется. @throws {DomainError} */
+const checkComment = (transition: Transition, input: ApplyTransitionInput): void => {
+  if (transition.requiresComment && !input.comment?.trim()) {
+    throw new DomainError(
+      'comment_required',
+      input.to === 'done'
+        ? 'Напишите коротко, что сделано: отметку увидит жилец'
+        : `Переход в «${STATUS_TITLES[input.to]}» требует объяснения`,
+    );
+  }
+};
+
 /** Выполняет переход и дописывает историю. @throws {DomainError} */
 export const applyTransition = (request: ServiceRequest, input: ApplyTransitionInput): ServiceRequest => {
   if (isFinal(request.status)) {
@@ -216,6 +241,8 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
       `Заявка ${request.number} уже закрыта: ${STATUS_TITLES[request.status]}`,
     );
   }
+
+  checkOrder(request, input.at);
 
   const transition = findTransition(request.status, input.to, input.role);
 
@@ -233,14 +260,7 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
     );
   }
 
-  if (transition.requiresComment && !input.comment?.trim()) {
-    throw new DomainError(
-      'comment_required',
-      input.to === 'done'
-        ? 'Напишите коротко, что сделано: отметку увидит жилец'
-        : `Переход в «${STATUS_TITLES[input.to]}» требует объяснения`,
-    );
-  }
+  checkComment(transition, input);
 
   if (input.rating !== undefined) checkRating(input.rating, input.to);
 

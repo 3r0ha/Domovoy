@@ -18,6 +18,7 @@ const { DomovoyApi } = await import('../dist-test/api.js');
 const { Toasts } = await import('../dist-test/toast.js');
 const { AnnouncementsScreen } = await import('../dist-test/screens/AnnouncementsScreen.js');
 const { BindApartmentScreen } = await import('../dist-test/screens/BindApartmentScreen.js');
+const { ChargesCard } = await import('../dist-test/screens/ChargesCard.js');
 const { NewRequestScreen } = await import('../dist-test/screens/NewRequestScreen.js');
 const { MetersScreen } = await import('../dist-test/screens/MetersScreen.js');
 const { DemoScreen } = await import('../dist-test/screens/DemoScreen.js');
@@ -542,7 +543,7 @@ describe('обращение присоединено к чужой заявке
 
     const confirm = screen
       .findAll('button')
-      .find((button) => button.textContent === 'У меня то же самое') as HTMLButtonElement;
+      .find((button) => button.textContent === 'И у меня') as HTMLButtonElement;
 
     await screen.act(() => confirm.click());
 
@@ -1959,6 +1960,42 @@ describe('показания счётчиков', () => {
     await screen.unmount();
   });
 
+  it('Enter в пустом поле не подаёт ноль', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({ '/api/meters': METERS });
+
+    const screen = await render(createElement(MetersScreen as never, { api } as never), bridge);
+    const field = screen.find<HTMLInputElement>('.field-row input');
+
+    await screen.act(() =>
+      field.dispatchEvent(new globalThis.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    );
+
+    assert.equal(calls.some((call) => call.method === 'POST'), false, 'ноль испортил бы начисление');
+    assert.match(screen.text, /Отправьте показание цифрами/);
+
+    await screen.unmount();
+  });
+
+  it('показание с запятой уходит числом, а лишние пробелы отбрасываются', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      'POST /api/meters': { value: 137.1, at: '2026-09-22T10:00:00Z', consumption: 17.1, spike: false },
+      '/api/meters': METERS,
+    });
+
+    const screen = await render(createElement(MetersScreen as never, { api } as never), bridge);
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('.field-row input'), ' 137,1 '));
+    await screen.act(() => screen.find<HTMLButtonElement>('.reading-send').click());
+
+    const post = calls.find((call) => call.method === 'POST');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { value: 137.1 });
+
+    await screen.unmount();
+  });
+
   it('расход за месяцы показывается столбиками', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({
@@ -2548,6 +2585,46 @@ describe('привязка квартиры', () => {
     await screen.unmount();
   });
 
+  it('код с пробелами и дефисами принимается: в квитанции он разбит на части', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/me/apartment': { apartmentId: 'apt-12', number: 12, alreadyBound: false },
+    });
+
+    const screen = await render(
+      createElement(BindApartmentScreen as never, { api, onBound: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#apartment-code'), 'KVMR-47 83'));
+    await screen.act(() => screen.find<HTMLButtonElement>('button').click());
+
+    const post = calls.find((call) => call.method === 'POST');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { code: 'KVMR4783' });
+
+    await screen.unmount();
+  });
+
+  it('причина отказа остаётся на экране, а не уезжает вместе с плашкой', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiRefusing(400, 'apartment_unknown', 'Такой квартиры нет в этом доме');
+
+    const screen = await render(
+      createElement(BindApartmentScreen as never, { api, onBound: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('#apartment-code'), 'APT99999'));
+    await screen.act(() => screen.find<HTMLButtonElement>('button').click());
+
+    const shown = screen.find<HTMLElement>('#apartment-code-error');
+
+    assert.equal(shown.getAttribute('role'), 'alert');
+    assert.match(shown.textContent ?? '', /Такой квартиры нет в этом доме/);
+
+    await screen.unmount();
+  });
 });
 
 describe('жильцы без квартиры', () => {
@@ -2922,14 +2999,46 @@ describe('отказ вместо пустоты', () => {
     const screen = await render(createElement(RequestScreen as never, { api, id: 'req-1' } as never), bridge);
 
     assert.equal(
-      screen.findAll('button').some((button) => button.textContent === 'Выполнена'),
+      screen.findAll('button').some((button) => button.textContent === 'Сдать работу'),
       false,
     );
 
     assert.equal(
-      screen.findAll('button').some((button) => button.textContent === 'Снять'),
+      screen.findAll('button').some((button) => button.textContent === 'Отозвать заявку'),
       true,
+      'подпись та же, что на кнопке бота',
     );
+
+    await screen.unmount();
+  });
+
+  it('отзыв заявки спрашивают, а не выполняют с одного касания', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/requests/req-1/actions': { actions: ['withdrawn'] },
+      '/api/requests/req-1': { ...REQUEST, status: 'in_progress' },
+    });
+
+    const screen = await render(createElement(RequestScreen as never, { api, id: 'req-1' } as never), bridge);
+
+    const withdraw = screen
+      .findAll('button')
+      .find((button) => button.textContent === 'Отозвать заявку') as HTMLButtonElement;
+
+    await screen.act(() => withdraw.click());
+
+    assert.equal(
+      calls.find((call) => call.path.includes('/transition')),
+      undefined,
+      'до подтверждения заявку не трогают',
+    );
+
+    assert.match(screen.text, /Отозвать заявку Д15-2609-0001\?/);
+    assert.match(screen.text, /вернуть её будет нельзя/i);
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
+
+    assert.ok(calls.find((call) => call.path.includes('/transition')));
 
     await screen.unmount();
   });
@@ -3108,6 +3217,88 @@ describe('отказ вместо пустоты', () => {
 
     assert.match(screen.text, /Нет связи с сервером/);
     assert.equal(screen.find<HTMLButtonElement>('button')?.textContent, 'Повторить');
+
+    await screen.unmount();
+  });
+});
+
+describe('счёт за квартиру', () => {
+  const CHARGES = {
+    period: '2026-09',
+    lines: [{ title: 'Холодная вода', amount: 412.5 }],
+    total: 1500,
+    paid: 0,
+    dueDay: 10,
+  };
+
+  it('оплата спрашивается с суммой в заголовке, а не уходит с одного касания', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/meters': [],
+      '/api/charges': CHARGES,
+      '/api/payments': [],
+      'POST /api/charges/pay': { amount: 1500, at: '2026-09-22T10:00:00Z' },
+    });
+
+    const screen = await render(createElement(ChargesCard as never, { api, version: 0 } as never), bridge);
+
+    await screen.act(() => tap(screen, 'Оплатить'));
+
+    assert.equal(
+      calls.some((call) => call.path === '/api/charges/pay'),
+      false,
+      'деньги ушли раньше, чем человек согласился',
+    );
+
+    assert.match(screen.text, /Оплатить 1\s500,00 ₽\?/u);
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.confirm-do').click());
+
+    assert.ok(calls.find((call) => call.path === '/api/charges/pay'));
+
+    await screen.unmount();
+  });
+
+  it('месяц назван, а не только число срока', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/charges': CHARGES, '/api/payments': [] });
+
+    const screen = await render(createElement(ChargesCard as never, { api, version: 0 } as never), bridge);
+
+    assert.match(screen.text, /за сентябрь, до 10 числа/);
+
+    await screen.unmount();
+  });
+
+  it('остаток меньше копейки считается оплаченным: кнопка на «0,00 ₽» не висит', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/charges': { ...CHARGES, total: 1500.004, paid: 1500 },
+      '/api/payments': [],
+    });
+
+    const screen = await render(createElement(ChargesCard as never, { api, version: 0 } as never), bridge);
+
+    assert.match(screen.text, /Оплачено/);
+    assert.equal(
+      screen.findAll('button').some((button) => button.textContent === 'Оплатить'),
+      false,
+    );
+
+    await screen.unmount();
+  });
+
+  it('несостоявшийся счёт зовёт повторить, а не исчезает', async () => {
+    const { bridge } = createMockBridge();
+    const failing = new DomovoyApi({
+      baseUrl: 'http://api.test',
+      fetch: () => Promise.reject(new TypeError('Failed to fetch')),
+    });
+
+    const screen = await render(createElement(ChargesCard as never, { api: failing, version: 0 } as never), bridge);
+
+    assert.match(screen.text, /Счёт не загрузился/);
+    assert.ok(screen.findAll('button').some((button) => button.textContent === 'Повторить'));
 
     await screen.unmount();
   });
@@ -5282,5 +5473,277 @@ describe('согласие с документами', () => {
     assert.equal(accepted, 1, 'согласие не дошло до приложения');
 
     await screen.unmount();
+  });
+
+  it('без загруженных документов соглашаться не с чем, и кнопка закрыта', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiRefusing(502, 'bad_gateway', 'Что-то пошло не так');
+
+    const screen = await render(
+      createElement(Consent as never, {
+        api,
+        onDocument: () => undefined,
+        onAccepted: () => undefined,
+      } as never),
+      bridge,
+    );
+
+    const accept = screen.find<HTMLButtonElement>('.confirm-do');
+
+    assert.equal(accept.disabled, true, 'человек соглашается с тем, чего не видел');
+    assert.match(screen.text, /Документы не загрузились/);
+
+    await screen.act(() => accept.click());
+
+    assert.equal(
+      calls.some((call) => call.path === '/api/me/legal'),
+      false,
+    );
+
+    await screen.unmount();
+  });
+});
+
+/** Что записал двойник и что он успел закрыть. */
+interface Taping {
+  state: string;
+  stop: () => void;
+}
+
+/**
+ * Двойник записи клиента: даёт нажал-сказал-отпустил без настоящего микрофона.
+ * `refuse` повторяет отказ в доступе, `absent`, клиент без MediaRecorder.
+ */
+const stubMicrophone = (options: { refuse?: boolean; absent?: boolean; chunk?: Blob } = {}) => {
+  const taped: Taping[] = [];
+  const closed: string[] = [];
+  const tracks = [{ kind: 'audio', stop: () => closed.push('audio') }];
+
+  class FakeRecorder {
+    state = 'inactive';
+    mimeType = 'audio/ogg;codecs=opus';
+    ondataavailable: ((event: { data: Blob }) => void) | null = null;
+    onstop: (() => void) | null = null;
+
+    static isTypeSupported = (): boolean => true;
+
+    constructor() {
+      taped.push(this);
+    }
+
+    start(): void {
+      this.state = 'recording';
+    }
+
+    stop(): void {
+      this.state = 'inactive';
+      this.ondataavailable?.({ data: options.chunk ?? new Blob(['звук'], { type: 'audio/ogg' }) });
+      this.onstop?.();
+    }
+  }
+
+  const holder = globalThis as Record<string, unknown>;
+  const had = 'MediaRecorder' in holder ? holder.MediaRecorder : undefined;
+
+  if (options.absent) delete holder.MediaRecorder;
+  else holder.MediaRecorder = FakeRecorder;
+
+  Object.defineProperty(globalThis.navigator, 'mediaDevices', {
+    configurable: true,
+    value: {
+      getUserMedia: () =>
+        options.refuse
+          ? Promise.reject(Object.assign(new Error('отказано'), { name: 'NotAllowedError' }))
+          : Promise.resolve({ getTracks: () => tracks }),
+    },
+  });
+
+  return {
+    taped,
+    closed,
+    restore: () => {
+      if (had === undefined) delete holder.MediaRecorder;
+      else holder.MediaRecorder = had;
+
+      Reflect.deleteProperty(globalThis.navigator, 'mediaDevices');
+    },
+  };
+};
+
+describe('запись голоса', () => {
+  it('расшифровка попадает в поле, а вопросом сама не уходит', async () => {
+    const microphone = stubMicrophone();
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      'GET /api/assistant': { starters: [] },
+      'POST /api/voice': { text: 'Течёт кран на кухне' },
+    });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    const key = screen.find<HTMLButtonElement>('.voice-key');
+
+    await screen.act(() => key.click());
+
+    assert.equal(screen.find<HTMLButtonElement>('.voice-key').getAttribute('aria-pressed'), 'true', 'запись не идёт');
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
+
+    const sent = calls.find((call) => call.path === '/api/voice');
+
+    assert.equal(sent?.method, 'POST');
+    assert.equal(JSON.parse(sent?.body ?? '{}').contentType, 'audio/ogg;codecs=opus');
+
+    assert.equal(screen.find<HTMLTextAreaElement>('.composer-field').value, 'Течёт кран на кухне');
+    assert.equal(
+      calls.some((call) => call.path === '/api/assistant' && call.method === 'POST'),
+      false,
+      'сказанное ушло вопросом, не показав человеку текст',
+    );
+
+    await screen.unmount();
+    microphone.restore();
+  });
+
+  it('отказ в доступе к микрофону объясняется словами и оставляет системную запись', async () => {
+    const microphone = stubMicrophone({ refuse: true });
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ 'GET /api/assistant': { starters: [] } });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
+
+    assert.match(screen.text, /Нет доступа к микрофону/);
+    assert.ok(screen.find<HTMLInputElement>('.voice-file'), 'запасного пути не осталось');
+    assert.equal(screen.find<HTMLInputElement>('.voice-file').getAttribute('accept'), 'audio/*');
+
+    await screen.unmount();
+    microphone.restore();
+  });
+
+  it('без записи в клиенте остаётся системная, и она тоже расшифровывается', async () => {
+    const microphone = stubMicrophone({ absent: true });
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      'GET /api/assistant': { starters: [] },
+      'POST /api/voice': { text: 'Не работает лифт' },
+    });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    const field = screen.find<HTMLInputElement>('.voice-file');
+
+    await screen.act(() => pick(field, new File(['звук'], 'запись.ogg', { type: 'audio/ogg' })));
+    await screen.act(() => undefined);
+
+    assert.ok(calls.find((call) => call.path === '/api/voice'));
+    assert.equal(screen.find<HTMLTextAreaElement>('.composer-field').value, 'Не работает лифт');
+
+    await screen.unmount();
+    microphone.restore();
+  });
+
+  it('слишком длинная запись обрывается сама, а не пишется без конца', async (t) => {
+    t.mock.timers.enable({ apis: ['setInterval'] });
+
+    const microphone = stubMicrophone();
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ 'GET /api/assistant': { starters: [] }, 'POST /api/voice': { text: 'Долгий рассказ' } });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
+
+    assert.equal(microphone.taped.length, 1);
+
+    // Минута молчания на кнопке: запись закрывается сама и уходит на расшифровку.
+    await screen.act(() => t.mock.timers.tick(60_000));
+
+    assert.equal(microphone.taped[0]?.state, 'inactive', 'запись идёт дальше предела');
+    assert.deepEqual(microphone.closed, ['audio'], 'микрофон остался открытым');
+
+    await screen.unmount();
+    microphone.restore();
+    t.mock.timers.reset();
+  });
+
+  it('уход с экрана закрывает микрофон', async () => {
+    const microphone = stubMicrophone();
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ 'GET /api/assistant': { starters: [] } });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
+
+    assert.equal(microphone.taped[0]?.state, 'recording');
+    assert.deepEqual(microphone.closed, [], 'поток закрылся раньше времени');
+
+    await screen.unmount();
+
+    assert.equal(microphone.taped[0]?.state, 'inactive');
+    assert.deepEqual(microphone.closed, ['audio'], 'значок записи остался бы гореть');
+
+    microphone.restore();
+  });
+
+  it('запись больше предела ручки до сервера не доходит', async () => {
+    const microphone = stubMicrophone({ absent: true });
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({ 'GET /api/assistant': { starters: [] } });
+
+    const screen = await render(
+      createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
+      bridge,
+    );
+
+    const long = new File([new Uint8Array(2_100_000)], 'длинная.ogg', { type: 'audio/ogg' });
+
+    await screen.act(() => pick(screen.find<HTMLInputElement>('.voice-file'), long));
+    await screen.act(() => undefined);
+
+    assert.match(screen.text, /Запись слишком длинная/);
+    assert.equal(
+      calls.some((call) => call.path === '/api/voice'),
+      false,
+    );
+
+    await screen.unmount();
+    microphone.restore();
+  });
+
+  it('записать голосом можно и в заявке: кнопка одна и та же', async () => {
+    const microphone = stubMicrophone();
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({});
+
+    const screen = await render(
+      createElement(NewRequestScreen as never, { api, onCreated: () => undefined } as never),
+      bridge,
+    );
+
+    const key = screen.find<HTMLButtonElement>('.voice-key');
+
+    assert.equal(key.getAttribute('aria-label'), 'Записать голосом: Что случилось');
+    assert.equal(key.disabled, false);
+
+    await screen.unmount();
+    microphone.restore();
   });
 });

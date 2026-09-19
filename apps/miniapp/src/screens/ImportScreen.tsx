@@ -193,7 +193,7 @@ const Paste = ({ label, hint, onPaste }: { label: string; hint: string; onPaste:
 
 /** Дом заводится списком квартир: строками вручную или вставкой из таблицы. */
 export const ImportScreen = ({ api }: ImportScreenProps) => {
-  const house = useBridgeRequest(() => api.selectedBuilding(), [api]);
+  const house = useBridgeRequest((alive) => api.until(alive).selectedBuilding(), [api]);
   const [edited, setEdited] = useState<HouseCard | null>(null);
   const card = edited ?? cardOf(house.data);
   const setCard = setEdited;
@@ -623,7 +623,7 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
  * спрашивается отдельно.
  */
 const HandOver = ({ api, onDone }: { api: DomovoyApi; onDone: (message: string) => void }) => {
-  const people = useBridgeRequest(() => api.people().catch(() => []), [api]);
+  const people = useBridgeRequest((alive) => api.until(alive).people().catch(() => []), [api]);
   const [company, setCompany] = useState('');
   const [managerId, setManagerId] = useState('');
   const [asking, setAsking] = useState(false);

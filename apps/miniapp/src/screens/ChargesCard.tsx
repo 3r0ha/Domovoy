@@ -2,10 +2,21 @@ import { Button, CellAction, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, type ChargesView, type DomovoyApi, type PaymentView } from '../api.js';
+import {
+  ApiError,
+  formatDay,
+  money,
+  monthName,
+  rubles,
+  type ChargesView,
+  type DomovoyApi,
+  type PaymentView,
+} from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { useToast } from '../toast.js';
+import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
+import { Retry } from './Retry.js';
 
 export interface ChargesCardProps {
   api: DomovoyApi;
@@ -17,19 +28,18 @@ export interface ChargesCardProps {
   model?: boolean;
 }
 
-const money = (amount: number): string =>
-  amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Что именно оплачивают: месяц или накопившийся долг. */
+type Asked = { kind: 'month' | 'debt'; amount: number };
 
-const rubles = (amount: number): string => `${money(amount)} ₽`;
+/** Меньше копейки к оплате не осталось: такой остаток показывается нулём. */
+const owed = (bill: ChargesView): number => Math.max(0, Math.round((bill.total - bill.paid) * 100) / 100);
 
 /** Начисление за месяц. */
 export const ChargesCard = ({ api, version, payable = true, model }: ChargesCardProps) => {
-  const charges = useBridgeRequest(
-    async (): Promise<ChargesView | null> => api.charges().catch(() => null),
-    [api, version],
-  );
+  const charges = useBridgeRequest((alive): Promise<ChargesView> => api.until(alive).charges(), [api, version]);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [asked, setAsked] = useState<Asked | null>(null);
   const [open, setOpen] = useState(false);
   const [paid, setPaid] = useState(0);
   const haptics = useHaptics();
@@ -37,9 +47,15 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
 
   const bill = charges.data;
 
+  // Пустой счёт и несостоявшийся запрос выглядят одинаково, если про отказ молчать.
+  if (!bill && charges.error) {
+    return <Retry title="Счёт не загрузился" error={charges.error} onRetry={charges.reload} />;
+  }
+
   if (!Array.isArray(bill?.lines) || bill.lines.length === 0) return null;
 
-  const left = Math.max(0, bill.total - bill.paid);
+  const left = owed(bill);
+  const debt = (bill.debt ?? 0) + (bill.penalty ?? 0);
 
   const run = async (what: () => Promise<unknown>): Promise<void> => {
     setPaying(true);
@@ -55,6 +71,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
       setError(reason instanceof ApiError ? reason.message : 'Оплата не прошла');
     } finally {
       setPaying(false);
+      setAsked(null);
     }
   };
 
@@ -89,11 +106,17 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
 
         {/* Долг называет своя строка ниже: в подписи к сумме месяца он только путает. */}
         <p className="hint">
-          {left > 0 ? `до ${bill.dueDay} числа` : `за ${period(bill.period)}`}
+          {left > 0 ? `за ${period(bill.period)}, до ${bill.dueDay} числа` : `за ${period(bill.period)}`}
         </p>
 
         {left > 0 && payable ? (
-          <Button type="button" stretched size="large" disabled={paying} onClick={() => void pay()}>
+          <Button
+            type="button"
+            stretched
+            size="large"
+            disabled={paying}
+            onClick={() => setAsked({ kind: 'month', amount: left })}
+          >
             {paying ? 'Платим…' : 'Оплатить'}
           </Button>
         ) : null}
@@ -132,8 +155,13 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
           ) : null}
 
           {payable ? (
-            <CellAction className="row-split" mode="primary" disabled={paying} onClick={() => void payDebt()}>
-              {paying ? 'Платим…' : `Погасить ${rubles(bill.debt + (bill.penalty ?? 0))}`}
+            <CellAction
+              className="row-split"
+              mode="primary"
+              disabled={paying}
+              onClick={() => setAsked({ kind: 'debt', amount: debt })}
+            >
+              {paying ? 'Платим…' : `Погасить ${rubles(debt)}`}
             </CellAction>
           ) : null}
         </CellList>
@@ -162,16 +190,37 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
       </CellList>
 
       <Payments api={api} version={version + paid} />
+
+      {/* Деньги уходят со счёта необратимо: сумму человек видит до касания, а не после. */}
+      {asked ? (
+        <Confirm
+          title={`Оплатить ${rubles(asked.amount)}?`}
+          text={
+            asked.kind === 'debt'
+              ? 'Спишем долг за прошлые месяцы вместе с пенями.'
+              : `Спишем начисление за ${period(bill.period)}.`
+          }
+          confirmLabel="Оплатить"
+          busy={paying}
+          busyLabel="Платим…"
+          onConfirm={() => void (asked.kind === 'debt' ? payDebt() : pay())}
+          onCancel={() => setAsked(null)}
+        />
+      ) : null}
     </>
   );
 };
 
 /** История платежей по квартире. */
 const Payments = ({ api, version }: { api: DomovoyApi; version: number }) => {
-  const paid = useBridgeRequest(async (): Promise<PaymentView[]> => api.payments().catch(() => []), [api, version]);
+  const paid = useBridgeRequest((alive): Promise<PaymentView[]> => api.until(alive).payments(), [api, version]);
   const [open, setOpen] = useState(false);
 
   const list = Array.isArray(paid.data) ? paid.data : [];
+
+  if (list.length === 0 && paid.error) {
+    return <Retry title="Платежи не загрузились" error={paid.error} onRetry={paid.reload} />;
+  }
 
   if (list.length === 0) return null;
 
@@ -201,20 +250,5 @@ const Payments = ({ api, version }: { api: DomovoyApi; version: number }) => {
   );
 };
 
-const MONTHS = [
-  'январь',
-  'февраль',
-  'март',
-  'апрель',
-  'май',
-  'июнь',
-  'июль',
-  'август',
-  'сентябрь',
-  'октябрь',
-  'ноябрь',
-  'декабрь',
-];
-
-/** Месяц периода словами. */
-const period = (value: string): string => MONTHS[Number(value.slice(5)) - 1] ?? value;
+/** Месяц периода словами: период приходит строкой вида «2026-09». */
+const period = (value: string): string => monthName(Number(value.slice(5)) - 1) || value;

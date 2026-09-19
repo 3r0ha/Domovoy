@@ -206,10 +206,10 @@ const Export = ({ api, days, toChat }: { api: DomovoyApi; days: number; toChat: 
 /** Сводка по дому. */
 export const ReportScreen = ({ api, toChat }: ReportScreenProps) => {
   const [days, setDays] = useState(30);
-  const report = useBridgeRequest(() => api.report(days), [api, days]);
+  const report = useBridgeRequest((alive) => api.until(alive).report(days), [api, days]);
   // Пересказ идёт своим запросом: числа появляются сразу, а он подтягивается следом.
   const digest = useBridgeRequest(
-    () => api.reportDigest(days).catch((): { digest?: string; basis?: string } => ({})),
+    (alive) => api.until(alive).reportDigest(days).catch((): { digest?: string; basis?: string } => ({})),
     [api, days],
   );
 

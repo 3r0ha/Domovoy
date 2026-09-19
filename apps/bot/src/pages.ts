@@ -63,6 +63,13 @@ const LIST_LIMIT = 2;
 /** Объявление занимает несколько строк, поэтому их в сообщении меньше. */
 const NEWS_PAGE = 2;
 
+/** Сколько знаков объявления читается в переписке. */
+const BODY_LIMIT = 400;
+
+/** Длинный текст в переписке обрезается: целиком он открывается в приложении. */
+const briefly = (text: string): string =>
+  text.length <= BODY_LIMIT ? text : `${text.slice(0, BODY_LIMIT).trimEnd()}…\nДальше читайте в приложении.`;
+
 /** Кто ведёт работу: имя исполнителя видно и жильцу, и смене. */
 const workedBy = async (kit: BotKit, assigneeId?: string): Promise<string> => {
   if (!assigneeId) return '';
@@ -206,7 +213,7 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
 
   const stored = await kit.deps.repository.findRequest(found.id);
   const view = stored ? await responsibilityOf(kit.deps, stored) : undefined;
-  const handoffs = stored ? await handoffsOf(kit.deps, stored.id) : [];
+  const handoffs = stored ? await handoffsOf(kit.deps, stored.id, resident) : [];
 
   // Кто отвечает и кому передано, важнее прочего: с этого начинается ответ на
   // вопрос «что с моим обращением».
@@ -259,7 +266,7 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
 
     return (
       `${announcement.title}, ${describeAudience(announcementAudience(announcement))}\n` +
-      `${formatMoment(announcement.createdAt)}\n${announcement.body}${until}`
+      `${formatMoment(announcement.createdAt)}\n${briefly(announcement.body)}${until}`
     );
   });
 

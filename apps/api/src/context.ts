@@ -1,10 +1,15 @@
-import { atBuilding, type MeterVisionDeps, type Resident } from '@domovoy/app';
+import { atBuilding, type MeterVisionDeps, type Resident, type Transcriber } from '@domovoy/app';
 import { DomainError } from '@domovoy/domain';
+import type { SessionAuth } from '@maxkit/server';
 
 /** Что нужно маршрутам продукта: сценарии, часы и подключённые службы. */
 export interface RoutesDeps extends MeterVisionDeps {
   /** Токен бота: им подписан телефон, полученный через `requestContact`. */
   botToken?: string;
+  /** Расшифровка речи. Без неё голосовую ручку продукт не открывает. */
+  transcriber?: Transcriber;
+  /** Сессии: нужны там, где токен отзывается. */
+  auth?: SessionAuth;
   /** Режим проверки: доступно переключение роли. */
   demo?: boolean;
 }

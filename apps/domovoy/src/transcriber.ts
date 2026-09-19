@@ -21,7 +21,9 @@ const MAX_BYTES = 20 * 1024 * 1024;
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-const isDownloadable = (token: string): boolean => token.startsWith('http://') || token.startsWith('https://');
+/** Адрес платформы или сам файл строкой: запись из приложения нигде не хранится. */
+const isDownloadable = (token: string): boolean =>
+  token.startsWith('http://') || token.startsWith('https://') || token.startsWith('data:');
 
 /** Скачивает запись, не доверяя размеру. */
 const download = async (

@@ -66,9 +66,11 @@ const setup = (now: Date): AppDeps & { notifier: ReturnType<typeof createCollect
 };
 
 describe('дом живёт по своему времени, а не по серверному', () => {
-  it('показание в ночь на первое число попадает в новый месяц', async () => {
-    // 30 сентября 17:00 UTC это 1 октября 03:00 во Владивостоке.
-    const deps = setup(new Date('2026-09-30T17:00:00Z'));
+  it('показание в ночь на начало окна попадает в новый расчётный период', async () => {
+    // 19 октября 17:00 UTC это 20 октября 03:00 во Владивостоке: окно подачи
+    // уже открылось, и показание идёт за октябрь. По серверному времени это
+    // ещё 19 октября, то есть сентябрьский период, и подача была бы дублем.
+    const deps = setup(new Date('2026-10-19T17:00:00Z'));
 
     await deps.repository.saveMeter({ id: 'm-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
     await deps.repository.saveReading({
@@ -81,7 +83,7 @@ describe('дом живёт по своему времени, а не по се�
 
     const result = await submitReading(deps, { resident: maria, meterId: 'm-1', value: 126 });
 
-    assert.equal(result.reading.value, 126, 'сентябрьское показание не мешает октябрьскому');
+    assert.equal(result.reading.value, 126, 'показание прошлого периода не пускает новое');
   });
 
   it('утренняя сводка уходит по местному утру', async () => {

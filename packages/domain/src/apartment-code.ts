@@ -28,7 +28,8 @@ export const apartmentKeyParam = (code: string): string => `${APARTMENT_KEY_PREF
 
 /** Код из параметра запуска. Пусто, если параметр не о квартире. */
 export const apartmentKeyOf = (payload: string | null | undefined): string | null => {
-  if (!payload?.startsWith(APARTMENT_KEY_PREFIX)) return null;
+  // Регистр приставки не важен: код набирают с бумажной квитанции вручную.
+  if (!payload?.trim().toLowerCase().startsWith(APARTMENT_KEY_PREFIX)) return null;
 
   const code = normalizeApartmentCode(payload);
 

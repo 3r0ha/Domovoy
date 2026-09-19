@@ -444,6 +444,7 @@ describe('профиль и уведомления', () => {
       apartmentNumber: 1,
       readingWindow: { fromDay: 20, toDay: 25 },
       meterPhoto: false,
+      voice: false,
       reception: false,
       files: true,
       demo: false,

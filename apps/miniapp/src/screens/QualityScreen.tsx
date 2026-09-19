@@ -63,7 +63,7 @@ const lines = (quality: QualityView): Line[] => {
 
 /** Как работает управляющая компания в доме жильца. */
 export const QualityScreen = ({ api }: QualityScreenProps) => {
-  const quality = useBridgeRequest(() => api.quality(), [api]);
+  const quality = useBridgeRequest((alive) => api.until(alive).quality(), [api]);
 
   if (quality.loading && !quality.data) return <Skeleton count={2} />;
 

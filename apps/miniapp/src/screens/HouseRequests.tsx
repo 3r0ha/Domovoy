@@ -15,7 +15,7 @@ export interface HouseRequestsProps {
  * Заявки дома, о которых сообщил сосед, с числом подтверждений.
  */
 export const HouseRequests = ({ api, onOpen }: HouseRequestsProps) => {
-  const house = useBridgeRequest(() => api.houseRequests(), [api]);
+  const house = useBridgeRequest((alive) => api.until(alive).houseRequests(), [api]);
   const requests = Array.isArray(house.data) ? house.data : [];
 
   if (requests.length === 0) return null;

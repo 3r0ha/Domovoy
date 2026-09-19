@@ -9,7 +9,14 @@ import type { RequestCategory, RequestStatus, RequestTarget, ServiceRequest } fr
 export interface BuildingSummary {
   total: number;
   open: number;
+  /** Горит сейчас: заявка открыта, и её срок уже вышел. Этим числом работает смена. */
   overdue: number;
+  /**
+   * Не уложились в норматив, включая закрытые с нарушением. Считается тем же
+   * правилом, что и в разрезе по категориям: иначе две цифры на одном экране
+   * расходятся, а вопросы у них разные.
+   */
+  missed: number;
   /** Закрыты жильцом: работа принята. */
   confirmed: number;
   rejected: number;
@@ -20,20 +27,24 @@ export interface BuildingSummary {
 export const summarize = (requests: readonly ServiceRequest[], now: Date): BuildingSummary => {
   let open = 0;
   let overdue = 0;
+  let missed = 0;
   let confirmed = 0;
   let rejected = 0;
   let mergedReports = 0;
 
   for (const request of requests) {
-    if (OPEN_STATUSES.includes(request.status)) open += 1;
-    if (isOverdue(request, now)) overdue += 1;
+    const running = OPEN_STATUSES.includes(request.status);
+
+    if (running) open += 1;
+    if (running && isOverdue(request, now)) overdue += 1;
+    if (missedDeadline(request, now)) missed += 1;
     if (request.status === 'confirmed') confirmed += 1;
     if (request.status === 'rejected') rejected += 1;
 
     mergedReports += request.joinedBy.length;
   }
 
-  return { total: requests.length, open, overdue, confirmed, rejected, mergedReports };
+  return { total: requests.length, open, overdue, missed, confirmed, rejected, mergedReports };
 };
 
 /** Промежуток времени для отчёта. */
@@ -93,7 +104,7 @@ export interface PeriodSummary {
   rejected: number;
   /** Обращений, склеенных с уже открытыми заявками. */
   mergedReports: number;
-  /** Доля закрытых, уложившихся в норматив, 0…1. */
+  /** Доля закрытых, уложившихся в норматив, 0…1. Ноль, если закрывать было нечего. */
   inTimeRate: number;
   /** Среднее время от подачи до сдачи работы, в часах. */
   averageHours: number;
@@ -150,7 +161,9 @@ export const summarizePeriod = (
     confirmed,
     rejected,
     mergedReports,
-    inTimeRate: closed === 0 ? 1 : (closed - missed) / closed,
+    // На периоде без закрытых заявок доли нет: стопроцентная доля сказала бы,
+    // что работа шла в срок, там, где работы не было. Смотреть вместе с closed.
+    inTimeRate: closed === 0 ? 0 : (closed - missed) / closed,
     averageHours: closed === 0 ? 0 : Math.round((hoursTotal / closed) * 10) / 10,
     missed,
     rated,

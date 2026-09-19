@@ -38,7 +38,7 @@ const when = (event: HouseEventView, now: Date): string => {
 
 /** Что в доме будет на неделе: работы, собрания и обходы одной лентой. */
 export const HouseAhead = ({ api }: HouseAheadProps) => {
-  const ahead = useBridgeRequest(() => api.houseAhead(), [api]);
+  const ahead = useBridgeRequest((alive) => api.until(alive).houseAhead(), [api]);
   const events = Array.isArray(ahead.data) ? ahead.data : [];
 
   if (events.length === 0) return null;

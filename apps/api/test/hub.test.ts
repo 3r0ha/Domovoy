@@ -93,6 +93,21 @@ describe('события от домофонии', () => {
     await app.close();
   });
 
+  it('секрет сверяется раньше разбора тела', async () => {
+    const { app } = await setup();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/hub/alarm',
+      payload: { лишнее: true },
+    });
+
+    assert.equal(response.statusCode, 401, 'без секрета тело не разбирается');
+    assert.equal(response.json().error, 'unauthorized');
+
+    await app.close();
+  });
+
   it('похожий секрет не подходит: ни короче, ни длиннее, ни с другим знаком', async () => {
     const { app, repository } = await setup();
 

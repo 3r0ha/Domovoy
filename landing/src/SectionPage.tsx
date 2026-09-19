@@ -18,7 +18,7 @@ export const SectionPage = ({ id }: { id: string }) => {
     return (
       <>
         <Top />
-        <main id="top" className="page-hero wrap">
+        <main id="top" tabIndex={-1} className="page-hero wrap">
           <h1>Такого раздела нет</h1>
           <p className="lead">
             <a href="/">Вернуться на главную</a>
@@ -37,7 +37,7 @@ export const SectionPage = ({ id }: { id: string }) => {
     <>
       <Top current={section.id} />
 
-      <main id="top">
+      <main id="top" tabIndex={-1}>
         <section className={plainFirst ? 'page-hero page-hero-tall' : 'page-hero'}>
           <Hem open className="page-hem page-hem-open" />
           <div className="wrap page-hero-inner">
@@ -52,7 +52,7 @@ export const SectionPage = ({ id }: { id: string }) => {
 
 
           {plainFirst ? (
-            <a className="page-down" href="#дальше" aria-label="Листать дальше">
+            <a className="page-down" href="#next" aria-label="Листать дальше">
               <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
                 <path d="M12 4.5v14M5.5 12.5 12 19l6.5-6.5" />
               </svg>
@@ -67,7 +67,7 @@ export const SectionPage = ({ id }: { id: string }) => {
           return (
             <section
               key={chapter.title}
-              {...(at === 0 ? { id: 'дальше' } : {})}
+              {...(at === 0 ? { id: 'next' } : {})}
               className={plain ? `scene chapter chapter-plain${tone}` : `scene chapter${tone}${at % 2 ? ' scene-right' : ''}`}
             >
               <div className={plain ? 'wrap chapter-plain-inner' : 'wrap scene-inner'}>

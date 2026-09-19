@@ -215,7 +215,7 @@ export const formatNeighbourQuestion = (request: ServiceRequest): string =>
 /** Стук к соседу сверху: без номера квартиры и имени того, у кого течёт. */
 export const formatKnock = (request: ServiceRequest): string =>
   `Домовой стучится: у соседа снизу ${request.title.toLowerCase()}.\n` +
-  'Посмотрите, не течёт ли у вас. Если да, перекройте воду и ответьте, заявка уже открыта.';
+  'Посмотрите, не течёт ли у вас. Если да, перекройте воду и нажмите кнопку ниже, заявка уже открыта.';
 
 export const formatNeighbourAlert = (request: ServiceRequest, dueAt: Date): string => {
   const due = formatMoment(dueAt);
@@ -232,7 +232,7 @@ export const formatOverdue = (request: ServiceRequest, kind: 'reaction' | 'resol
   const what =
     kind === 'reaction'
       ? 'заявку до сих пор не приняли в работу'
-      : 'работы не выполнены в нормативный срок';
+      : 'работы не сделали в обещанный срок';
 
   const next = canEscalate ? '\nЕсть основание обратиться в жилищную инспекцию.' : '\nСообщим об изменениях.';
 
@@ -361,6 +361,8 @@ export interface NotifyReply {
   signAbout?: string;
   /** Обращение в поддержку: на него отвечают кнопкой. */
   answerAbout?: string;
+  /** Раздел, о котором говорит уведомление: в него и ведёт кнопка под текстом. */
+  section?: string;
 }
 
 /**
@@ -376,7 +378,7 @@ export const notifyResident = async (
 ): Promise<void> => {
   if (!resident?.maxUserId) return;
 
-  const { replyTo, askAbout, signAbout, answerAbout }: NotifyReply =
+  const { replyTo, askAbout, signAbout, answerAbout, section }: NotifyReply =
     typeof reply === 'string' ? { replyTo: reply } : reply;
 
   await deliver(notifier, {
@@ -387,5 +389,6 @@ export const notifyResident = async (
     ...(askAbout ? { askAbout } : {}),
     ...(signAbout ? { signAbout } : {}),
     ...(answerAbout ? { answerAbout } : {}),
+    ...(section ? { section } : {}),
   });
 };

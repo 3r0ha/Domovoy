@@ -4,6 +4,7 @@ import {
   describeTarget,
   findTransition,
   isCompanyStaff,
+  OPEN_STATUSES,
   STATUS_TITLES,
   type RequestStatus,
   type ServiceRequest,
@@ -84,7 +85,9 @@ const PHRASES: readonly Phrase[] = [
   },
   {
     to: 'done',
-    words: /почин|устранил|заменил|сделал|готово|выполнил|закрыл наряд|работу сдал|прочистил|отремонтировал/i,
+    // Только законченное действие: «когда почините» это просьба, а не отчёт.
+    words:
+      /почини(л|ла|ли)|устранил|заменил|сделал|готово|выполнил|закрыл наряд|работу сдал|прочистил|отремонтировал/i,
     denied: 'Сдать работу может исполнитель наряда, который взят в работу.',
   },
   {
@@ -277,8 +280,18 @@ export const doingFor = async (deps: AppDeps, resident: Resident, text: string):
 
   if (matched.length === 0) return undefined;
 
-  return { kind: 'denied', reason: matched[0]!.denied };
+  // Отказ объясняется делом этой роли: «всё сделали, спасибо» у жильца это
+  // приёмка работы, а не сдача наряда, и отказ должен говорить о приёмке.
+  const own = matched.find((phrase) => roleDoes(phrase.to, resident));
+
+  return { kind: 'denied', reason: (own ?? matched[0]!).denied };
 };
+
+/** Делает ли эта роль такое дело вообще, при каком-нибудь состоянии заявки. */
+const roleDoes = (to: RequestStatus, resident: Resident): boolean =>
+  [...OPEN_STATUSES, ...CLOSED_STATUSES].some((status) =>
+    allowedTransitions(status, resident.role).includes(to),
+  );
 
 /**
  * Что о деле думает модель. Ответ принимается, только если и дело, и заявка

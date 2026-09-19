@@ -184,8 +184,51 @@ describe('привязка сотрудником', () => {
 
     await assert.rejects(
       bindApartmentByStaff(deps, stranger, { residentId: newcomer.id, apartmentId: 'apt-1' }),
-      /Дом обслуживает другая управляющая организация/,
+      /Дом не найден/,
     );
+  });
+
+  it('сотрудник себя к квартире дома не привязывает', async () => {
+    const deps = setup([manager]);
+
+    await assert.rejects(
+      bindApartmentByStaff(deps, manager, { residentId: manager.id, apartmentId: 'apt-1' }),
+      /по коду из квитанции/,
+    );
+
+    assert.equal((await deps.repository.findResident(manager.id))?.apartmentId, undefined);
+  });
+
+  it('человека чужой организации к своей квартире не привязывают', async () => {
+    const deps = setup([manager]);
+
+    await deps.repository.saveBuilding({ id: 'b2', code: 'Д1', address: 'ул. Мира, 1', companyId: 'ук-вторая' });
+
+    const alien: Resident = {
+      id: 'res-alien',
+      maxUserId: 2002,
+      displayName: 'Чужой',
+      role: 'resident',
+      buildingId: 'b2',
+    };
+
+    await deps.repository.saveResident(alien);
+
+    await assert.rejects(
+      bindApartmentByStaff(deps, manager, { residentId: alien.id, apartmentId: 'apt-1' }),
+      /другой управляющей организации/,
+    );
+  });
+
+  it('привязка попадает в журнал действий', async () => {
+    const deps = setup([newcomer, manager]);
+
+    await bindApartmentByStaff(deps, manager, { residentId: newcomer.id, apartmentId: 'apt-2' });
+
+    const [entry] = await listAudit(deps, manager);
+
+    assert.equal(entry?.action, 'apartment_bound');
+    assert.equal(entry?.details, 'квартира 2');
   });
 
   it('неизвестный житель или квартира не принимаются', async () => {
@@ -314,10 +357,7 @@ describe('жилец съехал', () => {
 
     await bindApartment(deps, newcomer, CODE);
 
-    await assert.rejects(
-      unbindApartment(deps, stranger, newcomer.id, 'apt-1'),
-      /Дом обслуживает другая управляющая организация/,
-    );
+    await assert.rejects(unbindApartment(deps, stranger, newcomer.id, 'apt-1'), /Дом не найден/);
   });
 
   it('отвязка попадает в журнал действий', async () => {

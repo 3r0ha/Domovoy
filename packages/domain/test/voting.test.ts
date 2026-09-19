@@ -5,6 +5,7 @@ import {
   ELDER_TERM_YEARS,
   INITIATIVE_SHARE,
   areaToQuorum,
+  areasMissingNote,
   castVote,
   countVotes,
   electElder,
@@ -198,12 +199,12 @@ describe('подсчёт по долям площади', () => {
     assert.equal(countVotes(poll(), APARTMENTS, [alien]).votedArea, 0);
   });
 
-  it('дом без площадей считается, но кворума не даёт', () => {
+  it('дом без площадей решения не принимает', () => {
     const unknown = APARTMENTS.map((apartment) => ({ ...apartment, area: undefined }));
     const result = countVotes(poll(), unknown, [vote('apt-1', 'for')]);
 
-    assert.equal(result.totalArea, 0);
-    assert.equal(result.turnout, 0);
+    assert.equal(result.areasMissing, unknown.length);
+    assert.equal(result.quorum, false);
     assert.equal(result.passed, false);
   });
 });
@@ -249,6 +250,33 @@ describe('доли сравниваются до округления', () => {
   });
 });
 
+describe('площади помещений', () => {
+  const nameless: Apartment = { id: 'apt-5', buildingId: 'b1', number: 5, entrance: 1, riser: 1 };
+
+  it('без площади хотя бы одного помещения решение не принимается', () => {
+    const result = countVotes(poll(), [...APARTMENTS, nameless], [vote('apt-1', 'for'), vote('apt-2', 'for')]);
+
+    assert.equal(result.areasMissing, 1);
+    assert.equal(result.quorum, false, 'кворум подтверждён на неполных площадях');
+    assert.equal(result.passed, false);
+  });
+
+  it('на неполных площадях голоса считаются по помещениям, а не по тем, у кого площадь есть', () => {
+    const all = [...APARTMENTS, nameless];
+    const result = countVotes(poll(), all, [vote('apt-1', 'for'), vote('apt-2', 'for')]);
+
+    // Иначе два проголосовавших из пяти помещений давали бы стопроцентную явку.
+    assert.equal(result.totalArea, all.length);
+    assert.equal(result.votedArea, 2);
+    assert.equal(result.turnout, Number((2 / all.length).toFixed(4)));
+  });
+
+  it('незаполненные площади объясняются словами', () => {
+    assert.equal(areasMissingNote(APARTMENTS), undefined);
+    assert.match(areasMissingNote([...APARTMENTS, nameless]) ?? '', /у 1 помещений она не внесена \(5\)/);
+  });
+});
+
 describe('сколько не хватает до кворума', () => {
   it('считается в квадратных метрах', () => {
     const result = countVotes(poll(), APARTMENTS, [vote('apt-3', 'for')]);
@@ -260,6 +288,14 @@ describe('сколько не хватает до кворума', () => {
     const result = countVotes(poll(), APARTMENTS, [vote('apt-1', 'for'), vote('apt-2', 'for')]);
 
     assert.equal(areaToQuorum(poll(), result), 0);
+  });
+
+  it('ровно половина площади это не «не хватает нуля»', () => {
+    const result = countVotes(poll(), APARTMENTS, [vote('apt-1', 'for'), vote('apt-3', 'for')]);
+
+    assert.equal(result.votedArea, 75, 'ровно половина от ста пятидесяти');
+    assert.equal(result.quorum, false, 'кворум берётся строго больше половины');
+    assert.ok(areaToQuorum(poll(), result) > 0, 'собрание не состоялось, значит, площади не хватило');
   });
 });
 
@@ -289,6 +325,26 @@ describe('старший по подъезду', () => {
     const reelected = electElder(poll(), { entrance: 2, residentId: 'res-9' }, new Date('2027-06-01T00:00:00Z'));
 
     assert.equal(elderNow([elder, reelected], 2, new Date('2027-07-01T00:00:00Z'))?.residentId, 'res-9');
+  });
+
+  it('подъезд номер два есть в каждом доме, поэтому дом называется отдельно', () => {
+    const neighbour = electElder(
+      { ...poll(), buildingId: 'b2' },
+      { entrance: 2, residentId: 'res-8' },
+      ELECTED,
+    );
+
+    assert.throws(
+      () => elderNow([neighbour, elder], 2, new Date('2027-01-01T00:00:00Z')),
+      /разных домов/,
+      'иначе старшим второго подъезда дома А становится житель дома Б',
+    );
+  });
+
+  it('полномочия с двадцать девятого февраля кончаются февралём', () => {
+    const leapYear = electElder(poll(), { entrance: 1, residentId: 'res-1' }, new Date('2028-02-29T00:00:00Z'));
+
+    assert.equal(leapYear.until.toISOString(), '2030-02-28T00:00:00.000Z', 'а не первым марта');
   });
 });
 

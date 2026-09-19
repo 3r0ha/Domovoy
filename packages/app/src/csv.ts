@@ -4,9 +4,22 @@ export const BOM = String.fromCodePoint(0xfeff);
 /** Разделитель: точка с запятой, как у Excel с русской локалью. */
 const SEPARATOR = ';';
 
+/** С чего начинается значение, которое таблица посчитает формулой. */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+/** Обычное число: минус перед ним формулы не делает. */
+const NUMERIC = /^-?\d+(?:[.,]\d+)?$/;
+
+/**
+ * Значение из текста жильца попадает в выгрузку как есть, а таблица выполняет
+ * то, что начинается со знака формулы. Апостроф перед ним оставляет текст текстом.
+ */
+const guard = (text: string): string =>
+  FORMULA_START.test(text) && !NUMERIC.test(text) ? `'${text}` : text;
+
 /** Кавычки только там, где без них строка разъедется. */
 const cell = (value: string | number): string => {
-  const text = String(value);
+  const text = typeof value === 'number' ? String(value) : guard(value);
 
   return /["\r\n;]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 };

@@ -62,6 +62,7 @@ import {
   toast,
   toAttachments,
   screenKeeper,
+  withBack,
   type BotContext,
   type DialogSession,
 } from './max.js';
@@ -97,20 +98,27 @@ const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
   }
 
   // Кнопка из старого сообщения после обновления продукта: молчать нельзя,
-  // человек не отличит это от зависания.
+  // человек не отличит это от зависания. Всплывающее живёт пару секунд,
+  // поэтому следом остаётся сообщение с меню.
   await toast(typed, 'Эта кнопка уже не работает');
+
+  if (inChat(typed)) return;
+
+  await typed.reply(
+    'Эта кнопка из старого сообщения. Вот с чего можно начать.',
+    kit.menuKeyboard(await kit.residentOf(typed)),
+  );
 };
 
 /**
  * Разговор с продолжением из общего чата не начинается: он уводится в переписку.
  */
-const inviteToDialog = async (typed: BotContext, name: string, openApp: () => Extra | undefined): Promise<void> => {
+const inviteToDialog = async (typed: BotContext, openApp: () => Extra | undefined): Promise<void> => {
   const user = typed.user ?? typed.callback?.user ?? typed.message?.sender;
 
-  await typed.reply(
-    `${nameOf(user)}, это разговор на двоих: напишите мне /${name} в личные сообщения.`,
-    openApp(),
-  );
+  // Про команду в чате человеку говорить незачем: он её не наберёт. Разговор
+  // продолжается в личной переписке, и открыть её можно кнопкой.
+  await typed.reply(`${nameOf(user)}, отвечу вам лично: напишите мне в личные сообщения.`, openApp());
 };
 
 /** Что бот делает и без согласия: приветствие, справка, документы и контакты. */
@@ -131,6 +139,10 @@ const SECTION_TITLES: Record<string, string> = {
  * текста человеку не нужно, для этого под сообщением стоит кнопка.
  */
 const SECTION_IN_CHAT: Record<string, { title: string; command: string }> = {
+  new: { title: '✍️ Новая заявка', command: 'new' },
+  bill: { title: '🧾 Сколько платить', command: 'bill' },
+  flat: { title: '🏢 Квартира', command: 'flat' },
+  visits: { title: '🗓 Приём в офисе', command: 'visit' },
   news: { title: '📣 Объявления', command: 'news' },
   meters: { title: '💧 Передать показания', command: 'meters' },
   polls: { title: '🗳 Собрания', command: 'vote' },
@@ -156,7 +168,7 @@ const inChatRow = (section: string | undefined) => {
  */
 export const BOT_COMMANDS = [
   { name: 'new', description: 'Сообщить о поломке' },
-  { name: 'my', description: 'Свои заявки и наряды' },
+  { name: 'my', description: 'Мои заявки' },
   { name: 'meters', description: 'Отправить показания счётчиков' },
   { name: 'bill', description: 'Сколько платить в этом месяце' },
   { name: 'door', description: 'Открыть дверь подъезда' },
@@ -213,7 +225,7 @@ export const createBotNotifier = (
             : section || complaintFor
               ? keyboardOf([
                   ...(complaintFor
-                    ? [[Keyboard.button.callback('📄 Жилинспекция', `gzhi:${complaintFor}`)]]
+                    ? [[Keyboard.button.callback('📄 Пожаловаться в инспекцию', `gzhi:${complaintFor}`)]]
                     : []),
                   ...inChatRow(section),
                   ...(section
@@ -223,7 +235,9 @@ export const createBotNotifier = (
                 ], PERSONAL)
               : actionKeyboard(actions, replyTo);
 
-      const ready = shown(text, keyboard);
+      // Уведомление без единой кнопки это тупик: текст зовёт оформить заявку
+      // или посмотреть счёт, а нажать нечего, и человек идёт набирать команду.
+      const ready = shown(text, keyboard ?? menuButton(PERSONAL));
 
       await bot.api.sendMessageToUser(maxUserId, ready.text, ready.extra);
     } catch (error) {
@@ -291,9 +305,14 @@ const guarded =
     try {
       await run(typed);
     } catch (error) {
+      // После нажатия остаётся и сообщение: всплывающее гаснет за пару секунд,
+      // и читающий медленно решает, что кнопка не сработала.
       if (typed.callback?.callback_id) await toast(typed, 'Не получилось. Попробуйте ещё раз');
-      else if (answerable(typed)) {
-        await typed.reply('Не получилось выполнить. Попробуйте ещё раз.', menuButton(typed)).catch(() => undefined);
+
+      if (answerable(typed)) {
+        await typed
+          .reply('Не получилось выполнить. Нажмите ещё раз или выберите в меню.', menuButton(typed))
+          .catch(() => undefined);
       }
 
       throw error;
@@ -319,8 +338,15 @@ const inPrivate = async (
 
   const personal = Object.create(typed) as BotContext;
 
+  // Ответ уходит в личную переписку, поэтому и место разговора у него личное:
+  // иначе выходы к нему не дописываются и человек получает сообщение без кнопок.
+  // Своё свойство, а не присваивание: у контекста платформы это геттер.
+  Object.defineProperty(personal, 'message', {
+    value: typed.message && { ...typed.message, recipient: { ...typed.message.recipient, chat_type: 'dialog' } },
+  });
+
   personal.reply = (text, extra) => {
-    const ready = shown(text, extra);
+    const ready = shown(text, withBack(extra, personal));
 
     return bot.api.sendMessageToUser(userId, ready.text, ready.extra);
   };
@@ -414,7 +440,7 @@ export const createDomovoyBot = (
       if (!inChat(typed) || !PRIVATE_COMMANDS.has(name)) return run(typed);
 
       return DIALOG_COMMANDS.has(name)
-        ? inviteToDialog(typed, name, openAppKeyboard)
+        ? inviteToDialog(typed, openAppKeyboard)
         : answerPrivately(typed, run, QUIET_COMMANDS.has(name));
     });
 

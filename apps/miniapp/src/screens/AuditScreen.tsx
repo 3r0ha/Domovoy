@@ -37,7 +37,7 @@ const byDay = (entries: AuditEntryView[]): { day: string; entries: AuditEntryVie
 
 /** Журнал действий сотрудников. */
 export const AuditScreen = ({ api }: AuditScreenProps) => {
-  const audit = useBridgeRequest(() => api.audit(), [api]);
+  const audit = useBridgeRequest((alive) => api.until(alive).audit(), [api]);
   const older = usePages<AuditEntryView>((cursor) => api.audit(cursor), PAGE);
 
   if (audit.loading && !audit.data) return <Skeleton count={3} />;

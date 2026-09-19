@@ -60,6 +60,9 @@ import {
 } from './rows.js';
 import { type SqlClient } from './sql.js';
 
+/** Сколько заявок отдаёт список, если предел не задан. */
+const REQUEST_LIMIT = 1000;
+
 /** Незаполненное поле уходит в колонку как null. */
 const orNull = (value?: string | number): string | number | null => value ?? null;
 
@@ -368,17 +371,34 @@ export class PostgresRepository implements Repository {
 
   /** Следующий номер заявки в доме за месяц. Без пояса месяц считается по UTC. */
   async nextRequestSequence(buildingId: string, at: Date, timeZone?: string): Promise<number> {
+    const zone = timeZone ?? 'UTC';
+    const period = `to_char($2::timestamptz at time zone $3::text, 'YYYY-MM')`;
+
+    const taken = await this.sql.query<{ last_number: number }>(
+      `update request_sequence set last_number = last_number + 1
+       where building_id = $1 and period = ${period}
+       returning last_number`,
+      [buildingId, at, zone],
+    );
+
+    if (taken.rows[0]) return taken.rows[0].last_number;
+
+    // Первая заявка месяца: счётчик заводится от уже записанных заявок.
     // Границы месяца считаются отдельно от колонки: иначе отбор не ложится на индекс.
-    const { rows } = await this.sql.query<{ count: string }>(
-      `select count(*) as count from service_request
+    const { rows } = await this.sql.query<{ last_number: number }>(
+      `insert into request_sequence (building_id, period, last_number)
+       select $1, ${period}, count(*) + 1 from service_request
        where building_id = $1
          and created_at >= date_trunc('month', $2::timestamptz at time zone $3::text) at time zone $3::text
          and created_at < (date_trunc('month', $2::timestamptz at time zone $3::text) + interval '1 month')
-                          at time zone $3::text`,
-      [buildingId, at, timeZone ?? 'UTC'],
+                          at time zone $3::text
+       on conflict (building_id, period)
+         do update set last_number = request_sequence.last_number + 1
+       returning last_number`,
+      [buildingId, at, zone],
     );
 
-    return Number(rows[0]?.count ?? 0) + 1;
+    return rows[0]?.last_number ?? 1;
   }
 
   async buildingCode(buildingId: string): Promise<string | undefined> {
@@ -450,7 +470,22 @@ export class PostgresRepository implements Repository {
   async saveRequest(request: ServiceRequest): Promise<ServiceRequest> {
     const target = fromTarget(request.target);
 
-    await this.atomically(async (sql) => {
+    const status = await this.atomically(async (sql) => {
+      // Строка берётся под блокировку до чтения истории: диспетчер и жилец,
+      // сохраняющие заявку в одну секунду, идут по очереди.
+      const locked = await sql.query<{ id: string }>(
+        'select id from service_request where id = $1 for update',
+        [request.id],
+      );
+
+      if (locked.rows.length === 0) return request.status;
+
+      await appendHistory(sql, request);
+
+      // Состояние берётся из слитой истории: свой устаревший статус не затирает
+      // переход, записанный второй стороной.
+      const settled = await settledStatus(sql, request.id, request.status);
+
       await sql.query(
         `update service_request
          set status = $2, assignee_id = $3, description = $4, priority = $5, title = $16,
@@ -461,7 +496,7 @@ export class PostgresRepository implements Repository {
          where id = $1`,
         [
           request.id,
-          request.status,
+          settled,
           request.assigneeId ?? null,
           request.description,
           request.priority,
@@ -482,12 +517,13 @@ export class PostgresRepository implements Repository {
         ],
       );
 
-      await appendHistory(sql, request);
       await saveReporters(sql, request);
       await saveAttachments(sql, request);
+
+      return settled;
     });
 
-    return request;
+    return status === request.status ? request : { ...request, status };
   }
 
   async findRequest(id: string): Promise<ServiceRequest | undefined> {
@@ -545,12 +581,10 @@ export class PostgresRepository implements Repository {
       reporter = `$${values.length}`;
     }
 
-    let limit = '';
-
-    if (filter.limit !== undefined) {
-      values.push(filter.limit);
-      limit = ` limit $${values.length}`;
-    }
+    // Предел ставится всегда: обход без дома иначе поднимает заявки всех домов
+    // вместе с историей и вложениями.
+    values.push(filter.limit ?? REQUEST_LIMIT);
+    const limit = ` limit $${values.length}`;
 
     const where = (extra?: string): string => {
       const all = extra ? [...conditions, extra] : conditions;
@@ -592,34 +626,38 @@ export class PostgresRepository implements Repository {
   }
 
   async saveAnnouncement(announcement: Announcement): Promise<Announcement> {
-    await this.sql.query(
-      `insert into announcement
-         (id, building_id, kind, entrance, riser, title, body, created_at,
-          works_category, works_from, works_until, request_id)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-      [
-        announcement.id,
-        announcement.buildingId,
-        announcement.audience.kind,
-        announcement.audience.entrance ?? null,
-        announcement.audience.riser ?? null,
-        announcement.title,
-        announcement.body,
-        announcement.createdAt,
-        announcement.works?.category ?? null,
-        announcement.works?.from ?? null,
-        announcement.works?.until ?? null,
-        announcement.requestId ?? null,
-      ],
-    );
+    // Объявление и его адресаты пишутся вместе: обрыв между двумя запросами
+    // оставлял объявление, которое никому не показывается.
+    await this.atomically(async (sql) => {
+      await sql.query(
+        `insert into announcement
+           (id, building_id, kind, entrance, riser, title, body, created_at,
+            works_category, works_from, works_until, request_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          announcement.id,
+          announcement.buildingId,
+          announcement.audience.kind,
+          announcement.audience.entrance ?? null,
+          announcement.audience.riser ?? null,
+          announcement.title,
+          announcement.body,
+          announcement.createdAt,
+          announcement.works?.category ?? null,
+          announcement.works?.from ?? null,
+          announcement.works?.until ?? null,
+          announcement.requestId ?? null,
+        ],
+      );
 
-    if (announcement.recipientIds.length > 0) {
-      await this.sql.query(
+      if (announcement.recipientIds.length === 0) return;
+
+      await sql.query(
         `insert into announcement_recipient (announcement_id, apartment_id)
          select $1, unnest($2::text[])`,
         [announcement.id, announcement.recipientIds],
       );
-    }
+    });
 
     return announcement;
   }
@@ -894,14 +932,20 @@ export class PostgresRepository implements Repository {
     return rows[0] ? toMeter(rows[0]) : undefined;
   }
 
+  /** Показание на момент времени одно: повтор заменяет прежнее, а не падает. */
   async saveReading(reading: Reading): Promise<Reading> {
-    await this.sql.query(
+    const { rows } = await this.sql.query<{ id: string }>(
       `insert into meter_reading (id, meter_id, value, at, submitted_by) values ($1, $2, $3, $4, $5)
-       on conflict (id) do update set value = excluded.value, at = excluded.at, submitted_by = excluded.submitted_by`,
+       on conflict (meter_id, at) do update set
+         value = excluded.value,
+         submitted_by = excluded.submitted_by
+       returning id`,
       [reading.id, reading.meterId, reading.value, reading.at, reading.submittedBy],
     );
 
-    return reading;
+    const id = rows[0]?.id;
+
+    return id && id !== reading.id ? { ...reading, id } : reading;
   }
 
   async listReadings(meterId: string): Promise<Reading[]> {
@@ -928,14 +972,20 @@ export class PostgresRepository implements Repository {
     await this.sql.query('delete from meter_reading where id = $1', [readingId]);
   }
 
+  /** Прибор на ресурс в доме один: два заведения подряд не расходятся ошибкой. */
   async saveHouseMeter(meter: HouseMeter): Promise<HouseMeter> {
-    await this.sql.query(
+    const { rows } = await this.sql.query<{ id: string }>(
       `insert into house_meter (id, building_id, kind, serial, verified_until) values ($1, $2, $3, $4, $5)
-       on conflict (id) do update set serial = excluded.serial, verified_until = excluded.verified_until`,
+       on conflict (building_id, kind) do update set
+         serial = excluded.serial,
+         verified_until = excluded.verified_until
+       returning id`,
       [meter.id, meter.buildingId, meter.kind, meter.serial, meter.verifiedUntil ?? null],
     );
 
-    return meter;
+    const id = rows[0]?.id;
+
+    return id && id !== meter.id ? { ...meter, id } : meter;
   }
 
   async listHouseMeters(buildingId: string): Promise<HouseMeter[]> {
@@ -953,14 +1003,20 @@ export class PostgresRepository implements Repository {
     return rows[0] ? toHouseMeter(rows[0]) : undefined;
   }
 
+  /** Показание на момент времени одно: повтор заменяет прежнее, а не падает. */
   async saveHouseReading(reading: Reading): Promise<Reading> {
-    await this.sql.query(
+    const { rows } = await this.sql.query<{ id: string }>(
       `insert into house_meter_reading (id, meter_id, value, at, submitted_by) values ($1, $2, $3, $4, $5)
-       on conflict (id) do update set value = excluded.value, at = excluded.at, submitted_by = excluded.submitted_by`,
+       on conflict (meter_id, at) do update set
+         value = excluded.value,
+         submitted_by = excluded.submitted_by
+       returning id`,
       [reading.id, reading.meterId, reading.value, reading.at, reading.submittedBy],
     );
 
-    return reading;
+    const id = rows[0]?.id;
+
+    return id && id !== reading.id ? { ...reading, id } : reading;
   }
 
   async listHouseReadingsFor(meterIds: readonly string[]): Promise<Reading[]> {
@@ -1610,7 +1666,28 @@ const eventKey = (parts: {
   isMessage: boolean;
   comment: string | null;
 }): string =>
-  [parts.at.getTime(), parts.actorId, parts.status, parts.isMessage, parts.comment ?? ''].join(' ');
+  [parts.at.getTime(), parts.actorId, parts.status, parts.isMessage, parts.comment ?? ''].join('\0');
+
+/**
+ * Состояние заявки по её истории: последний переход, сообщения его не меняют.
+ * Без этого колонка статуса расходится с историей, когда заявку сохраняют
+ * с двух сторон сразу.
+ */
+const settledStatus = async (
+  sql: SqlClient,
+  requestId: string,
+  fallback: ServiceRequest['status'],
+): Promise<ServiceRequest['status']> => {
+  const { rows } = await sql.query<{ status: ServiceRequest['status'] }>(
+    `select status from request_event
+     where request_id = $1 and not is_message
+     order by at desc, id desc
+     limit 1`,
+    [requestId],
+  );
+
+  return rows[0]?.status ?? fallback;
+};
 
 /**
  * Дописывает недостающие события истории. Событие узнаётся по содержанию, а не
@@ -1733,20 +1810,31 @@ const saveReporters = async (sql: SqlClient, request: ServiceRequest): Promise<v
   );
 };
 
+/**
+ * Вложения заявки. Файл узнаётся по своему токену, а не по месту в списке:
+ * повтор сохранения после таймаута иначе удваивает вложения.
+ */
 const saveAttachments = async (sql: SqlClient, request: ServiceRequest): Promise<void> => {
   if (request.attachments.length === 0) return;
 
-  const { rows } = await sql.query<{ count: string }>(
-    'select count(*) as count from request_attachment where request_id = $1',
-    [request.id],
-  );
+  // Строка на токен одна, поэтому повтор внутри списка до записи не доходит.
+  const files = new Map(request.attachments.map((attachment) => [attachment.token, attachment]));
+  const attachments = [...files.values()];
 
-  for (const attachment of request.attachments.slice(Number(rows[0]?.count ?? 0))) {
-    await sql.query(
-      'insert into request_attachment (request_id, kind, token, transcript) values ($1, $2, $3, $4)',
-      [request.id, attachment.kind, attachment.token, attachment.transcript ?? null],
-    );
-  }
+  // Расшифровка голосового доезжает позже самого файла, поэтому обновляется.
+  await sql.query(
+    `insert into request_attachment (request_id, kind, token, transcript)
+     select $1, kind, token, transcript
+     from unnest($2::text[], $3::text[], $4::text[]) as file (kind, token, transcript)
+     on conflict (request_id, token) do update set
+       transcript = coalesce(excluded.transcript, request_attachment.transcript)`,
+    [
+      request.id,
+      attachments.map((attachment) => attachment.kind),
+      attachments.map((attachment) => attachment.token),
+      attachments.map((attachment) => attachment.transcript ?? null),
+    ],
+  );
 };
 
 interface MeterRow {

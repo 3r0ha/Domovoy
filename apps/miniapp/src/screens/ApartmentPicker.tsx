@@ -1,6 +1,7 @@
 import { useBridgeRequest } from '@maxkit/react';
 
 import { type ApartmentView, type DomovoyApi } from '../api.js';
+import { RetryLink } from './Retry.js';
 
 export interface ApartmentPickerProps {
   api: DomovoyApi;
@@ -18,12 +19,17 @@ const title = (apartment: ApartmentView): string =>
 
 /** Выбор квартиры. Показывается, только когда квартир больше одной. */
 export const ApartmentPicker = ({ api, value, onChange }: ApartmentPickerProps) => {
-  const apartments = useBridgeRequest(() => api.ownApartments().catch(() => []), [api]);
+  const apartments = useBridgeRequest((alive) => api.until(alive).ownApartments(), [api]);
   const all = Array.isArray(apartments.data) ? apartments.data : [];
 
   // Одна квартира выбора не требует, но человеку нужно видеть, о какой речь:
   // вместо списка остаётся строка адреса.
   if (all.length === 1) return <span className="building building-one">{title(all[0]!)}</span>;
+
+  // Отказ сети без этой строки читается как «квартир нет»: выбор просто пропадает.
+  if (all.length === 0 && apartments.error) {
+    return <RetryLink title="Квартиры не загрузились" onRetry={apartments.reload} />;
+  }
 
   if (all.length === 0) return null;
 

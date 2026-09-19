@@ -194,8 +194,8 @@ const People = ({
   /** Поиск общий на весь экран: он стоит над обоими списками. */
   query: string;
 }) => {
-  const people = useBridgeRequest(() => api.people(), [api, bound]);
-  const buildings = useBridgeRequest(() => api.buildings(), [api]);
+  const people = useBridgeRequest((alive) => api.until(alive).people(), [api, bound]);
+  const buildings = useBridgeRequest((alive) => api.until(alive).buildings(), [api]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -404,7 +404,7 @@ const UnboundRow = ({
         </select>
 
         <Button type="button" size="small" disabled={busy} onClick={() => void bind()}>
-          {busy ? '…' : 'Привязать'}
+          {busy ? 'Привязываем…' : 'Привязать'}
         </Button>
       </div>
 
@@ -415,8 +415,8 @@ const UnboundRow = ({
 
 /** Жильцы без квартиры: код из квитанции теряют, и привязать их может сотрудник. */
 export const ResidentsScreen = ({ api, canAssignRoles }: ResidentsScreenProps) => {
-  const unbound = useBridgeRequest(() => api.unboundResidents(), [api]);
-  const apartments = useBridgeRequest(() => api.apartments(), [api]);
+  const unbound = useBridgeRequest((alive) => api.until(alive).unboundResidents(), [api]);
+  const apartments = useBridgeRequest((alive) => api.until(alive).apartments(), [api]);
   const [bound, setBound] = useState(0);
   const [query, setQuery] = useState('');
 

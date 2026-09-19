@@ -34,7 +34,7 @@ const forecast = (item: EquipmentHealthView): { text: string; tone: string } | n
 
 /** Здоровье оборудования дома. */
 export const EquipmentScreen = ({ api, onOpen }: EquipmentScreenProps) => {
-  const health = useBridgeRequest(() => api.equipment(), [api]);
+  const health = useBridgeRequest((alive) => api.until(alive).equipment(), [api]);
 
   if (health.loading && !health.data) return <Skeleton count={3} />;
 

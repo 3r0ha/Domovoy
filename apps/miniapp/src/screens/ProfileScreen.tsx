@@ -45,8 +45,8 @@ export const ProfileScreen = ({
 }: ProfileScreenProps) => {
   const bridge = useBridge();
   const canShareContact = useSupports('requestContact');
-  const notices = useBridgeRequest(() => api.notices(), [api]);
-  const legal = useBridgeRequest(() => api.legal(), [api]);
+  const notices = useBridgeRequest((alive) => api.until(alive).notices(), [api]);
+  const legal = useBridgeRequest((alive) => api.until(alive).legal(), [api]);
 
   const [own, setOwn] = useState<NoticeView[] | null>(null);
   const [onDuty, setOnDuty] = useState(duty?.onDuty ?? false);

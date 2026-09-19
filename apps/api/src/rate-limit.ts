@@ -21,13 +21,19 @@ export const LOGIN_LIMIT: RateLimit = { limit: 10, windowMs: 60_000 };
 /** Выгрузки и импорт: один запрос стоит дороже обычного. */
 export const HEAVY_LIMIT: RateLimit = { limit: 10, windowMs: 60_000 };
 
-/** Маршруты, которые читают или собирают файлы целиком либо рассылают их дому. */
+/**
+ * Маршруты, которые читают или собирают файлы целиком либо рассылают их дому.
+ * Запись вида «POST /api/files» считает дорогим только этот метод: выдача уже
+ * загруженного снимка идёт в обычном темпе, их на экране несколько.
+ */
 export const HEAVY_PATHS = [
   '/api/import/',
   '/api/export/',
   '/api/report/',
   '/api/stickers/sheet',
   '/api/buildings/handover',
+  'POST /api/files',
+  '/api/voice',
 ];
 
 /**
@@ -35,7 +41,7 @@ export const HEAVY_PATHS = [
  * адресом дома одна страница тянет десятки файлов, и бюджет живых людей
  * уходил бы на них.
  */
-export const GUARDED_PATHS = ['/api/', '/auth/'];
+export const GUARDED_PATHS = ['/api/', '/auth/', '/openapi.json'];
 
 interface Window {
   count: number;
@@ -43,8 +49,8 @@ interface Window {
   until: number;
 }
 
-/** С какого числа окон начинаем выбрасывать протухшие. */
-const CLEANUP_THRESHOLD = 10_000;
+/** Как часто проходить по окнам и выбрасывать протухшие. */
+const CLEANUP_EVERY_MS = 60_000;
 
 export interface RateLimiterOptions {
   /** Предел для обычных запросов. */
@@ -94,22 +100,40 @@ export const applyRateLimit = (fastify: FastifyInstance, options: RateLimiterOpt
     if (found && found.count > 0) found.count -= 1;
   };
 
-  const cleanup = (): void => {
-    if (windows.size < CLEANUP_THRESHOLD) return;
+  let cleanedAt = 0;
 
+  /** Уборка по времени: карта не растёт между запросами и не перебирается на каждом. */
+  const cleanup = (): void => {
     const at = now();
+
+    if (at - cleanedAt < CLEANUP_EVERY_MS) return;
+
+    cleanedAt = at;
 
     for (const [key, window] of windows) {
       if (window.until <= at) windows.delete(key);
     }
   };
 
-  /** Считается ли путь вообще и по какому правилу. */
-  const ruleFor = (url: string): { counted: boolean; isLogin: boolean; isHeavy: boolean } => {
+  /** Совпадение с записью дорогого маршрута: начало адреса и, если задан, метод. */
+  const heavyMatch = (entry: string, method: string, url: string): boolean => {
+    const space = entry.indexOf(' ');
+
+    if (space < 0) return url.startsWith(entry);
+
+    return method === entry.slice(0, space) && url.startsWith(entry.slice(space + 1));
+  };
+
+  /** Считается ли запрос вообще и по какому правилу. */
+  const ruleFor = (method: string, url: string): { counted: boolean; isLogin: boolean; isHeavy: boolean } => {
     const counted = !exempt.has(url) && guardedPaths.some((path) => url.startsWith(path));
     const isLogin = counted && url.startsWith('/auth/session');
 
-    return { counted, isLogin, isHeavy: counted && !isLogin && heavyPaths.some((path) => url.startsWith(path)) };
+    return {
+      counted,
+      isLogin,
+      isHeavy: counted && !isLogin && heavyPaths.some((entry) => heavyMatch(entry, method, url)),
+    };
   };
 
   /**
@@ -130,7 +154,7 @@ export const applyRateLimit = (fastify: FastifyInstance, options: RateLimiterOpt
   };
 
   fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { counted, isLogin, isHeavy } = ruleFor(request.url);
+    const { counted, isLogin, isHeavy } = ruleFor(request.method, request.url);
 
     if (!counted) return;
 
@@ -156,7 +180,7 @@ export const applyRateLimit = (fastify: FastifyInstance, options: RateLimiterOpt
 
     if (!session) return;
 
-    const { counted, isHeavy } = ruleFor(request.url);
+    const { counted, isHeavy } = ruleFor(request.method, request.url);
 
     if (!counted) return;
 

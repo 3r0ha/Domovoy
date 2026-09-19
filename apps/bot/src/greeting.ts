@@ -20,7 +20,7 @@ import {
 } from '@domovoy/domain';
 
 import { actionKeyboard, bindIfApartment, cancelKeyboard, errorText, replyIfOpen } from './keyboards.js';
-import { expect, inChat, type BotContext } from './max.js';
+import { expect, inChat, strong, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
 import type { BotKit } from './kit.js';
 
@@ -163,7 +163,7 @@ const hello = (role: Role): string => {
   }
 
   return (
-    '**Здравствуйте!** Я помогу с домом: сообщить о поломке, отправить цифры со счётчиков,\n' +
+    `${strong('Здравствуйте!')} Я помогу с домом: сообщить о поломке, отправить цифры со счётчиков,\n` +
     'посмотреть счёт, открыть дверь подъезда.\n\n' +
     'Можно просто написать словами: «течёт кран», «открыть дверь», «когда уберут подъезд».'
   );

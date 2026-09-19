@@ -226,7 +226,11 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
         notifier,
         resident,
         `${house ? `${house}\n` : ''}Собрание «${poll.title}» закрывается ${closes}.\n` +
-          `Не хватает ${formatArea(areaToQuorum(poll, result))} м² до кворума, без него решения не будет.`,
+          (result.areasMissing > 0
+            ? 'Проголосовали не все: пока голосов мало, решение не примут.'
+            : `Проголосовали собственники не всей площади: не хватает ${formatArea(
+                areaToQuorum(poll, result),
+              )} м². Пока голосов мало, решение не примут.`),
         { section: 'polls', mutable: 'polls' },
       );
 
@@ -540,7 +544,9 @@ export const formatProtocol = async (deps: AppDeps, poll: Poll, result: PollResu
     `Приняли участие: ${formatArea(result.votedArea)} м² (${percent(result.turnout)})`,
     result.quorum
       ? `Кворум: есть, требуется более ${percent(rule.quorum)}`
-      : `Кворум: нет, не хватает ${formatArea(areaToQuorum(poll, result))} м²`,
+      : result.areasMissing > 0
+        ? `Кворум: не подтверждается, у ${result.areasMissing} помещений не внесена площадь`
+        : `Кворум: нет, не хватает ${formatArea(areaToQuorum(poll, result))} м²`,
     '',
     line('for'),
     line('against'),

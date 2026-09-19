@@ -1,10 +1,20 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { InMemoryRepository, atBuilding, listServedBuildings, type AppDeps, type Resident } from '../dist/index.js';
+import {
+  InMemoryRepository,
+  atBuilding,
+  contactsFor,
+  listServedBuildings,
+  type AppDeps,
+  type Resident,
+} from '../dist/index.js';
 
 const FIRST = 'b1';
 const SECOND = 'b2';
+
+/** Обоими домами установки ведает одна организация. */
+const COMPANY = 'ук-первая';
 
 const person = (role: Resident['role'], buildingId?: string): Resident => ({
   id: `res-${role}`,
@@ -17,8 +27,30 @@ const person = (role: Resident['role'], buildingId?: string): Resident => ({
 const setup = (): AppDeps => ({
   repository: new InMemoryRepository({
     buildings: [
-      { id: SECOND, code: 'Д17', address: 'ул. Ленина, 17' },
-      { id: FIRST, code: 'Д15', address: 'ул. Ленина, 15', timeZone: 'Asia/Vladivostok', managementCompany: 'УК' },
+      { id: SECOND, code: 'Д17', address: 'ул. Ленина, 17', companyId: COMPANY },
+      {
+        id: FIRST,
+        code: 'Д15',
+        address: 'ул. Ленина, 15',
+        timeZone: 'Asia/Vladivostok',
+        managementCompany: 'УК',
+        companyId: COMPANY,
+      },
+    ],
+    apartments: [],
+    residents: [],
+  }),
+  now: () => new Date('2026-09-07T06:00:00Z'),
+  createId: () => 'id-1',
+  defaultBuildingId: FIRST,
+});
+
+/** Установка, в которой у домов владельца нет: их завели порознь. */
+const ownerless = (): AppDeps => ({
+  repository: new InMemoryRepository({
+    buildings: [
+      { id: FIRST, code: 'Д15', address: 'ул. Ленина, 15', managementCompany: 'УК Первая' },
+      { id: SECOND, code: 'Д17', address: 'ул. Мира, 17', managementCompany: 'УК Вторая' },
     ],
     apartments: [],
     residents: [],
@@ -62,7 +94,13 @@ describe('дома компании', () => {
   it('в списке видно, у какого дома есть свой чат', async () => {
     const deps = setup();
 
-    await deps.repository.saveBuilding({ id: SECOND, code: 'Д17', address: 'ул. Ленина, 17', chatId: 777 });
+    await deps.repository.saveBuilding({
+      id: SECOND,
+      code: 'Д17',
+      address: 'ул. Ленина, 17',
+      companyId: COMPANY,
+      chatId: 777,
+    });
 
     const list = await listServedBuildings(deps, person('manager', FIRST));
 
@@ -101,13 +139,40 @@ describe('дома компании', () => {
     );
   });
 
-  it('без привязки к дому человек работает с домом по умолчанию', async () => {
-    const list = await listServedBuildings(setup(), person('resident'));
+  it('человеку без дома дом по умолчанию не достаётся', async () => {
+    assert.deepEqual(await listServedBuildings(setup(), person('resident')), []);
+    assert.deepEqual(await listServedBuildings(setup(), person('dispatcher')), []);
+  });
+
+  it('дома без владельца сходятся в один парк только вместе со своим владельцем', async () => {
+    const deps = ownerless();
+
+    const list = await listServedBuildings(deps, person('manager', FIRST));
 
     assert.deepEqual(
-      list.map((building) => [building.code, building.current]),
-      [['Д15', true]],
+      list.map((building) => building.code),
+      ['Д15'],
+      'дом другой организации без владельца всё равно чужой',
     );
+  });
+});
+
+describe('дом без владельца', () => {
+  it('контакты соседней организации не отдают', async () => {
+    await assert.rejects(
+      contactsFor(ownerless(), person('dispatcher', FIRST), SECOND),
+      /другая управляющая организация/,
+    );
+  });
+
+  it('человек без дома не получает контакты дома по умолчанию', async () => {
+    await assert.rejects(contactsFor(setup(), person('resident')), /другая управляющая организация/);
+  });
+
+  it('дом остаётся своим для того, кто его ведёт', async () => {
+    const contacts = await contactsFor(ownerless(), person('manager', FIRST), FIRST);
+
+    assert.equal(contacts.buildingId, FIRST);
   });
 });
 
@@ -141,13 +206,33 @@ describe('работа в выбранном доме', () => {
 
     await deps.repository.saveBuilding({ id: 'b3', code: 'Д1', address: 'ул. Мира, 1', companyId: 'ук-вторая' });
 
-    await assert.rejects(
-      atBuilding(deps, person('dispatcher', FIRST), 'b3'),
-      /Дом обслуживает другая управляющая организация/,
-    );
+    await assert.rejects(atBuilding(deps, person('dispatcher', FIRST), 'b3'), /Дом не найден/);
   });
 
   it('опечатка в адресе дома, отказ, а не пустой список', async () => {
     await assert.rejects(atBuilding(setup(), person('manager', FIRST), 'нет-такого'), /Дом не найден/);
+  });
+
+  it('чужой дом и несуществующий отвечают одинаково: состав установки перебором не читается', async () => {
+    const deps = setup();
+
+    await deps.repository.saveBuilding({ id: 'b3', code: 'Д1', address: 'ул. Мира, 1', companyId: 'ук-вторая' });
+
+    const staff = person('dispatcher', FIRST);
+
+    const refusal = async (buildingId: string): Promise<string> => {
+      try {
+        await atBuilding(deps, staff, buildingId);
+
+        return 'дом отдали';
+      } catch (error) {
+        const failed = error as { code?: string; message: string };
+
+        return `${failed.code ?? ''}: ${failed.message}`;
+      }
+    };
+
+    assert.equal(await refusal('b3'), await refusal('b4'));
+    assert.match(await refusal('b3'), /Дом не найден/);
   });
 });

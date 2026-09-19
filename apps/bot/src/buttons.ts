@@ -3,6 +3,7 @@ import {
   answerAlert,
   apartmentsOf,
   arrearsFor,
+  bindApartment,
   chargesForResident,
   devicesFor,
   exportPersonalData,
@@ -48,6 +49,7 @@ import {
   formatMoney,
   isCompanyStaff,
   months,
+  sectionParam,
   verificationState,
   plural,
   STATUS_TITLES,
@@ -82,6 +84,8 @@ import {
   replyIfOpen,
   visitKeyboard,
 } from './keyboards.js';
+import { sayBound } from './greeting.js';
+import { takeReading } from './readings.js';
 import { inApp } from './commands/in-app.js';
 import { takeLegal } from './commands/legal.js';
 import { freeHours } from './commands/visits.js';
@@ -372,6 +376,32 @@ const flat: Button = async (kit, typed, [apartmentId]) => {
   }
 };
 
+/**
+ * Привязка по коду, подтверждённая кнопкой. Своя квартира у человека уже есть,
+ * и код уводит счётчики с квитанцией в другую: без его ответа этого не делают.
+ */
+const bind: Button = async (kit, typed, [code]) => {
+  if (!code) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+
+  try {
+    await sayBound(kit, typed, await bindApartment(kit.deps, resident, code));
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
+/**
+ * Показание, прочитанное с фотографии табло, подтверждено человеком. Само оно
+ * не подаётся: ошибиться в цифре на снимке легко, а начисление идёт по ней.
+ */
+const meterRead: Button = async (kit, typed, [meterId, value]) => {
+  if (!meterId || value === undefined) return stale(typed, kit);
+
+  await takeReading(kit, typed, meterId, value);
+};
+
 /** Подпись под предложением соседа. */
 const sign: Button = async (kit, typed, [initiativeId]) => {
   if (!initiativeId) return stale(typed, kit);
@@ -653,9 +683,13 @@ const pass: Button = async (kit, typed, [requestId]) => {
   const view = await responsibilityOf(kit.deps, request);
 
   if (view.targets.length === 0) {
+    // Раздел есть только у управляющего: диспетчеру незачем искать кнопку,
+    // которой у него нет.
     await typed.reply(
-      'В карточке дома нет смежных организаций. Их заводит управляющий в разделе «Дом».',
-      menuButton(typed),
+      resident.role === 'manager'
+        ? 'Смежных организаций в карточке дома нет. Заведите их в разделе «🏠 Карточка дома».'
+        : 'Смежных организаций в карточке дома нет. Попросите управляющего их завести.',
+      resident.role === 'manager' ? oneKeyboard('🏠 Карточка дома', 'app:card') : menuButton(typed),
     );
     return;
   }
@@ -758,7 +792,18 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
   const resident = await kit.residentOf(typed);
 
   try {
+    // Обращение уходит в надзорный орган и отзыву не подлежит: между чтением
+    // текста и отправкой стоит ответ человека.
     if (what === 'send') {
+      await typed.reply(
+        'Отправить это обращение в жилищную инспекцию? Отозвать его будет нельзя.',
+        confirmKeyboard('📨 Да, отправить', `gzhi:${requestId}:yes`),
+      );
+
+      return;
+    }
+
+    if (what === 'yes') {
       const { handoff } = await sendComplaint(kit.deps, resident, requestId);
 
       await typed.reply(
@@ -993,7 +1038,14 @@ const mydata: Button = async (kit, typed, [what]) => {
           .catch(() => undefined)
       : undefined;
 
-  if (!sent) await typed.reply(text, menuButton(typed));
+  // Файл не ушёл: выгрузка целиком в переписку не помещается, поэтому
+  // остаётся сводка и приложение, где эти же данные видны разделами.
+  if (!sent) {
+    await typed.reply(
+      `${personalDataSummary(data)}\nФайл отправить не получилось. Те же данные видны в приложении.`,
+      kit.openApp(sectionParam('profile'), typed),
+    );
+  }
 };
 
 /** Оценка при приёмке: ноль означает «принять без оценки». */
@@ -1123,11 +1175,8 @@ const doIt: Button = async (kit, typed, [token, requestId]) => {
   }
 };
 
-const move: Button = async (kit, typed, [requestId, to]) => {
-  if (!requestId || !to) {
-    await toast(typed, 'Кнопка устарела, откройте заявку');
-    return;
-  }
+const move: Button = async (kit, typed, [requestId, to, step]) => {
+  if (!requestId || !to) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
 
@@ -1135,6 +1184,19 @@ const move: Button = async (kit, typed, [requestId, to]) => {
   // собирать по жильцам, а смене видно, чем закончился наряд.
   if (to === 'confirmed' && resident.role === 'resident') {
     await typed.reply('Как приняли работу?', rateKeyboard(requestId));
+    return;
+  }
+
+  // Отзыв возврата не имеет, а кнопка стоит рядом с «Назад»: нужен ответ.
+  if (to === 'withdrawn' && step !== 'yes') {
+    const request = await getRequestFor(kit.deps, resident, requestId).catch(() => undefined);
+
+    await typed.reply(
+      `Отозвать заявку${request ? ` ${request.number}` : ''}? Мастер по ней не придёт, ` +
+        'вернуть её будет нельзя, придётся оформить новую.',
+      confirmKeyboard('✖️ Да, отозвать', `req:${requestId}:withdrawn:yes`),
+    );
+
     return;
   }
 
@@ -1177,6 +1239,7 @@ export const BUTTONS: Record<string, Button> = {
   anyway,
   vote: ballot,
   flat,
+  bind,
   sign,
   pay: payMonth,
   'pay-debt': payDebt,
@@ -1190,6 +1253,7 @@ export const BUTTONS: Record<string, Button> = {
   ticket,
   more,
   'meter-skip': meterSkip,
+  'meter-read': meterRead,
   ask,
   req: move,
   assign,

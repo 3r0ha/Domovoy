@@ -190,7 +190,7 @@ describe('ответ смежной организации', () => {
     assert.match(said?.text ?? '', /Задвижка на вводе/);
 
     assert.deepEqual(await waitingHandoffs(deps, dispatcher), []);
-    assert.equal((await handoffsOf(deps, request.id)).length, 1);
+    assert.equal((await handoffsOf(deps, request.id, dispatcher)).length, 1);
   });
 
   it('недоставленное обращение видно жильцу как недоставленное', async () => {

@@ -2,9 +2,11 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
+import { useTrapped } from '../focus.js';
 import { useHaptics } from '../haptics.js';
 import { Domovoy } from './Domovoy.js';
 import { ErrorText } from './ErrorText.js';
+import { RetryLink } from './Retry.js';
 
 export interface ConsentProps {
   api: DomovoyApi;
@@ -19,17 +21,22 @@ export interface ConsentProps {
  * поэтому она лежит здесь же и читается внутри приложения, а не в браузере.
  */
 export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
-  const legal = useBridgeRequest(() => api.legal(), [api]);
+  const legal = useBridgeRequest((alive) => api.until(alive).legal(), [api]);
   // Телефоны дома нужны до всякого согласия: аварию решают звонком.
-  const contacts = useBridgeRequest(() => api.houseContacts().catch(() => null), [api]);
+  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const haptics = useHaptics();
+  const sheet = useTrapped<HTMLElement>(true);
 
   const documents = legal.data?.documents ?? [];
   const emergency = contacts.data?.service?.emergencyPhone ?? contacts.data?.service?.phone ?? '';
+  // Согласиться можно только с тем, что человек мог открыть и прочитать.
+  const readable = documents.length > 0;
 
   const accept = async (): Promise<void> => {
+    if (busy || !readable) return;
+
     setBusy(true);
     setFailed(null);
 
@@ -50,7 +57,7 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
       {/* Затемнение без закрытия: до согласия продукт не работает, а нажать мимо нельзя. */}
       <div className="guide-veil" aria-hidden="true" />
 
-      <section className="guide-sheet consent">
+      <section className="guide-sheet consent" ref={sheet}>
         <Domovoy mood="walking" size={72} />
 
         <h2 className="guide-title">Документы</h2>
@@ -72,10 +79,16 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
           ))}
         </div>
 
+        {legal.loading && !readable ? <p className="hint">Загружаем документы…</p> : null}
+
+        {!readable && !legal.loading ? (
+          <RetryLink title="Документы не загрузились" onRetry={legal.reload} />
+        ) : null}
+
         {failed ? <ErrorText>{failed}</ErrorText> : null}
 
         <div className="confirm-keys">
-          <button type="button" className="confirm-do" disabled={busy} onClick={() => void accept()}>
+          <button type="button" className="confirm-do" disabled={busy || !readable} onClick={() => void accept()}>
             {busy ? 'Сохраняем…' : 'Принимаю'}
           </button>
         </div>
@@ -85,6 +98,12 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
             Аварийная служба круглосуточно: <a href={`tel:${emergency.replace(/[^+\d]/g, '')}`}>{emergency}</a>. Звонок
             не требует согласия.
           </p>
+        ) : null}
+
+        {/* Телефон аварийной службы нужен раньше согласия: без него на этом
+            экране человеку некуда звонить при аварии. */}
+        {!emergency && contacts.error ? (
+          <RetryLink title="Телефон аварийной службы не загрузился" onRetry={contacts.reload} />
         ) : null}
       </section>
     </div>

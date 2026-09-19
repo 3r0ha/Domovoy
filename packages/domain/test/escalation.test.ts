@@ -56,6 +56,17 @@ describe('основание для жалобы', () => {
     assert.match(late.reason, /работы не выполнены за 2 дня при назначенном сроке 1 день/);
   });
 
+  it('в основании стоит срок самой заявки, а не срок категории', () => {
+    // Срок продлили при регистрации, и в документе он печатается ещё и числом:
+    // два разных срока в одной бумаге, это повод отказать по ней.
+    const working = request({ status: 'in_progress', resolutionDueAt: new Date('2026-09-03T06:00:00Z') });
+
+    const check = canEscalate(working, new Date('2026-09-05T07:00:00Z'));
+
+    assert.equal(check.possible, true);
+    assert.match(check.reason, /при назначенном сроке 2 дня/);
+  });
+
   it('закрытая заявка поводом не служит, даже если её вели плохо', () => {
     for (const status of ['confirmed', 'rejected'] as const) {
       const check = canEscalate(request({ status }), new Date('2026-09-30T06:00:00Z'));

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Деньги · Домовой</title>
+    <title>Деньги и счётчики · Домовой</title>
     <meta
       name="description"
       content="Квитанция, которую можно оспорить построчно, и долг, который видно списком."
@@ -24,7 +24,7 @@
     <meta property="og:url" content="https://domovoy.homes/money/" />
     <meta property="og:site_name" content="Домовой" />
     <meta property="og:locale" content="ru_RU" />
-    <meta property="og:title" content="Деньги · Домовой" />
+    <meta property="og:title" content="Деньги и счётчики · Домовой" />
     <meta
       property="og:description"
       content="Квитанция, которую можно оспорить построчно, и долг, который видно списком."
@@ -47,7 +47,7 @@
                 {
                       "@type": "ListItem",
                       "position": 2,
-                      "name": "Деньги",
+                      "name": "Деньги и счётчики",
                       "item": "https://domovoy.homes/money/"
                 }
           ]
@@ -55,6 +55,16 @@
     </script>
   </head>
   <body>
+    <noscript>
+      <div style="max-width:640px;margin:0 auto;padding:40px 20px;font:17px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1c">
+        <h1 style="margin:0 0 16px;font-size:32px;color:#c1161c">Деньги и счётчики</h1>
+        <p style="margin:0 0 14px">Квитанция, которую можно оспорить построчно, и долг, который видно списком. Это раздел продукта «Домовой»: заявки в управляющую компанию, собрания собственников и счета в чате и мини-приложении MAX.</p>
+        <p style="margin:0 0 14px">Рассказ о разделе собирается сценариями в браузере. Без них остаются ссылки.</p>
+        <p style="margin:0 0 14px"><a href="%VITE_BOT_LINK%" style="color:#c1161c">Открыть Домового в MAX</a> · <a href="/" style="color:#c1161c">о продукте</a></p>
+        <p style="margin:0 0 14px">Документы продукта: <a href="/privacy/" style="color:#c1161c">политика обработки персональных данных</a> и <a href="/terms/" style="color:#c1161c">пользовательское соглашение</a>.</p>
+        <p style="margin:0;color:#6a6a70">Телефоны дома, включая круглосуточный аварийный, у каждого дома свои: продукт называет их после входа.</p>
+      </div>
+    </noscript>
     <div id="root" data-section="money"></div>
     <script type="module" src="/src/section.tsx"></script>
   </body>

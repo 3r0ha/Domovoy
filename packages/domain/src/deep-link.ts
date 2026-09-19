@@ -34,9 +34,13 @@ export const encodeTarget = (target: RequestTarget): string => {
 };
 
 const toNumber = (value: string | undefined): number | null => {
-  if (value === undefined) return null;
+  if (value === undefined || value.length === 0) return null;
+
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+
+  // Ноль кодируется наравне с остальными номерами, значит, и разбираться
+  // должен: иначе наклейка с нулевым подъездом не открывает ничего.
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 };
 
 /** Разбирает параметр запуска обратно в объект. */

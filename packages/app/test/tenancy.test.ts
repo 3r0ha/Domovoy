@@ -225,7 +225,7 @@ describe('подрядчик не управляющая компания', () =
 
     await assert.rejects(
       setDuty(deps, contractor, { residentId: ourDispatcher.id, onDuty: true }),
-      /назначает управляющая компания/,
+      /назначает диспетчер или управляющий/,
     );
   });
 });

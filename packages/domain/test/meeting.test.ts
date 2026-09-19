@@ -54,6 +54,13 @@ describe('расписание общего собрания', () => {
     assert.ok(plan.storageUntil.getTime() > plan.toInspectionBy.getTime());
   });
 
+  it('срок хранения с двадцать девятого февраля кончается февралём', () => {
+    const plan = meetingSchedule({ announcedAt: new Date('2028-02-12T09:00:00Z'), days: VOTING_MIN_DAYS });
+
+    assert.equal(plan.votingTo.toISOString(), '2028-02-29T09:00:00.000Z');
+    assert.equal(plan.storageUntil.toISOString(), '2031-02-28T09:00:00.000Z', 'а не первым марта');
+  });
+
   it('семь и шестьдесят дней голосования принимаются', () => {
     assert.equal(schedule(VOTING_MIN_DAYS).votingTo.toISOString(), '2026-09-18T00:00:00.000Z');
     assert.equal(schedule(VOTING_MAX_DAYS).votingTo.toISOString(), '2026-11-10T00:00:00.000Z');

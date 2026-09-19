@@ -45,6 +45,9 @@ export const houseDebt = async (deps: AppDeps, actor: Resident, buildingId?: str
   onlyStaff(actor);
 
   const house = buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
+
+  await assertServes(deps, actor, house);
+
   const zone = await zoneOf(deps, house);
   const known = await knownForDebt(deps, house, zone);
   const apartments = known.apartments;

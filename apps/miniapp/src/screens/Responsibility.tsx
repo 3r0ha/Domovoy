@@ -100,7 +100,7 @@ const Answer = ({
  * со сроком работ управляющей организации.
  */
 export const Responsibility = ({ api, requestId, staff, onChanged }: ResponsibilityProps) => {
-  const view = useBridgeRequest(() => api.responsibility(requestId), [api, requestId]);
+  const view = useBridgeRequest((alive) => api.until(alive).responsibility(requestId), [api, requestId]);
   const [passing, setPassing] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
 
@@ -163,7 +163,7 @@ export const Responsibility = ({ api, requestId, staff, onChanged }: Responsibil
                 disabled={passing !== null}
                 onClick={() => void pass(target.to)}
               >
-                {passing === target.to ? '…' : `Передать: ${target.organization}`}
+                {passing === target.to ? 'Передаём…' : `Передать: ${target.organization}`}
               </button>
             ))}
           </div>

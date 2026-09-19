@@ -11,9 +11,14 @@ const MIGRATION_LOCK = 4_010_912;
 
 /** Прогоняет миграции по порядку имён. */
 export const applyMigrations = async (sql: SqlClient, directory = MIGRATIONS_DIR): Promise<string[]> => {
-  await sql.query(
-    'create table if not exists schema_migration (name text primary key, applied_at timestamptz not null default now())',
-  );
+  // Журнал заводится под той же блокировкой, что и сами миграции: две реплики
+  // на пустой базе иначе создают его одновременно.
+  await inTransaction(sql, async (client) => {
+    await client.query('select pg_advisory_xact_lock($1)', [MIGRATION_LOCK]);
+    await client.query(
+      'create table if not exists schema_migration (name text primary key, applied_at timestamptz not null default now())',
+    );
+  });
 
   const files = (await readdir(directory)).filter((name) => name.endsWith('.sql')).sort();
   const executed: string[] = [];

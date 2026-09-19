@@ -33,6 +33,7 @@ import {
   missedResolution,
   reactedAt,
   reportedDoneAt,
+  requestNumberIn,
   selectAudience,
   settledAt,
   statusChanges,
@@ -97,6 +98,16 @@ describe('создание заявки', () => {
     assert.equal(request.title, 'Стояк ГВС, подъезд 2');
   });
 
+  it('заданный руками заголовок меряется той же длиной, что и сделанный сам', () => {
+    const request = makeRequest({
+      description: 'Нет воды',
+      title: 'Стояк горячего водоснабжения в подъезде номер два от первого до девятого этажа',
+    });
+
+    assert.ok(request.title.length <= MAX_TITLE_LENGTH + 1, `заголовок: ${request.title}`);
+    assert.match(request.title, /…$/);
+  });
+
   it('короткое описание становится заголовком целиком', () => {
     assert.equal(summarizeDescription('Не горит лампа'), 'Не горит лампа');
     assert.equal(summarizeDescription('  Лифт   не   едет!  '), 'Лифт не едет');
@@ -105,6 +116,17 @@ describe('создание заявки', () => {
   it('номер читается вслух и подсказывает дом и месяц', () => {
     assert.equal(formatRequestNumber('Д15', 7, new Date('2026-01-05T00:00:00Z')), 'Д15-2601-0007');
     assert.equal(formatRequestNumber('К3', 1234, new Date('2026-12-31T00:00:00Z')), 'К3-2612-1234');
+  });
+
+  it('номер заявки находится и посреди фразы', () => {
+    assert.equal(requestNumberIn('Д15-2609-0001'), 'Д15-2609-0001', 'сообщение целиком');
+    assert.equal(requestNumberIn('закрой заявку Д15-2609-0001, пожалуйста'), 'Д15-2609-0001');
+    assert.equal(requestNumberIn('что там по Д15-2609-0001?'), 'Д15-2609-0001', 'номер в конце фразы');
+  });
+
+  it('на номер заявки похоже не всё подряд', () => {
+    assert.equal(requestNumberIn('перенесите на 2026-09-19'), null, 'это дата');
+    assert.equal(requestNumberIn('Не горит лампа в подъезде'), null);
   });
 
   it('пустое описание не принимается', () => {
@@ -523,6 +545,32 @@ describe('жизненный цикл заявки', () => {
     );
   });
 
+  it('событие назад во времени в историю не пишется', () => {
+    const accepted = applyTransition(makeRequest(), {
+      to: 'accepted',
+      role: 'dispatcher',
+      actorId: 'd1',
+      at: new Date(CREATED_AT.getTime() + 3600_000),
+    });
+
+    assert.throws(
+      () =>
+        applyTransition(accepted, {
+          to: 'in_progress',
+          role: 'technician',
+          actorId: 't1',
+          at: CREATED_AT,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof DomainError);
+        assert.equal(error.code, 'request_stale');
+
+        return true;
+      },
+      'иначе время выполнения в отчёте уходит в минус',
+    );
+  });
+
   it('жилец сам возвращает заявку в работу, ответив на уточнение', () => {
     let request = applyTransition(makeRequest(), { to: 'accepted', role: 'dispatcher', actorId: 'd1', at: CREATED_AT });
     request = applyTransition(request, {
@@ -821,6 +869,12 @@ describe('коды объектов для наклеек', () => {
     const link = buildDeepLink('uk_bot', { kind: 'equipment', buildingId: 'b1', equipmentId: 'lift-2' });
 
     assert.equal(link, 'https://max.ru/uk_bot?startapp=eqp_b1_lift-2');
+  });
+
+  it('нулевой номер подъезда разбирается так же, как остальные', () => {
+    const ground = { kind: 'entrance', buildingId: 'b1', entrance: 0 } as const;
+
+    assert.deepEqual(decodeTarget(encodeTarget(ground)), ground, 'наклейка напечатана, значит, читается');
   });
 
   it('чужой или испорченный код не разбирается', () => {

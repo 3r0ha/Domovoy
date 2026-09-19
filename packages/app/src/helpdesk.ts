@@ -264,6 +264,9 @@ const ticketState = (card: TicketCard, viewerId: string | undefined, now: Date |
   return [describeAsker(card), waiting || TICKET_STATUS_TITLES[card.ticket.status]].filter(Boolean).join(' · ');
 };
 
+/** Сколько последних сообщений показывает переписка: остальное открывают в приложении. */
+const SHOWN_MESSAGES = 6;
+
 /** Переписка словами: так её показывает бот. */
 export const formatTicket = (card: TicketCard, options: TicketTextOptions = {}): string => {
   const { zone, viewerId, now } = options;
@@ -272,7 +275,15 @@ export const formatTicket = (card: TicketCard, options: TicketTextOptions = {}):
   // Тема повторяет начало первого сообщения, поэтому в переписке её не показываем.
   const lines = [ticketState(card, viewerId, now), ''].filter((line) => line !== '');
 
-  for (const message of ticket.messages) {
+  // Длинная переписка в сообщение не помещается: видны последние реплики,
+  // а начало остаётся в приложении.
+  const shown = ticket.messages.slice(-SHOWN_MESSAGES);
+
+  if (shown.length < ticket.messages.length) {
+    lines.push(`Ранее ещё ${ticket.messages.length - shown.length}, целиком в приложении.`, '');
+  }
+
+  for (const message of shown) {
     const who =
       message.authorId === viewerId
         ? 'Вы'

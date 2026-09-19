@@ -40,6 +40,9 @@ const AssigneePicker = ({
 /** Переходы, которые сервер не примет без объяснения. */
 const NEEDS_REASON = ['rejected', 'needs_info', 'done'];
 
+/** Отзыв необратим и объяснения не требует: спрашивается отдельным окном. */
+const NEEDS_CONFIRM = ['withdrawn'];
+
 const REASON_TITLE: Record<string, string> = {
   rejected: 'Почему отказываем?',
   needs_info: 'Что нужно уточнить?',
@@ -100,7 +103,10 @@ export const RequestActions = ({
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const result = usePhotos(api);
   const haptics = useHaptics();
-  const actions = useBridgeRequest(() => api.actions(request.id), [api, request.id, request.status]);
+  const actions = useBridgeRequest(
+    (alive) => api.until(alive).actions(request.id),
+    [api, request.id, request.status],
+  );
 
   // Наклейка читается до вопроса о работе: код доезжает до отправки вместе с отметкой.
   const scanner = useCodeScanner((code) => {
@@ -138,8 +144,10 @@ export const RequestActions = ({
   const explains = (action: string): boolean => NEEDS_REASON.includes(action) || afterDone;
   const title = (action: string): string => (afterDone ? (AFTER_DONE_LABEL[action] ?? actionTitle(action)) : actionTitle(action));
 
+  const confirms = (action: string): boolean => NEEDS_CONFIRM.includes(action) && !afterDone;
+
   const start = (action: string): void => {
-    if (explains(action)) {
+    if (explains(action) || confirms(action)) {
       setAsking(action);
       return;
     }
@@ -170,7 +178,20 @@ export const RequestActions = ({
     <>
       {failed ? <ErrorText className="actions">{failed}</ErrorText> : null}
 
-      {asking ? (
+      {asking && confirms(asking) ? (
+        <Confirm
+          title={`Отозвать заявку ${request.number}?`}
+          text="Мастер по ней не придёт, вернуть её будет нельзя."
+          confirmLabel={actionTitle('withdrawn')}
+          busyLabel="Отзываем…"
+          busy={busy}
+          danger
+          onConfirm={() => void apply(asking)}
+          onCancel={() => setAsking(null)}
+        />
+      ) : null}
+
+      {asking && !confirms(asking) ? (
         <Confirm
           title={(afterDone ? AFTER_DONE_TITLE[asking] : REASON_TITLE[asking]) ?? 'Почему?'}
           confirmLabel={title(asking)}

@@ -18,8 +18,9 @@ import type {
   Reasoner,
   Repository,
   StickerRenderer,
+  Transcriber,
 } from '@domovoy/app';
-import { applyCompression, type CompressOptions } from './compress.js';
+import { appendVary, applyCompression, type CompressOptions } from './compress.js';
 import { applyMetrics, type MetricsOptions } from './metrics.js';
 import { applyOpenApi, type OpenApiOptions } from './openapi.js';
 import { applyRateLimit, type RateLimiterOptions } from './rate-limit.js';
@@ -45,6 +46,8 @@ export interface ServerOptions {
   hubSecret?: string;
   /** Распознавание показаний с фотографии табло. Без него их вводят руками. */
   vision?: MeterVision;
+  /** Расшифровка речи. Без неё обращение набирают с клавиатуры. */
+  transcriber?: Transcriber;
   /** Разбор обращений моделью. Без него продукт работает на правилах. */
   reasoner?: Reasoner;
   /** Платёжный шлюз. Без него квитанция показывается, но оплатить нельзя. */
@@ -82,6 +85,11 @@ export interface ServerOptions {
   frameAncestors?: string[];
   /** Приём апдейтов платформы по вебхуку: в боевом режиме бот работает так. */
   updates?: UpdatesOptions;
+  /**
+   * Кому верить в `X-Forwarded-For`. По умолчанию адреса частных сетей: продукт
+   * стоит за обратным прокси в той же сети, а снаружи адрес подставить нельзя.
+   */
+  trustProxy?: boolean | string | string[];
 }
 
 /** Приёмник апдейтов платформы: сверяет секрет и ставит апдейт в очередь. */
@@ -100,6 +108,19 @@ export interface UpdatesOptions {
 
 const UPDATES_PATH = '/bot/updates';
 
+/** Обратный прокси стоит рядом, в той же сети. */
+const TRUSTED_PROXIES = 'loopback, linklocal, uniquelocal';
+
+/**
+ * Предел длины части адреса. Умолчание Fastify равно сотне, и часть запросов
+ * не доходила до схем: код объекта с наклейки описан длиной в 512 символов, а
+ * длинный адрес отвечал промахом маршрута. Предел длины задаёт схема маршрута.
+ */
+const MAX_PARAM_LENGTH = 1024;
+
+/** Ответы этих разделов принадлежат одному человеку и в общий кеш не кладутся. */
+const PRIVATE_PREFIXES = ['/api/', '/auth/'];
+
 /**
  * Насколько долго держать файл в кеше. Имя собранного файла содержит отпечаток
  * и не меняется, такой лежит год. Страница на них ссылается и перечитывается всегда.
@@ -115,7 +136,16 @@ const cacheHeaders = (reply: FastifyReply, path: string): void => {
 };
 
 export const buildServer = async (options: ServerOptions): Promise<FastifyInstance> => {
-  const fastify = Fastify({ logger: options.logger ?? false });
+  // Пустой токен даёт рабочий ключ подписи, и параметры запуска подделывает кто угодно.
+  if (options.botToken.trim().length === 0) {
+    throw new Error('Не задан токен бота: подпись параметров запуска проверять нечем');
+  }
+
+  const fastify = Fastify({
+    logger: options.logger ?? false,
+    trustProxy: options.trustProxy ?? TRUSTED_PROXIES,
+    routerOptions: { maxParamLength: MAX_PARAM_LENGTH },
+  });
 
   const auth =
     options.auth ??
@@ -133,8 +163,11 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     });
   }
 
-  /** Разбор JSON, терпимый к пустому телу. */
-  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (_request, body, done) => {
+  // Разбор тот же, что у Fastify: подстановка `__proto__` отвергается, битое тело
+  // отвечает 400. Своё здесь только то, что пустое тело считается отсутствующим.
+  const parseJson = fastify.getDefaultJsonParser('error', 'error');
+
+  fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
     const text = typeof body === 'string' ? body.trim() : '';
 
     if (text.length === 0) {
@@ -142,17 +175,20 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
       return;
     }
 
-    try {
-      done(null, JSON.parse(text));
-    } catch (error) {
-      done(error as Error, undefined);
-    }
+    void parseJson(request, text, done);
   });
 
   /** Заголовки безопасности ответа. */
   fastify.addHook('onSend', async (request, reply) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
+
+    if (PRIVATE_PREFIXES.some((prefix) => request.url.startsWith(prefix))) {
+      // Ответ зависит от того, чей токен пришёл, и общему кешу не принадлежит.
+      if (!reply.getHeader('cache-control')) reply.header('cache-control', 'no-store');
+
+      appendVary(reply, 'authorization');
+    }
 
     if (options.frameAncestors?.length && request.url.startsWith(MINI_APP_PREFIX)) {
       reply.header('content-security-policy', `frame-ancestors ${options.frameAncestors.join(' ')}`);
@@ -210,6 +246,7 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     ...(options.hub ? { hub: options.hub } : {}),
     ...(options.hubSecret ? { hubSecret: options.hubSecret } : {}),
     ...(options.vision ? { vision: options.vision } : {}),
+    ...(options.transcriber ? { transcriber: options.transcriber } : {}),
     ...(options.reasoner ? { reasoner: options.reasoner } : {}),
     ...(options.payments ? { payments: options.payments } : {}),
     ...(options.botName ? { botName: options.botName } : {}),

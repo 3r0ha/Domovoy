@@ -280,7 +280,7 @@ describe('напоминание о собрании', () => {
       reminded.map((person) => person.id).sort(),
       [ivan.id, anna.id].sort(),
     );
-    assert.match(deps.notifier.sent[0]?.text ?? '', /до кворума/);
+    assert.match(deps.notifier.sent[0]?.text ?? '', /не хватает \d+ м²/u);
   });
 
   it('заранее не тревожит и после закрытия молчит', async () => {

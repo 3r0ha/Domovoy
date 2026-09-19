@@ -15,7 +15,12 @@ export const NORM_FACTOR = 1.5;
 /** Коэффициент применяется к воде и электричеству; к отоплению и газу нет. */
 export const NORM_FACTOR_KINDS: readonly MeterKind[] = ['cold_water', 'hot_water', 'electricity'];
 
-const factorFor = (kind: MeterKind): number => (NORM_FACTOR_KINDS.includes(kind) ? NORM_FACTOR : 1);
+/**
+ * Повышающий коэффициент не применяется там, где прибор учёта установить
+ * нельзя: на это составляется акт, и норматив считается без надбавки (ПП 354).
+ */
+const factorFor = (kind: MeterKind, meterImpossible: boolean): number =>
+  meterImpossible || !NORM_FACTOR_KINDS.includes(kind) ? 1 : NORM_FACTOR;
 
 /** Норматив на человека в месяц. Числа типовые: норматив утверждает регион. */
 export const NORM_PER_PERSON: Readonly<Record<MeterKind, number>> = {
@@ -40,14 +45,17 @@ export interface NormInput {
   /** Сколько человек проживает. Ноль означает «неизвестно», считаем за одного. */
   residents: number;
   area: number;
+  /** Прибор не установлен по уважительной причине: есть акт о невозможности установки. */
+  meterImpossible?: boolean;
 }
 
 const round = (value: number): number => Math.round(value * 1000) / 1000;
 
 /** Норматив потребления за месяц с повышающим коэффициентом. */
-export const normFor = ({ kind, residents, area }: NormInput): number =>
+export const normFor = ({ kind, residents, area, meterImpossible = false }: NormInput): number =>
   round(
-    (NORM_PER_PERSON[kind] * Math.max(1, residents) + NORM_PER_AREA[kind] * Math.max(0, area)) * factorFor(kind),
+    (NORM_PER_PERSON[kind] * Math.max(1, residents) + NORM_PER_AREA[kind] * Math.max(0, area)) *
+      factorFor(kind, meterImpossible),
   );
 
 export interface EstimateInput {
@@ -64,6 +72,8 @@ export interface EstimateInput {
   monthsSilent: number;
   residents: number;
   area: number;
+  /** Прибор не установлен по уважительной причине: норматив считается без надбавки. */
+  meterImpossible?: boolean;
 }
 
 export interface Estimate {

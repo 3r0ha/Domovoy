@@ -27,20 +27,19 @@ export const canEscalate = (request: ServiceRequest, now: Date): EscalationCheck
   }
 
   if (isResolutionOverdue(request, now)) {
-    const rule = CATEGORY_RULES[request.category];
     const allowed = request.resolutionDueAt.getTime() - request.createdAt.getTime();
     const spent = now.getTime() - request.createdAt.getTime();
 
     if (spent >= allowed * ESCALATION_OVERRUN_FACTOR) {
-      // Сроки называются теми же словами, что и человеку в переписке: «двое
+      // Срок берётся из заявки, а не пересчитывается по категории: в документе
+      // он печатается ещё и числом, и два разных срока в одной бумаге, это
+      // повод отказать по ней. Слова те же, что и человеку в переписке: «двое
       // суток» вместо «48 ч», иначе читающий считает часы в уме.
-      const due = new Date(request.createdAt.getTime() + rule.resolutionHours * 3600_000);
-
       return {
         possible: true,
         reason:
           `работы не выполнены за ${formatSpan(request.createdAt, now)} ` +
-          `при назначенном сроке ${formatSpan(request.createdAt, due)}`,
+          `при назначенном сроке ${formatSpan(request.createdAt, request.resolutionDueAt)}`,
       };
     }
 

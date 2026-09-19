@@ -41,6 +41,8 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
           return;
         } catch (error) {
           if (!(error instanceof ApiError) || !error.isUnauthorized) throw error;
+
+          // Сессия кончилась: запас ответов относится к ней и уходит вместе с ней.
           api.useToken(null);
         }
       }

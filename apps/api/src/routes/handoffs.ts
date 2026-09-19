@@ -60,7 +60,9 @@ export const handoffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         ...(view.organization ? { organization: view.organization } : {}),
         // Передаёт только смена: жильцу список адресатов ни к чему.
         targets: staff ? view.targets : [],
-        handoffs: (await handoffsOf(deps, found.id)).map((handoff) => serializeHandoff(handoff, now, staff)),
+        handoffs: (await handoffsOf(deps, found.id, resident)).map((handoff) =>
+          serializeHandoff(handoff, now, staff),
+        ),
       });
     },
   );

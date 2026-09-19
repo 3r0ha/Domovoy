@@ -149,6 +149,9 @@ export const browserCache = (): ResponseCache => {
 
 const CACHE_PREFIX = 'domovoy:cache:';
 
+/** Когда запас последний раз пополнялся: этим подписан режим «нет связи». */
+const SAVED_AT_KEY = `${CACHE_PREFIX}@saved-at`;
+
 export interface ApiOptions {
   baseUrl: string;
   fetch?: typeof globalThis.fetch;
@@ -166,6 +169,17 @@ export interface SessionView {
   displayName: string;
 }
 
+/** Сколько ждёт запрос, прежде чем считаться неотвеченным. */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+/** Общее чтение по адресу: ответ делится, сеть бросается, когда ушли все. */
+interface SharedRead {
+  promise: Promise<unknown>;
+  stop: AbortController;
+  /** Сколько экранов ждут ответа. */
+  waiting: number;
+}
+
 /** Что общее у всех ссылок на клиент: сессия, выбранный дом и текущие чтения. */
 interface SharedState {
   token: string | null;
@@ -173,7 +187,7 @@ interface SharedState {
   /** Незавершённый обмен строки запуска: второй вызов ждёт его. */
   entering: Promise<SessionView> | undefined;
   /** Незавершённые чтения по адресам: одновременные запросы делят один ответ. */
-  reading: Map<string, Promise<unknown>>;
+  reading: Map<string, SharedRead>;
 }
 
 export class DomovoyApi {
@@ -183,13 +197,16 @@ export class DomovoyApi {
   private readonly doFetch: typeof globalThis.fetch;
   private readonly cache: ResponseCache | undefined;
   private readonly onOffline: ((offline: boolean) => void) | undefined;
+  /** Пока экран на месте. Уход экрана бросает его запросы. */
+  private readonly alive: AbortSignal | undefined;
 
-  constructor(options: ApiOptions, shared?: SharedState) {
+  constructor(options: ApiOptions, shared?: SharedState, alive?: AbortSignal) {
     this.options = options;
     this.baseUrl = options.baseUrl;
     this.doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.cache = options.cache;
     this.onOffline = options.onOffline;
+    this.alive = alive;
     this.shared = shared ?? { token: null, buildingId: null, entering: undefined, reading: new Map() };
   }
 
@@ -201,10 +218,29 @@ export class DomovoyApi {
     return new DomovoyApi(this.options, this.shared);
   }
 
+  /**
+   * Тот же клиент, привязанный к жизни экрана: `useBridgeRequest` даёт сигнал,
+   * и запрос ушедшего экрана бросается, не занимая слабую связь.
+   */
+  until(alive: AbortSignal): DomovoyApi {
+    return new DomovoyApi(this.options, this.shared, alive);
+  }
+
   useToken(token: string | null): void {
-    if (token !== this.shared.token) this.cache?.clear();
+    const before = this.shared.token;
+
+    // Холодный запуск подставляет сохранённый токен в пустое место: это не смена
+    // человека, и запас ответов остаётся. Иначе «нет связи» пуст при каждом входе.
+    if (before !== null && token !== before) this.cache?.clear();
 
     this.shared.token = token;
+  }
+
+  /** На какой момент собран запас ответов. Пусто, если свежего ответа ещё не было. */
+  savedAt(): string | null {
+    const stamp = Number(this.cache?.get(SAVED_AT_KEY) ?? '');
+
+    return Number.isFinite(stamp) && stamp > 0 ? new Date(stamp).toISOString() : null;
   }
 
   /** С каким домом работает сотрудник. */
@@ -427,6 +463,14 @@ export class DomovoyApi {
     return this.send<AttachmentView>('/api/files', {
       method: 'POST',
       body: JSON.stringify({ contentType, data }),
+    });
+  }
+
+  /** Сказанное словами: запись уходит на расшифровку и возвращается текстом. */
+  voice(data: string, contentType: string): Promise<{ text: string }> {
+    return this.send<{ text: string }>('/api/voice', {
+      method: 'POST',
+      body: JSON.stringify({ data, contentType }),
     });
   }
 
@@ -1062,7 +1106,7 @@ export class DomovoyApi {
 
   /** Выгрузка файлом: имя приходит заголовком, а его может и не быть. */
   private async download(path: string, fallback: string, failure: string): Promise<{ filename: string; blob: Blob }> {
-    const response = await this.doFetch(`${this.baseUrl}${path}`, { headers: this.authorized() });
+    const response = await this.ask(path, { headers: this.authorized() });
 
     if (!response.ok) throw new ApiError(response.status, 'export_failed', failure);
 
@@ -1074,27 +1118,73 @@ export class DomovoyApi {
 
   /** Чтение с разделением одновременных запросов. */
   private read<T>(path: string): Promise<T> {
-    const pending = this.shared.reading.get(path) as Promise<T> | undefined;
+    const running = this.shared.reading.get(path) ?? this.begin<T>(path);
 
-    if (pending) return pending;
+    return this.share<T>(running);
+  }
 
-    const request = this.fresh<T>(path).finally(() => this.shared.reading.delete(path));
+  /** Новое чтение по адресу: своя отмена, чтобы ждущие могли его бросить. */
+  private begin<T>(path: string): SharedRead {
+    const stop = new AbortController();
 
-    this.shared.reading.set(path, request);
-    return request;
+    const started: SharedRead = {
+      stop,
+      waiting: 0,
+      promise: this.fresh<T>(path, stop.signal).finally(() => {
+        if (this.shared.reading.get(path) === started) this.shared.reading.delete(path);
+      }),
+    };
+
+    this.shared.reading.set(path, started);
+
+    return started;
+  }
+
+  /**
+   * Присоединиться к общему чтению. Сеть бросается, только когда ушли все
+   * ждущие: ответ по одному адресу читают сразу несколько частей экрана.
+   */
+  private share<T>(running: SharedRead): Promise<T> {
+    running.waiting += 1;
+
+    const alive = this.alive;
+
+    if (!alive) return running.promise as Promise<T>;
+
+    const leave = (): void => {
+      running.waiting -= 1;
+
+      if (running.waiting === 0) running.stop.abort(alive.reason);
+    };
+
+    if (alive.aborted) {
+      leave();
+
+      return running.promise as Promise<T>;
+    }
+
+    alive.addEventListener('abort', leave, { once: true });
+
+    return (running.promise as Promise<T>).finally(() => alive.removeEventListener('abort', leave));
   }
 
   /** Чтение с запасом на случай пропавшей связи. */
-  private async fresh<T>(path: string): Promise<T> {
+  private async fresh<T>(path: string, alive: AbortSignal): Promise<T> {
     try {
-      const data = await this.send<T>(path);
+      const data = await this.send<T>(path, {}, alive);
 
       this.cache?.set(`${CACHE_PREFIX}${path}`, JSON.stringify(data));
+      this.cache?.set(SAVED_AT_KEY, String(Date.now()));
       this.onOffline?.(false);
 
       return data;
     } catch (error) {
-      if (error instanceof ApiError) throw error;
+      // Экран ушёл сам: это не обрыв связи, и запас тут ни при чём.
+      if (alive.aborted) throw error;
+
+      // Прокси отвечает за сервер своей ошибкой: 502 и 504 значат ровно то же,
+      // что оборванное соединение, и сохранённый ответ полезнее «что-то пошло не так».
+      if (error instanceof ApiError && !worthRetrying(error)) throw error;
 
       const saved = this.cache?.get(`${CACHE_PREFIX}${path}`);
 
@@ -1108,7 +1198,7 @@ export class DomovoyApi {
 
   /** Ответ, который не разбирается как JSON: картинка наклейки приходит разметкой. */
   private async text(path: string): Promise<string> {
-    const response = await this.doFetch(`${this.baseUrl}${path}`, { headers: this.authorized() });
+    const response = await this.ask(path, { headers: this.authorized() });
     const body = await response.text();
 
     if (!response.ok) throw failureOf(response.status, parsed(body));
@@ -1116,14 +1206,14 @@ export class DomovoyApi {
     return body;
   }
 
-  private async send<T>(path: string, init: RequestInit = {}): Promise<T> {
+  private async send<T>(path: string, init: RequestInit = {}, alive?: AbortSignal): Promise<T> {
     const headers: Record<string, string> = {
       ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
       ...((init.headers as Record<string, string> | undefined) ?? {}),
       ...this.authorized(),
     };
 
-    const response = await this.doFetch(`${this.baseUrl}${path}`, { ...init, headers });
+    const response = await this.ask(path, { ...init, headers }, alive);
     const text = await response.text();
     const body = parsed(text);
 
@@ -1133,6 +1223,32 @@ export class DomovoyApi {
     if (body === null) throw new ApiError(response.status, 'bad_response', 'Ответ сервера не распознан');
 
     return body as T;
+  }
+
+  /**
+   * Запрос со сроком: без него слабая связь держит экран скелетом без конца.
+   * Молчание дольше срока считается отказом, который стоит повторить.
+   */
+  private async ask(path: string, init: RequestInit, alive?: AbortSignal): Promise<Response> {
+    const watched = alive ?? this.alive;
+    const stop = new AbortController();
+    const late = new ApiError(408, 'timeout', 'Сервер не ответил, связь слабая');
+    const timer = setTimeout(() => stop.abort(late), REQUEST_TIMEOUT_MS);
+    const drop = (): void => stop.abort(watched?.reason);
+
+    if (watched?.aborted) drop();
+    else watched?.addEventListener('abort', drop, { once: true });
+
+    try {
+      return await this.doFetch(`${this.baseUrl}${path}`, { ...init, signal: stop.signal });
+    } catch (error) {
+      if (stop.signal.aborted && stop.signal.reason === late) throw late;
+
+      throw error;
+    } finally {
+      clearTimeout(timer);
+      watched?.removeEventListener('abort', drop);
+    }
   }
 }
 

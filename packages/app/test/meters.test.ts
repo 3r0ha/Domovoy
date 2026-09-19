@@ -466,10 +466,13 @@ describe('расход выше соседского', () => {
 });
 
 describe('показания словами', () => {
+  /** Показание одного прибора: так сказанное читается чаще всего. */
+  const only = async (deps: AppDeps, text: string) => (await readingInWords(deps, maria, text))[0];
+
   it('прибор по названию, число из той же фразы', async () => {
     const deps = await setup();
 
-    const said = await readingInWords(deps, maria, 'холодная вода 12345');
+    const said = await only(deps, 'холодная вода 12345');
 
     assert.equal(said?.value, 12345);
     assert.deepEqual(said?.meters.map((state) => state.meter.id), ['cold-1']);
@@ -478,36 +481,75 @@ describe('показания словами', () => {
   it('сокращения и дробное число тоже читаются', async () => {
     const deps = await setup();
 
-    const said = await readingInWords(deps, maria, 'гвс 145,678');
+    const said = await only(deps, 'гвс 145,678');
 
     assert.equal(said?.value, 145.678);
     assert.deepEqual(said?.meters.map((state) => state.meter.id), ['hot-1']);
   });
 
+  it('число достаётся тому прибору, рядом с которым стоит', async () => {
+    const deps = await setup();
+
+    const said = await readingInWords(deps, maria, 'гвс 9800 хвс 12350');
+
+    // Порядок тот же, в каком приборы названы в сообщении.
+    assert.deepEqual(
+      said.map((reading) => [reading.meters[0]?.meter.id, reading.value]),
+      [
+        ['hot-1', 9800],
+        ['cold-1', 12350],
+      ],
+    );
+  });
+
+  it('разряды, разделённые пробелом, остаются одним числом', async () => {
+    const deps = await setup();
+
+    assert.equal((await only(deps, 'хвс 12 350'))?.value, 12350);
+  });
+
+  it('число перед названием прибора тоже его', async () => {
+    const deps = await setup();
+
+    assert.equal((await only(deps, '12345 хвс'))?.value, 12345);
+  });
+
+  it('число из другой части фразы прибору не достаётся', async () => {
+    const deps = await setup();
+
+    assert.equal((await only(deps, 'квартира 5, хвс 12345'))?.value, 12345);
+  });
+
+  it('показание с минусом не принимают', async () => {
+    const deps = await setup();
+
+    assert.deepEqual(await readingInWords(deps, maria, 'хвс -5'), []);
+  });
+
   it('о поломке словами показание не подают', async () => {
     const deps = await setup();
 
-    assert.equal(await readingInWords(deps, maria, 'нет горячей воды с 5 утра'), undefined);
-    assert.equal(await readingInWords(deps, maria, 'течёт счётчик холодной воды 3 подъезд'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'нет горячей воды с 5 утра'), []);
+    assert.deepEqual(await readingInWords(deps, maria, 'течёт счётчик холодной воды 3 подъезд'), []);
   });
 
   it('без числа и без названия прибора показания нет', async () => {
     const deps = await setup();
 
-    assert.equal(await readingInWords(deps, maria, 'холодная вода'), undefined);
-    assert.equal(await readingInWords(deps, maria, '12345'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'холодная вода'), []);
+    assert.deepEqual(await readingInWords(deps, maria, '12345'), []);
   });
 
   it('прибора такого вида нет, значит и показания нет', async () => {
     const deps = await setup();
 
-    assert.equal(await readingInWords(deps, maria, 'газ 120'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'газ 120'), []);
   });
 
   it('номер заявки показанием не становится', async () => {
     const deps = await setup();
 
-    assert.equal(await readingInWords(deps, maria, 'что с холодной водой по заявке Д15-2609-0007'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'что с холодной водой по заявке Д15-2609-0007'), []);
   });
 
   it('прибор с истёкшей поверкой словами не принимают', async () => {
@@ -521,12 +563,12 @@ describe('показания словами', () => {
       verifiedUntil: new Date('2026-01-01T00:00:00Z'),
     });
 
-    assert.equal(await readingInWords(deps, maria, 'хвс 12345'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'хвс 12345'), []);
   });
 
   it('число больше табло показанием не считается', async () => {
     const deps = await setup();
 
-    assert.equal(await readingInWords(deps, maria, 'холодная вода 1234567'), undefined);
+    assert.deepEqual(await readingInWords(deps, maria, 'холодная вода 1234567'), []);
   });
 });

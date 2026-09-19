@@ -245,7 +245,7 @@ export {
 } from './buildings.js';
 export { handOverBuilding, type HandOverCommand, type HandOverResult } from './handover.js';
 export { acceptLegal, legalAccepted } from './legal.js';
-export { dossierFor } from './dossier.js';
+export { dossierFor, queueLine } from './dossier.js';
 export { assertSaid, saysSomething } from './said.js';
 export { portfolio, type BuildingLine } from './portfolio.js';
 export { zoneOf } from './zone.js';

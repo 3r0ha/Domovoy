@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useTrapped } from '../focus.js';
+
 /** Шаг тура: что подсвечиваем и что об этом говорим. */
 export interface TourStep {
   /** Значение `data-guide` у элемента, который подсвечиваем. */
@@ -52,8 +54,19 @@ export const Tour = ({ steps, onDone }: TourProps) => {
   // Эффект держится за якорь и за ссылку на обработчик: иначе он уходил бы заново каждый рендер.
   const anchor = step?.anchor;
   const done = useRef(onDone);
+  const card = useTrapped<HTMLElement>(true);
 
   done.current = onDone;
+
+  useEffect(() => {
+    const close = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') done.current();
+    };
+
+    globalThis.addEventListener('keydown', close);
+
+    return () => globalThis.removeEventListener('keydown', close);
+  }, []);
 
   useEffect(() => {
     if (anchor === undefined) {
@@ -96,6 +109,7 @@ export const Tour = ({ steps, onDone }: TourProps) => {
       ) : null}
 
       <section
+        ref={card}
         className={below ? 'tour-card tour-card-below' : 'tour-card tour-card-above'}
         style={hole ? (below ? { top: `${hole.top + hole.height + 12}px` } : { bottom: `${globalThis.innerHeight - hole.top + 12}px` }) : {}}
       >

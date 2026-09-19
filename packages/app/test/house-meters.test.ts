@@ -88,7 +88,7 @@ describe('общедомовой узел учёта', () => {
     await setTariff(deps, nina, { kind: 'cold_water', value: 50, since: new Date('2026-01-01T00:00:00Z') });
 
     const charges = await chargesForResident(deps, maria);
-    const line = charges.lines.find((item) => item.title === 'Холодная вода, ОДН');
+    const line = charges.lines.find((item) => item.title === 'Холодная вода на общие нужды дома');
 
     assert.ok(line, 'общедомовой строки нет');
     assert.equal(line.amount, 250);
@@ -104,7 +104,7 @@ describe('общедомовой узел учёта', () => {
     for (const id of ['r-3-a', 'r-3']) await repository.deleteReading(id);
 
     const line = (await chargesForResident(deps, maria)).lines.find(
-      (item) => item.title === 'Холодная вода, ОДН',
+      (item) => item.title === 'Холодная вода на общие нужды дома',
     );
 
     assert.ok(line, 'общедомовой строки нет');

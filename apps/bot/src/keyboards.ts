@@ -194,12 +194,19 @@ export const actionKeyboard = (
 };
 
 /** Уточнение адреса: варианты идут кнопками, номер варианта лежит в payload. */
-export const whereKeyboard = (requestId: string, options: readonly { label: string }[]) =>
-  keyboardOf([
+export const whereKeyboard = (requestId: string, options: readonly { label: string }[]) => {
+  const built = keyboardOf([
     ...options.map((option, index) => [Keyboard.button.callback(option.label, `where:${requestId}:${index}`)]),
     // Не «Отмена»: заявка уже принята, и отменой человек читает отказ от неё.
     [Keyboard.button.callback('🤷 Не знаю, где именно', `where:${requestId}:skip`)],
   ]);
+
+  // Выход здесь свой: без пометки к нему дописывались бы ещё «Назад» и «Меню»,
+  // и под вопросом «где именно» стояли бы три похожих выхода.
+  if (built) ROOT_MENUS.add(built);
+
+  return built;
+};
 
 /** Кому передать обращение: организации дома по одной кнопке на строку. */
 export const passKeyboard = (requestId: string, targets: readonly { to: string; organization: string }[]) =>
@@ -250,13 +257,13 @@ export const ASSIGNEES_SHOWN = 5;
 
 /** Подписи кнопок перехода. */
 export const ACTION_TITLES: Record<string, string> = {
-  accepted: '✅ Принять',
+  accepted: '✅ Взять',
   in_progress: '🔧 В работу',
   needs_info: '❓ Уточнить',
-  done: '🏁 Выполнена',
+  done: '🏁 Сдать работу',
   confirmed: '✅ Всё сделали, спасибо',
   rejected: '⛔ Отклонить',
-  withdrawn: '✖️ Больше не нужно',
+  withdrawn: '✖️ Отозвать заявку',
 };
 
 /**
@@ -330,6 +337,9 @@ export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuBut
   screenOf(keyboardOf(
     [
       [Keyboard.button.callback('📄 Прислать файлом', 'mydata:file')],
+      // Настройка уведомлений живёт здесь же по смыслу: «отпишите меня от
+      // уведомлений» приводило на этот экран, а выключателя на нём не было.
+      [Keyboard.button.callback('🔔 Уведомления', 'app:notices')],
       ...(bound ? [[Keyboard.button.callback('🏢 Отвязать квартиру', 'leave:ask')]] : []),
       [Keyboard.button.callback('🗑 Удалить меня', 'forget:ask')],
       [Keyboard.button.callback('🏠 Меню', 'group:back')],
@@ -423,6 +433,28 @@ export const talkKeyboard = (section?: { title: string; command: string }): Extr
  * Список счётчиков: каждый своей кнопкой, поданные помечены. Так человек
  * подаёт показание с любого прибора, а не идёт по ним подряд.
  */
+/**
+ * Тот же выбор прибора, но число уже названо: нажатие сразу подаёт показание.
+ * Так человек не набирает его второй раз, а продукт не решает за него, чей
+ * это счётчик.
+ */
+export const metersForValueKeyboard = (
+  states: readonly { meter: { id: string; kind: string } }[],
+  value: number,
+): Extra =>
+  screenOf({
+    attachments: [
+      Keyboard.inlineKeyboard(
+        states.map((state) => [
+          Keyboard.button.callback(
+            `💧 ${METER_RULES[state.meter.kind as MeterKind].title}`,
+            `meter-read:${state.meter.id}:${value}`,
+          ),
+        ]),
+      ),
+    ],
+  });
+
 export const metersKeyboard = (
   states: readonly { meter: { id: string; kind: string; serial: string }; submittedThisMonth: boolean }[],
 ): Extra =>
@@ -446,6 +478,9 @@ export const readingKeyboard = (meterId: string, canSkip: boolean) => ({
         ...(canSkip ? [Keyboard.button.callback('⏭ Пропустить', `meter-skip:${meterId}`)] : []),
         Keyboard.button.callback('✖️ Отмена', 'cancel'),
       ],
+      // Список приборов показывали экраном раньше: без этой кнопки к нему
+      // не вернуться, а отмена уводит из счётчиков совсем.
+      [Keyboard.button.callback('💧 К списку счётчиков', 'menu:meters')],
     ]),
   ],
 });
