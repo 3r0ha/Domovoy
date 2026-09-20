@@ -1678,6 +1678,7 @@ describe('чат-бот управляющей компании', () => {
     const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }], {
       // Модель читает сообщение на любом языке и называет раздел по-русски.
       reasoner: {
+        understand: () => Promise.resolve(undefined),
         onTopic: () => Promise.resolve(true),
         route: () => Promise.resolve({ kind: 'elsewhere' as const, screen: 'home' }),
       },
