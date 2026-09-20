@@ -1674,6 +1674,35 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('названа вещь без беды: сначала вопрос, заявка после ответа', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      reasoner: {
+        // Модель говорит, что написанного мало, и задаёт свой вопрос.
+        understand: (text: string) =>
+          Promise.resolve(
+            /течёт|течет/iu.test(text)
+              ? { category: 'plumbing', priority: 'normal', title: 'Течёт труба' }
+              : { category: 'plumbing', priority: 'normal', enough: false, question: 'Что случилось с трубой?' },
+          ),
+      },
+    });
+
+    platform.userSends('труба', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Что случилось с трубой/u);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'заявка заведена до ответа');
+
+    platform.userSends('течёт в ванной', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/u);
+
+    const [created] = await bot.deps.repository.listRequests({});
+
+    assert.match(created?.description ?? '', /труба/iu, 'первое слово потерялось');
+    assert.match(created?.description ?? '', /течёт/iu, 'ответ на вопрос потерялся');
+
+    await bot.stop();
+  });
+
   it('короткое слово разбирает модель, а не список слов', async () => {
     const bot = await start([RESIDENT_WITH_FLAT], {
       // «татарча» нет ни в одном списке слов продукта: раздел называет модель.

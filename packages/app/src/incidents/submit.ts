@@ -55,6 +55,13 @@ export type SubmitResult =
       answer: string;
       /** Команда бота с разделом, о котором ответ: кнопка под ним ведёт туда. */
       command?: string;
+    }
+  | {
+      /** Названа вещь, а что с ней, не сказано: заявки пока нет, есть вопрос. */
+      kind: 'unclear';
+      question: string;
+      /** Что человек написал: к ответу это дописывается, чтобы не спрашивать дважды. */
+      said: string;
     };
 
 /** Обращение, которое стало заявкой: плановые работы её не заводят. */
@@ -71,6 +78,10 @@ export const asRequest = (result: SubmitResult): SubmittedRequest => {
 
   if (result.kind === 'answered') {
     throw new DomainError('request_not_found', 'Обращение оказалось вопросом, заявки нет');
+  }
+
+  if (result.kind === 'unclear') {
+    throw new DomainError('text_empty', result.question);
   }
 
   return result;
@@ -316,6 +327,13 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
   // к настоящему лифту или домофону, а не к дому целиком.
   const house = deps.reasoner ? await houseFor(deps, command, buildingId).catch(() => undefined) : undefined;
   const read = await understandRequest(sized.description, deps.reasoner, house);
+
+  // Названа вещь, а беды нет: «труба», «лифт». Мастеру по такому ехать некуда,
+  // поэтому продукт сначала спрашивает, что случилось. Снимок обращение спасает:
+  // по нему смена видит поломку и без слов.
+  if (read.unclear && read.question && !command.attachments?.length) {
+    return { kind: 'unclear', question: read.question, said: sized.description };
+  }
 
   const where = await whereFrom(deps, sized, read, buildingId);
 

@@ -205,6 +205,15 @@ export const announce = async (
     return;
   }
 
+  // Названа вещь, а что с ней, не сказано: заявки пока нет, есть вопрос.
+  // Ответ дописывается к сказанному, поэтому спрашивают один раз.
+  if (result.kind === 'unclear') {
+    expect(typed, { kind: 'description', said: result.said, ...(startParam ? { target: startParam } : {}) });
+
+    await typed.reply(result.question, cancelKeyboard(t));
+    return;
+  }
+
   const created = result.request;
 
   // Сроки показываются по времени дома: в карточке заявки они уже так и

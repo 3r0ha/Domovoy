@@ -153,6 +153,7 @@ export const miniapp: Dictionary = {
 
   'language.hint': 'Goşundy we jaýdan habarlar şu dilde',
   'language.saving': 'Saklaýarys…',
+  'language.switched': 'Taýýar, indi türkmençe gepleşýärin.',
   'language.title': 'Dil',
 
   'chrome.apartment': '{номер} kw.',
@@ -388,7 +389,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': '{месяц} üçin görkezijiler · aýyň {день} çenli',
   'meters.photo.failed': 'Suraty saýgarmak başartmady',
   'meters.photo.reading': 'Tablony okaýaryn…',
-  'meters.photo.take': 'Tablony surata almak',
+  'meters.photo.take': 'Hasaplaýjyny surata almak',
   'meters.photo.unreadable':
     'Suratdaky sanlar saýgarylanok. Ýakyndan we şöhlesiz surata alyň ýa-da sanlar bilen giriziň',
   'meters.result.accepted': 'Kabul edildi',

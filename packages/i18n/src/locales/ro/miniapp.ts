@@ -154,6 +154,7 @@ export const miniapp: Dictionary = {
 
   'language.hint': 'În ea sunt aplicația și mesajele de la bloc',
   'language.saving': 'Salvăm…',
+  'language.switched': 'Gata, acum vorbesc în română.',
   'language.title': 'Limba',
 
   'chrome.apartment': 'ap. {номер}',
@@ -394,7 +395,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': 'Indicațiile pentru {месяц} · până pe {день}',
   'meters.photo.failed': 'Fotografia nu a putut fi deslușită',
   'meters.photo.reading': 'Citesc afișajul…',
-  'meters.photo.take': 'Fotografiez afișajul',
+  'meters.photo.take': 'Fotografiez contorul',
   'meters.photo.unreadable':
     'Cifrele din imagine nu se deslușesc. Fotografiați mai de aproape și fără reflexe sau introduceți cifrele',
   'meters.result.accepted': 'Primit',

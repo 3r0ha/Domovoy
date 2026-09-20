@@ -111,6 +111,11 @@ const submitted = async (
     });
   }
 
+  // Названа вещь, а что с ней, не сказано: заявки пока нет, человеку идёт вопрос.
+  if (result.kind === 'unclear') {
+    return reply.code(200).send({ joined: false, question: result.question, said: result.said });
+  }
+
   // Заявку завёл сам человек: переводится только название объекта из справочника.
   const machine = await translateForReading(deps, resident, [targetName(result.request.target)]);
 

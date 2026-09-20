@@ -1354,17 +1354,22 @@ main > * > .loading:only-child {
 .photo-wide {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  /* Снять табло счётчика нечем, если промахиваться по кнопке ниже 44. */
+  justify-content: center;
+  gap: 10px;
+  padding: 0 18px;
+  /* Сфотографировать счётчик нечем, если промахиваться по кнопке ниже 44. */
   min-height: 44px;
   border-radius: 12px;
+  line-height: 1;
   cursor: pointer;
 }
 
 .photo-wide svg {
+  flex: none;
   width: 20px;
   height: 20px;
+  /* Значок выравнивается по строке, а не по её верху. */
+  display: block;
 }
 
 .photo-busy {

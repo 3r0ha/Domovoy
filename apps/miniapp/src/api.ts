@@ -62,8 +62,8 @@ import type {
   VisitView,
   VoteChoiceView,
 } from './views.js';
-import type { Language } from '@domovoy/i18n';
-import { say } from './i18n.js';
+import { DEFAULT_LANGUAGE, translatorFor, type Language } from '@domovoy/i18n';
+import { say, spokenLanguage } from './i18n.js';
 
 export type * from './views.js';
 export * from './format.js';
@@ -85,11 +85,23 @@ export class ApiError extends Error {
   }
 }
 
-/** Причина неудачи словами. */
+/**
+ * Причина неудачи словами человека. Сервер отвечает кодом отказа и русским
+ * текстом: по коду берётся строка словаря, а текст сервера остаётся запасным.
+ */
 export const describeFailure = (error: unknown): string => {
-  if (error instanceof ApiError) return error.message;
+  if (!(error instanceof ApiError)) return say('failure.offline');
 
-  return say('failure.offline');
+  const language = spokenLanguage();
+
+  // Сервер отвечает по-русски и подробнее словаря: «Очередь доступна
+  // сотрудникам» точнее, чем «это чужие данные». По-русски и берётся он.
+  if (language === DEFAULT_LANGUAGE) return error.message;
+
+  const key = `app.error.${error.code}`;
+  const said = translatorFor(language)(key);
+
+  return said === key ? error.message : said;
 };
 
 /** Отказ из-за непривязанной квартиры: помогает не повтор, а привязка по коду. */

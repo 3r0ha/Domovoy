@@ -153,6 +153,8 @@ export const miniapp: Dictionary = {
 
   'language.hint': 'На нём приложение и сообщения от дома',
   'language.saving': 'Сохраняем…',
+  // Каждый язык говорит о себе сам: подстановка названия ломала падеж.
+  'language.switched': 'Готово, теперь говорю по-русски.',
   'language.title': 'Язык',
 
   'chrome.apartment': 'кв. {номер}',
@@ -384,7 +386,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': 'Показания за {месяц} · до {день} числа',
   'meters.photo.failed': 'Не удалось разобрать фотографию',
   'meters.photo.reading': 'Читаю табло…',
-  'meters.photo.take': 'Снять табло',
+  'meters.photo.take': 'Сфотографировать счётчик',
   'meters.photo.unreadable': 'Цифры на снимке не разобрать. Снимите ближе и без бликов или введите цифрами',
   'meters.result.accepted': 'Принято',
   'meters.result.consumption': ' · расход {расход} {единица}',

@@ -1,4 +1,4 @@
-import type { Language } from '@domovoy/i18n';
+import { translatorFor, type Language } from '@domovoy/i18n';
 import { useBridgeRequest } from '@maxkit/react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -117,6 +117,13 @@ export const Assistant = ({ api, onGo, onLanguage, onClose }: AssistantProps) =>
     try {
       await api.setLanguage(language);
       onLanguage(language);
+
+      // Переход виден сразу: предложение снимается, а продукт отвечает строкой
+      // на новом языке. Без неё нажатие выглядело как будто ничего не случилось.
+      setLines((said) => [
+        ...said.map((line) => ({ ...line, language: undefined, languageTitle: undefined })),
+        { from: 'bot', text: translatorFor(language)('miniapp.language.switched') },
+      ]);
       haptics.done();
     } catch (error: unknown) {
       setFailed(describeFailure(error));

@@ -151,6 +151,7 @@ export const miniapp: Dictionary = {
 
   'language.hint': '应用界面和楼栋消息都用这种语言',
   'language.saving': '正在保存…',
+  'language.switched': '好了，现在我用中文交流。',
   'language.title': '语言',
 
   'chrome.apartment': '{номер}室',
@@ -380,7 +381,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': '{месяц}的读数 · {день}日前',
   'meters.photo.failed': '照片未能识别',
   'meters.photo.reading': '正在读取表盘…',
-  'meters.photo.take': '拍摄表盘',
+  'meters.photo.take': '拍摄计量表',
   'meters.photo.unreadable': '照片上的数字看不清。请靠近拍摄、避免反光，或直接输入数字',
   'meters.result.accepted': '已接收',
   'meters.result.consumption': ' · 用量{расход} {единица}',

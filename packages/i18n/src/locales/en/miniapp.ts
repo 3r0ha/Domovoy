@@ -153,6 +153,7 @@ export const miniapp: Dictionary = {
 
   'language.hint': 'The app and the messages from the house are in it',
   'language.saving': 'Saving…',
+  'language.switched': 'Done, I will speak English now.',
   'language.title': 'Language',
 
   'chrome.apartment': 'apt. {номер}',
@@ -388,7 +389,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': 'Readings for {месяц} · by the {день}th',
   'meters.photo.failed': 'The photo could not be made out',
   'meters.photo.reading': 'Reading the display…',
-  'meters.photo.take': 'Take a photo of the display',
+  'meters.photo.take': 'Photograph the meter',
   'meters.photo.unreadable':
     'The digits in the photo cannot be made out. Take it closer and without glare or type the digits',
   'meters.result.accepted': 'Accepted',

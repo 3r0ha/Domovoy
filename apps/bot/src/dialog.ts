@@ -863,6 +863,17 @@ const quitting = (said: Said): boolean => Boolean(said.text && QUIT.test(said.te
 const withKept = (said: Said, kept: Attachment[] | undefined): Said =>
   kept?.length ? { ...said, attachments: [...kept, ...said.attachments] } : said;
 
+/**
+ * Ответ на вопрос «что случилось» дописывается к прежним словам: иначе «течёт»
+ * уходит в заявку без самой трубы, о которой человек сказал до вопроса.
+ */
+const withAsked = (said: Said, waiting: { photos?: Attachment[]; said?: string }): Said => {
+  const whole = withKept(said, waiting.photos);
+  const answer = said.text?.trim();
+
+  return waiting.said && answer ? { ...whole, text: `${waiting.said}: ${answer}` } : whole;
+};
+
 /** Продолжение разговора в переписке: сообщение читается по тому, чего бот ждал. */
 export const continueDialog = async (kit: BotKit, typed: BotContext, original: Said): Promise<void> => {
   const { said, failed } = await readAloud(kit, typed, original);
@@ -882,7 +893,9 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
 
   // Снимки и голосовые понимают только эти два ожидания, остальным нужен текст.
   if (waiting.kind === 'reading') return continueReading(kit, typed, waiting.meterId, said);
-  if (waiting.kind === 'description') return describeProblem(kit, typed, waiting.target, withKept(said, waiting.photos));
+  if (waiting.kind === 'description') {
+    return describeProblem(kit, typed, waiting.target, withAsked(said, waiting));
+  }
 
   // Снимок с подписью и без неё читают там, где он и есть отчёт: сообщение
   // по заявке, вопрос в поддержку и отметка о сделанной работе.

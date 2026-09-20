@@ -153,6 +153,7 @@ export const miniapp: Dictionary = {
 
   'language.hint': 'Қосымша мен үйден келетін хабарламалар осы тілде',
   'language.saving': 'Сақтап жатырмыз…',
+  'language.switched': 'Дайын, енді қазақша сөйлеймін.',
   'language.title': 'Тіл',
 
   'chrome.apartment': '{номер}-пәтер',
@@ -384,7 +385,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': '{месяц} көрсеткіштері · {день} жұлдызға дейін',
   'meters.photo.failed': 'Фотосуретті ажырату мүмкін болмады',
   'meters.photo.reading': 'Табло оқып жатырмын…',
-  'meters.photo.take': 'Табло түсіру',
+  'meters.photo.take': 'Есептегішті суретке түсіру',
   'meters.photo.unreadable': 'Суреттегі цифрларды ажырату қиын. Жақыннан әрі жарқылсыз түсіріңіз немесе цифрмен енгізіңіз',
   'meters.result.accepted': 'Қабылданды',
   'meters.result.consumption': ' · шығын {расход} {единица}',

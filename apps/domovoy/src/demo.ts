@@ -611,6 +611,7 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
 
   if (joined.kind === 'planned') throw new Error('Обращение соседа неожиданно объяснилось плановыми работами');
   if (joined.kind === 'answered') throw new Error('Обращение соседа неожиданно оказалось вопросом');
+  if (joined.kind === 'unclear') throw new Error('Обращение соседа неожиданно показалось непонятным');
 
   await answerAlert(at(-4 * HOUR), {
     resident: person('res-petr'),

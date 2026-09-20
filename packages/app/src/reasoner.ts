@@ -17,6 +17,8 @@ export interface Understanding {
   title?: string;
   /** Один вопрос, если из описания не понять, что случилось. */
   question?: string;
+  /** Написанного не хватает на заявку: названа вещь или место, а беды нет. */
+  unclear?: boolean;
   /** Чем определена категория: разбором текста моделью или ключевыми словами. */
   by: 'model' | 'keywords';
 }
@@ -27,6 +29,8 @@ export interface ReasonedFields {
   priority?: string;
   title?: string;
   question?: string;
+  /** Хватает ли написанного на заявку: названа вещь без беды это «нет». */
+  enough?: boolean;
   /** Код оборудования дома, о котором речь: из списка, переданного модели. */
   equipment?: string;
   /** Часть дома, о которой речь: apartment, entrance или house. */
@@ -265,6 +269,10 @@ export const understandRequest = async (
   const equipment = house?.equipment?.find((item) => item.code === read.equipment)?.code;
   const place = PLACES.find((known) => known === read.place);
 
+  // Названа вещь без беды: «труба», «лифт». Заявку по такому не заводят, пока
+  // человек не скажет, что случилось, иначе мастер едет в никуда.
+  const unclear = read.enough === false && question !== undefined;
+
   return {
     category,
     priority: plain.priority === 'emergency' ? 'emergency' : chosen,
@@ -273,5 +281,6 @@ export const understandRequest = async (
     ...(place ? { place } : {}),
     ...(title ? { title } : {}),
     ...(question ? { question } : {}),
+    ...(unclear ? { unclear } : {}),
   };
 };
