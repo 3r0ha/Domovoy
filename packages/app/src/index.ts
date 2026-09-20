@@ -78,6 +78,7 @@ export {
   remindAboutWorks,
   unheardVoice,
   warnAboutDeadlines,
+  aboutHouse,
   asRequest,
   sectionFor,
   submitProblem,

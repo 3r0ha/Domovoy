@@ -190,6 +190,24 @@ const otherSection = async (
 };
 
 /**
+ * Про дом ли написанное, по мнению того же разбора, что выбирает раздел.
+ * Проверка темы отвечает одним словом и на чужом языке ошибается чаще, а этот
+ * разбор видит и поломку, и раздел приложения: пока он узнаёт дело, отказывать
+ * человеку в постороннем нельзя.
+ */
+export const aboutHouse = async (deps: AppDeps, resident: Resident, text: string): Promise<boolean> => {
+  const sections = capabilitiesFor(resident.role).map((item) => ({
+    screen: item.screen,
+    title: item.title,
+    about: item.about,
+  }));
+
+  const read = await deps.reasoner?.route?.({ text, sections }).catch(() => undefined);
+
+  return read?.kind === 'breakdown' || read?.kind === 'elsewhere';
+};
+
+/**
  * Раздел, о котором написал человек, если это не поломка. «Открыть дверь» и
  * «оплатить счёт» это не обращение в управляющую компанию, а просьба сделать
  * дело: продукт открывает нужный раздел, а не заводит по ним заявку.

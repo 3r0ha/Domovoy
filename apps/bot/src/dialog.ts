@@ -12,6 +12,7 @@ import {
   meterKindsIn,
   meterNamedIn,
   metersFor,
+  aboutHouse,
   findCapability,
   offTopicFor,
   readingInWords,
@@ -708,6 +709,11 @@ const notAboutHouse = async (kit: BotKit, typed: BotContext, text: string): Prom
   const about = await reasoner.onTopic(text, isCompanyStaff(resident.role)).catch(() => undefined);
 
   if (about !== false) return false;
+
+  // Проверка темы отвечает одним словом и на чужом языке ошибается: «I want to
+  // open the door» она уже принимала за постороннее. Отказ выносится, только
+  // если и разбор по разделам не узнал ни дела, ни поломки.
+  if (await aboutHouse(kit.deps, resident, text)) return false;
 
   const staff = isCompanyStaff(resident.role);
   const t = speak(resident);

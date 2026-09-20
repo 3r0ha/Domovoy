@@ -24,6 +24,7 @@ export {
   warnAboutDeadlines,
 } from './incidents/reminders.js';
 export {
+  aboutHouse,
   asRequest,
   sectionFor,
   JOIN_LOCK_PREFIX,

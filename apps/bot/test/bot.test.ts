@@ -1677,9 +1677,11 @@ describe('чат-бот управляющей компании', () => {
   it('просьба на другом языке доходит до дела: язык разбирает модель', async () => {
     const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }], {
       // Модель читает сообщение на любом языке и называет раздел по-русски.
+      // Проверка темы ошиблась на чужом языке, а разбор по разделам узнал дело:
+      // отказывать в постороннем нельзя.
       reasoner: {
         understand: () => Promise.resolve(undefined),
-        onTopic: () => Promise.resolve(true),
+        onTopic: () => Promise.resolve(false),
         route: () => Promise.resolve({ kind: 'elsewhere' as const, screen: 'home' }),
       },
       devices: [
