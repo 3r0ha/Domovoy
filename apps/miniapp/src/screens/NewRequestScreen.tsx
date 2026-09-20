@@ -282,7 +282,7 @@ export const NewRequestScreen = ({
               <p className="description">
                 {t('new.known', {
                   заголовок: request.title,
-                  состояние: request.statusTitle ?? statusTitle(request.status),
+                  состояние: statusTitle(request.status, false, request.statusTitle),
                   срок: formatDeadline(request.resolutionDueAt),
                 })}
               </p>
@@ -375,7 +375,7 @@ export const NewRequestScreen = ({
               <p className="description">
                 {t('new.joined', {
                   заголовок: joined.request.title,
-                  состояние: joined.request.statusTitle ?? statusTitle(joined.request.status),
+                  состояние: statusTitle(joined.request.status, false, joined.request.statusTitle),
                   срок: formatDeadline(joined.request.resolutionDueAt),
                   сколько: joined.request.reporters,
                 })}

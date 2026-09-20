@@ -2,6 +2,7 @@ import type { Dictionary } from '../../translate.js';
 import { app } from './app.js';
 import { bot } from './bot.js';
 import { miniapp } from './miniapp.js';
+import { when } from './when.js';
 
 /** Ключи собираются по областям: так три части продукта не спорят за один файл. */
 const namespaced = (prefix: string, strings: Dictionary): Dictionary =>
@@ -11,4 +12,5 @@ export const ky: Dictionary = {
   ...namespaced('app', app),
   ...namespaced('bot', bot),
   ...namespaced('miniapp', miniapp),
+  ...namespaced('when', when),
 };

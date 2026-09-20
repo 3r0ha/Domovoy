@@ -1,3 +1,8 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { plainBasisKey } from './keys.js';
+import { russian } from './moment.js';
+
 /**
  * Откуда взялось то, что человек видит. Требование кейса разделять факты,
  * расчёты и рекомендации выполняется прямо в интерфейсе: рядом со значением
@@ -56,8 +61,11 @@ export const PLAIN: Partial<Record<BasisKey, string>> = {
 };
 
 /** Основание для того, кто смотрит: смене норма, жильцу короткая строка. */
-export const basisFor = (key: BasisKey, staff: boolean): string | undefined =>
-  staff ? BASIS[key] : PLAIN[key];
+export const basisFor = (key: BasisKey, staff: boolean, t: Translate = russian): string | undefined => {
+  if (staff) return BASIS[key];
+
+  return PLAIN[key] === undefined ? undefined : t(plainBasisKey(key));
+};
 
 /**
  * Основание срока заявки. Норму про локализацию аварии за полчаса продукт

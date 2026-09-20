@@ -13,12 +13,12 @@ import {
 } from '@domovoy/app';
 import {
   DomainError,
-  STATUS_TITLES,
   describeTarget,
   formatDate,
   isCompanyStaff,
   provesPresence,
   reportersCount,
+  statusTitle,
   type Role,
 } from '@domovoy/domain';
 import type { Translate } from '@domovoy/i18n';
@@ -52,7 +52,7 @@ const bound = async (kit: BotKit, typed: BotContext, payload: string): Promise<b
     if (!(error instanceof DomainError)) throw error;
 
     // Код квартиры не подошёл или их было слишком много: причина важнее меню.
-    await typed.reply(errorText(error), kit.menuKeyboard(resident));
+    await typed.reply(errorText(error, speak(resident)), kit.menuKeyboard(resident));
 
     return true;
   }
@@ -90,11 +90,10 @@ const continueWithObject = async (kit: BotKit, typed: BotContext, flat: BindResu
 
   delete typed.session?.afterBind;
 
-  const described = await describeContext(kit.deps, payload);
+  const resident = await kit.residentOf(typed);
+  const described = await describeContext(kit.deps, payload, speak(resident));
 
   if (!described) return;
-
-  const resident = await kit.residentOf(typed);
 
   if (described.buildingId !== flat.apartment.buildingId) {
     await typed.reply(speak(resident)('sticker.other_house'));
@@ -130,11 +129,10 @@ const ownOrder = async (kit: BotKit, typed: BotContext, payload: string, residen
 
 /** Код с наклейки: бот ждёт описания того, что с объектом не так. */
 const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Promise<boolean> => {
-  const described = await describeContext(kit.deps, payload);
+  const resident = await kit.residentOf(typed);
+  const described = await describeContext(kit.deps, payload, speak(resident));
 
   if (!described) return false;
-
-  const resident = await kit.residentOf(typed);
 
   // Жилец без квартиры: объект запоминается, а разговор начинается с документов и кода.
   if (needsApartment(resident)) {
@@ -169,13 +167,15 @@ const askAboutObject = async (
   const open = passport?.open[0];
 
   const known = open
-    ? `\n${t('object.known', { номер: open.number, состояние: STATUS_TITLES[open.status] })}` +
+    ? `\n${t('object.known', { номер: open.number, состояние: statusTitle(open.status, false, t) })}` +
       `${reportersCount(open) > 1 ? ` ${t('object.reporters', { сколько: reportersCount(open) })}` : ''}` +
       `\n${t('object.same')}`
     : '';
 
   const repaired =
-    passport?.lastRepairAt && !open ? `\n${t('object.repaired', { дата: formatDate(passport.lastRepairAt) })}` : '';
+    passport?.lastRepairAt && !open
+      ? `\n${t('object.repaired', { дата: formatDate(passport.lastRepairAt, undefined, t) })}`
+      : '';
 
   await typed.reply(
     t('object.ask', { имя: resident.displayName, объект: described.target }) +

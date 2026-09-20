@@ -459,7 +459,7 @@ const attachFlat = async (deps: AppDeps, request: ServiceRequest, author: Reside
       speak(person)('app.notice.staffRequest', {
         суть: saved.title,
         номер: saved.number,
-        срок: formatMoment(saved.resolutionDueAt, zone),
+        срок: formatMoment(saved.resolutionDueAt, zone, speak(person)),
       }),
       actionsFor(saved, person),
       saved.id,

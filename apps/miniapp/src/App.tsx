@@ -176,6 +176,10 @@ const accepted = (profile: Profile): boolean => profile.legal?.accepted !== fals
 const asksLanguage = (profile: Profile): boolean =>
   profile.role === 'resident' && (profile.language ?? null) === null;
 
+/** Свой язык есть только у жильца: очередь, наряды и сводка ведутся по-русски. */
+const speaksOwnLanguage = (profile: Profile): boolean =>
+  profile.role === 'resident' && Boolean(profile.language);
+
 /**
  * Первый заход: сначала язык, потом документы, потом короткий тур по разделам.
  * Язык идёт первым: документы человек читает уже на своём. Пока согласия нет,
@@ -626,7 +630,7 @@ export const App = ({ baseUrl, fetch }: AppProps) => {
   }
 
   return (
-    <I18nProvider {...(session.profile.language ? { language: session.profile.language } : {})}>
+    <I18nProvider {...(speaksOwnLanguage(session.profile) ? { language: session.profile.language } : {})}>
       <CapabilitiesProvider voice={session.profile.voice}>
         <Workspace
           api={api}

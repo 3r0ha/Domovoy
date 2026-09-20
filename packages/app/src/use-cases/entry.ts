@@ -1,5 +1,7 @@
 import { audienceForTarget, decodeTarget, describeAudience, describeTarget } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
+import { speakDefault } from '../language.js';
 import { type Resident } from '../repository.js';
 import { type AppDeps } from './deps.js';
 import { withReadableAddress } from './requests.js';
@@ -33,7 +35,11 @@ export interface ContextDescription {
 }
 
 /** Что означает код с наклейки: показывается жильцу до создания заявки. */
-export const describeContext = async (deps: AppDeps, startParam: string): Promise<ContextDescription | null> => {
+export const describeContext = async (
+  deps: AppDeps,
+  startParam: string,
+  t: Translate = speakDefault(),
+): Promise<ContextDescription | null> => {
   const target = decodeTarget(startParam);
   if (!target) return null;
 
@@ -52,8 +58,8 @@ export const describeContext = async (deps: AppDeps, startParam: string): Promis
   const audience = audienceForTarget(target);
 
   return {
-    target: describeTarget(await withReadableAddress(deps, target, apartment)),
-    audience: audience ? describeAudience(audience) : null,
+    target: describeTarget(await withReadableAddress(deps, target, apartment), undefined, t),
+    audience: audience ? describeAudience(audience, t) : null,
     buildingId: target.kind === 'apartment' ? (apartment?.buildingId ?? null) : target.buildingId,
   };
 };

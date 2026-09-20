@@ -497,7 +497,7 @@ export class DomovoyApi {
       headers: this.authorized(),
     });
 
-    if (!response.ok) throw new ApiError(response.status, 'file_unavailable', 'Снимок недоступен');
+    if (!response.ok) throw new ApiError(response.status, 'file_unavailable', say('failure.photo'));
 
     return response.blob();
   }
@@ -1248,7 +1248,7 @@ export class DomovoyApi {
     if (!response.ok) throw failureOf(response.status, body);
 
     // Разобрать не удалось, а ответ считается успешным: дальше по нему работать нечем.
-    if (body === null) throw new ApiError(response.status, 'bad_response', 'Ответ сервера не распознан');
+    if (body === null) throw new ApiError(response.status, 'bad_response', say('failure.response'));
 
     return body as T;
   }
@@ -1260,7 +1260,7 @@ export class DomovoyApi {
   private async ask(path: string, init: RequestInit, alive?: AbortSignal): Promise<Response> {
     const watched = alive ?? this.alive;
     const stop = new AbortController();
-    const late = new ApiError(408, 'timeout', 'Сервер не ответил, связь слабая');
+    const late = new ApiError(408, 'timeout', say('failure.timeout'));
     const timer = setTimeout(() => stop.abort(late), REQUEST_TIMEOUT_MS);
     const drop = (): void => stop.abort(watched?.reason);
 
@@ -1297,5 +1297,5 @@ const parsed = (text: string): unknown => {
 const failureOf = (status: number, body: unknown): ApiError => {
   const details = (body ?? {}) as { error?: string; message?: string };
 
-  return new ApiError(status, details.error ?? 'unknown', details.message ?? 'Что-то пошло не так');
+  return new ApiError(status, details.error ?? 'unknown', details.message ?? say('failure.unknown'));
 };

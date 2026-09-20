@@ -1,5 +1,8 @@
+import { clockIn, dayIn, daysApart, type Translate } from '@domovoy/i18n';
+
 import { describeAudience } from './audience.js';
 import { audiencesOverlap } from './incident.js';
+import { russian } from './moment.js';
 import { crossedIn } from './numbers.js';
 import { CATEGORY_RULES } from './sla.js';
 import { DEFAULT_TIME_ZONE, type AnnouncementAudience, type RequestCategory } from './types.js';
@@ -46,29 +49,33 @@ export const explainingWork = (
     (work) => work.category === category && isUnderway(work, now) && audiencesOverlap(work.audience, where),
   );
 
-const DAY_MS = 24 * 3600_000;
-
-/** Календарный день в заданном поясе: по нему решается, нужна ли дата. */
-const dayIn = (at: Date, timeZone: string): string =>
-  at.toLocaleDateString('ru-RU', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
-
 /** Сколько ещё продлится, словами. */
-export const describeUntil = (work: PlannedWork, now: Date, timeZone: string = DEFAULT_TIME_ZONE): string => {
-  const time = work.until.toLocaleTimeString('ru-RU', { timeZone, hour: '2-digit', minute: '2-digit' });
-  const until = dayIn(work.until, timeZone);
-
-  if (until === dayIn(now, timeZone)) return `до ${time}`;
+export const describeUntil = (
+  work: PlannedWork,
+  now: Date,
+  timeZone: string = DEFAULT_TIME_ZONE,
+  t: Translate = russian,
+): string => {
+  const время = clockIn(t, work.until, timeZone);
 
   // «Завтра» это следующий календарный день дома: в 30 часах от вечера
   // понедельника лежит среда, и назвать её завтрашней нельзя.
-  if (until === dayIn(new Date(now.getTime() + DAY_MS), timeZone)) return `до ${time} завтра`;
+  const apart = daysApart(work.until, now, timeZone);
 
-  return `до ${work.until.toLocaleDateString('ru-RU', { timeZone, day: 'numeric', month: 'long' })}, ${time}`;
+  if (apart === 0) return t('when.until', { время });
+  if (apart === 1) return t('when.untilTomorrow', { время });
+
+  return t('when.untilDay', { день: dayIn(t, work.until, timeZone), время });
 };
 
 /** Ответ жильцу вместо заявки. */
-export const describeWork = (work: PlannedWork, now: Date, timeZone: string = DEFAULT_TIME_ZONE): string =>
+export const describeWork = (
+  work: PlannedWork,
+  now: Date,
+  timeZone: string = DEFAULT_TIME_ZONE,
+  t: Translate = russian,
+): string =>
   [
-    `${CATEGORY_RULES[work.category].title}: плановые работы ${describeUntil(work, now, timeZone)}.`,
+    `${CATEGORY_RULES[work.category].title}: плановые работы ${describeUntil(work, now, timeZone, t)}.`,
     `${work.title}: ${describeAudience(work.audience)}.`,
   ].join('\n');

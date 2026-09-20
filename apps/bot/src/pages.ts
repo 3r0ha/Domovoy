@@ -18,9 +18,9 @@ import {
   zoneOf,
 } from '@domovoy/app';
 import {
-  CATEGORY_RULES,
   CLOSED_STATUSES,
   DomainError,
+  categoryKey,
   describeAudience,
   describeTarget,
   describeUntil,
@@ -91,11 +91,11 @@ const requestCard = async (
 ): Promise<string> => {
   const due = CLOSED_STATUSES.includes(request.status)
     ? ''
-    : `\n${t('request.due', { срок: formatMoment(request.resolutionDueAt, zone) })}`;
+    : `\n${t('request.due', { срок: formatMoment(request.resolutionDueAt, zone, t) })}`;
 
   return (
     `${request.title}\n` +
-    `${statusTitle(request.status, forStaff)} · ${describePlace(request)}\n` +
+    `${statusTitle(request.status, forStaff, t)} · ${describePlace(request, t)}\n` +
     `${request.number}${due}${await workedBy(kit, t, request.assigneeId)}`
   );
 };
@@ -228,15 +228,15 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
   const now = kit.deps.now();
 
   const stored = await kit.deps.repository.findRequest(found.id);
-  const view = stored ? await responsibilityOf(kit.deps, stored) : undefined;
+  const view = stored ? await responsibilityOf(kit.deps, stored, t) : undefined;
   const handoffs = stored ? await handoffsOf(kit.deps, stored.id, resident) : [];
 
   // Кто отвечает и кому передано, важнее прочего: с этого начинается ответ на
-  // вопрос «что с моим обращением».
-  // Норма закона нужна жильцу: ею объясняется, почему отвечает не управляющая
-  // организация. Смена читает эти карточки десятками, и ссылка ей только мешает.
+  // вопрос «что с моим обращением». Жильцу идёт короткая строка, как и в
+  // приложении: номер статьи ему ничего не решает, а смена читает эти карточки
+  // десятками, и основание ей только мешает.
   const zones = view
-    ? `\n\n${t('request.answers', { кто: view.responsibility.title })}${forStaff ? '' : `\n${view.responsibility.basis}`}`
+    ? `\n\n${t('request.answers', { кто: view.responsibility.title })}${forStaff ? '' : `\n${view.responsibility.plain}`}`
     : '';
   const passed = handoffs.map((handoff) => `\n\n${formatHandoff(handoff, now)}`).join('');
 
@@ -276,11 +276,13 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
   const lines = shown.map((announcement) => {
     const work = plannedWork(announcement);
     const state = work && isUnderway(work, now) ? `${t('news.underway')}, ` : '';
-    const until = work ? `\n${CATEGORY_RULES[work.category].title}: ${state}${describeUntil(work, now)}` : '';
+    const until = work
+      ? `\n${t(categoryKey(work.category))}: ${state}${describeUntil(work, now, undefined, t)}`
+      : '';
 
     return (
-      `${announcement.title}, ${describeAudience(announcementAudience(announcement))}\n` +
-      `${formatMoment(announcement.createdAt)}\n${briefly(announcement.body, t)}${until}`
+      `${announcement.title}, ${describeAudience(announcementAudience(announcement), t)}\n` +
+      `${formatMoment(announcement.createdAt, undefined, t)}\n${briefly(announcement.body, t)}${until}`
     );
   });
 
@@ -363,7 +365,7 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
 
   for (const card of cards) {
     await typed.reply(
-      formatTicket(card, { zone, viewerId: resident.id, now }),
+      formatTicket(card, { zone, viewerId: resident.id, now, t }),
       card.ticket.status === 'closed' ? undefined : supportKeyboard(card.ticket.id, t),
     );
   }

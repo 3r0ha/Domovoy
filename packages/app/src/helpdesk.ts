@@ -8,7 +8,7 @@ import {
   onCall,
   openTicket,
   replyToTicket,
-  TICKET_STATUS_TITLES,
+  ticketStatusTitle,
   WORKING_HOURS,
   answerDueAt,
   isAnswerOverdue,
@@ -287,7 +287,7 @@ const ticketState = (card: TicketCard, options: TicketTextOptions, t: Translate)
     return waitsForAnswer(card.ticket) ? t('app.support.waiting') : '';
   }
 
-  return [describeAsker(card), waiting || TICKET_STATUS_TITLES[card.ticket.status]].filter(Boolean).join(' · ');
+  return [describeAsker(card), waiting || ticketStatusTitle(card.ticket.status, t)].filter(Boolean).join(' · ');
 };
 
 /** Сколько последних сообщений показывает переписка: остальное открывают в приложении. */

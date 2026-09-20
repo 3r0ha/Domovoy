@@ -6,13 +6,13 @@ import type { Translate } from '@domovoy/i18n';
 
 import {
   ApiError,
+  counted,
   describeFailure,
   formatDay,
   formatDue,
   formatLeft,
   formatPublished,
   formatSince,
-  plural,
   statusTitle,
   tight,
   type ComplaintOffer,
@@ -147,9 +147,7 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
 
   if (!staff) {
     return spread.affected > 1 ? (
-      <p className="hint">
-        {t('request.spread', { соседи: plural(spread.affected, 'сосед', 'соседа', 'соседей') })}
-      </p>
+      <p className="hint">{t('request.spread', { соседи: counted('count.neighbour', spread.affected) })}</p>
     ) : null;
   }
 
@@ -772,7 +770,7 @@ export const RequestScreen = ({
         <p className="request-head">
           <span className="row-state">
             <span className={`dot ${view.overdue ? 'dot-bad' : (TONE[view.status] ?? 'dot-work')}`} />
-            {view.statusTitle ?? statusTitle(view.status, staff)}
+            {statusTitle(view.status, staff, view.statusTitle)}
           </span>
           <span className="number">{view.number}</span>
         </p>
@@ -829,6 +827,7 @@ export const RequestScreen = ({
       <Responsibility
         api={api}
         requestId={view.id}
+        category={view.category}
         staff={staff}
         closed={ended}
         {...(selfAssigned && meName ? { own: meName } : {})}

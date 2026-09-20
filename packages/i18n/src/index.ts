@@ -19,6 +19,22 @@ export {
 } from './translate.js';
 export { DICTIONARIES, dictionaryFor, translatorFor } from './locales/index.js';
 export {
+  clockIn,
+  counted,
+  dayIn,
+  dayOf,
+  daysApart,
+  formOf,
+  localeOf,
+  monthIn,
+  numberIn,
+  partsIn,
+  spanIn,
+  weekdayIn,
+  type DateParts,
+  type Form,
+} from './when.js';
+export {
   LEGAL_NOTES,
   LEGAL_TEXTS,
   legalLanguage,

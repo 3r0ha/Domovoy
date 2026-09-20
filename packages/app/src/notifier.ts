@@ -145,8 +145,9 @@ const RU = speakDefault();
  */
 export const describePlace = (request: ServiceRequest, t: Translate = RU): string => {
   const category = CATEGORY_RULES[request.category].title;
-  const target = describeTarget(request.target);
-  const told = request.category === 'other' || target.toLowerCase().startsWith(category.toLowerCase());
+  const named = describeTarget(request.target);
+  const told = request.category === 'other' || named.toLowerCase().startsWith(category.toLowerCase());
+  const target = describeTarget(request.target, undefined, t);
 
   return told ? target : `${t(categoryKey(request.category))}, ${target}`;
 };
@@ -209,7 +210,7 @@ export const formatInspection = (inspection: Inspection): string => {
 
 /** Гость вошёл по выданному коду. */
 export const formatGuestEntry = (t: Translate, device: string, at: Date): string =>
-  t('app.notice.guestEntry', { устройство: device, время: formatClock(at) });
+  t('app.notice.guestEntry', { устройство: device, время: formatClock(at, undefined, t) });
 
 /** Сколько знаков описания входит в уведомление: остальное читают в карточке. */
 export const DESCRIPTION_IN_NOTICE = 300;
@@ -252,9 +253,9 @@ export const formatKnock = (t: Translate, request: ServiceRequest): string =>
 export const formatNeighbourAlert = (t: Translate, request: ServiceRequest, dueAt: Date): string =>
   t('app.notice.neighbourAlert', {
     категория: t(categoryKey(request.category)).toLowerCase(),
-    место: describeTarget(request.target),
+    место: describeTarget(request.target, undefined, t),
     номер: request.number,
-    срок: formatMoment(dueAt),
+    срок: formatMoment(dueAt, undefined, t),
   });
 
 /** Сообщение о нарушенном сроке. */
@@ -267,7 +268,7 @@ export const formatOverdue = (
   t('app.notice.overdue', {
     номер: request.number,
     что: t(`app.notice.overdueOf.${kind}`),
-    место: describeTarget(request.target),
+    место: describeTarget(request.target, undefined, t),
     дальше: canEscalate ? t('app.notice.overdueEscalate') : t('app.notice.overdueWait'),
   });
 
@@ -275,8 +276,8 @@ export const formatOverdue = (
 export const formatWorksSoon = (t: Translate, work: PlannedWork, now: Date): string =>
   t('app.notice.worksSoon', {
     категория: t(categoryKey(work.category)).toLowerCase(),
-    адресаты: describeAudience(work.audience),
-    до: describeUntil(work, now),
+    адресаты: describeAudience(work.audience, t),
+    до: describeUntil(work, now, undefined, t),
     название: work.title,
   });
 
@@ -285,13 +286,13 @@ export const formatWorksStarted = (t: Translate, work: PlannedWork, now: Date): 
   t('app.notice.worksStarted', {
     категория: t(categoryKey(work.category)).toLowerCase(),
     название: work.title,
-    адресаты: describeAudience(work.audience),
-    до: describeUntil(work, now),
+    адресаты: describeAudience(work.audience, t),
+    до: describeUntil(work, now, undefined, t),
   });
 
 /** Работы закончились по графику. */
 export const formatWorksFinished = (t: Translate, work: PlannedWork): string =>
-  t('app.notice.worksFinished', { название: work.title, адресаты: describeAudience(work.audience) });
+  t('app.notice.worksFinished', { название: work.title, адресаты: describeAudience(work.audience, t) });
 
 /** Напоминание жильцу о приёмке работы. */
 export const formatAcceptanceReminder = (t: Translate, request: ServiceRequest, hoursLeft: number): string =>

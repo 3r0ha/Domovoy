@@ -2,8 +2,8 @@ import { Button, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useEffect } from 'react';
 
-import { formatDay, monthName, monthShort, plural, type DomovoyApi } from '../api.js';
-import { useT } from '../i18n.js';
+import { counted, formatDay, monthName, monthShort, type DomovoyApi } from '../api.js';
+import { say, useT } from '../i18n.js';
 import { DoorRow } from './DoorRow.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
@@ -25,9 +25,9 @@ export interface ObjectScreenProps {
 /** Сколько раз объект уже ломался: подпись под списком. */
 export const objectHistory = (total: number, lastRepairAt?: string, averageDays?: number): string =>
   [
-    plural(total, 'обращение', 'обращения', 'обращений'),
-    lastRepairAt ? `последний ремонт ${formatDay(lastRepairAt)}` : '',
-    averageDays === undefined ? '' : `ломается примерно раз в ${plural(averageDays, 'день', 'дня', 'дней')}`,
+    counted('count.request', total),
+    lastRepairAt ? say('object.repair', { дата: formatDay(lastRepairAt) }) : '',
+    averageDays === undefined ? '' : say('object.average', { срок: counted('count.day', averageDays) }),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -74,7 +74,7 @@ const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
           <span
             key={index}
             className={index === MONTHS - 1 ? 'month-column month-now' : 'month-column'}
-            title={`${columnMonth(index, now)}: ${plural(count, 'поломка', 'поломки', 'поломок')}`}
+            title={t('object.month', { месяц: columnMonth(index, now), поломки: counted('count.break', count) })}
           >
             <span className={count === 0 ? 'month' : count === 1 ? 'month month-once' : 'month month-often'} />
             <span className="month-name">

@@ -21,7 +21,13 @@ const I18nContext = createContext<I18n>(initial);
 /** Перевод вне React: клиент API собирает сообщения об отказах сам. */
 let active: Translate = initial.t;
 
+/** Тот же язык вне React: по нему считаются формы слов, даты и числа. */
+let spoken: Language = DEFAULT_LANGUAGE;
+
 export const say: Translate = (key, values) => active(key, values);
+
+/** Язык, на котором сейчас говорит приложение. */
+export const spokenLanguage = (): Language => spoken;
 
 export interface I18nProviderProps {
   /** Язык из профиля. Пусто: человек его ещё не выбирал. */
@@ -39,6 +45,7 @@ export const I18nProvider = ({ language, children }: I18nProviderProps) => {
 
   // Перевод вне React берёт тот же язык: клиент API живёт рядом с деревом, а не в нём.
   active = value.t;
+  spoken = value.language;
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };

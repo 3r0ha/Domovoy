@@ -4,6 +4,7 @@ import {
   closeSupport,
   describeTickets,
   listSupportFor,
+  speak,
   supportTicket,
   type Resident,
 } from '@domovoy/app';
@@ -30,7 +31,7 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
     // Схема ответа обязывает вернуть обращение: пустое тело с кодом 200 клиенту не ответ.
     if (!card) throw new DomainError('ticket_not_found', 'Обращение не найдено');
 
-    return serializeTicket(card, viewer.id, isCompanyStaff(viewer.role));
+    return serializeTicket(card, viewer.id, isCompanyStaff(viewer.role), speak(viewer));
   };
 
   /** Свои обращения, а у смены, вопросы всего дома. */
@@ -46,8 +47,9 @@ export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       const resident = await currentResident(request.max.userId, request.query.buildingId);
 
       const cards = await describeTickets(deps, await listSupportFor(deps, resident));
+      const t = speak(resident);
 
-      return cards.map((card) => serializeTicket(card, resident.id, isCompanyStaff(resident.role)));
+      return cards.map((card) => serializeTicket(card, resident.id, isCompanyStaff(resident.role), t));
     },
   );
 

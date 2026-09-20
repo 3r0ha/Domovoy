@@ -5,6 +5,7 @@ import {
   receptionFor,
   recordVisit,
   setReception,
+  speak,
   takeVisit,
   zoneOf,
 } from '@domovoy/app';
@@ -16,6 +17,7 @@ import {
   formatWeekday,
   type Visit,
 } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 import type { FastifyPluginAsync } from 'fastify';
 
 import {
@@ -35,14 +37,19 @@ import { residentReader, type RoutesDeps } from '../context.js';
 export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
   const currentResident = residentReader(deps);
 
-  const serialize = (visit: Visit, zone: string, who?: { residentName?: string; apartment?: number }) => ({
+  const serialize = (
+    visit: Visit,
+    zone: string,
+    t: Translate,
+    who?: { residentName?: string; apartment?: number },
+  ) => ({
     id: visit.id,
     at: visit.at.toISOString(),
     minutes: visit.minutes,
     topic: visit.topic,
     status: visit.status,
-    day: formatWeekday(visit.at, zone),
-    clock: formatClock(visit.at, zone),
+    day: formatWeekday(visit.at, zone, t),
+    clock: formatClock(visit.at, zone, t),
     ...(who?.residentName ? { residentName: who.residentName } : {}),
     ...(who?.apartment === undefined ? {} : { apartment: who.apartment }),
   });
@@ -71,10 +78,10 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         // и по одной дате человек не поймёт, когда именно прийти.
         slots: reception.slots.map((at) => ({
           at: at.toISOString(),
-          day: formatWeekday(at, zone),
-          clock: formatClock(at, zone),
+          day: formatWeekday(at, zone, speak(resident)),
+          clock: formatClock(at, zone, speak(resident)),
         })),
-        ...(reception.mine ? { mine: serialize(reception.mine, zone) } : {}),
+        ...(reception.mine ? { mine: serialize(reception.mine, zone, speak(resident)) } : {}),
       };
     },
   );
@@ -120,8 +127,8 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         ...(reception.office ? { office: reception.office } : {}),
         slots: reception.slots.map((at) => ({
           at: at.toISOString(),
-          day: formatWeekday(at, zone),
-          clock: formatClock(at, zone),
+          day: formatWeekday(at, zone, speak(resident)),
+          clock: formatClock(at, zone, speak(resident)),
         })),
       };
     },
@@ -160,7 +167,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         ...(request.query.buildingId ? { buildingId: request.query.buildingId } : {}),
       });
 
-      return reply.code(201).send(serialize(visit, await zoneOf(deps, visit.buildingId)));
+      return reply.code(201).send(serialize(visit, await zoneOf(deps, visit.buildingId), speak(resident)));
     },
   );
 
@@ -178,7 +185,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       const cards = await listVisitsFor(deps, resident, request.query.buildingId);
       const zone = await zoneOf(deps, resident.buildingId ?? deps.defaultBuildingId);
 
-      return cards.map((card) => serialize(card.visit, zone, card));
+      return cards.map((card) => serialize(card.visit, zone, speak(resident), card));
     },
   );
 
@@ -209,7 +216,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         ...(request.query.buildingId ? { buildingId: request.query.buildingId } : {}),
       });
 
-      return reply.code(201).send(serialize(visit, await zoneOf(deps, visit.buildingId)));
+      return reply.code(201).send(serialize(visit, await zoneOf(deps, visit.buildingId), speak(resident)));
     },
   );
 
@@ -220,7 +227,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       const resident = await currentResident(request.max.userId);
       const visit = await dropVisit(deps, resident, request.params.id);
 
-      return serialize(visit, await zoneOf(deps, visit.buildingId));
+      return serialize(visit, await zoneOf(deps, visit.buildingId), speak(resident));
     },
   );
 
@@ -232,7 +239,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       const resident = await currentResident(request.max.userId);
       const visit = await markVisitDone(deps, resident, request.params.id);
 
-      return serialize(visit, await zoneOf(deps, visit.buildingId));
+      return serialize(visit, await zoneOf(deps, visit.buildingId), speak(resident));
     },
   );
 };

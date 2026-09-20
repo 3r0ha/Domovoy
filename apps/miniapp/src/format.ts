@@ -1,17 +1,13 @@
-/** Числа, сроки и даты по-русски. */
+/** Числа, сроки и даты на языке человека. */
 
-const STATUS_TITLES: Record<string, string> = {
-  new: 'Отправлена',
-  accepted: 'Принята в работу',
-  in_progress: 'Выполняется',
-  needs_info: 'Ждёт вашего уточнения',
-  done: 'Ждёт вашей приёмки',
-  confirmed: 'Закрыта, работа принята',
-  rejected: 'Отклонена',
-  withdrawn: 'Снята',
-};
+import { translatorFor, type Translate } from '@domovoy/i18n';
 
-/** Те же состояния глазами управляющей компании. */
+import { say, spokenLanguage } from './i18n.js';
+
+/** Состояния, которые продукт называет сам. Чужое приходит с сервера как есть. */
+const STATUSES = ['new', 'accepted', 'in_progress', 'needs_info', 'done', 'confirmed', 'rejected', 'withdrawn'];
+
+/** Те же состояния глазами управляющей компании. Смена работает по-русски. */
 const STAFF_STATUS_TITLES: Record<string, string> = {
   new: 'Новая',
   accepted: 'Принята, ждёт назначения',
@@ -20,40 +16,39 @@ const STAFF_STATUS_TITLES: Record<string, string> = {
   withdrawn: 'Снята жильцом',
 };
 
-export const statusTitle = (status: string, staff = false): string =>
-  (staff ? STAFF_STATUS_TITLES[status] : undefined) ?? STATUS_TITLES[status] ?? status;
+/** Состояние словами смотрящего. `sent`, как его назвал сервер. */
+export const statusTitle = (status: string, staff = false, sent?: string): string => {
+  if (!STATUSES.includes(status)) return sent ?? status;
 
-/** Те же слова, что на кнопках бота: одно действие называется одинаково везде. */
-const ACTION_TITLES: Record<string, string> = {
-  accepted: 'Взять',
-  in_progress: 'В работу',
-  needs_info: 'Уточнить',
-  done: 'Сдать работу',
-  confirmed: 'Всё сделали, спасибо',
-  rejected: 'Отклонить',
-  withdrawn: 'Отозвать заявку',
+  return (staff ? STAFF_STATUS_TITLES[status] : undefined) ?? say(`status.${status}`);
 };
 
-export const actionTitle = (action: string): string => ACTION_TITLES[action] ?? action;
+/** Те же слова, что на кнопках бота: одно действие называется одинаково везде. */
+export const actionTitle = (action: string): string => say(`action.${action}`);
 
-/** Срок в человеческом виде. */
-const spanWords = (minutes: number): string => {
-  if (minutes < 60) return `${minutes} мин`;
+/** Форма слова по числу: у каждого языка свой набор форм. */
+const form = (count: number): string => new Intl.PluralRules(spokenLanguage()).select(count);
+
+/** Число со словом в нужной форме: ключ хранит все формы языка. */
+export const counted = (key: string, count: number): string => say(`${key}.${form(count)}`, { число: count });
+
+/** Срок числом и единицей: по единице выбирается и глагол рядом с ней. */
+const spanOf = (minutes: number): { unit: 'min' | 'hour' | 'day'; count: number } => {
+  if (minutes < 60) return { unit: 'min', count: minutes };
 
   const hours = Math.round(minutes / 60);
 
   // Округлившееся до суток считается днём: «24 ч» никто в уме не переводит.
-  if (hours < 24) return `${hours} ч`;
+  if (hours < 24) return { unit: 'hour', count: hours };
 
-  const days = Math.round(minutes / (60 * 24));
-  const tail = days % 100;
-  const last = days % 10;
+  return { unit: 'day', count: Math.round(minutes / (60 * 24)) };
+};
 
-  if (tail >= 11 && tail <= 14) return `${days} дней`;
-  if (last === 1) return `${days} день`;
-  if (last >= 2 && last <= 4) return `${days} дня`;
+/** Срок в человеческом виде. */
+const spanWords = (minutes: number): string => {
+  const { unit, count } = spanOf(minutes);
 
-  return `${days} дней`;
+  return unit === 'day' ? counted('count.day', count) : say(`span.${unit}`, { число: count });
 };
 
 const minutesBetween = (from: number, to: number): number => Math.max(0, Math.round((to - from) / 60_000));
@@ -78,7 +73,7 @@ export const formatSince = (isoDate: string, now: Date = new Date()): string => 
   return Number.isNaN(was) ? '' : spanWords(minutesBetween(was, now.getTime()));
 };
 
-/** Число со словом в нужном падеже: «2 соседа», «5 соседей». */
+/** Число со словом в нужном падеже по-русски: слова смены не переводятся. */
 export const plural = (count: number, one: string, few: string, many: string): string => {
   const tail = count % 100;
   const last = count % 10;
@@ -98,55 +93,45 @@ export const formatDeadline = (isoDate: string, now: Date = new Date()): string 
 
   const diffMinutes = Math.round((due - now.getTime()) / 60_000);
 
-  if (diffMinutes < 0) return `просрочено на ${spanWords(Math.abs(diffMinutes))}`;
+  if (diffMinutes < 0) return say('deadline.overdue', { срок: spanWords(Math.abs(diffMinutes)) });
 
-  const left = formatLeft(isoDate, now);
-  const count = Number.parseInt(left, 10);
-  const tail = count % 100;
-  const single = !(tail >= 11 && tail <= 14) && count % 10 === 1;
-  const verb = !single ? 'осталось' : left.endsWith('мин') ? 'осталась' : 'остался';
+  const minutes = minutesBetween(now.getTime(), due);
+  const { unit, count } = spanOf(minutes);
+  // Глагол согласуется с единицей срока: «осталась 21 мин», но «остался 21 день».
+  const key = form(count) !== 'one' ? 'deadline.left' : unit === 'min' ? 'deadline.left.minute' : 'deadline.left.one';
 
-  return `${verb} ${left}`;
+  return say(key, { срок: spanWords(minutes) });
 };
 
 /** Часы и минуты: гостевой код живёт минуты, и «через 15 мин» стареет на глазах. */
 export const formatTime = (isoDate: string): string =>
-  new Date(isoDate).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  new Date(isoDate).toLocaleTimeString(spokenLanguage(), { hour: '2-digit', minute: '2-digit' });
 
-const MONTHS = [
-  'январь',
-  'февраль',
-  'март',
-  'апрель',
-  'май',
-  'июнь',
-  'июль',
-  'август',
-  'сентябрь',
-  'октябрь',
-  'ноябрь',
-  'декабрь',
-];
+const MONTHS = 12;
 
 /** Название месяца по его номеру от нуля. */
-export const monthName = (index: number): string => MONTHS[index] ?? '';
+export const monthName = (index: number): string =>
+  index >= 0 && index < MONTHS ? say(`month.${index + 1}`) : '';
 
 /** Месяц тремя буквами: подпись под столбиком графика. */
 export const monthShort = (index: number): string => monthName(index).slice(0, 3);
 
-/** Сумма без знака валюты: «1 234,50». */
+/** Перевод без приставки области: даты, единицы и разделители лежат в разделе `when`. */
+const when: Translate = (key, values) => translatorFor(spokenLanguage())(key, values);
+
+/** Сумма без знака валюты: «1 234,50», «1,234.50». Валюта остаётся рублём. */
 export const money = (amount: number): string =>
-  amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  amount.toLocaleString(when('when.locale'), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Сумма со знаком рубля. */
 export const rubles = (amount: number): string => `${money(amount)} ₽`;
 
-/** Дробная часть через запятую: «137,1». */
+/** Дробная часть с разделителем своего языка: «137,1», «137.1». */
 export const decimal = (value: number, digits = 3): string =>
-  value.toLocaleString('ru-RU', { maximumFractionDigits: digits });
+  value.toLocaleString(when('when.locale'), { maximumFractionDigits: digits });
 
-/** Часы с долей через запятую: «14,8 ч». */
-export const hours = (value: number): string => `${decimal(value, 1)} ч`;
+/** Часы с долей: «14,8 ч». */
+export const hours = (value: number): string => when('when.hoursValue', { сколько: decimal(value, 1) });
 
 /** Российский номер по группам: «+7 999 000-00-00». Чужой формат остаётся как есть. */
 export const formatPhone = (phone: string): string => {
@@ -166,7 +151,7 @@ export const formatDay = (isoDate: string, now: Date = new Date()): string => {
   const date = new Date(isoDate);
   const sameYear = date.getFullYear() === now.getFullYear();
 
-  return date.toLocaleDateString('ru-RU', {
+  return date.toLocaleDateString(spokenLanguage(), {
     day: 'numeric',
     month: 'long',
     ...(sameYear ? {} : { year: 'numeric' }),
@@ -184,14 +169,14 @@ export const formatDue = (isoDate: string, now: Date = new Date()): string => {
 
   if (Number.isNaN(due.getTime())) return '';
 
-  const clock = due.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const clock = formatTime(isoDate);
   const days = Math.round((midnight(due) - midnight(now)) / DAY_MS);
 
-  if (days === 0) return `сегодня в ${clock}`;
-  if (days === 1) return `завтра в ${clock}`;
-  if (days === -1) return `вчера в ${clock}`;
+  if (days === 0) return say('due.today', { время: clock });
+  if (days === 1) return say('due.tomorrow', { время: clock });
+  if (days === -1) return say('due.yesterday', { время: clock });
 
-  return `${formatDay(isoDate, now)} в ${clock}`;
+  return say('due.on', { дата: formatDay(isoDate, now), время: clock });
 };
 
 /**

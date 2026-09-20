@@ -1,3 +1,7 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { responsibleKey, zoneKey, zoneNextKey } from './keys.js';
+import { russian } from './moment.js';
 import type { RequestCategory, RequestTarget } from './types.js';
 
 /**
@@ -50,42 +54,43 @@ export const responsibilityFor = (
   category: RequestCategory,
   target: RequestTarget,
   spreading: Spreading = 'unknown',
+  t: Translate = russian,
 ): Responsibility => {
   if (category === 'elevator') {
     return {
       kind: 'contractor',
-      title: RESPONSIBLE_TITLES.contractor,
+      title: t(responsibleKey('contractor')),
       basis: SPECIALIZED,
-      plain: 'Лифт обслуживает специализированная организация',
-      next: 'Заявку ведёт управляющая организация: она передаёт её обслуживающей лифты компании.',
+      plain: t(zoneKey('elevator')),
+      next: t(zoneNextKey('elevator')),
     };
   }
 
   if (target.kind === 'apartment' && INSIDE_FLAT_CATEGORIES.includes(category) && spreading === 'local') {
     return {
       kind: 'owner',
-      title: RESPONSIBLE_TITLES.owner,
+      title: t(responsibleKey('owner')),
       basis: INSIDE_FLAT,
-      plain: 'Оборудование внутри квартиры чинит собственник',
-      next: 'Управляющая организация выполняет такие работы по отдельной заявке, обычно платно.',
+      plain: t(zoneKey('insideFlat')),
+      next: t(zoneNextKey('insideFlat')),
     };
   }
 
   if (category === 'yard') {
     return {
       kind: 'management',
-      title: RESPONSIBLE_TITLES.management,
+      title: t(responsibleKey('management')),
       basis: COMMON_PROPERTY,
-      plain: 'Двор дома содержит управляющая организация',
-      next: `Если место за границей участка дома, обращение уходит в муниципальную службу. ${OUTSIDE_LAND}`,
+      plain: t(zoneKey('yard')),
+      next: `${t(zoneNextKey('yard'))} ${OUTSIDE_LAND}`,
     };
   }
 
   return {
     kind: 'management',
-    title: RESPONSIBLE_TITLES.management,
+    title: t(responsibleKey('management')),
     basis: COMMON_PROPERTY,
-    plain: 'Это общее имущество дома, его содержит управляющая организация',
+    plain: t(zoneKey('common')),
   };
 };
 

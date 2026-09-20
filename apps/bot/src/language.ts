@@ -1,5 +1,5 @@
 import type { Resident } from '@domovoy/app';
-import { LANGUAGES, languageFrom, type Language } from '@domovoy/i18n';
+import { LANGUAGES, languageFrom, translatorFor, type Language } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { screenOf } from './keyboards.js';
@@ -10,12 +10,17 @@ import type { Extra, Handler, BotKit } from './kit.js';
  * Вопрос о языке. Он не переводится: его читает человек, который ещё не выбрал
  * язык, и по-русски может не читать вовсе. Строки идут на самых частых языках.
  */
-export const LANGUAGE_QUESTION = [
-  'Выберите язык',
-  'Choose your language',
-  'Tilni tanlang',
-  'Тілді таңдаңыз',
-].join('\n');
+/**
+ * Вопрос о языке: по-русски, по-английски и на языке клиента MAX, если он
+ * известен и это третий язык. Человек, который языка ещё не выбирал, должен
+ * прочитать вопрос хоть на одной из строк.
+ */
+export const languageQuestion = (language?: Language): string => {
+  const lines = ['Выберите язык', 'Choose your language'];
+  const own = language ? translatorFor(language)('app.lang.ask') : undefined;
+
+  return (own && !lines.includes(own) ? [...lines, own] : lines).join('\n');
+};
 
 /** Язык клиента: платформа присылает его в апдейте рядом с отправителем. */
 export const localeLanguage = (typed: BotContext): Language | undefined =>
@@ -53,12 +58,22 @@ export const languageKeyboard = (resident?: Resident, preferred?: Language): Ext
 
 /** Вопрос о языке со списком. */
 export const askLanguage = async (typed: BotContext, resident?: Resident): Promise<void> => {
-  await typed.reply(LANGUAGE_QUESTION, languageKeyboard(resident, localeLanguage(typed)));
+  const spoken = localeLanguage(typed);
+
+  await typed.reply(languageQuestion(spoken), languageKeyboard(resident, spoken));
 };
 
 /** Смена языка отдельной командой: тот же список, что и при первом разговоре. */
 export const languageCommands = (kit: BotKit): Record<string, Handler> => ({
   lang: async (typed) => {
-    await askLanguage(typed, await kit.residentOf(typed));
+    const resident = await kit.residentOf(typed);
+
+    // Смена и подрядчик работают по-русски: очередь, наряды и сводка одни на всех.
+    if (resident.role !== 'resident') {
+      await typed.reply('Смена работает на русском языке. Язык выбирают жильцы.', kit.menuKeyboard(resident));
+      return;
+    }
+
+    await askLanguage(typed, resident);
   },
 });

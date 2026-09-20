@@ -3,7 +3,7 @@ import { midOf, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Через сколько молчания человек решает, что ответа не будет. */
-const SILENCE_MS = 1200;
+const SILENCE_MS = 900;
 
 /**
  * Отметка «Думаю…» на время долгого ответа. Модель отвечает секунды, и без

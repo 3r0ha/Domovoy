@@ -1,3 +1,7 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { ticketStatusKey } from './keys.js';
+import { russian } from './moment.js';
 import { partsIn } from './reception.js';
 import { MESSAGE_MAX_LENGTH } from './status.js';
 import { DEFAULT_TIME_ZONE, DomainError, type Attachment, type OriginalText } from './types.js';
@@ -10,6 +14,10 @@ export const TICKET_STATUS_TITLES: Record<TicketStatus, string> = {
   answered: 'отвечено',
   closed: 'закрыто',
 };
+
+/** Состояние обращения словами того, кто смотрит. */
+export const ticketStatusTitle = (status: TicketStatus, t: Translate = russian): string =>
+  t(ticketStatusKey(status));
 
 /** Реплика в переписке с управляющей компанией. */
 export interface TicketMessage {

@@ -18,7 +18,7 @@ export const startTalk = async (kit: BotKit, typed: BotContext): Promise<void> =
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
 
-  await typed.reply(t('talk.start'), startersKeyboard(startersFor(resident.role), t));
+  await typed.reply(t('talk.start'), startersKeyboard(startersFor(resident.role, t), t));
 };
 
 /**
@@ -55,7 +55,7 @@ export const answerFromAssistant = async (kit: BotKit, typed: BotContext, questi
 /** Готовый вопрос по номеру: им начинают разговор те, кто не знает, что спросить. */
 export const askStarter = async (kit: BotKit, typed: BotContext, at: number): Promise<string | undefined> => {
   const resident = await kit.residentOf(typed);
-  const question = startersFor(resident.role)[at];
+  const question = startersFor(resident.role, speak(resident))[at];
 
   if (question === undefined) return undefined;
 

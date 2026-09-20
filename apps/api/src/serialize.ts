@@ -4,6 +4,7 @@ import type { RoutesDeps } from './context.js';
 import { ServiceError } from './errors.js';
 import type { Translate } from '@domovoy/i18n';
 import {
+  speak,
   speakDefault,
   announcementAudience,
   lastMonth,
@@ -21,10 +22,14 @@ import {
 import {
   BASIS,
   CATEGORY_RULES,
-  PLAIN,
   basisFor,
+  categoryKey,
+  categoryShortKey,
   deadlineBasisFor,
   normLimitFor,
+  plainBasisKey,
+  pollRuleKey,
+  ticketStatusTitle,
   HANDOFF_BASIS,
   HANDOFF_STATUS_TITLES,
   HANDOFF_TITLES,
@@ -32,7 +37,6 @@ import {
   INSPECTION_RULES,
   isHandoffOverdue,
   type Handoff,
-  TICKET_STATUS_TITLES,
   checkedCount,
   isInspectionOverdue,
   type Inspection,
@@ -160,22 +164,35 @@ export const serializeRequest = (
   now: Date,
   names?: ReadonlyMap<string, string>,
   viewer?: Resident,
+) => {
+  // Слова получателя: у жильца его язык, у смены и без получателя русский.
+  const t = speak(viewer);
+
+  return serializedRequest(request, now, t, names, viewer);
+};
+
+const serializedRequest = (
+  request: ServiceRequest,
+  now: Date,
+  t: Translate,
+  names?: ReadonlyMap<string, string>,
+  viewer?: Resident,
 ) => ({
   id: request.id,
   number: request.number,
   category: request.category,
-  categoryTitle: CATEGORY_RULES[request.category].title,
-  categoryShort: CATEGORY_RULES[request.category].short,
+  categoryTitle: t(categoryKey(request.category)),
+  categoryShort: t(categoryShortKey(request.category)),
   priority: request.priority,
   status: request.status,
   // Состояние словами отдаёт сервер: те же слова стоят в выгрузке данных и у бота.
-  statusTitle: statusTitle(request.status, viewedByStaff(viewer)),
+  statusTitle: statusTitle(request.status, viewedByStaff(viewer), t),
   title: request.title,
   description: request.description,
   // Оба текста: смена работает по русскому, автор видит свой. Что показать,
   // решает клиент, который знает, кто смотрит.
   ...originalOf(request.original),
-  target: asTitle(describeTarget(request.target)),
+  target: asTitle(describeTarget(request.target, undefined, t)),
   createdAt: request.createdAt.toISOString(),
   reactionDueAt: request.reactionDueAt.toISOString(),
   resolutionDueAt: request.resolutionDueAt.toISOString(),
@@ -193,8 +210,8 @@ export const serializeRequest = (
   spread: spreadOf(request),
   incident: isConfirmedIncident(request),
   // Совет по аварии нужен, пока её не устранили: в закрытой заявке он ни к чему.
-  ...(OPEN_STATUSES.includes(request.status) && emergencyHint(request.category, request.priority)
-    ? { hint: emergencyHint(request.category, request.priority) }
+  ...(OPEN_STATUSES.includes(request.status) && emergencyHint(request.category, request.priority, t)
+    ? { hint: emergencyHint(request.category, request.priority, t) }
     : {}),
   // Памятка идёт исполнителю: это его обязанность, а не забота жильца.
   ...(viewer &&
@@ -246,14 +263,14 @@ export const autoConfirmAt = (request: ServiceRequest): Date | undefined => {
 export const buildingIdSchema = { type: 'string', maxLength: 128 } as const;
 
 /** Обращение в поддержку для клиента: переписка с подписями сторон. */
-export const serializeTicket = (card: TicketCard, viewerId: string, staff = false) => {
+export const serializeTicket = (card: TicketCard, viewerId: string, staff = false, t: Translate = speakDefault()) => {
   const { ticket } = card;
 
   return {
     id: ticket.id,
     subject: ticket.subject,
     status: ticket.status,
-    statusTitle: TICKET_STATUS_TITLES[ticket.status],
+    statusTitle: ticketStatusTitle(ticket.status, t),
     buildingId: ticket.buildingId,
     createdAt: ticket.createdAt.toISOString(),
     updatedAt: ticket.updatedAt.toISOString(),
@@ -264,7 +281,7 @@ export const serializeTicket = (card: TicketCard, viewerId: string, staff = fals
     ...(card.answerDueAt
       ? {
           answerDueAt: card.answerDueAt.toISOString(),
-          ...(basisFor('supportAnswer', staff) ? { basis: basisFor('supportAnswer', staff) } : {}),
+          ...(basisFor('supportAnswer', staff, t) ? { basis: basisFor('supportAnswer', staff, t) } : {}),
         }
       : {}),
     ...(card.overdue ? { overdue: true } : {}),
@@ -761,12 +778,12 @@ export const staffNames = async (deps: AppDeps, requests: readonly ServiceReques
 };
 
 /** Объявление для клиента: адресат приходит словами. */
-export const serializeAnnouncement = (announcement: Announcement) => ({
+export const serializeAnnouncement = (announcement: Announcement, t: Translate = speakDefault()) => ({
   id: announcement.id,
   title: announcement.title,
   body: announcement.body,
   createdAt: announcement.createdAt.toISOString(),
-  audience: describeAudience(announcementAudience(announcement)),
+  audience: describeAudience(announcementAudience(announcement), t),
   recipients: announcement.recipientIds.length,
   ...(announcement.works
     ? {
@@ -916,13 +933,13 @@ export const reportSchema = {
 } as const;
 
 /** Собрание для клиента: доли уже посчитаны, клиенту считать нечего. */
-export const serializePoll = (view: PollView) => ({
+export const serializePoll = (view: PollView, t: Translate = speakDefault()) => ({
   id: view.poll.id,
   kind: view.poll.kind,
   mode: view.poll.mode ?? 'meeting',
   ...(view.poll.noticeId ? { noticeId: view.poll.noticeId } : {}),
   ...(view.poll.protocolId ? { protocolId: view.poll.protocolId } : {}),
-  kindTitle: POLL_RULES[view.poll.kind].title,
+  kindTitle: t(pollRuleKey(view.poll.kind)),
   title: view.poll.title,
   question: view.poll.question,
   opensAt: view.poll.opensAt.toISOString(),
@@ -938,24 +955,24 @@ export const serializePoll = (view: PollView) => ({
   shares: view.result.shares,
   support: view.result.support,
   // Собрание читают жильцы: им идёт правило словами, а не номер статьи.
-  basis: view.poll.kind === 'qualified' ? PLAIN.qualified : PLAIN.quorum,
+  basis: t(plainBasisKey(view.poll.kind === 'qualified' ? 'qualified' : 'quorum')),
   ...(view.poll.closedAt ? { closedAt: view.poll.closedAt.toISOString() } : {}),
   ...(view.myChoice ? { myChoice: view.myChoice } : {}),
   // Голос подал сосед по квартире: человек должен знать, что заменит его.
   ...(view.votedBy ? { votedBy: view.votedBy } : {}),
 });
 
-export const serializeInitiative = (view: InitiativeView) => ({
+export const serializeInitiative = (view: InitiativeView, t: Translate = speakDefault()) => ({
   id: view.initiative.id,
   kind: view.initiative.kind,
-  kindTitle: POLL_RULES[view.initiative.kind].title,
+  kindTitle: t(pollRuleKey(view.initiative.kind)),
   title: view.initiative.title,
   question: view.initiative.question,
   createdAt: view.initiative.createdAt.toISOString(),
   signatures: view.signatures,
   share: view.standing.share,
   demandShare: INITIATIVE_SHARE,
-  basis: PLAIN.initiative,
+  basis: t(plainBasisKey('initiative')),
   areaToDemand: view.standing.areaToDemand,
   enough: view.standing.enough,
   mine: view.mine,
@@ -1054,12 +1071,12 @@ export const serializeMeter = (state: MeterState, now: Date, t: Translate = spea
 export const METER_KINDS = Object.keys(METER_RULES) as MeterKind[];
 
 /** Общедомовой прибор в том же виде, что и квартирный: экран у них один. */
-export const serializeHouseMeter = (state: HouseMeterState, now: Date) => ({
+export const serializeHouseMeter = (state: HouseMeterState, now: Date, t: Translate = speakDefault()) => ({
   verification: verificationState(state.meter, now),
   id: state.meter.id,
   kind: state.meter.kind,
-  title: METER_RULES[state.meter.kind].title,
-  unit: METER_RULES[state.meter.kind].unit,
+  title: t(meterKindKey(state.meter.kind)),
+  unit: t(meterUnitKey(state.meter.kind)),
   decimals: METER_RULES[state.meter.kind].decimals,
   serial: state.meter.serial,
   submittedThisMonth: state.submittedThisMonth,

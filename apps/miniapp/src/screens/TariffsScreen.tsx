@@ -2,7 +2,7 @@ import { Button, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, type DomovoyApi, formatDay, parseDecimal, type TariffView } from '../api.js';
+import { ApiError, decimal, type DomovoyApi, formatDay, parseDecimal, type TariffView } from '../api.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Skeleton } from './Skeleton.js';
@@ -13,7 +13,7 @@ export interface TariffsScreenProps {
   editable?: boolean;
 }
 
-const number = (value: number): string => value.toLocaleString('ru-RU', { maximumFractionDigits: 4 });
+const number = (value: number): string => decimal(value, 4);
 
 /** Ставка хранится долей, а читается процентами: 0,16 это 16% годовых. */
 const shown = (tariff: TariffView): string =>

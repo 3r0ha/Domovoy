@@ -20,8 +20,11 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { recordAction } from './audit.js';
 import { assertServes } from './buildings.js';
+import { speakDefault } from './language.js';
 import { assertStaffServes, canView } from './use-cases/access.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Building, HousePartner, Resident } from './repository.js';
@@ -84,9 +87,13 @@ const partnerFor = (building: Building | undefined, to: HandoffTarget, request: 
   );
 
 /** Зона ответственности по заявке и организации дома, которым её можно передать. */
-export const responsibilityOf = async (deps: AppDeps, request: ServiceRequest): Promise<ResponsibilityView> => {
+export const responsibilityOf = async (
+  deps: AppDeps,
+  request: ServiceRequest,
+  t: Translate = speakDefault(),
+): Promise<ResponsibilityView> => {
   const building = await deps.repository.findBuilding(request.buildingId);
-  const responsibility = responsibilityFor(request.category, request.target, spreadOf(request).verdict);
+  const responsibility = responsibilityFor(request.category, request.target, spreadOf(request).verdict, t);
   const partner = partnerFor(building, responsibility.kind as HandoffTarget, request);
 
   // Тот, кто уже ждёт ответа, кнопкой не предлагается: повторная передача

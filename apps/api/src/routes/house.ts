@@ -11,6 +11,7 @@ import {
   exportRequests,
   sendRequestsExport,
   requestsTable,
+  speak,
   waitingHandoffs,
 } from '@domovoy/app';
 import {
@@ -363,20 +364,21 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const state = await houseNow(deps, resident);
+        const t = speak(resident);
 
         return {
           mood: state.mood,
           incidents: state.incidents.map((item) => ({
             id: item.id,
             title: item.title,
-            target: asTitle(describeTarget(item.target)),
+            target: asTitle(describeTarget(item.target, undefined, t)),
             status: item.status,
             resolutionDueAt: item.resolutionDueAt.toISOString(),
             reporters: reportersCount(item),
           })),
           works: state.works.map((item) => ({
             title: item.title,
-            audience: describeAudience(announcementAudience(item)),
+            audience: describeAudience(announcementAudience(item), t),
             until: item.works!.until.toISOString(),
           })),
         };

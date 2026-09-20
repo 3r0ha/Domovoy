@@ -17,6 +17,8 @@ import {
   type Visit,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { assertServes, homeBuildingOf, housed, publicHouseOf } from './buildings.js';
 import { speak } from './language.js';
 import { recordAction } from './audit.js';
@@ -266,10 +268,15 @@ export const recordVisit = async (deps: AppDeps, command: RecordVisitCommand): P
 
   // О записи на будущее человека предупреждают: о состоявшемся приёме он знает и так.
   if (saved.status === 'booked') {
+    const t = speak(visitor);
+
     await notifyResident(
       deps.notifier ?? noopNotifier,
       visitor,
-      speak(visitor)('app.visit.booked', { когда: when, тема: saved.topic }),
+      t('app.visit.booked', {
+        когда: `${formatDay(saved.at, zone, t)}, ${formatClock(saved.at, zone, t)}`,
+        тема: saved.topic,
+      }),
     );
   }
 
@@ -304,12 +311,14 @@ export const dropVisit = async (deps: AppDeps, resident: Resident, visitId: stri
   const author = staff ? await deps.repository.findResident(visit.residentId) : undefined;
 
   if (author) {
+    const t = speak(author);
+
     await notifyResident(
       notifier,
       author,
-      speak(author)('app.visit.cancelled', {
-        день: formatDay(visit.at, zone),
-        время: formatClock(visit.at, zone),
+      t('app.visit.cancelled', {
+        день: formatDay(visit.at, zone, t),
+        время: formatClock(visit.at, zone, t),
       }),
     );
   }
@@ -378,5 +387,5 @@ export const listVisitsFor = async (deps: AppDeps, resident: Resident, buildingI
 };
 
 /** Запись словами: тем же текстом отвечает бот. */
-export const formatVisit = (visit: Visit, timeZone?: string): string =>
-  `${formatDay(visit.at, timeZone)}, ${formatClock(visit.at, timeZone)}: ${visit.topic}`;
+export const formatVisit = (visit: Visit, timeZone?: string, t?: Translate): string =>
+  `${formatDay(visit.at, timeZone, t)}, ${formatClock(visit.at, timeZone, t)}: ${visit.topic}`;

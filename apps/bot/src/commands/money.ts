@@ -1,5 +1,6 @@
 import { arrearsFor, chargesForResident, formatDebtShort, metersFor } from '@domovoy/app';
-import { DomainError, formatMoney, meterKindKey, verificationState } from '@domovoy/domain';
+import { DomainError, formatDay, formatMoney, meterKindKey, verificationState } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
 import { speak } from '../i18n.js';
 import {
@@ -21,10 +22,10 @@ import type { BotKit, Handler } from '../kit.js';
  * Срок оплаты днём и месяцем. «До 10 числа» человек читает как «какого месяца»,
  * особенно если сегодня уже двадцатое.
  */
-const dueDate = (now: Date, day: number): string => {
-  const at = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > day ? 1 : 0), day);
+const dueDate = (now: Date, day: number, t: Translate): string => {
+  const at = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > day ? 1 : 0), day, 12);
 
-  return at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+  return formatDay(at, undefined, t);
 };
 
 /** Счётчики и квитанция: то, из-за чего жилец заходит раз в месяц. */
@@ -86,7 +87,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(readingPrompt(pending[0]!, t), readingKeyboard(pending[0]!.meter.id, false, t));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed, t));
+      await typed.reply(errorText(error, t), afterError(error, typed, t));
     }
   },
 
@@ -107,16 +108,16 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       // В переписке остаётся то, ради чего её открыли: сумма, срок и долг.
       // Разбор по строкам, история и оспаривание начисления, работа для экрана.
       const arrears = await arrearsFor(deps, resident);
-      const debt = formatDebtShort(arrears);
+      const debt = formatDebtShort(arrears, t);
 
       await typed.reply(
         [
           left > 0
             ? t('bill.total', {
-                сумма: strong(formatMoney(left)),
-                срок: strong(dueDate(deps.now(), charges.dueDay)),
+                сумма: strong(formatMoney(left, t)),
+                срок: strong(dueDate(deps.now(), charges.dueDay, t)),
               })
-            : t('bill.paid', { сумма: formatMoney(charges.total) }),
+            : t('bill.paid', { сумма: formatMoney(charges.total, t) }),
           debt,
           t('bill.where'),
         ]
@@ -140,7 +141,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed, t));
+      await typed.reply(errorText(error, t), afterError(error, typed, t));
     }
     },
   };

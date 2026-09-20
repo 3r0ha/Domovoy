@@ -420,7 +420,7 @@ describe('помощник смены', () => {
   });
 
   it('стартовые вопросы зависят от роли', () => {
-    assert.deepEqual(startersFor('resident'), [...ASSISTANT_STARTERS.resident]);
+    assert.equal(startersFor('resident').length, ASSISTANT_STARTERS.resident.length);
     assert.notDeepEqual(startersFor('dispatcher'), startersFor('resident'));
 
     for (const role of ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] as const) {

@@ -662,7 +662,8 @@ describe('язык мини-приложения', () => {
 
     const screen = await render(fetchStub);
 
-    assert.match(screen.text, /Язык/);
+    assert.match(screen.text, /Выберите язык/u, 'вопрос виден и тем, кто по-русски не читает');
+    assert.match(screen.text, /Choose your language/u);
     assert.match(screen.text, /English/);
     assert.match(screen.text, /Oʻzbekcha/);
     assert.doesNotMatch(screen.text, /Принимаю/, 'документы идут после языка');

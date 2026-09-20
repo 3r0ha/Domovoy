@@ -184,7 +184,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       startParam={context.reportedObject}
       staff={isStaff(context.profile) && !isContractor(context.profile)}
       {...(!isStaff(context.profile) && context.profile.apartmentNumber
-        ? { where: `Квартира ${context.profile.apartmentNumber}` }
+        ? { where: say('chrome.flat', { номер: context.profile.apartmentNumber }) }
         : {})}
       onCreated={(requestId?: string) => (requestId ? context.openRequest(requestId) : context.open('list'))}
       onSupport={() => context.open('support')}
@@ -241,7 +241,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       bound={context.profile.apartmentId !== null}
       {...(context.profile.apartmentNumber
         ? {
-            where: [`Квартира ${context.profile.apartmentNumber}`, context.profile.address]
+            where: [say('chrome.flat', { номер: context.profile.apartmentNumber }), context.profile.address]
               .filter(Boolean)
               .join(' · '),
           }
@@ -256,7 +256,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
             flat: {
               residentId: context.profile.id,
               apartmentId: context.profile.apartmentId,
-              title: `Квартиру ${context.profile.apartmentNumber}`,
+              title: say('chrome.flat.leaving', { номер: context.profile.apartmentNumber }),
             },
           }
         : {})}

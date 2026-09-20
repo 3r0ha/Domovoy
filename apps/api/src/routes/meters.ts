@@ -184,8 +184,9 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const state = await houseMetersFor(deps, resident, request.query.buildingId);
         const now = deps.now();
+        const t = speak(resident);
 
-        return state.map((item) => serializeHouseMeter(item, now));
+        return state.map((item) => serializeHouseMeter(item, now, t));
       },
     );
 
@@ -224,7 +225,13 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
 
         return reply
           .code(201)
-          .send(serializeHouseMeter({ meter, lastConsumption: 0, submittedThisMonth: false }, deps.now()));
+          .send(
+            serializeHouseMeter(
+              { meter, lastConsumption: 0, submittedThisMonth: false },
+              deps.now(),
+              speak(resident),
+            ),
+          );
       },
     );
 

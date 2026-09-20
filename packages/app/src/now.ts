@@ -1,10 +1,11 @@
 import {
-  INSPECTION_RULES,
   OPEN_STATUSES,
   audienceForTarget,
+  audienceKey,
   describeAudience,
   hasReported,
   houseMood,
+  inspectionKindKey,
   isConfirmedIncident,
   isInAudience,
   type Apartment,
@@ -12,6 +13,7 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import { speak } from './language.js';
 import { announcementAudience, type Announcement, type Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -95,6 +97,7 @@ export const houseAhead = async (deps: AppDeps, resident: Resident, days = AHEAD
   const now = deps.now();
   const until = new Date(now.getTime() + days * 24 * 3600_000);
   const events: HouseEvent[] = [];
+  const t = speak(resident);
 
   const [announcements, polls, inspections] = await Promise.all([
     deps.repository.listWorksBetween(buildingId, now, until),
@@ -112,14 +115,14 @@ export const houseAhead = async (deps: AppDeps, resident: Resident, days = AHEAD
       kind: 'works',
       at: announcement.works.until,
       title: announcement.title,
-      where: describeAudience(audience),
+      where: describeAudience(audience, t),
     });
   }
 
   for (const poll of polls) {
     if (poll.closedAt || poll.closesAt.getTime() > until.getTime() || poll.closesAt.getTime() < now.getTime()) continue;
 
-    events.push({ kind: 'poll', at: poll.closesAt, title: poll.title, where: 'весь дом' });
+    events.push({ kind: 'poll', at: poll.closesAt, title: poll.title, where: t(audienceKey('building')) });
   }
 
   for (const inspection of inspections) {
@@ -128,8 +131,11 @@ export const houseAhead = async (deps: AppDeps, resident: Resident, days = AHEAD
     events.push({
       kind: 'inspection',
       at: inspection.dueAt,
-      title: INSPECTION_RULES[inspection.kind].title,
-      where: inspection.entrance === undefined ? 'весь дом' : `подъезд ${inspection.entrance}`,
+      title: t(inspectionKindKey(inspection.kind)),
+      where:
+        inspection.entrance === undefined
+          ? t(audienceKey('building'))
+          : t(audienceKey('entrance'), { подъезд: inspection.entrance }),
     });
   }
 

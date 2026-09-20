@@ -67,7 +67,7 @@ export const takeReading = async (
     expect(typed, { kind: 'reading', meterId });
 
     await typed.reply(
-      t('meters.heard', { значение: strong(decimal(heard)) }),
+      t('meters.heard', { значение: strong(decimal(heard, t)) }),
       confirmKeyboard(t('button.submit_reading'), `meter-read:${meterId}:${heard}`, t),
     );
 
@@ -88,10 +88,10 @@ export const takeReading = async (
 
     await typed.reply(
       t('meters.accepted', {
-        значение: strong(`${decimal(result.reading.value)}${unit}`),
+        значение: strong(`${decimal(result.reading.value, t)}${unit}`),
       }) +
         (result.consumption > 0
-          ? ` ${t('meters.consumption', { расход: `${decimal(result.consumption)}${unit}` })}`
+          ? ` ${t('meters.consumption', { расход: `${decimal(result.consumption, t)}${unit}` })}`
           : '') +
         // Предупреждение о расходе идёт этим же сообщением: отдельным оно
         // приходило раньше чека и читалось как отказ.
@@ -119,7 +119,7 @@ export const takeReading = async (
       expect(typed, { kind: 'reading', meterId });
 
       await typed.reply(
-        `${t('meters.refused', { причина: commas(errorText(error)) })}\n${t('meters.retry')}`,
+        `${t('meters.refused', { причина: commas(errorText(error, t)) })}\n${t('meters.retry')}`,
         readingKeyboard(meterId, false, t),
       );
 
@@ -132,7 +132,7 @@ export const takeReading = async (
       error.code === 'reading_duplicate' ? `\n${t('meters.next_window', { день: READING_WINDOW.fromDay })}` : '';
 
     await typed.reply(
-      `${t('meters.refused', { причина: `${commas(errorText(error))}.` })}${next}`,
+      `${t('meters.refused', { причина: `${commas(errorText(error, t))}.` })}${next}`,
       afterError(error, typed, t),
     );
   }
@@ -170,7 +170,7 @@ export const readFromPhoto = async (
     const failed = visionFailed(error);
 
     await typed.reply(
-      `${errorText(failed)} ` +
+      `${errorText(failed, t)} ` +
         (failed.code === 'meter_not_in_photo' ? t('meters.photo_aim') : t('meters.photo_number')),
       readingKeyboard(meterId, false, t),
     );
@@ -190,7 +190,7 @@ export const readFromPhoto = async (
   expect(typed, { kind: 'reading', meterId });
 
   await typed.reply(
-    t('meters.from_photo', { значение: strong(decimal(value)) }),
+    t('meters.from_photo', { значение: strong(decimal(value, t)) }),
     confirmKeyboard(t('button.submit_reading'), `meter-read:${meterId}:${value}`, t),
   );
 };

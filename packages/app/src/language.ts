@@ -1,29 +1,35 @@
-import { DEFAULT_LANGUAGE, isLanguage, translatorFor, type Language, type Translate } from '@domovoy/i18n';
+import {
+  DEFAULT_LANGUAGE,
+  counted as countedIn,
+  isLanguage,
+  translatorFor,
+  type Language,
+  type Translate,
+} from '@domovoy/i18n';
 import { DomainError } from '@domovoy/domain';
 
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
-/** На каком языке продукт говорит с этим человеком. */
-export const languageOf = (resident: Resident | undefined): Language => resident?.language ?? DEFAULT_LANGUAGE;
+/**
+ * На каком языке продукт говорит с этим человеком. Язык есть только у жильца:
+ * смена и подрядчик работают по-русски, на нём же ведётся очередь и отчётность.
+ */
+export const languageOf = (resident: Resident | undefined): Language =>
+  (resident?.role === 'resident' ? resident.language : undefined) ?? DEFAULT_LANGUAGE;
 
 /** Перевод для человека: без выбранного языка продукт говорит по-русски. */
-export const speak = (resident: Resident | undefined): Translate => translatorFor(resident?.language);
+export const speak = (resident: Resident | undefined): Translate => translatorFor(languageOf(resident));
 
 /** Перевод на язык продукта: им говорят со сменой и с домовым чатом. */
 export const speakDefault = (): Translate => translatorFor(DEFAULT_LANGUAGE);
 
 /**
- * Число словами: «2 часа», «5 часов». Форма выбирается по правилам русского,
- * а словарь другого языка кладёт во все три ключа одну строку.
+ * Число словами: «2 часа», «5 часов», «2 hours». Форма выбирается по правилам
+ * самого языка, а словарь языка без трёх форм кладёт во все три ключа одну строку.
  */
-export const counted = (t: Translate, prefix: string, count: number): string => {
-  const tail = count % 100;
-  const last = count % 10;
-  const form = tail >= 11 && tail <= 14 ? 'many' : last === 1 ? 'one' : last >= 2 && last <= 4 ? 'few' : 'many';
-
-  return t(`app.${prefix}.${form}`, { сколько: count });
-};
+export const counted = (t: Translate, prefix: string, count: number): string =>
+  countedIn(t, `app.${prefix}`, count);
 
 /** Письменности, за которыми стоит один наш язык. */
 const SCRIPTS: readonly { language: Language; letters: RegExp }[] = [
@@ -75,8 +81,9 @@ export const languageOfText = (text: string): Language | undefined => {
   return undefined;
 };
 
-/** Выбран ли язык: до выбора продукт сначала спрашивает о нём. */
-export const languageChosen = (resident: Resident): boolean => resident.language !== undefined;
+/** Выбран ли язык: до выбора продукт сначала спрашивает о нём. Смену не спрашивают. */
+export const languageChosen = (resident: Resident): boolean =>
+  resident.role !== 'resident' || resident.language !== undefined;
 
 /** Выбор языка. Он свой у каждого человека, а не у дома. @throws {DomainError} */
 export const setLanguage = async (deps: AppDeps, resident: Resident, code: string): Promise<Resident> => {

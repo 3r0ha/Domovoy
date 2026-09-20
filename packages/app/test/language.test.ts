@@ -1,16 +1,32 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { DomainError, type PlannedWork, type ServiceRequest } from '@domovoy/domain';
+import {
+  DomainError,
+  basisFor,
+  describeAudience,
+  describeTarget,
+  emergencyHint,
+  formatDay,
+  formatMoment,
+  formatMoney,
+  responsibilityFor,
+  statusTitle,
+  type PlannedWork,
+  type ServiceRequest,
+} from '@domovoy/domain';
 import { dictionaryFor, translator, type Dictionary } from '@domovoy/i18n';
 
 import {
   InMemoryRepository,
   askAssistant,
+  counted,
   errorTextFor,
   formatStatusChange,
   formatWorksFinished,
+  languageOf,
   languageOfText,
+  speak,
   speakDefault,
   type AppDeps,
   type AssistInput,
@@ -65,6 +81,55 @@ const work: PlannedWork = {
   until: new Date('2026-09-22T14:00:00Z'),
 };
 
+/** Жилец, читающий по-английски: на нём проверяется всё, что собирает домен. */
+const speaking: Resident = {
+  id: 'res-en',
+  maxUserId: 1010,
+  displayName: 'John',
+  role: 'resident',
+  apartmentId: 'apt-1',
+  buildingId: BUILDING_ID,
+  language: 'en',
+};
+
+describe('домен называет место и зону словами жильца', () => {
+  const english = speak(speaking);
+
+  it('место, состояние и совет при аварии переводятся, а смене остаются русскими', () => {
+    assert.equal(describeAudience(work.audience, english), 'the whole house');
+    assert.equal(describeTarget(request.target, undefined, english), 'entrance 1, riser 2');
+    assert.equal(statusTitle('in_progress', false, english), 'in progress');
+    assert.equal(
+      emergencyHint('elevator', 'emergency', english),
+      'If there are people in the car, press the call button and do not open the doors yourself.',
+    );
+
+    const shift = speak({ ...speaking, id: 'res-shift', role: 'dispatcher' });
+
+    assert.equal(describeAudience(work.audience, shift), 'весь дом');
+    assert.equal(describeTarget(request.target, undefined, shift), 'подъезд 1, стояк 2');
+    assert.equal(statusTitle('in_progress', false, shift), 'выполняется');
+  });
+
+  it('зона ответственности и пени идут жильцу короткой строкой его языка', () => {
+    const zone = responsibilityFor('plumbing', request.target, 'shared', english);
+
+    assert.equal(zone.title, 'Management organisation');
+    assert.equal(zone.plain, 'This is common property of the house, maintained by the management organisation');
+    assert.match(zone.basis, /ЖК РФ/u, 'норма закона остаётся русской: по ней отвечают перед надзором');
+
+    assert.equal(basisFor('penalty', false, english), 'Penalties start on day 31 of the delay and grow from day 91');
+    assert.match(basisFor('penalty', true, english) ?? '', /ст\. 155 ЖК РФ/u);
+  });
+
+  it('уведомление о работах собирается на языке жильца целиком', () => {
+    const text = formatWorksFinished(english, work);
+
+    assert.match(text, /^Planned works are completed on schedule: Замена задвижки, the whole house\./u);
+    assert.doesNotMatch(text, /весь дом/u);
+  });
+});
+
 describe('уведомления на языке жильца', () => {
   it('берут строку из словаря языка, а не переводят русскую', () => {
     const text = formatWorksFinished(uzbek, work);
@@ -83,6 +148,43 @@ describe('уведомления на языке жильца', () => {
     const text = formatWorksFinished(translator('uz', { dictionaries: { ru: RUSSIAN } }), work);
 
     assert.match(text, /^Плановые работы завершены по графику/);
+  });
+});
+
+describe('даты и числа на языке человека', () => {
+  const RUSSIAN_MONTHS = /январ|феврал|март|апрел|ма[йя]|июн|июл|август|сентябр|октябр|ноябр|декабр/iu;
+
+  const tenant: Resident = {
+    id: 'res-2',
+    maxUserId: 1002,
+    displayName: 'John',
+    role: 'resident',
+    apartmentId: 'apt-1',
+    buildingId: BUILDING_ID,
+    language: 'en',
+  };
+
+  /** У смены языка нет: `languageOf` отдаёт ей русский, что бы ни лежало в профиле. */
+  const shift: Resident = { ...tenant, id: 'res-3', role: 'dispatcher', displayName: 'Диспетчер' };
+
+  it('жилец с чужим языком не видит русского месяца', () => {
+    assert.equal(languageOf(tenant), 'en');
+    assert.doesNotMatch(formatDay(NOW, undefined, speak(tenant)), RUSSIAN_MONTHS);
+    assert.doesNotMatch(formatMoment(NOW, undefined, speak(tenant)), RUSSIAN_MONTHS);
+  });
+
+  it('у смены дата остаётся русской, даже если в профиле стоит другой язык', () => {
+    assert.equal(languageOf(shift), 'ru');
+    assert.match(formatDay(NOW, undefined, speak(shift)), RUSSIAN_MONTHS);
+    assert.equal(formatMoney(1234.5, speak(shift)), formatMoney(1234.5));
+  });
+
+  it('разделитель дробной части и форма слова идут от языка, рубль остаётся рублём', () => {
+    assert.equal(formatMoney(1234.5, speak(tenant)), '1,234.50 ₽');
+    assert.match(formatMoney(1234.5, speak(shift)), /^1\s234,50 ₽$/u);
+    assert.equal(counted(speak(tenant), 'hours', 1), '1 hour');
+    assert.equal(counted(speak(tenant), 'hours', 5), '5 hours');
+    assert.equal(counted(speak(shift), 'hours', 5), '5 часов');
   });
 });
 

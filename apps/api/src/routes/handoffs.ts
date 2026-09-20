@@ -6,6 +6,7 @@ import {
   passRequest,
   responsibilityOf,
   retargetRequest,
+  speak,
   waitingHandoffs,
 } from '@domovoy/app';
 import { isCompanyStaff, type HandoffStatus, type HandoffTarget } from '@domovoy/domain';
@@ -47,7 +48,7 @@ export const handoffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
       if (!found) throw requestNotFound();
 
-      const view = await responsibilityOf(deps, found);
+      const view = await responsibilityOf(deps, found, speak(resident));
       const now = deps.now();
 
       // Подрядчик, как и жилец, обращение не передаёт: своя же организация в адресатах ему ни к чему.

@@ -1,3 +1,7 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { audienceKey, scopeKey } from './keys.js';
+import { russian } from './moment.js';
 import { MESSAGE_MAX_LENGTH } from './status.js';
 import { DomainError, type AnnouncementAudience, type NoticeKind } from './types.js';
 
@@ -32,24 +36,26 @@ export const BROADCAST_FLATS_LIMIT = 50;
 export const BROADCAST_MAX_LENGTH = MESSAGE_MAX_LENGTH;
 
 /** Адресат словами: его показывают перед отправкой и пишут в журнал. */
-export const describeScope = (scope: BroadcastScope, pollTitle?: string): string => {
+export const describeScope = (scope: BroadcastScope, pollTitle?: string, t: Translate = russian): string => {
   switch (scope.kind) {
     case 'building':
-      return 'весь дом';
+      return t(audienceKey('building'));
     case 'entrance':
-      return `подъезд ${scope.entrance}`;
+      return t(audienceKey('entrance'), { подъезд: scope.entrance });
     case 'riser':
-      return `подъезд ${scope.entrance}, стояк ${scope.riser}`;
+      return t(audienceKey('riser'), { подъезд: scope.entrance, стояк: scope.riser });
     case 'apartments':
-      return `квартиры ${[...scope.numbers].sort((left, right) => left - right).join(', ')}`;
+      return t(scopeKey('apartments'), {
+        номера: [...scope.numbers].sort((left, right) => left - right).join(', '),
+      });
     case 'debtors':
-      return 'должники дома';
+      return t(scopeKey('debtors'));
     case 'meters':
-      return 'не подали показания';
+      return t(scopeKey('meters'));
     case 'poll':
-      return pollTitle ? `не проголосовали: ${pollTitle}` : 'не проголосовали';
+      return pollTitle ? t(scopeKey('poll'), { название: pollTitle }) : t(scopeKey('pollAny'));
     case 'staff':
-      return 'смена дома';
+      return t(scopeKey('staff'));
   }
 };
 

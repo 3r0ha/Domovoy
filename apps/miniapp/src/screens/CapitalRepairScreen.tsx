@@ -3,7 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { type DomovoyApi } from '../api.js';
+import { money, type DomovoyApi } from '../api.js';
 import { useT } from '../i18n.js';
 import { Empty } from './Empty.js';
 import { Failure } from './Failure.js';
@@ -15,9 +15,6 @@ export interface CapitalRepairScreenProps {
   api: DomovoyApi;
 }
 
-/** Деньги для человека: две цифры после запятой и разряды пробелами. */
-const money = (amount: number): string =>
-  amount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const states = (t: Translate): Record<string, string> => ({
   planned: t('capital.state.planned'),

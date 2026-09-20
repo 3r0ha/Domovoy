@@ -56,10 +56,13 @@ const asker = (ticket: TicketView): string =>
     .filter(Boolean)
     .join(' · ');
 
+/** Состояния обращения, которые продукт называет сам. */
+const TICKET_STATUSES = ['open', 'answered', 'closed'];
+
 /** Состояние обращения глазами жильца: со сроком ответа, пока он идёт. */
 const state = (t: Translate, ticket: TicketView): string =>
   [
-    ticket.statusTitle,
+    TICKET_STATUSES.includes(ticket.status) ? t(`support.state.${ticket.status}`) : ticket.statusTitle,
     formatPublished(ticket.updatedAt),
     ticket.answerDueAt ? t('support.due', { дата: formatDay(ticket.answerDueAt) }) : '',
   ]

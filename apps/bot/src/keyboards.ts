@@ -1,6 +1,7 @@
 import {
   bindApartment,
   choiceTitle,
+  errorTextFor,
   formatDemand,
   type InitiativeView,
   type OwnApartment,
@@ -21,7 +22,7 @@ import {
   sectionParam,
 } from '@domovoy/domain';
 import type { NotificationAction } from '@domovoy/app';
-import type { Translate } from '@domovoy/i18n';
+import { numberIn, type Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { RU } from './i18n.js';
@@ -52,8 +53,9 @@ export const alertKeyboard = (requestId: string, t: Translate = RU) => ({
 });
 
 
-/** Числа с запятой: «126,5». */
-export const decimal = (value: number): string => value.toLocaleString('ru-RU', { maximumFractionDigits: 4 });
+/** Число с разделителем своего языка: «126,5», «126.5». */
+export const decimal = (value: number, t: Translate = RU): string =>
+  numberIn(t, value, { maximumFractionDigits: 4 });
 
 
 
@@ -61,10 +63,10 @@ export const decimal = (value: number): string => value.toLocaleString('ru-RU', 
 export const payRows = (month: number | undefined, debt: number | undefined, t: Translate = RU): ButtonRows => [
   ...(month === undefined
     ? []
-    : [[Keyboard.button.callback(t('button.pay_month', { сумма: formatMoney(month) }), 'pay')]]),
+    : [[Keyboard.button.callback(t('button.pay_month', { сумма: formatMoney(month, t) }), 'pay')]]),
   ...(debt === undefined
     ? []
-    : [[Keyboard.button.callback(t('button.pay_debt', { сумма: formatMoney(debt) }), 'pay-debt')]]),
+    : [[Keyboard.button.callback(t('button.pay_debt', { сумма: formatMoney(debt, t) }), 'pay-debt')]]),
 ];
 
 /** Каждая дверь своей кнопкой. */
@@ -332,8 +334,8 @@ export const menuButton = (
  * Текст отказа целой фразой. Внутри продукта причины пишутся без точки, потому
  * что подставляются в строку, а человеку отказ приходит отдельным сообщением.
  */
-export const errorText = (error: unknown): string => {
-  const said = error instanceof Error ? error.message : String(error);
+export const errorText = (error: unknown, t: Translate = RU): string => {
+  const said = errorTextFor(t, error);
 
   return /[.!?…)]$/.test(said) ? said : `${said}.`;
 };
@@ -518,8 +520,8 @@ export const readingPrompt = (state: MeterState, t: Translate = RU): string => {
   const unit = t(meterUnitKey(state.meter.kind));
   const previous = state.last
     ? `\n${t('meters.previous', {
-        значение: `${formatMeterValue(state.last.value)} ${unit}`,
-        дата: formatDate(state.last.at),
+        значение: `${formatMeterValue(state.last.value, t)} ${unit}`,
+        дата: formatDate(state.last.at, undefined, t),
       })}`
     : '';
 

@@ -1,5 +1,5 @@
 import { answerAboutHouse, clarifyTarget, zoneOf, type Resident, type SubmitResult } from '@domovoy/app';
-import { CATEGORY_RULES, STATUS_TITLES, describeTarget, emergencyHint, formatMoment } from '@domovoy/domain';
+import { categoryKey, describeTarget, emergencyHint, formatMoment, statusTitle } from '@domovoy/domain';
 import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
@@ -163,7 +163,6 @@ export const announce = async (
   }
 
   const created = result.request;
-  const rule = CATEGORY_RULES[created.category];
 
   // Сроки показываются по времени дома: в карточке заявки они уже так и
   // печатаются, и два разных времени у одного срока человека сбивают.
@@ -171,11 +170,11 @@ export const announce = async (
 
   if (result.kind === 'joined') {
     await typed.reply(
-      `${t('request.joined', { номер: created.number, состояние: STATUS_TITLES[created.status] })}\n` +
-        `${t('request.what', { что: rule.title, где: describeTarget(created.target) })}\n` +
+      `${t('request.joined', { номер: created.number, состояние: statusTitle(created.status, false, t) })}\n` +
+        `${t('request.what', { что: t(categoryKey(created.category)), где: describeTarget(created.target, undefined, t) })}\n` +
         `${t('request.joined_you', {
           который: result.reporters,
-          срок: formatMoment(created.resolutionDueAt, zone),
+          срок: formatMoment(created.resolutionDueAt, zone, t),
         })}\n` +
         t('request.notify'),
       kit.openApp(startParam, typed),
@@ -183,14 +182,14 @@ export const announce = async (
     return;
   }
 
-  const hint = emergencyHint(created.category, created.priority);
+  const hint = emergencyHint(created.category, created.priority, t);
 
   // Повтор того же текста: человек не понимает, завелись ли три заявки.
   if (result.again) {
     await typed.reply(
       `${t('request.same', { номер: strong(created.number) })}\n` +
-        `${t('request.what', { что: rule.title, где: plain(describeTarget(created.target)) })}\n` +
-        t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone)) }),
+        `${t('request.what', { что: t(categoryKey(created.category)), где: plain(describeTarget(created.target, undefined, t)) })}\n` +
+        t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone, t)) }),
       kit.openApp(startParam, typed),
     );
 
@@ -199,9 +198,12 @@ export const announce = async (
 
   const receipt =
     `${t('request.accepted', { номер: strong(created.number) })}\n` +
-    `${t('request.what', { что: rule.title.toLowerCase(), где: plain(describeTarget(created.target)) })}\n` +
-    `${t('request.react', { срок: formatMoment(created.reactionDueAt, zone) })}\n` +
-    t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone)) }) +
+    `${t('request.what', {
+      что: t(categoryKey(created.category)).toLowerCase(),
+      где: plain(describeTarget(created.target, undefined, t)),
+    })}\n` +
+    `${t('request.react', { срок: formatMoment(created.reactionDueAt, zone, t) })}\n` +
+    t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone, t)) }) +
     (hint ? `\n\n${hint}` : '');
 
   // Где случилось, спрашивается кнопками: набирать адрес руками пожилому человеку

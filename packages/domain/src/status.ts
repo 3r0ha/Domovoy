@@ -1,3 +1,7 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { statusKey } from './keys.js';
+import { russian } from './moment.js';
 import {
   DomainError,
   FINAL_STATUSES,
@@ -137,9 +141,9 @@ export const STAFF_STATUS_TITLES: Partial<Record<RequestStatus, string>> = {
   done: 'ждёт приёмки жильцом',
 };
 
-/** Состояние словами того, кто смотрит. */
-export const statusTitle = (status: RequestStatus, forStaff = false): string =>
-  (forStaff ? STAFF_STATUS_TITLES[status] : undefined) ?? STATUS_TITLES[status];
+/** Состояние словами того, кто смотрит. Смена читает его по-русски. */
+export const statusTitle = (status: RequestStatus, forStaff = false, t: Translate = russian): string =>
+  forStaff ? (STAFF_STATUS_TITLES[status] ?? STATUS_TITLES[status]) : t(statusKey(status));
 
 /** Состояния, в которых заявка закончена. */
 export const CLOSED_STATUSES = FINAL_STATUSES;

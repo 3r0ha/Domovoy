@@ -233,8 +233,8 @@ export const formatDebt = (debt: Debt, t: Translate = speakDefault()): string | 
   const lines = debt.periods.map((item) =>
     t(item.penalty > 0 ? 'app.debt.linePenalty' : 'app.debt.line', {
       период: periodTitle(item.period, t),
-      сумма: formatMoney(item.left),
-      пени: formatMoney(item.penalty),
+      сумма: formatMoney(item.left, t),
+      пени: formatMoney(item.penalty, t),
     }),
   );
 
@@ -242,12 +242,12 @@ export const formatDebt = (debt: Debt, t: Translate = speakDefault()): string | 
   const tail =
     debt.penalty > 0
       ? t('app.debt.penalty', {
-          пени: formatMoney(debt.penalty),
-          итого: formatMoney(roundMoney(debt.total + debt.penalty)),
+          пени: formatMoney(debt.penalty, t),
+          итого: formatMoney(roundMoney(debt.total + debt.penalty), t),
         })
       : '';
 
-  return t('app.debt.total', { сумма: formatMoney(debt.total), строки: lines.join('\n') }) + tail;
+  return t('app.debt.total', { сумма: formatMoney(debt.total, t), строки: lines.join('\n') }) + tail;
 };
 
 /** Долг одной строкой: столько же смысла, сколько в разборе по месяцам. */
@@ -257,8 +257,8 @@ export const formatDebtShort = (debt: Debt, t: Translate = speakDefault()): stri
   // «Пени» знают не все: для человека это штраф за просрочку.
   return t(debt.penalty > 0 ? 'app.debt.shortPenalty' : 'app.debt.short', {
     месяцы: counted(t, 'months', debt.periods.length),
-    сумма: formatMoney(debt.total),
-    пени: formatMoney(debt.penalty),
+    сумма: formatMoney(debt.total, t),
+    пени: formatMoney(debt.penalty, t),
   });
 };
 

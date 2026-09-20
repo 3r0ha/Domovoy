@@ -1,15 +1,22 @@
+import { numberIn, type Translate } from '@domovoy/i18n';
+
+import { russian } from './moment.js';
 import { roundMoney } from './numbers.js';
 
-/** Деньги: «5 240,00 ₽». Копейки округляются до печати, иначе бывает «-0,00 ₽». */
-export const formatMoney = (amount: number): string =>
-  `${roundMoney(amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
+/**
+ * Деньги: «5 240,00 ₽». Копейки округляются до печати, иначе бывает «-0,00 ₽».
+ * Разделитель дробной части берётся у языка человека, валюта остаётся рублём.
+ */
+export const formatMoney = (amount: number, t: Translate = russian): string =>
+  `${numberIn(t, roundMoney(amount), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
 
 /** Показание прибора: «137,1». */
-export const formatMeterValue = (value: number): string =>
-  value.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
+export const formatMeterValue = (value: number, t: Translate = russian): string =>
+  numberIn(t, value, { maximumFractionDigits: 3 });
 
 /** Площадь и доли: «40,5». */
-export const formatArea = (value: number): string => value.toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+export const formatArea = (value: number, t: Translate = russian): string =>
+  numberIn(t, value, { maximumFractionDigits: 1 });
 
 /** «1 заявка», «2 заявки», «5 заявок». */
 export const plural = (count: number, one: string, few: string, many: string): string => {

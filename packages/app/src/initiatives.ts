@@ -247,4 +247,4 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
 export const formatDemand = (t: Translate, view: InitiativeView): string =>
   view.standing.enough
     ? t('app.initiative.enough')
-    : t('app.initiative.need', { площадь: formatArea(view.standing.areaToDemand) });
+    : t('app.initiative.need', { площадь: formatArea(view.standing.areaToDemand, t) });

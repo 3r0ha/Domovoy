@@ -15,6 +15,7 @@ const { MaxProvider } = await import('@maxkit/react');
 const { createElement, act, StrictMode } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { DomovoyApi } = await import('../dist-test/api.js');
+const { I18nProvider } = await import('../dist-test/i18n.js');
 const { Toasts } = await import('../dist-test/toast.js');
 const { AnnouncementsScreen } = await import('../dist-test/screens/AnnouncementsScreen.js');
 const { BindApartmentScreen } = await import('../dist-test/screens/BindApartmentScreen.js');
@@ -3293,7 +3294,8 @@ describe('отказ вместо пустоты', () => {
       '/api/requests/req-1/responsibility': {
         kind: 'management',
         title: 'Управляющая организация',
-        basis: 'Общее имущество дома: ч. 1 ст. 36 ЖК РФ',
+        // Жильцу сервер присылает не норму, а то же словами: норма уходит смене.
+        basis: 'Это общее имущество дома, его содержит управляющая организация',
         targets: [],
         handoffs: [
           {
@@ -3318,7 +3320,7 @@ describe('отказ вместо пустоты', () => {
     const screen = await render(createElement(RequestScreen as never, { api, id: 'req-1' } as never), bridge);
 
     assert.match(screen.text, /Кто отвечает/);
-    assert.match(screen.text, /ст\. 36 ЖК РФ/);
+    assert.match(screen.text, /Это общее имущество дома/);
     assert.match(screen.text, /Водоканал/);
     assert.match(screen.text, /MOCK-0001/);
     assert.match(screen.text, /Правил № 354/);
@@ -6224,5 +6226,76 @@ describe('запись голоса', () => {
 
     await screen.unmount();
     microphone.restore();
+  });
+});
+
+describe('карточка заявки на чужом языке', () => {
+  /** Всё, что приходит с сервера, здесь не по-русски: русской остаётся только своя строка. */
+  const FOREIGN = {
+    ...REQUEST,
+    number: 'D15-2609-0001',
+    status: 'needs_info',
+    statusTitle: 'Ждёт вашего уточнения',
+    categoryTitle: 'Water supply',
+    title: 'Leaking tap',
+    description: 'Leaking tap in the kitchen',
+    target: 'apartment 1',
+    spread: { affected: 3, fine: 1, verdict: 'shared' },
+    history: [
+      { at: '2026-09-03T10:00:00Z', status: 'new', role: 'resident' },
+      { at: '2026-09-03T11:00:00Z', status: 'accepted', role: 'dispatcher' },
+      { at: '2026-09-03T12:00:00Z', status: 'needs_info', role: 'dispatcher', kind: 'message', comment: 'Which floor?' },
+    ],
+  };
+
+  it('не показывает жильцу русских слов', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/requests/req-1/actions': { actions: ['withdrawn'] },
+      '/api/requests/req-1/responsibility': {
+        kind: 'management',
+        title: 'Управляющая организация',
+        basis: 'Это общее имущество дома, его содержит управляющая организация',
+        targets: [],
+        handoffs: [
+          {
+            id: 'h-1',
+            requestId: 'req-1',
+            to: 'resource',
+            organization: 'Water utility',
+            channel: 'email',
+            status: 'sent',
+            statusTitle: 'передано',
+            dueAt: '2026-09-03T12:00:00Z',
+            basis: 'Rules 354, clause 108',
+            overdue: false,
+            createdAt: '2026-09-03T10:00:00Z',
+            externalId: 'MOCK-0001',
+          },
+        ],
+      },
+      '/api/requests/req-1': FOREIGN,
+    });
+
+    const screen = await render(
+      createElement(
+        I18nProvider as never,
+        { language: 'en' } as never,
+        createElement(RequestScreen as never, { api, id: 'req-1' } as never),
+      ),
+      bridge,
+    );
+
+    assert.match(screen.text, /Awaiting your clarification/, 'состояние заявки переведено');
+    assert.match(screen.text, /Who is responsible/);
+    assert.doesNotMatch(screen.text, /[А-Яа-яЁё]/u, `в карточке остались русские слова: ${screen.text}`);
+
+    const labels = screen.findAll('[aria-label]').map((node) => node.getAttribute('aria-label') ?? '');
+
+    assert.doesNotMatch(labels.join(' · '), /[А-Яа-яЁё]/u, `русские подписи: ${labels.join(' · ')}`);
+
+    // Перевод вне React один на весь процесс: возвращаем русский соседним проверкам.
+    await screen.rerender(createElement(I18nProvider as never, null, createElement('span', null, '')));
+    await screen.unmount();
   });
 });

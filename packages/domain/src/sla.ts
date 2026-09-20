@@ -1,4 +1,8 @@
+import type { Translate } from '@domovoy/i18n';
+
 import { isConfirmedIncident } from './incident.js';
+import { emergencyHintKey } from './keys.js';
+import { russian } from './moment.js';
 import { crossedIn, median } from './numbers.js';
 import { isFinal, statusChanges } from './status.js';
 import type { Priority, RequestCategory, ServiceRequest } from './types.js';
@@ -30,20 +34,18 @@ export const CATEGORY_RULES: Readonly<Record<RequestCategory, CategoryRule>> = {
 };
 
 /**
- * Что сделать до приезда мастера. Совет короткий и только по аварии: в обычной
- * заявке он был бы шумом.
+ * Категории, по которым есть что сделать до приезда мастера. Совет короткий и
+ * только по аварии: в обычной заявке он был бы шумом.
  */
-const EMERGENCY_HINTS: Partial<Record<RequestCategory, string>> = {
-  plumbing: 'Если можете, перекройте воду до приезда мастера.',
-  electricity: 'Не трогайте проводку и щиток: дождитесь мастера.',
-  elevator: 'Если в кабине люди, нажмите кнопку связи и не открывайте двери сами.',
-  heating: 'Не пытайтесь стравливать батареи самостоятельно.',
-  safety: 'Если есть угроза жизни, сначала звоните 112.',
-};
+const HINTED: readonly RequestCategory[] = ['plumbing', 'electricity', 'elevator', 'heating', 'safety'];
 
 /** Совет по аварийной заявке. Пусто, если заявка не аварийная или совета нет. */
-export const emergencyHint = (category: RequestCategory, priority: Priority): string | undefined =>
-  priority === 'emergency' ? EMERGENCY_HINTS[category] : undefined;
+export const emergencyHint = (
+  category: RequestCategory,
+  priority: Priority,
+  t: Translate = russian,
+): string | undefined =>
+  priority === 'emergency' && HINTED.includes(category) ? t(emergencyHintKey(category)) : undefined;
 
 /** Срочность сжимает или растягивает сроки категории. */
 export const PRIORITY_FACTOR: Readonly<Record<Priority, number>> = {

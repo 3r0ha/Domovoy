@@ -3,7 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { plural, type DomovoyApi, type QualityView } from '../api.js';
+import { counted, type DomovoyApi, type QualityView } from '../api.js';
 import { useT } from '../i18n.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
@@ -14,9 +14,7 @@ export interface QualityScreenProps {
 }
 
 const hours = (value: number): string =>
-  value < 24
-    ? plural(Math.round(value), 'час', 'часа', 'часов')
-    : plural(Math.round(value / 24), 'день', 'дня', 'дней');
+  value < 24 ? counted('count.hour', Math.round(value)) : counted('count.day', Math.round(value / 24));
 
 interface Line {
   title: string;
@@ -57,7 +55,7 @@ const lines = (t: Translate, quality: QualityView): Line[] => {
       : {
           title: t('quality.rating'),
           value: t('quality.rating.value', { оценка: quality.averageRating }),
-          hint: t('quality.rated', { заявки: plural(quality.rated, 'заявку', 'заявки', 'заявок') }),
+          hint: t('quality.rated', { заявки: counted('count.rated', quality.rated) }),
         },
   );
 
@@ -79,7 +77,7 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
   const period =
     data.days === undefined
       ? t('quality.period.any')
-      : t('quality.period', { дни: plural(data.days, 'день', 'дня', 'дней') });
+      : t('quality.period', { дни: counted('count.day', data.days) });
 
   return (
     <div className="list">

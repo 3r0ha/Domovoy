@@ -1,6 +1,8 @@
 import { DomainError, isCompanyStaff, type Apartment } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
 import { apartmentIn, apartmentsOf } from './apartments.js';
+import { speakDefault } from './language.js';
 import type { Building, HouseContact, HouseService, Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -329,31 +331,35 @@ export const contactsFor = async (
 };
 
 /** Кто отвечает по дому: имя, должность и телефон одной строкой. */
-const contactLine = (contact?: HouseContact): string | undefined => {
+const contactLine = (contact: HouseContact | undefined, t: Translate): string | undefined => {
   if (!contact) return undefined;
 
   const title = contact.role ? `${contact.name} (${contact.role})` : contact.name;
 
-  return `Ответственный: ${[title, contact.phone, contact.email].filter(Boolean).join(', ')}`;
+  return t('app.contacts.person', { кто: [title, contact.phone, contact.email].filter(Boolean).join(', ') });
 };
 
 /**
  * Контакты словами: тем же текстом отвечает бот. Каждая строка это один способ
  * связи, срочное сверху: в переписке читают первые строки, а не весь список.
  */
-export const formatContacts = (contacts: HouseContacts): string => {
+export const formatContacts = (contacts: HouseContacts, t: Translate = speakDefault()): string => {
   const service = contacts.service;
   const duty = contacts.duty;
 
   const lines = [
-    service?.emergencyPhone ? `Авария, круглосуточно: ${service.emergencyPhone}` : undefined,
-    duty ? `Дежурит сейчас: ${[duty.displayName, duty.phone].filter(Boolean).join(', ')}` : undefined,
+    service?.emergencyPhone ? t('app.contacts.emergency', { телефон: service.emergencyPhone }) : undefined,
+    duty ? t('app.contacts.duty', { кто: [duty.displayName, duty.phone].filter(Boolean).join(', ') }) : undefined,
     [contacts.managementCompany, contacts.address].filter(Boolean).join(', ') || undefined,
-    [service?.phone && `Телефон: ${service.phone}`, service?.hours].filter(Boolean).join(' · ') || undefined,
-    service?.email ? `Почта: ${service.email}` : undefined,
-    service?.office ? `Приём: ${[service.office, service.officeHours].filter(Boolean).join(' · ')}` : undefined,
-    contactLine(contacts.contact),
+    [service?.phone && t('app.contacts.phone', { телефон: service.phone }), service?.hours]
+      .filter(Boolean)
+      .join(' · ') || undefined,
+    service?.email ? t('app.contacts.email', { почта: service.email }) : undefined,
+    service?.office
+      ? t('app.contacts.office', { где: [service.office, service.officeHours].filter(Boolean).join(' · ') })
+      : undefined,
+    contactLine(contacts.contact, t),
   ].filter((line): line is string => typeof line === 'string' && line.length > 0);
 
-  return lines.length > 0 ? lines.join('\n') : 'Контакты не заведены: напишите в поддержку, ответит смена.';
+  return lines.length > 0 ? lines.join('\n') : t('app.contacts.empty');
 };

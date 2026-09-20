@@ -15,7 +15,7 @@ import {
   type Outage,
 } from '@domovoy/domain';
 
-import type { Translate } from '@domovoy/i18n';
+import { numberIn, type Translate } from '@domovoy/i18n';
 
 import { endOfPeriod, monthBefore, periodConsumption, startOfPeriod } from './consumption.js';
 import { commonNeedsShare, knownForCommon } from './house-meters.js';
@@ -167,7 +167,12 @@ export const chargeBasisTitle = (t: Translate, line: ChargeLine): string | undef
 export const chargeLineDetail = (t: Translate, line: ChargeLine): string | undefined => {
   if (!line.detailKey) return line.detail;
 
-  const values: Record<string, string | number> = { ...line.detailValues };
+  const values: Record<string, string | number> = Object.fromEntries(
+    Object.entries(line.detailValues ?? {}).map(([name, value]) => [
+      name,
+      typeof value === 'number' ? numberIn(t, value, { maximumFractionDigits: 3 }) : value,
+    ]),
+  );
 
   if (line.kind) values['единица'] = t(meterUnitKey(line.kind));
 

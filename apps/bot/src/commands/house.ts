@@ -57,7 +57,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed, t));
+      await typed.reply(errorText(error, t), afterError(error, typed, t));
     }
   },
 
@@ -115,7 +115,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       await inApp(kit, typed, short, 'quality', t('button.quality_in_app'), t);
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed, t));
+      await typed.reply(errorText(error, t), afterError(error, typed, t));
     }
   },
 
@@ -125,7 +125,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     const t = speak(resident);
 
     try {
-      const card = formatContacts(await contactsFor(deps, resident));
+      const card = formatContacts(await contactsFor(deps, resident), t);
 
       // В чате дома нужен только аварийный телефон: полная карточка там читается
       // плохо и уходит вверх после пары сообщений соседей.
@@ -136,7 +136,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(said, openApp(sectionParam('support'), typed));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed, t));
+      await typed.reply(errorText(error, t), afterError(error, typed, t));
     }
   },
 

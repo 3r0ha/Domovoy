@@ -355,9 +355,11 @@ describe('чат-бот управляющей компании', () => {
       user_locale: 'uz-UZ',
     });
 
-    const asked = await waitForMessage(5101, /Choose your language/);
+    // Клиент прислал узбекский: вопрос задают и на нём, третьей строкой.
+    const asked = await waitForMessage(5101, /Tilni tanlang/u);
 
-    assert.match(asked, /Выберите язык/, 'вопрос виден и тем, кто не читает по-русски');
+    assert.match(asked, /Выберите язык/u);
+    assert.match(asked, /Choose your language/u);
     assert.doesNotMatch(asked, /персональные данные/, 'до выбора языка документы не показывают');
 
     const order = [
@@ -1903,7 +1905,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(3003, /Холодная вода/);
 
     mariaSends('mid-photo-cat', PHOTO);
-    await waitForMessage(3003, /не вижу табло счётчика/);
+    await waitForMessage(3003, /не видно табло счётчика/);
 
     // Ожидание остаётся: следующий снимок идёт тому же счётчику.
     mariaSends('mid-photo-blur', PHOTO);
@@ -2028,7 +2030,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(7008, /Сейчас: открыто 1/);
 
     platform.userSends('/report', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /доступна сотрудникам/);
+    await waitForMessage(3003, /чужие данные/);
 
     await bot.stop();
   });
@@ -3746,14 +3748,16 @@ describe('чат-бот управляющей компании', () => {
     });
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Прошлое показание/);
+
+    const prompt = await waitForMessage(3003, /Прошлое показание/);
+
+    assert.match(prompt, /120,5/, 'числа в переписке везде с запятой');
 
     platform.userSends('100', { userId: 3003, chatId: 3003 });
 
     const refused = await waitForMessage(3003, /не принято/);
 
     assert.match(refused, /не может показать меньше/);
-    assert.match(refused, /120,5/, 'числа в переписке везде с запятой');
 
     // После отказа показание повторяют тем же вводом: ожидание не снято.
     platform.userSends('130', { userId: 3003, chatId: 3003 });
@@ -3884,7 +3888,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userPressesButton(`vote:${poll.id}:for`, { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForToast(/Голос не принят/), /завершено/);
+    assert.match(await waitForToast(/Голос не принят/), /Итоги подведены/);
 
     await bot.stop();
   });
@@ -4570,7 +4574,7 @@ describe('чат-бот управляющей компании', () => {
       const bot = await start([RESIDENT_WITH_FLAT]);
 
       platform.userSends('/broadcast', { userId: 3003, chatId: 3003 });
-      await waitForMessage(3003, /отправляет управляющая компания/);
+      await waitForMessage(3003, /чужие данные/);
 
       await bot.stop();
     });

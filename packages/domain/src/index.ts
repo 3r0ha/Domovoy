@@ -141,17 +141,29 @@ export {
   type MeetingScheduleInput,
 } from './meeting.js';
 export {
+  audienceKey,
   categoryKey,
   categoryShortKey,
   chargeDetailKey,
   chargeKey,
   consumptionBasisKey,
+  deedDeniedKey,
+  emergencyHintKey,
+  inspectionKindKey,
   meterKindKey,
   meterUnitKey,
   noticeKindKey,
+  plainBasisKey,
   pollRuleKey,
+  responsibleKey,
+  scopeKey,
   statusKey,
+  targetKey,
+  ticketStatusKey,
   voteChoiceKey,
+  zoneKey,
+  zoneNextKey,
+  type ZoneName,
 } from './keys.js';
 export { houseMood, type HouseMood } from './mood.js';
 export { isWearDue, wearOf, type Wear } from './wear.js';
@@ -379,6 +391,7 @@ export {
   replyToTicket,
   SUPPORT_ANSWER_DAYS,
   TICKET_STATUS_TITLES,
+  ticketStatusTitle,
   waitingSince,
   waitsForAnswer,
   type OpenTicketInput,

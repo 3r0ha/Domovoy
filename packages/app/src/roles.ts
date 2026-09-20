@@ -3,6 +3,7 @@ import { DomainError, isCompanyStaff, type Apartment, type Role } from '@domovoy
 import { apartmentsOf } from './apartments.js';
 import { recordAction } from './audit.js';
 import { assertServes, homeOf, listServedBuildings, servedBy } from './buildings.js';
+import { speak } from './language.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -196,9 +197,8 @@ export const assignRole = async (
     deps.notifier ?? noopNotifier,
     saved,
     input.role === 'resident'
-      ? 'Управляющая компания сняла с вас служебную роль. Заявки и показания остаются доступны.'
-      : `Управляющая компания назначила вам роль: ${roleTitle(input.role)}.\n` +
-          'Наберите /start, чтобы увидеть новые команды.',
+      ? speak(saved)('app.role.removed')
+      : speak(saved)('app.role.given', { роль: roleTitle(input.role) }),
   );
 
   return { id: saved.id, displayName: saved.displayName, role: saved.role };

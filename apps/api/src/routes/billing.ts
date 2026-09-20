@@ -47,8 +47,8 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       const t = speak(resident);
 
       const bases: string[] = [
-        ...(byNorm ? [basisFor('norm', staff), basisFor('typicalNorm', staff)] : []),
-        ...(debt.penalty > 0 ? [basisFor('penalty', staff)] : []),
+        ...(byNorm ? [basisFor('norm', staff, t), basisFor('typicalNorm', staff, t)] : []),
+        ...(debt.penalty > 0 ? [basisFor('penalty', staff, t)] : []),
       ].filter((line): line is string => Boolean(line));
 
       return {

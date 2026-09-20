@@ -1,6 +1,7 @@
 import {
   allowedTransitions,
   CLOSED_STATUSES,
+  deedDeniedKey,
   describeTarget,
   findTransition,
   isCompanyStaff,
@@ -10,6 +11,7 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import { speak } from './language.js';
 import { listAssignable, type StaffMember } from './report.js';
 import { listRequestsFor } from './use-cases/requests.js';
 import type { Resident } from './repository.js';
@@ -54,7 +56,7 @@ export type Doing =
 interface Phrase {
   to: RequestStatus;
   words: RegExp;
-  /** Чем объяснить отказ, если слова понятны, а дела нет. */
+  /** Имя объяснения отказа в словаре: слова понятны, а дела нет. */
   denied: string;
 }
 
@@ -66,44 +68,44 @@ const PHRASES: readonly Phrase[] = [
   {
     to: 'in_progress',
     words: /не сделал|не починил|не устранил|переделать|верните в работу|не приняли работ|опять теч|то же самое/i,
-    denied: 'Вернуть заявку в работу можно, пока она не закрыта.',
+    denied: 'reopenClosed',
   },
   {
     to: 'rejected',
     words: /отклон|не наша зона|не по адресу|не подтвердил/i,
-    denied: 'Отклоняет заявки управляющая организация.',
+    denied: 'rejectStaff',
   },
   {
     to: 'withdrawn',
     words: /отзыв|отозв|снимаю заявк|снять заявк|уже не нужно|больше не нужно|само прошло|решилось сам/i,
-    denied: 'Снять обращение может только тот, кто его подал, и пока оно не закрыто.',
+    denied: 'withdrawOwn',
   },
   {
     to: 'needs_info',
     words: /уточн|нужны подробност|спросить у жильц|не понял, что/i,
-    denied: 'Спрашивать уточнение у жильца может управляющая организация.',
+    denied: 'needsInfoStaff',
   },
   {
     to: 'done',
     // Только законченное действие: «когда почините» это просьба, а не отчёт.
     words: /почини(л|ла|ли)|устранил|заменил|сделал|готово|выполнил|закрыл|работу сдал|прочистил|отремонтировал/i,
-    denied: 'Сдать работу может исполнитель наряда, который взят в работу.',
+    denied: 'doneWorker',
   },
   {
     // «Закрыл» у смены по сданной работе это её приёмка за жильца.
     to: 'confirmed',
     words: /вс[её] сдела|работу принял|принимаю работ|претензий нет|спасибо, вс[её]|закрыл/i,
-    denied: 'Принять работу можно, когда мастер её сдал.',
+    denied: 'acceptDone',
   },
   {
     to: 'accepted',
     words: /принял заявк|беру заявк|в работу беру|взял в работу/i,
-    denied: 'Принимает заявки в работу управляющая организация.',
+    denied: 'acceptStaff',
   },
   {
     to: 'in_progress',
     words: /выехал|еду на|приступил|начал работ|взял наряд|я на месте|я на адресе/i,
-    denied: 'Взять наряд в работу может его исполнитель.',
+    denied: 'startWorker',
   },
 ];
 
@@ -291,7 +293,7 @@ export const doingFor = async (deps: AppDeps, resident: Resident, text: string):
   // приёмка работы, а не сдача наряда, и отказ должен говорить о приёмке.
   const own = matched.find((phrase) => roleDoes(phrase.to, resident));
 
-  return { kind: 'denied', reason: (own ?? matched[0]!).denied };
+  return { kind: 'denied', reason: speak(resident)(deedDeniedKey((own ?? matched[0]!).denied)) };
 };
 
 /** Делает ли эта роль такое дело вообще, при каком-нибудь состоянии заявки. */
@@ -342,7 +344,7 @@ const asked = async (
   return {
     to: deed.to,
     words: /(?:)/u,
-    denied: 'Такое дело сейчас недоступно.',
+    denied: 'unavailable',
     ...(number ? { number } : {}),
   };
 };

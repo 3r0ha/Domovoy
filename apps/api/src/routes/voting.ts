@@ -7,6 +7,7 @@ import {
   startInitiative,
   supportInitiative,
   pollProtocol,
+  speak,
   startPoll,
   vote,
 } from '@domovoy/app';
@@ -40,8 +41,9 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const polls = await listPollsFor(deps, resident);
+        const t = speak(resident);
 
-        return polls.map(serializePoll);
+        return polls.map((view) => serializePoll(view, t));
       },
     );
 
@@ -88,7 +90,9 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
         });
         const view = (await listPollsFor(deps, resident)).find((item) => item.poll.id === poll.id);
 
-        return reply.code(201).send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }));
+        return reply
+          .code(201)
+          .send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }, speak(resident)));
       },
     );
 
@@ -126,7 +130,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
 
         return reply
           .code(201)
-          .send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }));
+          .send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }, speak(resident)));
       },
     );
 
@@ -142,7 +146,9 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
-        return (await listInitiativesFor(deps, resident)).map(serializeInitiative);
+        const t = speak(resident);
+
+        return (await listInitiativesFor(deps, resident)).map((view) => serializeInitiative(view, t));
       },
     );
 
@@ -181,7 +187,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
 
         if (!view) throw new DomainError('initiative_not_found', 'Предложение не найдено');
 
-        return reply.code(201).send(serializeInitiative(view));
+        return reply.code(201).send(serializeInitiative(view, speak(resident)));
       },
     );
 
@@ -192,7 +198,10 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
-        return serializeInitiative(await supportInitiative(deps, { resident, initiativeId: request.params.id }));
+        return serializeInitiative(
+          await supportInitiative(deps, { resident, initiativeId: request.params.id }),
+          speak(resident),
+        );
       },
     );
 
@@ -227,7 +236,7 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
 
         return reply
           .code(201)
-          .send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }));
+          .send(serializePoll(view ?? { poll, result: emptyResult, open: true, areaToQuorum: 0 }, speak(resident)));
       },
     );
 
@@ -248,7 +257,10 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
-        return serializePoll(await vote(deps, { resident, pollId: request.params.id, choice: request.body.choice }));
+        return serializePoll(
+          await vote(deps, { resident, pollId: request.params.id, choice: request.body.choice }),
+          speak(resident),
+        );
       },
     );
 

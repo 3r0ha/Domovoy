@@ -21,7 +21,10 @@ export interface ChargeLine {
   kind?: MeterKind;
   /** Ключ перевода расшифровки. */
   detailKey?: string;
-  /** Числа расшифровки: единица ресурса подставляется по {@link ChargeLine.kind}. */
+  /**
+   * Числа расшифровки без разделителя: его ставит тот, кто показывает строку,
+   * по языку человека. Единица ресурса подставляется по {@link ChargeLine.kind}.
+   */
   detailValues?: Readonly<Record<string, string | number>>;
 }
 
@@ -132,7 +135,7 @@ export const chargesFor = (input: ChargeInput): Charges => {
           `${decimal(item.amount)} ${item.unit} × ${decimal(rate)} ₽` +
           (item.basis && item.basis !== 'meter' ? ` · ${BASIS_TITLES[item.basis]}` : ''),
         detailKey: chargeDetailKey('rate'),
-        detailValues: { расход: decimal(item.amount), тариф: decimal(rate) },
+        detailValues: { расход: item.amount, тариф: rate },
         ...(item.basis && item.basis !== 'meter' ? { basis: item.basis } : {}),
       };
     });
@@ -155,7 +158,7 @@ export const chargesFor = (input: ChargeInput): Charges => {
       amount: -reduction,
       detail: `${decimal(outage.excessHours)} ч сверх нормы × 0,15% × ${decimal(line.amount)} ₽`,
       detailKey: chargeDetailKey('recalculation'),
-      detailValues: { часы: decimal(outage.excessHours), сумма: decimal(line.amount) },
+      detailValues: { часы: outage.excessHours, сумма: line.amount },
     });
   }
 
@@ -174,7 +177,7 @@ export const chargesFor = (input: ChargeInput): Charges => {
       amount: roundMoney(item.amount * rate),
       detail: `${decimal(item.amount)} ${METER_RULES[item.kind].unit} × ${decimal(rate)} ₽`,
       detailKey: chargeDetailKey('rate'),
-      detailValues: { расход: decimal(item.amount), тариф: decimal(rate) },
+      detailValues: { расход: item.amount, тариф: rate },
     });
   }
 
@@ -191,7 +194,7 @@ export const chargesFor = (input: ChargeInput): Charges => {
       amount: roundMoney(input.area * maintenance),
       detail: `${decimal(input.area)} м² × ${decimal(maintenance)} ₽`,
       detailKey: chargeDetailKey('area'),
-      detailValues: { площадь: decimal(input.area), тариф: decimal(maintenance) },
+      detailValues: { площадь: input.area, тариф: maintenance },
     });
   }
 

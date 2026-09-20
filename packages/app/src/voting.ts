@@ -22,7 +22,7 @@ import {
   type VoteChoice,
 } from '@domovoy/domain';
 
-import type { Translate } from '@domovoy/i18n';
+import { numberIn, type Translate } from '@domovoy/i18n';
 
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import { recordAction } from './audit.js';
@@ -119,11 +119,11 @@ export const startPoll = async (deps: AppDeps, command: StartPollCommand): Promi
   const residents = await deps.repository.listResidentsByApartments(apartments.map((apartment) => apartment.id));
   const notifier = deps.notifier ?? noopNotifier;
   const zone = await zoneOf(deps, buildingId);
-  const closes = formatDay(poll.closesAt, zone);
-  const opens = formatDay(poll.opensAt, zone);
 
   for (const resident of wanting(residents, 'polls')) {
     const t = speak(resident);
+    const closes = formatDay(poll.closesAt, zone, t);
+    const opens = formatDay(poll.opensAt, zone, t);
 
     await notifyAbout(
       notifier,
@@ -230,11 +230,10 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
       'polls',
     );
 
-    const closes = formatDay(poll.closesAt, zone);
-
     for (const resident of people) {
       const house = await hintOf(resident);
       const t = speak(resident);
+      const closes = formatDay(poll.closesAt, zone, t);
 
       await notifyAbout(
         notifier,
@@ -246,7 +245,7 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
             нехватка:
               result.areasMissing > 0
                 ? t('app.poll.remindFew')
-                : t('app.poll.remindArea', { площадь: formatArea(areaToQuorum(poll, result)) }),
+                : t('app.poll.remindArea', { площадь: formatArea(areaToQuorum(poll, result), t) }),
           }),
         { section: 'polls', mutable: 'polls' },
       );
@@ -351,8 +350,9 @@ const CHOICES: readonly VoteChoice[] = ['for', 'against', 'abstain'];
 
 const percent = (share: number): string => `${Math.round(share * 100)}%`;
 
-/** Площадь для человека: один знак после запятой, без хвоста из нулей. */
-export const formatArea = (area: number): string => String(Math.round(area * 10) / 10);
+/** Площадь для человека: один знак после запятой, разделитель по языку. */
+export const formatArea = (area: number, t: Translate = speakDefault()): string =>
+  numberIn(t, Math.round(area * 10) / 10, { maximumFractionDigits: 1 });
 
 /** Итоги словами для чата и протокола. */
 export interface PollTextOptions {
@@ -398,7 +398,7 @@ export const formatPollResult = (view: PollView, options: PollTextOptions = {}):
 
   if (!result.quorum && !survey) {
     // «Кворум» знают не все: то же самое говорится обычными словами.
-    lines.push(t('app.poll.result.quorum', { площадь: formatArea(view.areaToQuorum) }));
+    lines.push(t('app.poll.result.quorum', { площадь: formatArea(view.areaToQuorum, t) }));
   }
 
   lines.push('', ...shareLines(t, result), needed(t, poll.kind, result.support));

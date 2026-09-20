@@ -1,3 +1,7 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { audienceKey, targetKey } from './keys.js';
+import { russian } from './moment.js';
 import type { AnnouncementAudience, Apartment, RequestTarget } from './types.js';
 
 /** Кто попадает в адресат объявления. */
@@ -29,15 +33,15 @@ export const flatAbove = (apartments: readonly Apartment[], flat: Apartment): Ap
     )
     .sort((left, right) => left.number - right.number)[0];
 
-/** Человекочитаемое описание адресата, для подтверждения перед отправкой. */
-export const describeAudience = (audience: AnnouncementAudience): string => {
+/** Адресат словами. Без переводчика строка русская: её читает смена. */
+export const describeAudience = (audience: AnnouncementAudience, t: Translate = russian): string => {
   switch (audience.kind) {
     case 'building':
-      return 'весь дом';
+      return t(audienceKey('building'));
     case 'entrance':
-      return `подъезд ${audience.entrance}`;
+      return t(audienceKey('entrance'), { подъезд: audience.entrance });
     case 'riser':
-      return `подъезд ${audience.entrance}, стояк ${audience.riser}`;
+      return t(audienceKey('riser'), { подъезд: audience.entrance, стояк: audience.riser });
   }
 };
 
@@ -56,21 +60,28 @@ export const audienceForTarget = (target: RequestTarget): AnnouncementAudience |
   }
 };
 
-/** Описание объекта заявки для диспетчера: без него он звонит и уточняет адрес. */
-export const describeTarget = (target: RequestTarget, apartmentNumber?: number): string => {
+/**
+ * Описание объекта заявки: без него диспетчер звонит и уточняет адрес.
+ * Название оборудования берётся из справочника дома и не переводится.
+ */
+export const describeTarget = (
+  target: RequestTarget,
+  apartmentNumber?: number,
+  t: Translate = russian,
+): string => {
   switch (target.kind) {
     case 'apartment': {
       const number = apartmentNumber ?? target.number;
 
-      return number === undefined ? 'квартира' : `квартира ${number}`;
+      return number === undefined ? t(targetKey('apartmentAny')) : t(targetKey('apartment'), { номер: number });
     }
     case 'entrance':
-      return `подъезд ${target.entrance}`;
+      return t(targetKey('entrance'), { подъезд: target.entrance });
     case 'riser':
-      return `подъезд ${target.entrance}, стояк ${target.riser}`;
+      return t(targetKey('riser'), { подъезд: target.entrance, стояк: target.riser });
     case 'equipment':
-      return target.title ?? `оборудование ${target.equipmentId}`;
+      return target.title ?? t(targetKey('equipment'), { код: target.equipmentId });
     case 'building':
-      return 'дом целиком';
+      return t(targetKey('building'));
   }
 };

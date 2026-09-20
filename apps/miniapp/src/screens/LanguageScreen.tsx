@@ -2,7 +2,7 @@ import { CellList, CellSimple } from '@maxhub/max-ui';
 import { useLaunchParams } from '@maxkit/react';
 import { useState } from 'react';
 
-import { LANGUAGES, languageFrom, type Language } from '@domovoy/i18n';
+import { LANGUAGES, languageFrom, translatorFor, type Language } from '@domovoy/i18n';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { useTrapped } from '../focus.js';
@@ -89,20 +89,27 @@ export const LanguageScreen = (props: LanguagePickerProps) => (
   </div>
 );
 
-/** Первый вход: язык спрашивают до документов, иначе их не прочитать. */
+/**
+ * Первый вход: язык спрашивают до документов, иначе их не прочитать. Сам вопрос
+ * не переводится: его читает человек, который языка ещё не выбирал.
+ */
 export const LanguageSheet = (props: LanguagePickerProps) => {
-  const t = useT();
   const sheet = useTrapped<HTMLElement>(true);
+  // Клиент MAX присылает язык человека: вопрос задают и на нём тоже.
+  const spoken = languageFrom(useLaunchParams().initDataUnsafe.user?.language_code);
+  const own = spoken ? translatorFor(spoken)('app.lang.ask') : undefined;
+  const third = own && own !== 'Выберите язык' && own !== 'Choose your language' ? own : undefined;
 
   return (
-    <div className="guide" role="dialog" aria-modal="true" aria-label={t('language.title')}>
+    <div className="guide" role="dialog" aria-modal="true" aria-label="Выберите язык">
       <div className="guide-veil" aria-hidden="true" />
 
       <section className="guide-sheet language-sheet" ref={sheet}>
         <Domovoy mood="walking" size={72} />
 
-        <h2 className="guide-title">{t('language.title')}</h2>
-        <p className="guide-hint">{t('language.hint')}</p>
+        <h2 className="guide-title">Выберите язык</h2>
+        <p className="guide-hint">Choose your language</p>
+        {third ? <p className="guide-hint">{third}</p> : null}
 
         <div className="language-list">
           <LanguagePicker {...props} />

@@ -16,6 +16,7 @@ import {
 
 import { apartmentsOf, locateTarget } from '../apartments.js';
 import { servesBuilding } from '../buildings.js';
+import { speak } from '../language.js';
 import { type Resident } from '../repository.js';
 import { withReadableAddress, type AppDeps } from '../use-cases.js';
 
@@ -127,7 +128,7 @@ export const objectPassport = async (
 
   return {
     startParam,
-    target: describeTarget(await withReadableAddress(deps, target)),
+    target: describeTarget(await withReadableAddress(deps, target), undefined, speak(viewer)),
     open,
     history: [...sameObject].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()),
     totalRequests: sameObject.length,

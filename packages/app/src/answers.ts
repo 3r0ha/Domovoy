@@ -64,6 +64,7 @@ const aboutHouse = async (deps: AppDeps, resident: Resident): Promise<string | u
           { id: work.id, title: work.title, audience: announcementAudience(work), ...work.works },
           deps.now(),
           zone,
+          t,
         ),
       }),
     );
@@ -74,7 +75,7 @@ const aboutHouse = async (deps: AppDeps, resident: Resident): Promise<string | u
       t('app.answer.houseIncident', {
         название: incident.title,
         номер: incident.number,
-        срок: formatMoment(incident.resolutionDueAt, zone),
+        срок: formatMoment(incident.resolutionDueAt, zone, t),
       }),
     );
   }
@@ -103,7 +104,7 @@ const aboutHouse = async (deps: AppDeps, resident: Resident): Promise<string | u
   const next = ahead[0];
 
   return next
-    ? t('app.answer.houseAhead', { событие: next.title, когда: formatMoment(next.at, zone) })
+    ? t('app.answer.houseAhead', { событие: next.title, когда: formatMoment(next.at, zone, t) })
     : t('app.answer.houseQuiet');
 };
 
@@ -127,7 +128,7 @@ const aboutBill = async (deps: AppDeps, resident: Resident): Promise<string | un
 
     // Про команды жильцу не говорят: за разбором по строкам он идёт кнопкой.
     return left > 0
-      ? t('app.answer.billLeft', { сумма: formatMoney(left), число: charges.dueDay })
+      ? t('app.answer.billLeft', { сумма: formatMoney(left, t), число: charges.dueDay })
       : t('app.answer.billPaid');
   } catch {
     return undefined;
@@ -148,7 +149,7 @@ const aboutRequests = async (deps: AppDeps, resident: Resident): Promise<string 
     t('app.answer.requestLine', {
       номер: request.number,
       состояние: state(t, request),
-      срок: formatMoment(request.resolutionDueAt, zone),
+      срок: formatMoment(request.resolutionDueAt, zone, t),
     }),
   );
 

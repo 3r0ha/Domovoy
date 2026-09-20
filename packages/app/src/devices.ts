@@ -268,6 +268,7 @@ export const sendSnapshot = async (
   if (!notifier?.sendFile) throw new DomainError('devices_unavailable', 'Отправка файлов не настроена');
 
   const picture = file.contentType === 'image/png' || file.contentType === 'image/jpeg';
+  const t = speak(resident);
 
   const messageId = await notifier.sendFile({
     maxUserId: resident.maxUserId,
@@ -276,9 +277,9 @@ export const sendSnapshot = async (
     contentType: file.contentType,
     content: file.content,
     encoding: file.encoding,
-    text: speak(resident)('app.device.snapshot', {
+    text: t('app.device.snapshot', {
       устройство: device.title,
-      время: formatClock(snapshot.at),
+      время: formatClock(snapshot.at, undefined, t),
     }),
   });
 

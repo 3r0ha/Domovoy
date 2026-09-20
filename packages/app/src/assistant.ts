@@ -311,25 +311,16 @@ export const capabilityFor = (screen: string | undefined, role: Role): Capabilit
  * и у жильца разговор начинается с разного, и подсказки идут за ролью.
  */
 export const ASSISTANT_STARTERS: Readonly<Record<Role, readonly string[]>> = {
-  resident: ['Как сообщить о поломке?', 'Где передать показания?', 'Что с моей заявкой?', 'Как открыть подъезд?'],
-  dispatcher: [
-    'Что горит в очереди?',
-    'Как назначить исполнителя?',
-    'Как передать обращение смежной организации?',
-    'Как ответить жильцу?',
-  ],
-  technician: ['Какие наряды на мне?', 'Как сдать работу?', 'Где срок по заявке?', 'Как отметить осмотр?'],
-  manager: [
-    'Что горит в очереди?',
-    'Как посмотреть сводку по дому?',
-    'Как разослать объявление жильцам?',
-    'Кто должен за квартиру?',
-  ],
-  contractor: ['Какие наряды на мне?', 'Как сдать работу?', 'Где срок по наряду?'],
+  resident: ['break', 'readings', 'request', 'door'],
+  dispatcher: ['queue', 'assign', 'handoff', 'answer'],
+  technician: ['orders', 'finish', 'deadline', 'inspection'],
+  manager: ['queue', 'report', 'broadcast', 'debtor'],
+  contractor: ['orders', 'finish', 'orderDeadline'],
 };
 
-/** Стартовые вопросы для роли. */
-export const startersFor = (role: Role): string[] => [...ASSISTANT_STARTERS[role]];
+/** Стартовые вопросы для роли, словами её языка. */
+export const startersFor = (role: Role, t: Translate = speakDefault()): string[] =>
+  ASSISTANT_STARTERS[role].map((name) => t(`app.starter.${name}`));
 
 export interface AssistantAnswer {
   answer: string;

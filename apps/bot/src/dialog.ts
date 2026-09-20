@@ -153,7 +153,7 @@ const explainRefusal = async (
   // не совет подождать, а телефон круглосуточной службы.
   const urgent = error.code === 'too_many_requests' ? await emergencyLine(kit, resident) : '';
 
-  await typed.reply(`${errorText(error)}.${urgent}`, afterError(error, typed, t));
+  await typed.reply(`${errorText(error, t)}.${urgent}`, afterError(error, typed, t));
 };
 
 /** Телефон круглосуточной службы: он нужен там, где заявку принять не вышло. */
@@ -214,7 +214,7 @@ const readingBySaying = async (
     // Приборов такого вида несколько: чьё это число, знает только человек.
     if (reading.meters.length > 1) {
       await typed.reply(
-        t('meters.which', { значение: decimal(reading.value) }),
+        t('meters.which', { значение: decimal(reading.value, t) }),
         metersKeyboard(reading.meters, t),
       );
 
@@ -237,7 +237,7 @@ const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting, t:
 
   expect(typed, waiting);
 
-  await typed.reply(errorText(error), cancelKeyboard(t));
+  await typed.reply(errorText(error, t), cancelKeyboard(t));
 
   return true;
 };
@@ -264,7 +264,7 @@ const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, sa
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'message', requestId }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
+    await typed.reply(t('error.failed', { причина: errorText(error, t) }), afterError(error, typed, t));
   }
 };
 
@@ -314,7 +314,7 @@ const explainTransition = async (
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
+    await typed.reply(t('error.failed', { причина: errorText(error, t) }), afterError(error, typed, t));
   }
 };
 
@@ -488,7 +488,7 @@ const askSupportFrom = async (
   } catch (error) {
     if (await askAgain(typed, error, { kind: 'support', ...(ticketId ? { ticketId } : {}) }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
+    await typed.reply(t('error.failed', { причина: errorText(error, t) }), afterError(error, typed, t));
   }
 };
 
@@ -554,7 +554,7 @@ const bindByCode = async (kit: BotKit, typed: BotContext, code: string): Promise
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
-    await typed.reply(errorText(error), afterError(error, typed, speak(resident)));
+    await typed.reply(errorText(error, speak(resident)), afterError(error, typed, speak(resident)));
   }
 };
 
@@ -587,7 +587,7 @@ const askWhichMeter = async (kit: BotKit, typed: BotContext, text: string): Prom
   const t = speak(resident);
 
   await typed.reply(
-    t('meters.which_value', { значение: strong(decimal(value)) }),
+    t('meters.which_value', { значение: strong(decimal(value, t)) }),
     metersForValueKeyboard(meters, value, t),
   );
 
@@ -729,9 +729,17 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
 
   const words = spoken(said) ? said.text : undefined;
 
-  if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
-  if (words && (await notAboutHouse(kit, typed, words))) return;
-  if (words && (await answeredClarification(kit, typed, words))) return;
+  // Разбор сказанного идёт через модель и до заявки успевает сходить к ней
+  // трижды. Отметка появляется здесь, иначе первые секунды переписка молчит.
+  const waiting = words ? thinking(kit, typed, speaking(typed)('thinking.default')) : undefined;
+
+  try {
+    if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
+    if (words && (await notAboutHouse(kit, typed, words))) return;
+    if (words && (await answeredClarification(kit, typed, words))) return;
+  } finally {
+    await waiting?.();
+  }
 
   return describeProblem(kit, typed, undefined, said);
 };
@@ -773,7 +781,7 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
     const { hours } = await freeHours(kit, resident).catch(() => ({ hours: [] }));
 
     await typed.reply(
-      t('visit.not_booked', { причина: errorText(error) }),
+      t('visit.not_booked', { причина: errorText(error, t) }),
       hours.length > 0 ? visitKeyboard(hours, undefined, t) : afterError(error, typed, t),
     );
   }
@@ -812,7 +820,7 @@ const readAloud = async (kit: BotKit, typed: BotContext, said: Said): Promise<{ 
       },
     };
   } catch (error) {
-    if (error instanceof DomainError) return { said, failed: errorText(error) };
+    if (error instanceof DomainError) return { said, failed: errorText(error, t) };
 
     return { said, failed: t('voice.failed') };
   } finally {

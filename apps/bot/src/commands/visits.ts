@@ -1,5 +1,6 @@
 import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident } from '@domovoy/app';
 import { DomainError, isCompanyStaff } from '@domovoy/domain';
+import { localeOf } from '@domovoy/i18n';
 
 import { speak } from '../i18n.js';
 import { menuButton, visitCancelKeyboard } from '../keyboards.js';
@@ -32,7 +33,7 @@ export const freeHours = async (
     hours: reception.slots.slice(0, SHOWN_SLOTS).map((at) => ({
       at: at.toISOString(),
       title: at
-        .toLocaleString('ru-RU', {
+        .toLocaleString(localeOf(speak(resident)), {
           timeZone: zone,
           weekday: 'short',
           day: 'numeric',

@@ -139,7 +139,6 @@ const contractorExtra = (t: Translate): readonly Section[] => [
     icon: IconReport,
     tone: 'tile-blue',
   },
-  languageSection(t),
 ];
 
 /** Разделы сотрудника: в панели то, чем пользуются в смену, остальное в «Ещё». */

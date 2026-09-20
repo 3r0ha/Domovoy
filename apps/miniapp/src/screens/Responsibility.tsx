@@ -1,8 +1,11 @@
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { formatPublished } from '../format.js';
+import { useT } from '../i18n.js';
 import type { HandoffView, ResponsibilityView } from '../views.js';
 import { useFit } from './Composer.js';
 import { Confirm } from './Confirm.js';
@@ -13,6 +16,8 @@ import { IconSend } from './icons.js';
 export interface ResponsibilityProps {
   api: DomovoyApi;
   requestId: string;
+  /** Категория заявки: по ней же названа зона ответственности. */
+  category?: string;
   /** Смена передаёт обращение и записывает ответ, жилец только читает. */
   staff?: boolean;
   /** Заявка закрыта или снята: передавать её больше некуда. */
@@ -25,6 +30,9 @@ export interface ResponsibilityProps {
 /** Жилинспекция: туда жалуется жилец со своего экрана, смена себя не проверяет. */
 const RESIDENT_ONLY = ['inspection'];
 
+/** Зоны ответственности, которые продукт называет сам. */
+const KINDS = ['management', 'resource', 'contractor', 'municipal', 'owner'];
+
 /** Кому смена может передать обращение отсюда. */
 const offered = (
   targets: NonNullable<ResponsibilityView['targets']>,
@@ -36,10 +44,28 @@ const offered = (
       !RESIDENT_ONLY.includes(target.to) && target.organization !== own && target.organization !== organization,
   );
 
-const line = (handoff: HandoffView): string =>
+/** Какими словами граница объяснена жильцу: она следует из зоны и категории. */
+const plainKey = (kind: string, category?: string): string | null => {
+  if (kind === 'owner') return 'flat';
+  if (kind === 'contractor' && category === 'elevator') return 'elevator';
+  if (kind === 'management') return category === 'yard' ? 'yard' : 'common';
+
+  return null;
+};
+
+/** Зоны, у которых есть и пояснение, что делать дальше. */
+const WITH_NEXT = ['flat', 'elevator', 'yard'];
+
+/** Состояния переданного обращения, которые продукт называет сам. */
+const HANDOFF_STATUSES = ['sent', 'accepted', 'answered', 'failed'];
+
+const line = (t: Translate, handoff: HandoffView): string =>
   [
-    `${handoff.statusTitle}${handoff.externalId ? `, номер ${handoff.externalId}` : ''}`,
-    handoff.status === 'answered' ? '' : `ответ до ${formatPublished(handoff.dueAt)}`,
+    [
+      HANDOFF_STATUSES.includes(handoff.status) ? t(`handoff.status.${handoff.status}`) : handoff.statusTitle,
+      handoff.externalId ? t('handoff.number', { номер: handoff.externalId }) : '',
+    ].join(''),
+    handoff.status === 'answered' ? '' : t('handoff.due', { срок: formatPublished(handoff.dueAt) }),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -118,7 +144,16 @@ const Answer = ({
  * Смежная организация ведётся отдельной строкой: её срок ответа не совпадает
  * со сроком работ управляющей организации.
  */
-export const Responsibility = ({ api, requestId, staff, closed, own, onChanged }: ResponsibilityProps) => {
+export const Responsibility = ({
+  api,
+  requestId,
+  category,
+  staff,
+  closed,
+  own,
+  onChanged,
+}: ResponsibilityProps) => {
+  const t = useT();
   const view = useBridgeRequest((alive) => api.until(alive).responsibility(requestId), [api, requestId]);
   const [passing, setPassing] = useState<string | null>(null);
   // Передача необратима и уходит в другую организацию: сначала спрашиваем.
@@ -128,9 +163,13 @@ export const Responsibility = ({ api, requestId, staff, closed, own, onChanged }
   // Ответ без зоны ответственности показывать нечем: раздел просто не рисуется.
   if (!view.data?.title) return null;
 
-  const { title, basis, next, organization } = view.data;
+  const { kind, title, basis, next, organization } = view.data;
   const targets = staff && !closed ? offered(view.data.targets ?? [], own, organization) : [];
   const handoffs = view.data.handoffs ?? [];
+  // Смене приходит норма, жильцу, то же словами: норму продукт не переводит.
+  const plain = staff ? null : plainKey(kind, category);
+  const zone = KINDS.includes(kind) ? t(`responsibility.kind.${kind}`) : title;
+  const advice = plain && WITH_NEXT.includes(plain) ? t(`responsibility.next.${plain}`) : next;
 
   const pass = async (to: string): Promise<void> => {
     setPassing(to);
@@ -149,16 +188,16 @@ export const Responsibility = ({ api, requestId, staff, closed, own, onChanged }
   };
 
   return (
-    <Group title="Кто отвечает">
+    <Group title={t('responsibility.title')}>
       <div className="block">
-        <p className="request-title">{organization ? `${title}: ${organization}` : title}</p>
-        <p className="hint">{basis}</p>
-        {next ? <p className="hint">{next}</p> : null}
+        <p className="request-title">{organization ? `${zone}: ${organization}` : zone}</p>
+        <p className="hint">{plain ? t(`responsibility.plain.${plain}`) : basis}</p>
+        {next ? <p className="hint">{advice}</p> : null}
 
         {handoffs.map((handoff) => (
           <div key={handoff.id} className="passed">
             <p className="request-title">{handoff.organization}</p>
-            <p className={handoff.overdue ? 'hint overdue' : 'hint'}>{line(handoff)}</p>
+            <p className={handoff.overdue ? 'hint overdue' : 'hint'}>{line(t, handoff)}</p>
             <p className="hint aside">{handoff.basis}</p>
             {handoff.answer ? <p className="description">{handoff.answer}</p> : null}
 

@@ -2,7 +2,15 @@ import { CellAction, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, formatPublished, parseDecimal, type DomovoyApi, type MeterView } from '../api.js';
+import {
+  ApiError,
+  decimal,
+  formatDay,
+  formatPublished,
+  parseDecimal,
+  type DomovoyApi,
+  type MeterView,
+} from '../api.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -28,7 +36,7 @@ const KINDS: { kind: string; title: string }[] = [
   { kind: 'gas', title: 'Газ' },
 ];
 
-const number = (value: number): string => value.toLocaleString('ru-RU', { maximumFractionDigits: 3 });
+const number = (value: number): string => decimal(value);
 
 /** Прибор на вводе дома: показание снимают раз в месяц при обходе узла. */
 const HouseMeterCard = ({

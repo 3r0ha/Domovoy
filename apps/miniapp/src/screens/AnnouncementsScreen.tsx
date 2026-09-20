@@ -4,8 +4,8 @@ import { useState, type FormEvent } from 'react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { ApiError, parseCount, plural, type AnnouncementView, type DomovoyApi } from '../api.js';
-import { useT } from '../i18n.js';
+import { ApiError, formatTime, parseCount, plural, type AnnouncementView, type DomovoyApi } from '../api.js';
+import { spokenLanguage, useT } from '../i18n.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -221,21 +221,21 @@ const Composer = ({ api, onPublished }: { api: DomovoyApi; onPublished: () => vo
 const shortMoment = (isoDate: string, now: Date = new Date()): string => {
   const at = new Date(isoDate);
   const sameDay = at.toDateString() === now.toDateString();
-  const time = at.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const time = formatTime(isoDate);
 
-  return sameDay ? time : `${at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`;
+  return sameDay ? time : `${at.toLocaleDateString(spokenLanguage(), { day: 'numeric', month: 'short' })}, ${time}`;
 };
 
 /** Когда объявление вышло: сегодняшнее и вчерашнее названы словом, старое датой. */
 const publishedAt = (t: Translate, isoDate: string, now: Date = new Date()): string => {
   const at = new Date(isoDate);
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-  const time = at.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const time = formatTime(isoDate);
 
   if (at.toDateString() === now.toDateString()) return t('news.today', { время: time });
   if (at.toDateString() === yesterday.toDateString()) return t('news.yesterday', { время: time });
 
-  return `${at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`;
+  return `${at.toLocaleDateString(spokenLanguage(), { day: 'numeric', month: 'short' })}, ${time}`;
 };
 
 /** Три состояния работ: объявлены, идут, закончились. */

@@ -18,6 +18,7 @@ import {
   formatPersonalData,
   elderOf,
   demoRoles,
+  speak,
   takeDemoRole,
   zoneOf,
   type Building,
@@ -211,7 +212,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
-        return { starters: startersFor(resident.role) };
+        return { starters: startersFor(resident.role, speak(resident)) };
       },
     );
 
@@ -415,7 +416,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       '/api/context/:startParam',
       { schema: { params: startParamParamsSchema } },
       async (request) => {
-        const described = await describeContext(deps, request.params.startParam);
+        const resident = await currentResident(request.max.userId);
+        const described = await describeContext(deps, request.params.startParam, speak(resident));
 
         if (!described) throw new DomainError('code_not_found', 'Код объекта не распознан');
 

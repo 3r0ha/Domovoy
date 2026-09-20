@@ -11,6 +11,7 @@ import {
   listAnnouncementsFor,
   listServedBuildings,
   publishAnnouncement,
+  speak,
   type BuildingCard,
 } from '@domovoy/app';
 import {
@@ -88,7 +89,9 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
           ...(request.query.before ? { before: new Date(request.query.before) } : {}),
         });
 
-        return found.map(serializeAnnouncement);
+        const t = speak(resident);
+
+        return found.map((announcement) => serializeAnnouncement(announcement, t));
       },
     );
 

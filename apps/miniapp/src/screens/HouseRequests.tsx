@@ -1,7 +1,7 @@
 import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 
-import { plural, tight, type DomovoyApi } from '../api.js';
+import { counted, tight, type DomovoyApi } from '../api.js';
 import { useT } from '../i18n.js';
 import { CategoryTile } from './CategoryTile.js';
 import { Group } from './Group.js';
@@ -29,7 +29,7 @@ export const HouseRequests = ({ api, onOpen }: HouseRequestsProps) => {
           key={request.id}
           before={<CategoryTile category={request.category} title={request.categoryTitle} />}
           title={request.title}
-          subtitle={`${tight(request.target)} · ${plural(request.reporters, 'сообщил', 'сообщили', 'сообщили')}`}
+          subtitle={`${tight(request.target)} · ${counted('count.reporter', request.reporters)}`}
           showChevron
           separator={index > 0}
           onClick={() => onOpen(request.id)}

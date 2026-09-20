@@ -1,6 +1,9 @@
 import { speak as speakProduct, type Resident } from '@domovoy/app';
 import { translatorFor, type Language, type Translate } from '@domovoy/i18n';
 
+/** Области словаря, кроме своей: их ключи приходят с приставкой и не трогаются. */
+const OTHER_AREAS = /^(app|when|miniapp)\./u;
+
 /**
  * Строки бота лежат своей областью словаря, и снаружи у них приставка «bot.».
  * Внутри бота ключи пишутся без неё: приставку дописывает сам перевод.
@@ -9,7 +12,7 @@ import { translatorFor, type Language, type Translate } from '@domovoy/i18n';
 const scoped =
   (t: Translate): Translate =>
   (key, values) =>
-    t(key.startsWith('app.') ? key : `bot.${key}`, values);
+    t(OTHER_AREAS.test(key) ? key : `bot.${key}`, values);
 
 /** Перевод для человека: без выбранного языка продукт говорит по-русски. */
 export const speak = (resident?: Resident): Translate => scoped(speakProduct(resident));

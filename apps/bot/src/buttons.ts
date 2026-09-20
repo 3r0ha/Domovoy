@@ -5,7 +5,9 @@ import {
   arrearsFor,
   bindApartment,
   chargesForResident,
+  counted,
   devicesFor,
+  errorTextFor,
   exportPersonalData,
   formatPersonalData,
   homeOf,
@@ -49,11 +51,9 @@ import {
   isHandoffTarget,
   formatMoney,
   isCompanyStaff,
-  months,
   sectionParam,
+  statusTitle,
   verificationState,
-  plural,
-  STATUS_TITLES,
   type NoticeKind,
 } from '@domovoy/domain';
 import { languageTitle } from '@domovoy/i18n';
@@ -127,12 +127,12 @@ const explain = async (typed: BotContext, error: unknown, prefix?: string): Prom
   // медленно, решает, что кнопка не сработала. В общем чате остаётся
   // уведомление: разбирательство при соседях никому не нужно.
   if (!fix && typed.callback?.callback_id) {
-    await toast(typed, `${said}: ${error.message}`);
+    await toast(typed, `${said}: ${errorTextFor(t, error)}`);
 
     if (inChat(typed)) return;
   }
 
-  await typed.reply(`${said}: ${errorText(error)}`, fix ?? menuButton(typed, t));
+  await typed.reply(`${said}: ${errorText(error, t)}`, fix ?? menuButton(typed, t));
 };
 
 /**
@@ -424,7 +424,7 @@ const flat: Button = async (kit, typed, [apartmentId]) => {
     );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed, t));
+    await typed.reply(errorText(error, t), afterError(error, typed, t));
   }
 };
 
@@ -484,8 +484,8 @@ const payMonth: Button = async (kit, typed, [step]) => {
     const left = Math.max(0, charges.total - charges.paid);
 
     await typed.reply(
-      t('pay.month_ask', { сумма: formatMoney(left) }),
-      confirmKeyboard(t('button.pay_month_yes', { сумма: formatMoney(left) }), 'pay:yes', t),
+      t('pay.month_ask', { сумма: formatMoney(left, t) }),
+      confirmKeyboard(t('button.pay_month_yes', { сумма: formatMoney(left, t) }), 'pay:yes', t),
     );
     return;
   }
@@ -493,10 +493,10 @@ const payMonth: Button = async (kit, typed, [step]) => {
   try {
     const receipt = await payCharges(kit.deps, payer);
 
-    await typed.reply(t('pay.month_done', { сумма: formatMoney(receipt.amount) }), menuButton(typed, t));
+    await typed.reply(t('pay.month_done', { сумма: formatMoney(receipt.amount, t) }), menuButton(typed, t));
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed, t));
+    await typed.reply(errorText(error, t), afterError(error, typed, t));
   }
 };
 
@@ -509,8 +509,8 @@ const payDebt: Button = async (kit, typed, [step]) => {
     const total = debt.total + debt.penalty;
 
     await typed.reply(
-      t('pay.debt_ask', { сумма: formatMoney(total) }),
-      confirmKeyboard(t('button.pay_debt_yes', { сумма: formatMoney(total) }), 'pay-debt:yes', t),
+      t('pay.debt_ask', { сумма: formatMoney(total, t) }),
+      confirmKeyboard(t('button.pay_debt_yes', { сумма: formatMoney(total, t) }), 'pay-debt:yes', t),
     );
     return;
   }
@@ -520,12 +520,12 @@ const payDebt: Button = async (kit, typed, [step]) => {
     const total = receipts.reduce((sum, receipt) => sum + receipt.amount, 0);
 
     await typed.reply(
-      t('pay.debt_done', { сумма: formatMoney(total), месяцы: months(receipts.length) }),
+      t('pay.debt_done', { сумма: formatMoney(total, t), месяцы: counted(t, 'months', receipts.length) }),
       menuButton(typed, t),
     );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed, t));
+    await typed.reply(errorText(error, t), afterError(error, typed, t));
   }
 };
 
@@ -587,7 +587,7 @@ const guest: Button = async (kit, typed, [deviceId]) => {
     const issued = await inviteGuest(kit.deps, resident, deviceId);
 
     await typed.reply(
-      t('door.guest_code', { код: strong(issued.code), время: formatClock(issued.expiresAt) }),
+      t('door.guest_code', { код: strong(issued.code), время: formatClock(issued.expiresAt, undefined, t) }),
       copyKeyboard(t('button.copy_code'), issued.code),
     );
   } catch (error) {
@@ -659,10 +659,7 @@ const support: Button = async (kit, typed, [requestId]) => {
     const { request: updated, reporters } = await supportRequest(kit.deps, resident, requestId);
 
     await typed.reply(
-      t('request.same_counted', {
-        номер: updated.number,
-        сообщили: plural(reporters, 'сообщил', 'сообщили', 'сообщили'),
-      }),
+      t('request.same_counted', { номер: updated.number, сообщили: counted(t, 'reporters', reporters) }),
       actionKeyboard([], replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {
@@ -714,7 +711,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
     delete typed.session?.where;
 
     await typed.reply(
-      t('request.where_set', { где: describeTarget(updated.target), номер: updated.number }),
+      t('request.where_set', { где: describeTarget(updated.target, undefined, t), номер: updated.number }),
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {
@@ -1114,7 +1111,7 @@ const rate: Button = async (kit, typed, [requestId, stars]) => {
     });
 
     await typed.reply(
-      t('request.state', { номер: updated.number, состояние: STATUS_TITLES[updated.status] }) +
+      t('request.state', { номер: updated.number, состояние: statusTitle(updated.status, false, t) }) +
         `${rating > 0 ? t('request.rating', { оценка: rating }) : ''}.`,
       menuButton(typed, t),
     );
@@ -1216,7 +1213,7 @@ const doIt: Button = async (kit, typed, [token, requestId]) => {
     });
 
     await typed.reply(
-      `${t('request.state', { номер: strong(updated.number), состояние: STATUS_TITLES[updated.status] })}.` +
+      `${t('request.state', { номер: strong(updated.number), состояние: statusTitle(updated.status, false, t) })}.` +
         (said.comment ? `\n${t('doing.written', { что: plain(said.comment) })}` : ''),
       actionKeyboard(
         actionsFor(updated, resident),
@@ -1265,7 +1262,7 @@ const move: Button = async (kit, typed, [requestId, to, step]) => {
     const updated = await transitionRequest(kit.deps, { resident, requestId, to: to as never });
 
     await typed.reply(
-      t('request.state', { номер: updated.number, состояние: STATUS_TITLES[updated.status] }),
+      t('request.state', { номер: updated.number, состояние: statusTitle(updated.status, false, t) }),
       actionKeyboard(
         actionsFor(updated, resident),
         replyIfOpen(updated),

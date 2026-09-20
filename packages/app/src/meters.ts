@@ -332,9 +332,9 @@ const neighbourAdvice = async (
 
   return t('app.meters.aboveNeighbours', {
     номер: meter.serial,
-    расход: formatMeterValue(spent),
+    расход: formatMeterValue(spent, t),
     единица: t(meterUnitKey(meter.kind)),
-    соседи: formatMeterValue(compared.median),
+    соседи: formatMeterValue(compared.median, t),
   });
 };
 
@@ -342,7 +342,7 @@ const neighbourAdvice = async (
 const spikeAdvice = (t: Translate, meter: Meter, spent: number): string =>
   t('app.meters.spike', {
     прибор: t(meterKindKey(meter.kind)),
-    расход: formatMeterValue(spent),
+    расход: formatMeterValue(spent, t),
     единица: t(meterUnitKey(meter.kind)),
   });
 
