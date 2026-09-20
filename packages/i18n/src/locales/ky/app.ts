@@ -368,8 +368,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Суроо кайсы тилде берилсе, ошол тилде жооп бер.',
   'assistant.answerInLanguage': 'Суроонун тили түшүнүксүз болсо, {язык} деп аталган тилде жооп бер.',
   'assistant.reportLanguage': 'language талаасында суроонун тилинин кодун кайтар, булардын бири: {коды}.',
-  'assistant.offerLanguage': 'Сиз менен {язык} тилинде сүйлөшө алам: төмөнкү баскычты басыңыз.',
-  'assistant.languageButton': '{язык} тилинде сүйлөшүү',
+  'assistant.offerLanguage': 'Сиз менен кыргызча сүйлөшө алам: төмөнкү баскычты басыңыз.',
+  'assistant.languageButton': '🌐 Кыргызча сүйлөшүү',
 
   'capability.new.title': 'Бузулганды билдирүү',
   'capability.new.about':

@@ -368,8 +368,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Бо ҳамон забоне ҷавоб деҳ, ки савол дода шудааст.',
   'assistant.answerInLanguage': 'Агар забони савол норӯшан бошад, бо забоне ҷавоб деҳ, ки {язык} номида мешавад.',
   'assistant.reportLanguage': 'Дар майдони language рамзи забони саволро баргардон, яке аз инҳо: {коды}.',
-  'assistant.offerLanguage': 'Метавонам бо шумо бо забони {язык} гап занам: тугмаи поёнро пахш кунед.',
-  'assistant.languageButton': 'Бо забони {язык} гап задан',
+  'assistant.offerLanguage': 'Метавонам бо шумо бо забони тоҷикӣ гап занам: тугмаи поёнро пахш кунед.',
+  'assistant.languageButton': '🌐 Бо тоҷикӣ гап задан',
 
   'capability.new.title': 'Дар бораи вайронӣ хабар додан',
   'capability.new.about':

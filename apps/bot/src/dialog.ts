@@ -662,9 +662,9 @@ const doneBySaying = async (
   if (isChatter(text)) {
     const who = await kit.residentOf(typed);
 
-    // Короткое слово бывает делом: «язык», «счета», «til». Названный раздел
-    // разбирается дальше, а меню остаётся ответом на приветствие и значки.
-    if (!findCapability(text, who.role)) {
+    // Короткое слово бывает делом: «язык», «счета», «татарча». Решает не список
+    // слов, а разбор: пока он узнаёт раздел или поломку, меню не показывают.
+    if (!(await aboutHouse(kit.deps, who, text))) {
       await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
 
       return true;

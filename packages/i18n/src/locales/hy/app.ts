@@ -367,8 +367,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Պատասխանիր այն լեզվով, որով տրված է հարցը։',
   'assistant.answerInLanguage': 'Եթե հարցի լեզուն հասկանալի չէ, պատասխանիր այն լեզվով, որը կոչվում է {язык}։',
   'assistant.reportLanguage': 'language դաշտում վերադարձրու հարցի լեզվի կոդը, հետևյալներից մեկը՝ {коды}։',
-  'assistant.offerLanguage': 'Կարող եմ Ձեզ հետ խոսել {язык} լեզվով՝ սեղմեք ներքևի կոճակը։',
-  'assistant.languageButton': 'Խոսել {язык} լեզվով',
+  'assistant.offerLanguage': 'Կարող եմ Ձեզ հետ խոսել հայերեն՝ սեղմեք ներքևի կոճակը։',
+  'assistant.languageButton': '🌐 Խոսել հայերեն',
 
   'capability.new.title': 'Հայտնել անսարքության մասին',
   'capability.new.about':

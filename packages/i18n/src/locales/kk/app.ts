@@ -380,8 +380,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Сұрақ қай тілде қойылса, сол тілде жауап бер.',
   'assistant.answerInLanguage': 'Сұрақтың тілі түсініксіз болса, {язык} деп аталатын тілде жауап бер.',
   'assistant.reportLanguage': 'language өрісінде сұрақ тілінің кодын қайтар, мыналардың бірі: {коды}.',
-  'assistant.offerLanguage': 'Сізбен {язык} тілінде сөйлесе аламын: төмендегі түймені басыңыз.',
-  'assistant.languageButton': '{язык} тілінде сөйлесу',
+  'assistant.offerLanguage': 'Сізбен қазақша сөйлесе аламын: төмендегі түймені басыңыз.',
+  'assistant.languageButton': '🌐 Қазақша сөйлесу',
 
   // Разделы продукта словами жильца: ими подписаны кнопки и ответы помощника.
   'capability.new.title': 'Ақаулық туралы хабарлау',

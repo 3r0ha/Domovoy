@@ -380,8 +380,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Сорау кайсы телдә бирелгән, шул телдә җавап бир.',
   'assistant.answerInLanguage': 'Сорау теле аңлашылмаса, {язык} дип аталган телдә җавап бир.',
   'assistant.reportLanguage': 'language кырында сорау теленең кодын кайтар, шуларның берсен: {коды}.',
-  'assistant.offerLanguage': 'Сезнең белән {язык} телендә сөйләшә алам: астагы төймәне басыгыз.',
-  'assistant.languageButton': '{язык} телендә сөйләшү',
+  'assistant.offerLanguage': 'Сезнең белән татарча сөйләшә алам: астагы төймәне басыгыз.',
+  'assistant.languageButton': '🌐 Татарча сөйләшү',
 
   // Разделы продукта словами жильца: ими подписаны кнопки и ответы помощника.
   'capability.new.title': 'Ватылу турында хәбәр итү',

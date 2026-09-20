@@ -368,8 +368,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Savol qaysi tilda berilgan boʻlsa, oʻsha tilda javob ber.',
   'assistant.answerInLanguage': 'Savol tili tushunarsiz boʻlsa, {язык} deb ataladigan tilda javob ber.',
   'assistant.reportLanguage': 'language maydonida savol tili kodini qaytar, ulardan biri: {коды}.',
-  'assistant.offerLanguage': 'Siz bilan {язык} tilida gaplasha olaman: quyidagi tugmani bosing.',
-  'assistant.languageButton': '{язык} tilida gaplashish',
+  'assistant.offerLanguage': 'Siz bilan oʻzbekcha gaplasha olaman: quyidagi tugmani bosing.',
+  'assistant.languageButton': '🌐 Oʻzbekcha gaplashish',
 
   'capability.new.title': 'Buzilgani haqida xabar berish',
   'capability.new.about':

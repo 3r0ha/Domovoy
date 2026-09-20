@@ -378,8 +378,8 @@ export const app: Dictionary = {
     'Soragyň dili düşnüksiz bolsa, {язык} diýlip atlandyrylýan dilde jogap ber.',
   'assistant.reportLanguage':
     'language meýdanynda soragyň diliniň kodyny gaýtar, şulardan biri: {коды}.',
-  'assistant.offerLanguage': 'Siziň bilen {язык} dilinde gepleşip bilerin: aşakdaky düwmä basyň.',
-  'assistant.languageButton': '{язык} dilinde gepleşmek',
+  'assistant.offerLanguage': 'Siziň bilen türkmençe gepleşip bilerin: aşakdaky düwmä basyň.',
+  'assistant.languageButton': '🌐 Türkmençe gepleşmek',
 
   'capability.new.title': 'Döwük barada habar bermek',
   'capability.new.about':

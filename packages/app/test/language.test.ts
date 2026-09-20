@@ -308,8 +308,8 @@ describe('язык вопроса', () => {
     const answer = await askAssistant(setup(), russian, 'Hisoblagichlarni qayerda toʻlayman?');
 
     assert.equal(answer.offerLanguage, 'uz');
-    assert.equal(answer.offerTitle, 'Oʻzbekcha tilida gaplashish', 'подпись кнопки на том языке, на который зовут');
-    assert.match(answer.answer, /Oʻzbekcha/, 'о переходе на язык в ответе не сказано');
+    assert.equal(answer.offerTitle, '🌐 Oʻzbekcha gaplashish', 'подпись кнопки на том языке, на который зовут');
+    assert.match(answer.answer, /oʻzbekcha/iu, 'о переходе на язык в ответе не сказано');
   });
 
   it('тот же вопрос на своём языке предложения не содержит', async () => {

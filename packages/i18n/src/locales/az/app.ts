@@ -380,8 +380,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': 'Sual hansı dildə verilibsə, həmin dildə cavab ver.',
   'assistant.answerInLanguage': 'Sualın dili aydın deyilsə, {язык} adlanan dildə cavab ver.',
   'assistant.reportLanguage': 'language sahəsində sualın dil kodunu qaytar, bunlardan biri: {коды}.',
-  'assistant.offerLanguage': 'Sizinlə {язык} dilində danışa bilərəm: aşağıdakı düyməni basın.',
-  'assistant.languageButton': '{язык} dilində danış',
+  'assistant.offerLanguage': 'Sizinlə Azərbaycanca danışa bilərəm: aşağıdakı düyməni basın.',
+  'assistant.languageButton': '🌐 Azərbaycanca danış',
 
   // Разделы продукта словами жильца: ими подписаны кнопки и ответы помощника.
   'capability.new.title': 'Nasazlıq barədə bildirmək',

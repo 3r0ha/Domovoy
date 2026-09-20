@@ -1439,7 +1439,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(3003, /Спрашивайте о доме/);
 
     platform.userSends('Hisoblagichlarni qayerda toʻlayman?', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /Oʻzbekcha/u);
+    await waitForMessage(3003, /oʻzbekcha/iu);
 
     const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
@@ -1670,6 +1670,25 @@ describe('чат-бот управляющей компании', () => {
     // откуда взялась категория, ему ничего не даёт.
     assert.doesNotMatch(said, /разбор текста/);
     assert.match(said, /водоснабжение и канализация/i);
+
+    await bot.stop();
+  });
+
+  it('короткое слово разбирает модель, а не список слов', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      // «татарча» нет ни в одном списке слов продукта: раздел называет модель.
+      reasoner: {
+        understand: () => Promise.resolve(undefined),
+        onTopic: () => Promise.resolve(true),
+        route: () => Promise.resolve({ kind: 'elsewhere' as const, screen: 'language' }),
+      },
+    });
+
+    platform.userSends('татарча', { userId: 3003, chatId: 3003 });
+
+    const said = await waitForMessage(3003, /Татарча|Выберите язык/u);
+
+    assert.doesNotMatch(said, /Можно написать словами/u, 'короткое слово ушло в меню');
 
     await bot.stop();
   });

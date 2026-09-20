@@ -374,8 +374,8 @@ export const app: Dictionary = {
     'If the language of the question is unclear, answer in the language called {язык}.',
   'assistant.reportLanguage':
     'In the language field return the language code of the question, one of: {коды}.',
-  'assistant.offerLanguage': 'I can speak with you in {язык}: press the button below.',
-  'assistant.languageButton': 'Speak {язык}',
+  'assistant.offerLanguage': 'I can speak with you in English: press the button below.',
+  'assistant.languageButton': '🌐 Speak English',
 
   'capability.new.title': 'Report a breakdown',
   'capability.new.about':

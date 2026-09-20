@@ -355,8 +355,8 @@ export const app: Dictionary = {
   'assistant.answerInQuestionLanguage': '用提问所使用的语言作答。',
   'assistant.answerInLanguage': '如果无法判断提问的语言，请用名为{язык}的语言作答。',
   'assistant.reportLanguage': '在language字段返回提问语言的代码，取值之一：{коды}。',
-  'assistant.offerLanguage': '我可以用{язык}和您交流：请点击下方按钮。',
-  'assistant.languageButton': '用{язык}交流',
+  'assistant.offerLanguage': '我可以用中文和您交流：请点击下方按钮。',
+  'assistant.languageButton': '🌐 用中文交流',
 
   'capability.new.title': '报告损坏',
   'capability.new.about': '用文字或照片说明损坏情况：产品会判断类别并给出期限',

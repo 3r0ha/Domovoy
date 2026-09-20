@@ -381,8 +381,8 @@ export const app: Dictionary = {
     'Dacă limba întrebării nu este clară, răspunde în limba numită {язык}.',
   'assistant.reportLanguage':
     'În câmpul language întoarce codul limbii întrebării, unul dintre: {коды}.',
-  'assistant.offerLanguage': 'Pot vorbi cu dumneavoastră în limba {язык}: apăsați butonul de mai jos.',
-  'assistant.languageButton': 'Vorbim în {язык}',
+  'assistant.offerLanguage': 'Pot vorbi cu dumneavoastră în română: apăsați butonul de mai jos.',
+  'assistant.languageButton': '🌐 Vorbim în română',
 
   'capability.new.title': 'Anunțați o defecțiune',
   'capability.new.about':
