@@ -1674,14 +1674,13 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
-  it('просьба на другом языке доходит до дела, а не до отказа', async () => {
+  it('просьба на другом языке доходит до дела: язык разбирает модель', async () => {
     const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }], {
-      // Служба перевода: продукт приводит сказанное к русскому до разбора.
-      machine: {
-        translate: (texts: readonly string[]) =>
-          Promise.resolve(texts.map((text) => (/open the door/iu.test(text) ? 'открыть дверь' : undefined))),
+      // Модель читает сообщение на любом языке и называет раздел по-русски.
+      reasoner: {
+        onTopic: () => Promise.resolve(true),
+        route: () => Promise.resolve({ kind: 'elsewhere' as const, screen: 'home' }),
       },
-      reasoner: { onTopic: () => Promise.resolve(false) },
       devices: [
         { id: 'dev-1', buildingId: BUILDING_ID, kind: 'intercom', title: 'Домофон, подъезд 1', entrance: 1 },
       ],
@@ -1689,9 +1688,10 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('I want to open the door', { userId: 3003, chatId: 3003 });
 
-    const said = await waitForMessage(3003, /open|view/iu);
+    const said = await waitForMessage(3003, /open|view|Домофон/iu);
 
     assert.doesNotMatch(said, /помогаю только с домом/u, 'просьбу приняли за постороннюю');
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'просьба стала заявкой о поломке');
 
     await bot.stop();
   });

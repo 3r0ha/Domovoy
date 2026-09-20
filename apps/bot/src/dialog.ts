@@ -13,7 +13,6 @@ import {
   meterNamedIn,
   metersFor,
   findCapability,
-  forRouting,
   offTopicFor,
   readingInWords,
   sectionFor,
@@ -103,12 +102,7 @@ const spoken = (said: Said): boolean =>
  * Жилец отвечает на уточняющий вопрос по своей заявке. Раньше такой ответ
  * становился новой заявкой, а мастер его не видел.
  */
-const answeredClarification = async (
-  kit: BotKit,
-  typed: BotContext,
-  text: string,
-  said = text,
-): Promise<boolean> => {
+const answeredClarification = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
   if (suggestCategory(text) !== 'other') return false;
 
   const resident = await kit.residentOf(typed);
@@ -124,9 +118,7 @@ const answeredClarification = async (
   const request = waiting[0]!;
   const t = speak(resident);
 
-  // В переписку по заявке уходит то, что человек написал сам: перевод для
-  // разбора здесь не нужен, смене его сделает служба перевода.
-  await commentRequest(kit.deps, { resident, requestId: request.id, text: said });
+  await commentRequest(kit.deps, { resident, requestId: request.id, text });
   await typed.reply(
     t('request.answer_sent', { номер: strong(request.number) }),
     actionKeyboard(actionsFor(request, resident), replyIfOpen(request), undefined, undefined, t),
@@ -386,8 +378,6 @@ const describeProblem = async (
   typed: BotContext,
   startParam: string | undefined,
   said: Said,
-  /** То же самое по-русски: по нему продукт понимает, о чём просят. */
-  asked?: string,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
@@ -415,10 +405,8 @@ const describeProblem = async (
     // Сказанное словами, набрано оно или надиктовано, разбирается одинаково:
     // вопрос, дело по заявке, просьба. Снимок и файл идут только в заявку.
     const byWords = spoken({ text: description, attachments });
-    // Разбирается русский текст, а в заявку идёт то, что человек написал сам.
-    const routed = asked ?? description;
 
-    if (byWords && (await kit.answered(typed, resident, routed, startParam))) {
+    if (byWords && (await kit.answered(typed, resident, description, startParam))) {
       forget(typed);
 
       return;
@@ -427,7 +415,7 @@ const describeProblem = async (
     // Дело по уже открытой заявке: «починил трубу», «работу принял», «отзываю
     // заявку». Продукт показывает, что понял, и ждёт нажатия: закрывать заявку
     // по одной фразе нельзя, а переспрашивать обо всём подряд мучительно.
-    if (byWords && (await offerDoing(kit, typed, routed))) {
+    if (byWords && (await offerDoing(kit, typed, description))) {
       forget(typed);
 
       return;
@@ -435,7 +423,7 @@ const describeProblem = async (
 
     // Просьба сделать дело, а не рассказ о поломке: «открыть дверь», «оплатить
     // счёт». Продукт выполняет её, а не заводит по ней заявку и не отказывает.
-    if (byWords && (await doneByWords(kit, typed, resident, routed))) return;
+    if (byWords && (await doneByWords(kit, typed, resident, description))) return;
 
     const result = await submitProblem(kit.deps, {
       resident,
@@ -752,19 +740,15 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   // трижды. Отметка появляется здесь, иначе первые секунды переписка молчит.
   const waiting = words ? thinking(kit, typed, speaking(typed)('thinking.default')) : undefined;
 
-  // Дела продукта названы по-русски: «открыть дверь», «сменить язык». Сказанное
-  // на другом языке сначала переводится, иначе просьба станет заявкой о поломке.
-  const asked = words ? await forRouting(kit.deps, await kit.residentOf(typed), words) : undefined;
-
   try {
-    if (asked && (await doneBySaying(kit, typed, asked, byVoice(said)))) return;
-    if (asked && (await notAboutHouse(kit, typed, asked))) return;
-    if (asked && words && (await answeredClarification(kit, typed, asked, words))) return;
+    if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
+    if (words && (await notAboutHouse(kit, typed, words))) return;
+    if (words && (await answeredClarification(kit, typed, words))) return;
   } finally {
     await waiting?.();
   }
 
-  return describeProblem(kit, typed, undefined, said, asked);
+  return describeProblem(kit, typed, undefined, said);
 };
 
 /** Ответ смежной организации записан словами: он уходит и жильцу. */
