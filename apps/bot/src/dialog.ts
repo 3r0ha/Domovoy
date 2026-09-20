@@ -37,8 +37,10 @@ import {
   verificationState,
   type Attachment,
 } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
 import { codeIn } from './apartment.js';
+import { speak } from './i18n.js';
 import { sayBound } from './greeting.js';
 import { menuTitle } from './buttons.js';
 import { showRequestByNumber } from './pages.js';
@@ -65,7 +67,16 @@ import { thinking } from './thinking.js';
 import { inApp } from './commands/in-app.js';
 import { freeHours } from './commands/visits.js';
 import { readFromPhoto, takeReading } from './readings.js';
-import { expect, forget, isChatter, QUIT, strong, type Awaiting, type BotContext } from './max.js';
+import {
+  expect,
+  forget,
+  isChatter,
+  QUIT,
+  speaking,
+  strong,
+  type Awaiting,
+  type BotContext,
+} from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Человек спрашивает, а не рассказывает: с вопросом это разговор, а не заявка. */
@@ -104,11 +115,12 @@ const answeredClarification = async (kit: BotKit, typed: BotContext, text: strin
   if (waiting.length !== 1) return false;
 
   const request = waiting[0]!;
+  const t = speak(resident);
 
   await commentRequest(kit.deps, { resident, requestId: request.id, text });
   await typed.reply(
-    `Передал по заявке ${strong(request.number)}: мастер увидит ваш ответ.`,
-    actionKeyboard(actionsFor(request, resident), replyIfOpen(request)),
+    t('request.answer_sent', { номер: strong(request.number) }),
+    actionKeyboard(actionsFor(request, resident), replyIfOpen(request), undefined, undefined, t),
   );
 
   return true;
@@ -124,11 +136,13 @@ const explainRefusal = async (
   resident: Resident,
   error: DomainError,
 ): Promise<void> => {
+  const t = speak(resident);
+
   if (error.code === 'target_required') {
     await typed.reply(
       isCompanyStaff(resident.role)
         ? `${error.message}. Выберите дом и квартиру в приложении.`
-        : `${error.message}. Отсканируйте код на подъезде или откройте приложение, там можно выбрать адрес.`,
+        : t('request.where_unknown', { причина: error.message }),
       kit.openApp(undefined, typed),
     );
 
@@ -139,7 +153,7 @@ const explainRefusal = async (
   // не совет подождать, а телефон круглосуточной службы.
   const urgent = error.code === 'too_many_requests' ? await emergencyLine(kit, resident) : '';
 
-  await typed.reply(`${errorText(error)}.${urgent}`, afterError(error, typed));
+  await typed.reply(`${errorText(error)}.${urgent}`, afterError(error, typed, t));
 };
 
 /** Телефон круглосуточной службы: он нужен там, где заявку принять не вышло. */
@@ -147,7 +161,7 @@ const emergencyLine = async (kit: BotKit, resident: Resident): Promise<string> =
   const contacts = await contactsFor(kit.deps, resident).catch(() => undefined);
   const phone = contacts?.service?.emergencyPhone;
 
-  return phone ? `\nЕсли это авария, звоните круглосуточно: ${phone}.` : '';
+  return phone ? `\n${speak(resident)('emergency.call', { телефон: phone })}` : '';
 };
 
 /**
@@ -161,6 +175,7 @@ const readingBySaying = async (
   heardByVoice = false,
 ): Promise<boolean> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const said = await readingInWords(kit.deps, resident, text).catch(() => []);
 
   // Прибор назван, а подать показание некуда: без квартиры или без такого
@@ -177,20 +192,16 @@ const readingBySaying = async (
     // Счётчики есть, а числа нет: «примерно четыреста двадцать» показанием не
     // считается. Человека просят точное число, а не говорят, что прибора нет.
     if (meters.length > 0) {
-      await typed.reply(
-        'Показание нужно точное: «примерно» и «около» в начисление не годятся. ' +
-          'Посмотрите на табло, выберите счётчик и пришлите число целиком, например 123,456',
-        metersKeyboard(meters),
-      );
+      await typed.reply(t('meters.exact'), metersKeyboard(meters, t));
 
       return true;
     }
 
     await typed.reply(
+      resident.apartmentId ? t('meters.no_such') : t('meters.need_flat'),
       resident.apartmentId
-        ? 'Счётчика такого вида за вашей квартирой не записано. Список приборов открывается кнопкой ниже.'
-        : 'Показания принимаются по квартире: сначала привяжите её кодом из квитанции.',
-      resident.apartmentId ? oneKeyboard('💧 Счётчики', 'menu:meters') : oneKeyboard('🏢 Квартира', 'menu:flat'),
+        ? oneKeyboard(t('button.meters'), 'menu:meters')
+        : oneKeyboard(t('button.flat'), 'menu:flat'),
     );
 
     return true;
@@ -203,8 +214,8 @@ const readingBySaying = async (
     // Приборов такого вида несколько: чьё это число, знает только человек.
     if (reading.meters.length > 1) {
       await typed.reply(
-        `Показание ${decimal(reading.value)}: счётчиков такого вида у вас несколько. Выберите, чей это.`,
-        metersKeyboard(reading.meters),
+        t('meters.which', { значение: decimal(reading.value) }),
+        metersKeyboard(reading.meters, t),
       );
 
       continue;
@@ -221,12 +232,12 @@ const readingBySaying = async (
  * Сказанного мало: вопрос повторяется тем же экраном, а ожидание остаётся.
  * Так человек дописывает ответ, а не начинает разговор заново.
  */
-const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting): Promise<boolean> => {
+const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting, t: Translate): Promise<boolean> => {
   if (!(error instanceof DomainError) || error.code !== 'text_empty') return false;
 
   expect(typed, waiting);
 
-  await typed.reply(errorText(error), cancelKeyboard());
+  await typed.reply(errorText(error), cancelKeyboard(t));
 
   return true;
 };
@@ -234,6 +245,8 @@ const askAgain = async (typed: BotContext, error: unknown, waiting: Awaiting): P
 /** Ответ по заявке: он уходит тому, кого заявка касается. */
 const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, said: Said): Promise<void> => {
   const author = await kit.residentOf(typed);
+  const t = speak(author);
+
   forget(typed);
 
   try {
@@ -245,13 +258,13 @@ const sendMessage = async (kit: BotKit, typed: BotContext, requestId: string, sa
     });
 
     await typed.reply(
-      `Передал по заявке ${updated.number}.`,
-      actionKeyboard(actionsFor(updated, author), replyIfOpen(updated)),
+      t('request.comment_sent', { номер: updated.number }),
+      actionKeyboard(actionsFor(updated, author), replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {
-    if (await askAgain(typed, error, { kind: 'message', requestId })) return;
+    if (await askAgain(typed, error, { kind: 'message', requestId }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
+    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
   }
 };
 
@@ -264,6 +277,8 @@ const explainTransition = async (
   said?: Said,
 ): Promise<void> => {
   const actor = await kit.residentOf(typed);
+  const t = speak(actor);
+
   forget(typed);
 
   // Отметка о выезде по наклейке доезжает вместе со сдачей работы: мастер
@@ -287,16 +302,19 @@ const explainTransition = async (
     // отказала, нужны разные слова: у сдачи это отметка о работе, а не причина.
     const answer =
       actor.role === 'resident'
-        ? `Заявка ${updated.number} снова в работе: передал ваши слова мастеру.`
+        ? t('request.back_to_work', { номер: updated.number })
         : `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}. ${
             COMMENT_DONE[waiting.to] ?? 'Причину увидит жилец.'
           }`;
 
-    await typed.reply(answer, actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated)));
+    await typed.reply(
+      answer,
+      actionKeyboard(actionsFor(updated, actor), replyIfOpen(updated), undefined, undefined, t),
+    );
   } catch (error) {
-    if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to })) return;
+    if (await askAgain(typed, error, { kind: 'comment', requestId: waiting.requestId, to: waiting.to }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
+    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
   }
 };
 
@@ -322,9 +340,11 @@ const doneByWords = async (
 
   if (command && (await kit.run(command, typed))) return true;
 
+  const t = speak(resident);
+
   // Раздел, которого в переписке нет: «капитальный ремонт», «план дома». Раньше
   // такие слова уходили в заявку и упирались в отказ «напишите словами».
-  await inApp(kit, typed, `${strong(to.title)}\n${to.about}.`, to.screen, 'Смотреть');
+  await inApp(kit, typed, `${strong(to.title)}\n${to.about}.`, to.screen, t('button.show'), t);
 
   return true;
 };
@@ -340,13 +360,14 @@ const askAboutPhoto = async (
   said: Said,
   attachments: Attachment[],
   startParam: string | undefined,
+  t: Translate,
 ): Promise<boolean> => {
   if (said.text?.trim() || attachments.length === 0) return false;
   if (attachments.some((file) => file.kind === 'voice')) return false;
 
   expect(typed, { kind: 'description', ...(startParam ? { target: startParam } : {}), photos: attachments });
 
-  await typed.reply('Что на снимке? Напишите словами или запишите голосовое.', cancelKeyboard());
+  await typed.reply(t('dialog.photo_ask'), cancelKeyboard(t));
 
   return true;
 };
@@ -358,21 +379,27 @@ const describeProblem = async (
   said: Said,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   // Разбор сообщения идёт через модель и занимает секунды: молчание в переписке
   // читается как «не дошло», поэтому на это время появляется отметка.
-  const waiting = thinking(kit, typed);
+  const waiting = thinking(kit, typed, t('thinking.default'));
 
   try {
-    const { description, attachments } = await describeFromAttachments(said.text, said.attachments, kit.transcriber);
+    const { description, attachments } = await describeFromAttachments(
+      said.text,
+      said.attachments,
+      kit.transcriber,
+      resident.language,
+    );
 
     // Пустое сообщение заявкой не становится: ожидание остаётся, вопрос повторяется.
     if (!said.text?.trim() && attachments.length === 0) {
-      await typed.reply('Опишите словами, что случилось. Подойдут фото, голосовое и файл.', cancelKeyboard());
+      await typed.reply(t('dialog.describe'), cancelKeyboard(t));
       return;
     }
 
-    if (await askAboutPhoto(typed, said, attachments, startParam)) return;
+    if (await askAboutPhoto(typed, said, attachments, startParam, t)) return;
 
     // Сказанное словами, набрано оно или надиктовано, разбирается одинаково:
     // вопрос, дело по заявке, просьба. Снимок и файл идут только в заявку.
@@ -408,7 +435,9 @@ const describeProblem = async (
 
     await kit.announce(typed, result, description, startParam, !said.text?.trim() && unheardVoice(attachments));
   } catch (error) {
-    if (await askAgain(typed, error, { kind: 'description', ...(startParam ? { target: startParam } : {}) })) return;
+    if (await askAgain(typed, error, { kind: 'description', ...(startParam ? { target: startParam } : {}) }, t)) {
+      return;
+    }
     if (!(error instanceof DomainError)) throw error;
 
     await explainRefusal(kit, typed, resident, error);
@@ -425,6 +454,8 @@ const askSupportFrom = async (
   said: Said,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
   forget(typed);
 
   // Вежливое «спасибо» после команды обращением не становится: иначе оно уйдёт всей смене.
@@ -451,13 +482,13 @@ const askSupportFrom = async (
       answering
         ? `Ответ отправлен жильцу по обращению «${ticket.subject}».`
         : ticketId
-          ? 'Передал в управляющую организацию. Ответ придёт сюда.'
-          : `Вопрос принят: «${ticket.subject}». Ответ придёт сюда.`,
+          ? t('support.sent')
+          : t('support.taken', { тема: ticket.subject }),
     );
   } catch (error) {
-    if (await askAgain(typed, error, { kind: 'support', ...(ticketId ? { ticketId } : {}) })) return;
+    if (await askAgain(typed, error, { kind: 'support', ...(ticketId ? { ticketId } : {}) }, t)) return;
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(`Не получилось: ${errorText(error)}`, afterError(error, typed));
+    await typed.reply(t('error.failed', { причина: errorText(error) }), afterError(error, typed, t));
   }
 };
 
@@ -487,10 +518,9 @@ const continueReading = async (kit: BotKit, typed: BotContext, meterId: string, 
     // Промах по клавишам: вопрос о показании остаётся, иначе разговор молча
     // уходит в меню, и человек не понимает, приняты его цифры или нет.
     if (isChatter(said.text)) {
-      await typed.reply(
-        'Это не похоже на показание. Пришлите число с табло или нажмите «Отмена».',
-        readingKeyboard(meterId, false),
-      );
+      const t = speaking(typed);
+
+      await typed.reply(t('meters.not_reading'), readingKeyboard(meterId, false, t));
 
       return;
     }
@@ -524,7 +554,7 @@ const bindByCode = async (kit: BotKit, typed: BotContext, code: string): Promise
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
 
-    await typed.reply(errorText(error), afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed, speak(resident)));
   }
 };
 
@@ -554,9 +584,11 @@ const askWhichMeter = async (kit: BotKit, typed: BotContext, text: string): Prom
 
   if (meters.length === 0) return false;
 
+  const t = speak(resident);
+
   await typed.reply(
-    `Похоже на показание ${strong(decimal(value))}. Какого это счётчика?`,
-    metersForValueKeyboard(meters, value),
+    t('meters.which_value', { значение: strong(decimal(value)) }),
+    metersForValueKeyboard(meters, value, t),
   );
 
   return true;
@@ -565,28 +597,27 @@ const askWhichMeter = async (kit: BotKit, typed: BotContext, text: string): Prom
 /** Код квартиры ждут отдельно: пока он не подошёл, ответ остаётся о коде. */
 const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<void> => {
   const code = normalizeApartmentCode(text);
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   if (!isApartmentCode(code)) {
     // Знаков может быть ровно восемь, а не подойти буква: в коде нет тех,
     // которые путают с цифрами, и про это надо сказать отдельно.
     await typed.reply(
       code.length === APARTMENT_CODE_LENGTH
-        ? 'В коде есть буква, которой в нём не бывает. Похожие на цифры буквы в код не попадают, ' +
-            'посмотрите его в квитанции ещё раз.'
-        : `Код не подошёл: в нём должно быть ${APARTMENT_CODE_LENGTH} знаков, а вы прислали ${code.length}. ` +
-            'Наберите его заново.',
-      cancelKeyboard(),
+        ? t('code.bad_letter')
+        : t('code.bad_length', { надо: APARTMENT_CODE_LENGTH, прислали: code.length }),
+      cancelKeyboard(t),
     );
 
     return;
   }
 
-  const resident = await kit.residentOf(typed);
   const flat = await kit.deps.repository.findApartmentByCode(code).catch(() => undefined);
 
   // Код своей же квартиры: привязывать нечего, и спрашивать о привязке незачем.
   if (flat && apartmentsOf(resident).includes(flat.id)) {
-    await typed.reply(`Квартира ${flat.number} уже ваша.`, kit.menuKeyboard(resident));
+    await typed.reply(t('flat.already_yours', { номер: flat.number }), kit.menuKeyboard(resident));
 
     return;
   }
@@ -596,8 +627,8 @@ const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<v
   // код при этом разбирается обычным путём, с обычным отказом.
   if (flat && resident.apartmentId) {
     await typed.reply(
-      `Квартира у вас уже привязана. Этот код привяжет квартиру ${flat.number}. Привязать её?`,
-      confirmKeyboard('🏢 Да, привязать', `bind:${code}`),
+      t('flat.other_code', { номер: flat.number }),
+      confirmKeyboard(t('button.bind_yes'), `bind:${code}`, t),
     );
 
     return;
@@ -649,7 +680,9 @@ const doneBySaying = async (
 
   if (await showRequestByNumber(kit, typed, number)) return true;
 
-  await typed.reply(`Заявки ${number} у вас нет. Напишите, что случилось, и оформлю новую.`, menuButton(typed));
+  const t = speaking(typed);
+
+  await typed.reply(t('request.not_found', { номер: number }), menuButton(typed, t));
 
   return true;
 };
@@ -670,9 +703,11 @@ const notAboutHouse = async (kit: BotKit, typed: BotContext, text: string): Prom
 
   if (about !== false) return false;
 
+  const t = speak(resident);
+
   await typed.reply(
     offTopicFor(resident.role),
-    isCompanyStaff(resident.role) ? menuButton(typed) : oneKeyboard('✉️ Вопрос компании', 'menu:support'),
+    isCompanyStaff(resident.role) ? menuButton(typed, t) : oneKeyboard(t('button.support'), 'menu:support'),
   );
 
   return true;
@@ -682,11 +717,12 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   // Наклейка, геометка или карточка контакта: заявки из них не выйдет, а молчать нельзя.
   // Пустой текст без вложения приходит оттуда же, но человеку нужен другой ответ.
   if (!said.text?.trim() && said.attachments.length === 0) {
+    const resident = await kit.residentOf(typed);
+    const t = speak(resident);
+
     await typed.reply(
-      said.text === undefined
-        ? 'Такое вложение я не разберу. Напишите словами или пришлите фото, голосовое либо файл.'
-        : 'Напишите одной строкой, что случилось.',
-      kit.menuKeyboard(await kit.residentOf(typed)),
+      said.text === undefined ? t('dialog.unknown_attachment') : t('dialog.one_line'),
+      kit.menuKeyboard(resident),
     );
     return;
   }
@@ -722,22 +758,23 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
   forget(typed);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const visit = await takeVisit(kit.deps, { resident, at: new Date(at), topic });
     const zone = await zoneOf(kit.deps, visit.buildingId);
 
-    await typed.reply(`Записал на приём, ${formatVisit(visit, zone)}`, visitCancelKeyboard(visit.id));
+    await typed.reply(t('visit.booked', { когда: formatVisit(visit, zone) }), visitCancelKeyboard(visit.id, t));
   } catch (error) {
-    if (await askAgain(typed, error, { kind: 'visit', at })) return;
+    if (await askAgain(typed, error, { kind: 'visit', at }, t)) return;
     if (!(error instanceof DomainError)) throw error;
 
     // Час мог уйти, пока человек писал тему: возвращать некуда, поэтому часы свежие.
     const { hours } = await freeHours(kit, resident).catch(() => ({ hours: [] }));
 
     await typed.reply(
-      `Не записал: ${errorText(error)}`,
-      hours.length > 0 ? visitKeyboard(hours) : afterError(error, typed),
+      t('visit.not_booked', { причина: errorText(error) }),
+      hours.length > 0 ? visitKeyboard(hours, undefined, t) : afterError(error, typed, t),
     );
   }
 };
@@ -754,16 +791,18 @@ const readAloud = async (kit: BotKit, typed: BotContext, said: Said): Promise<{ 
 
   if (!voice) return { said };
 
+  const t = speaking(typed);
+
   // Расшифровка идёт секунды: на это время в переписке видно, что она идёт.
-  const listening = thinking(kit, typed, 'Расшифровываю…');
+  const listening = thinking(kit, typed, t('thinking.voice'));
 
   try {
-    const text = await kit.transcriber.transcribe(voice);
+    const text = await kit.transcriber.transcribe(voice, typed.session?.lang);
 
     // Тишина, шум, чужой язык или пересказ вместо расшифровки: заявка из
     // такого не заводится, человека просят повторить.
     if (!text) {
-      return { said, failed: 'Голосовое не разобрал: тишина, шум или речь не по-русски. Скажите ещё раз или напишите словами.' };
+      return { said, failed: t('voice.not_heard') };
     }
 
     return {
@@ -775,7 +814,7 @@ const readAloud = async (kit: BotKit, typed: BotContext, said: Said): Promise<{ 
   } catch (error) {
     if (error instanceof DomainError) return { said, failed: errorText(error) };
 
-    return { said, failed: 'Расшифровка сейчас не отвечает. Напишите словами.' };
+    return { said, failed: t('voice.failed') };
   } finally {
     await listening();
   }
@@ -789,7 +828,7 @@ const byVoice = (said: Said): boolean =>
 const askAloudAgain = async (typed: BotContext, failed: string): Promise<void> => {
   if (!typed.session?.awaiting) expect(typed, { kind: 'description' });
 
-  await typed.reply(failed, cancelKeyboard());
+  await typed.reply(failed, cancelKeyboard(speaking(typed)));
 };
 
 /** Из разговора выходят и словом, а не только кнопкой. */
@@ -810,7 +849,9 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
   if (quitting(said)) {
     forget(typed);
 
-    await typed.reply('Отменил. Что нужно сделать?', kit.menuKeyboard(await kit.residentOf(typed)));
+    const resident = await kit.residentOf(typed);
+
+    await typed.reply(speak(resident)('dialog.cancelled'), kit.menuKeyboard(resident));
     return;
   }
 
@@ -821,7 +862,9 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
   // Снимок с подписью и без неё читают там, где он и есть отчёт: сообщение
   // по заявке, вопрос в поддержку и отметка о сделанной работе.
   if (!said.text && said.attachments.length === 0) {
-    await typed.reply('Здесь нужен текст: напишите ответ сообщением.', cancelKeyboard());
+    const t = speaking(typed);
+
+    await typed.reply(t('dialog.need_text'), cancelKeyboard(t));
     return;
   }
 
@@ -831,7 +874,9 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
   if (!said.text) {
     if (waiting.kind === 'comment') return explainTransition(kit, typed, waiting, 'Фото работы', said);
 
-    await typed.reply('Здесь нужен текст: напишите ответ сообщением.', cancelKeyboard());
+    const t = speaking(typed);
+
+    await typed.reply(t('dialog.need_text'), cancelKeyboard(t));
     return;
   }
   if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, said.text);

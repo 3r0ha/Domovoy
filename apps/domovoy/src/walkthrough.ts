@@ -446,9 +446,13 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     // Квартира без жильца: по её коду сосед из чата и привязывается.
     const flatCode = data.apartments.find((apartment) => apartment.id === 'apt-10')?.code ?? '';
 
-    say('', 'Первый разговор с новым человеком начинается с документов');
+    say('', 'Первый разговор с новым человеком начинается с выбора языка');
     say('Сосед в чате дома', '/start');
     platform.userSends('/start', { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
+    await expect(NEWCOMER, /Choose your language/);
+
+    say('Сосед в чате дома', 'выбирает русский');
+    platform.userPressesButton('lang:ru', { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId });
     await expect(NEWCOMER, /по поручению управляющей организации/);
 
     say('Сосед в чате дома', 'нажимает «Принимаю»');

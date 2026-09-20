@@ -8,7 +8,7 @@ export interface HttpTranscriberOptions {
   apiKey?: string;
   /** Модель распознавания, если служба даёт выбор. */
   model?: string;
-  /** Язык записи. */
+  /** Язык записи по умолчанию: им пользуются, когда язык человека неизвестен. */
   language?: string;
   /** Сколько ждать ответа. Дольше минуты ждать нечего: жилец уже ушёл. */
   timeoutMs?: number;
@@ -49,8 +49,11 @@ export const createHttpTranscriber = (options: HttpTranscriberOptions): Transcri
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return {
-    async transcribe(attachment) {
+    async transcribe(attachment, language) {
       if (attachment.kind !== 'voice' || !isDownloadable(attachment.token)) return undefined;
+
+      // Язык человека важнее настройки: на нём он и говорит.
+      const spoken = language ?? options.language;
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,7 +67,7 @@ export const createHttpTranscriber = (options: HttpTranscriberOptions): Transcri
 
         form.append('file', recording, 'voice.ogg');
         if (options.model) form.append('model', options.model);
-        if (options.language) form.append('language', options.language);
+        if (spoken) form.append('language', spoken);
 
         const response = await doFetch(options.endpoint, {
           method: 'POST',

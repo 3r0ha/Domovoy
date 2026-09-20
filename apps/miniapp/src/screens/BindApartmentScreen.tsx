@@ -3,10 +3,11 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
 import { ApiError, type DomovoyApi, type HouseContactsView } from '../api.js';
+import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
-import { IconChat, IconDocument, IconPeople, IconPerson } from './icons.js';
+import { IconChat, IconDocument, IconGlobe, IconPeople, IconPerson } from './icons.js';
 
 export interface BindApartmentScreenProps {
   api: DomovoyApi;
@@ -18,6 +19,8 @@ export interface BindApartmentScreenProps {
   onSupport?: () => void;
   /** Профиль и документы: жильцу без квартиры больше ничего не открыто. */
   onProfile?: () => void;
+  /** Смена языка: она доступна и до привязки. */
+  onLanguage?: () => void;
   /** Примерка роли на проверке. */
   onDemo?: () => void;
 }
@@ -33,19 +36,20 @@ const plainCode = (typed: string): string => typed.replaceAll(/[\s‐-―-]/gu, 
 
 /** Куда звонить, если код не нашёлся. Контакты приходят вместе с домом. */
 const Help = ({ contacts, onSupport }: { contacts: HouseContactsView | null; onSupport?: () => void }) => {
+  const t = useT();
   const phone = contacts?.service?.phone;
   const hours = contacts?.service?.hours;
 
   return (
-    <Group title="Не нашли код?">
+    <Group title={t('bind.help')}>
       <CellSimple
         before={
           <span className="tile tile-grey">
             <IconDocument />
           </span>
         }
-        title="Код напечатан в квитанции"
-        subtitle="Восемь букв и цифр рядом с номером лицевого счёта"
+        title={t('bind.help.receipt')}
+        subtitle={t('bind.help.receipt.hint')}
         height="compact"
       />
 
@@ -57,7 +61,7 @@ const Help = ({ contacts, onSupport }: { contacts: HouseContactsView | null; onS
             </span>
           }
           title={phone}
-          subtitle={hours ? `Управляющая компания, ${hours}` : 'Управляющая компания'}
+          subtitle={hours ? t('bind.help.company.hours', { часы: hours }) : t('bind.help.company')}
           separator
           height="compact"
           onClick={() => {
@@ -73,8 +77,8 @@ const Help = ({ contacts, onSupport }: { contacts: HouseContactsView | null; onS
               <IconChat />
             </span>
           }
-          title="Написать в поддержку"
-          subtitle="Код пришлют в переписке"
+          title={t('bind.help.support')}
+          subtitle={t('bind.help.support.hint')}
           separator
           height="compact"
           showChevron
@@ -85,9 +89,19 @@ const Help = ({ contacts, onSupport }: { contacts: HouseContactsView | null; onS
   );
 };
 
-/** Что открыто до привязки: профиль с документами и, на проверке, роль. */
-const Meanwhile = ({ onProfile, onDemo }: { onProfile?: () => void; onDemo?: () => void }) => {
-  if (!onProfile && !onDemo) return null;
+/** Что открыто до привязки: профиль с документами, язык и, на проверке, роль. */
+const Meanwhile = ({
+  onProfile,
+  onLanguage,
+  onDemo,
+}: {
+  onProfile?: () => void;
+  onLanguage?: () => void;
+  onDemo?: () => void;
+}) => {
+  const t = useT();
+
+  if (!onProfile && !onLanguage && !onDemo) return null;
 
   return (
     <Group>
@@ -98,10 +112,26 @@ const Meanwhile = ({ onProfile, onDemo }: { onProfile?: () => void; onDemo?: () 
               <IconPerson />
             </span>
           }
-          title="Профиль и документы"
+          title={t('bind.profile')}
           height="compact"
           showChevron
           onClick={onProfile}
+        />
+      ) : null}
+
+      {onLanguage ? (
+        <CellSimple
+          before={
+            <span className="tile tile-blue">
+              <IconGlobe />
+            </span>
+          }
+          title={t('sections.language.title')}
+          subtitle={t('sections.language.hint')}
+          separator={Boolean(onProfile)}
+          height="compact"
+          showChevron
+          onClick={onLanguage}
         />
       ) : null}
 
@@ -112,8 +142,8 @@ const Meanwhile = ({ onProfile, onDemo }: { onProfile?: () => void; onDemo?: () 
               <IconPeople />
             </span>
           }
-          title="Роль"
-          subtitle="Посмотреть продукт другой стороной"
+          title={t('sections.demo.title')}
+          subtitle={t('sections.demo.hint')}
           separator
           height="compact"
           showChevron
@@ -131,8 +161,10 @@ export const BindApartmentScreen = ({
   onBound,
   onSupport,
   onProfile,
+  onLanguage,
   onDemo,
 }: BindApartmentScreenProps) => {
+  const t = useT();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,13 +183,13 @@ export const BindApartmentScreen = ({
     const plain = plainCode(code);
 
     if (plain.length === 0) {
-      setError('Введите код из квитанции');
+      setError(t('bind.error.empty'));
       return;
     }
 
     // Длину проверяем до отправки: ответ сервера про неё человек ждёт зря.
     if (plain.length !== CODE_LENGTH) {
-      setError(`В коде ${CODE_LENGTH} знаков, а вы набрали ${plain.length}`);
+      setError(t('bind.error.length', { нужно: CODE_LENGTH, набрано: plain.length }));
       return;
     }
 
@@ -167,10 +199,10 @@ export const BindApartmentScreen = ({
     try {
       const flat = await api.bindApartment(plain);
 
-      say(`Квартира ${flat.number} привязана`);
+      say(t('bind.done', { номер: flat.number }));
       onBound();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось привязать квартиру');
+      setError(reason instanceof ApiError ? reason.message : t('bind.failed'));
     } finally {
       setBusy(false);
     }
@@ -181,12 +213,10 @@ export const BindApartmentScreen = ({
       <section className="card">
         {/* Человек попал сюда первым экраном: он должен понять, куда попал и
             что ему тут дадут, а не увидеть одно поле для кода. */}
-        <h2 className="lead">Домовой{house ? `, ${house}` : ''}</h2>
-        <p className="hint">
-          Здесь заявки в управляющую компанию, счёт за квартиру, счётчики, двери подъезда и собрания соседей.
-        </p>
+        <h2 className="lead">{house ? t('bind.title.house', { адрес: house }) : t('bind.title')}</h2>
+        <p className="hint">{t('bind.about')}</p>
 
-        <label htmlFor="apartment-code">Код из квитанции</label>
+        <label htmlFor="apartment-code">{t('bind.code')}</label>
 
         <Input
           className="field"
@@ -194,7 +224,7 @@ export const BindApartmentScreen = ({
           value={code}
           maxLength={TYPED_LENGTH}
           withClearButton={false}
-          placeholder="8 букв и цифр"
+          placeholder={t('bind.code.placeholder')}
           autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
@@ -215,13 +245,17 @@ export const BindApartmentScreen = ({
         ) : null}
 
         <Button type="button" stretched disabled={busy} onClick={() => void bind()}>
-          {busy ? 'Проверяем…' : 'Привязать'}
+          {busy ? t('bind.checking') : t('bind.do')}
         </Button>
       </section>
 
       <Help contacts={contacts.data ?? null} {...(onSupport ? { onSupport } : {})} />
 
-      <Meanwhile {...(onProfile ? { onProfile } : {})} {...(onDemo ? { onDemo } : {})} />
+      <Meanwhile
+        {...(onProfile ? { onProfile } : {})}
+        {...(onLanguage ? { onLanguage } : {})}
+        {...(onDemo ? { onDemo } : {})}
+      />
     </div>
   );
 };

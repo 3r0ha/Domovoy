@@ -19,5 +19,8 @@
   "scripts": {
     "build": "tsc -b",
     "test": "tsc -b && node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@domovoy/i18n": "0.1.0"
   }
 }

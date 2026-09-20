@@ -1,22 +1,24 @@
 import { doingFor, type Doing } from '@domovoy/app';
 import { describeTarget } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { speak } from './i18n.js';
 import { actionTitle, assignKeyboard, keyboardOf, menuButton, screenOf } from './keyboards.js';
 import { inChat, plain, strong, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
 /** Что продукт собирается сделать, словами человека. */
 const ABOUT: Record<string, string> = {
-  accepted: 'принять заявку в работу',
-  in_progress: 'взять наряд в работу',
+  accepted: 'doing.accepted',
+  in_progress: 'doing.in_progress',
   // Жилец не берёт наряд: он возвращает сданную работу мастеру.
-  'in_progress:resident': 'вернуть работу мастеру',
-  needs_info: 'спросить уточнение у жильца',
-  done: 'сдать работу',
-  confirmed: 'принять работу',
-  rejected: 'отклонить заявку',
-  withdrawn: 'снять заявку',
+  'in_progress:resident': 'doing.return',
+  needs_info: 'doing.needs_info',
+  done: 'doing.done',
+  confirmed: 'doing.confirmed',
+  rejected: 'doing.rejected',
+  withdrawn: 'doing.withdrawn',
 };
 
 /** Сколько заявок предлагается кнопками: дальше список не читается. */
@@ -38,16 +40,17 @@ const offerAssign = async (
   kit: BotKit,
   typed: BotContext,
   doing: Doing & { kind: 'assign' },
+  t: Translate,
 ): Promise<boolean> => {
   if (!doing.request) {
     await typed.reply(
-      `${strong('Понял: поручить наряд')}\nПо какой заявке?`,
+      `${strong(t('doing.understood', { что: t('doing.assign') }))}\n${t('doing.which')}`,
       screenOf(
         keyboardOf([
           ...doing.choices
             .slice(0, SHOWN)
             .map((request) => [Keyboard.button.callback(shortly(request), `assign:${request.id}`)]),
-          [Keyboard.button.callback('✖️ Ни по какой', 'cancel')],
+          [Keyboard.button.callback(t('button.none_of'), 'cancel')],
         ]),
       ),
     );
@@ -58,7 +61,7 @@ const offerAssign = async (
   const people = doing.staff ? [doing.staff] : doing.candidates;
 
   await typed.reply(
-    `${strong('Понял: поручить наряд')}\n${plain(shortly(doing.request))}\n` +
+    `${strong(t('doing.understood', { что: t('doing.assign') }))}\n${plain(shortly(doing.request))}\n` +
       (doing.staff ? `Мастер: ${plain(doing.staff.displayName)}. Поручить?` : 'Кому поручить?'),
     screenOf(assignKeyboard(doing.request.id, people, kit.miniAppUrl)),
   );
@@ -77,19 +80,20 @@ export const offerDoing = async (kit: BotKit, typed: BotContext, text: string): 
   if (inChat(typed)) return false;
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const doing: Doing | undefined = await doingFor(kit.deps, resident, text).catch(() => undefined);
 
   if (!doing) return false;
 
   if (doing.kind === 'denied') {
-    await typed.reply(doing.reason, menuButton(typed));
+    await typed.reply(doing.reason, menuButton(typed, t));
 
     return true;
   }
 
-  if (doing.kind === 'assign') return await offerAssign(kit, typed, doing);
+  if (doing.kind === 'assign') return await offerAssign(kit, typed, doing, t);
 
-  const what = ABOUT[`${doing.to}:${resident.role}`] ?? ABOUT[doing.to] ?? 'изменить заявку';
+  const what = t(ABOUT[`${doing.to}:${resident.role}`] ?? ABOUT[doing.to] ?? 'doing.change');
 
   // Слова человека уходят в отчёт вместе с нажатием: переписывать их заново
   // ради подтверждения незачем. Метка привязывает слова к этому предложению:
@@ -101,13 +105,13 @@ export const offerDoing = async (kit: BotKit, typed: BotContext, text: string): 
 
   if (!doing.request) {
     await typed.reply(
-      `${strong(`Понял: ${what}`)}\nПо какой заявке?`,
+      `${strong(t('doing.understood', { что: what }))}\n${t('doing.which')}`,
       screenOf(
         keyboardOf([
           ...doing.choices
             .slice(0, SHOWN)
             .map((request) => [Keyboard.button.callback(shortly(request), `do:${token}:${request.id}`)]),
-          [Keyboard.button.callback('✖️ Ни по какой', 'cancel')],
+          [Keyboard.button.callback(t('button.none_of'), 'cancel')],
         ]),
       ),
     );
@@ -116,17 +120,17 @@ export const offerDoing = async (kit: BotKit, typed: BotContext, text: string): 
   }
 
   await typed.reply(
-    `${strong(`Понял: ${what}`)}\n${plain(shortly(doing.request))}\n` +
-      (doing.requiresComment ? `Записать как «${plain(doing.comment)}»?` : 'Сделать?'),
+    `${strong(t('doing.understood', { что: what }))}\n${plain(shortly(doing.request))}\n` +
+      (doing.requiresComment ? t('doing.write_as', { что: plain(doing.comment) }) : t('doing.confirm')),
     screenOf(
       keyboardOf([
         [
           Keyboard.button.callback(
-            actionTitle(doing.from, doing.to, doing.requiresComment),
+            actionTitle(doing.from, doing.to, doing.requiresComment, t),
             `do:${token}:${doing.request.id}`,
           ),
         ],
-        [Keyboard.button.callback('✖️ Отмена', 'cancel')],
+        [Keyboard.button.callback(t('button.cancel'), 'cancel')],
       ]),
     ),
   );

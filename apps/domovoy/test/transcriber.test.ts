@@ -87,6 +87,23 @@ describe('распознавание голосовых заявок', () => {
     assert.deepEqual(calls[1]?.headers, { authorization: 'Bearer secret' });
   });
 
+  it('язык человека уходит службе вместо языка по умолчанию', async () => {
+    const { fetchStub, calls } = stub({ answer: { text: 'Issiq suv yoʻq' } });
+
+    const transcriber = createHttpTranscriber({
+      endpoint: 'https://speech.test/v1/audio/transcriptions',
+      language: 'ru',
+      fetch: fetchStub,
+    });
+
+    assert.equal(await transcriber.transcribe(VOICE, 'uz'), 'Issiq suv yoʻq');
+
+    const form = calls[1]?.body;
+
+    assert.ok(form instanceof FormData);
+    assert.equal(form.get('language'), 'uz', 'служба распознаёт на языке говорящего');
+  });
+
   it('вложение без ссылки не скачивается', async () => {
     const { fetchStub, calls } = stub({});
     const transcriber = createHttpTranscriber({ endpoint: 'https://speech.test/x', fetch: fetchStub });

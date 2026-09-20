@@ -8,6 +8,7 @@ import type { Notifier } from '../notifier.js';
 import type { Reasoner } from '../reasoner.js';
 import type { Repository } from '../repository.js';
 import type { StickerRenderer } from '../stickers.js';
+import type { TextTranslator } from '../translation.js';
 
 /** Зависимости прикладного слоя. */
 export interface AppDeps {
@@ -28,6 +29,11 @@ export interface AppDeps {
   payments?: PaymentGateway;
   /** Разбор обращения моделью. Без него категорию подсказывают ключевые слова. */
   reasoner?: Reasoner;
+  /**
+   * Перевод написанного своими словами. Без него смена видит текст на языке
+   * автора, а жилец, ответ по-русски.
+   */
+  translate?: TextTranslator;
   /** Имя бота: из него собираются ссылки наклеек. */
   botName?: string;
   /** Рисование наклеек. Без него коды объектов только перечисляются. */

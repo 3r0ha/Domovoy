@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { useTrapped } from '../focus.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { Domovoy } from './Domovoy.js';
 import { ErrorText } from './ErrorText.js';
 import { RetryLink } from './Retry.js';
@@ -25,6 +26,7 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const haptics = useHaptics();
+  const t = useT();
   const sheet = useTrapped<HTMLElement>(true);
 
   const documents = legal.data?.documents ?? [];
@@ -50,18 +52,15 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
   };
 
   return (
-    <div className="guide" role="dialog" aria-modal="true" aria-label="Документы">
+    <div className="guide" role="dialog" aria-modal="true" aria-label={t('consent.title')}>
       {/* Затемнение без закрытия: до согласия продукт не работает, а нажать мимо нельзя. */}
       <div className="guide-veil" aria-hidden="true" />
 
       <section className="guide-sheet consent" ref={sheet}>
         <Domovoy mood="walking" size={72} />
 
-        <h2 className="guide-title">Документы</h2>
-        <p className="guide-hint">
-          Работаем с вашими данными по поручению управляющей компании. Что храним и как удалить,
-          в документах ниже.
-        </p>
+        <h2 className="guide-title">{t('consent.title')}</h2>
+        <p className="guide-hint">{t('consent.hint')}</p>
 
         <div className="inline-keys consent-docs">
           {documents.map((document) => (
@@ -76,17 +75,17 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
           ))}
         </div>
 
-        {legal.loading && !readable ? <p className="hint">Загружаем документы…</p> : null}
+        {legal.loading && !readable ? <p className="hint">{t('consent.loading')}</p> : null}
 
         {!readable && !legal.loading ? (
-          <RetryLink title="Документы не загрузились" onRetry={legal.reload} />
+          <RetryLink title={t('consent.failed')} onRetry={legal.reload} />
         ) : null}
 
         {failed ? <ErrorText>{failed}</ErrorText> : null}
 
         <div className="confirm-keys">
           <button type="button" className="confirm-do" disabled={busy || !readable} onClick={() => void accept()}>
-            {busy ? 'Сохраняем…' : 'Принимаю'}
+            {busy ? t('consent.saving') : t('consent.accept')}
           </button>
         </div>
       </section>

@@ -2,6 +2,7 @@ import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 
 import { plural, tight, type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { CategoryTile } from './CategoryTile.js';
 import { Group } from './Group.js';
 
@@ -15,13 +16,14 @@ export interface HouseRequestsProps {
  * Заявки дома, о которых сообщил сосед, с числом подтверждений.
  */
 export const HouseRequests = ({ api, onOpen }: HouseRequestsProps) => {
+  const t = useT();
   const house = useBridgeRequest((alive) => api.until(alive).houseRequests(), [api]);
   const requests = Array.isArray(house.data) ? house.data : [];
 
   if (requests.length === 0) return null;
 
   return (
-    <Group title="Заявки соседей">
+    <Group title={t('home.requests')}>
       {requests.map((request, index) => (
         <CellSimple
           key={request.id}

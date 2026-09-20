@@ -17,7 +17,10 @@ import {
   type WorksEvent,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { postTextToChat } from '../broadcast.js';
+import { speak, speakDefault } from '../language.js';
 import { wanting } from '../notices.js';
 import { rememberResidents } from '../people.js';
 import {
@@ -56,11 +59,12 @@ export const closeAcceptedBySilence = async (deps: AppDeps): Promise<ServiceRequ
       applyTransition(request, { to: 'confirmed', role: 'resident', actorId: author.id, at: now }),
     );
 
-    const text = formatAutoConfirmed(confirmed, AUTO_CONFIRM_AFTER_HOURS);
-
     for (const id of reporterIds(confirmed)) {
+      const resident = await personOf(id);
+      const text = formatAutoConfirmed(speak(resident), confirmed, AUTO_CONFIRM_AFTER_HOURS);
+
       // Текст зовёт оформить новую заявку, если проблема осталась: кнопка ведёт туда же.
-      await notifyResident(deps.notifier ?? noopNotifier, await personOf(id), text, [], { section: 'new' });
+      await notifyResident(deps.notifier ?? noopNotifier, resident, text, [], { section: 'new' });
     }
 
     closed.push(confirmed);
@@ -85,10 +89,9 @@ export const remindAboutAcceptance = async (deps: AppDeps, since: Date): Promise
       ? Math.max(1, Math.round(AUTO_CONFIRM_AFTER_HOURS - (now.getTime() - doneAt.getTime()) / 3600_000))
       : AUTO_CONFIRM_AFTER_HOURS;
 
-    const text = formatAcceptanceReminder(request, left);
-
     for (const id of reporterIds(request)) {
       const resident = await personOf(id);
+      const text = formatAcceptanceReminder(speak(resident), request, left);
 
       await notifyResident(notifier, resident, text, resident ? actionsFor(request, resident) : undefined);
     }
@@ -113,10 +116,11 @@ export const remindAboutOverdue = async (deps: AppDeps, since: Date): Promise<Se
     if (!crossed) continue;
 
     const escalatable = canEscalate(request, now).possible;
-    const text = formatOverdue(request, crossed, escalatable);
 
     for (const id of reporterIds(request)) {
-      await notifyAbout(notifier, await personOf(id), text, {
+      const resident = await personOf(id);
+
+      await notifyAbout(notifier, resident, formatOverdue(speak(resident), request, crossed, escalatable), {
         section: 'list',
         ...(escalatable ? { complaintFor: request.id } : {}),
       });
@@ -175,17 +179,23 @@ export const remindAboutWorks = async (
 
     const affected = selectAudience(apartments, work.audience).map((apartment) => apartment.id);
     const residents = await deps.repository.listResidentsByApartments(affected);
-    const text =
+
+    const about = (t: Translate): string =>
       event === 'soon'
-        ? formatWorksSoon(work, now)
+        ? formatWorksSoon(t, work, now)
         : event === 'started'
-          ? formatWorksStarted(work, now)
-          : formatWorksFinished(work);
+          ? formatWorksStarted(t, work, now)
+          : formatWorksFinished(t, work);
 
     // После завершённых работ человеку нужна заявка, если стало не лучше.
     const where = event === 'finished' ? { section: 'new' } : {};
 
-    for (const resident of wanting(residents, 'works')) await notifyResident(notifier, resident, text, [], where);
+    for (const resident of wanting(residents, 'works')) {
+      await notifyResident(notifier, resident, about(speak(resident)), [], where);
+    }
+
+    // Чат дома общий: в нём продукт говорит на языке продукта.
+    const text = about(speakDefault());
 
     if (event === 'started') await postTextToChat(deps, buildingId, text, { pin: true });
     if (event === 'finished') await postTextToChat(deps, buildingId, text, { unpin: true });

@@ -1,8 +1,11 @@
 import { Button, CellSimple } from '@maxhub/max-ui';
 import { useEffect, useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { ApiError, type DeviceView, type DomovoyApi } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { IconKey } from './icons.js';
 
 type OpenState = 'idle' | 'opening' | 'open';
@@ -19,6 +22,7 @@ const useLock = (
   const [left, setLeft] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
+  const t = useT();
 
   // Дверь открыта не навсегда: отсчёт идёт на кнопке и сам возвращает её в покой.
   useEffect(() => {
@@ -46,7 +50,7 @@ const useLock = (
     } catch (reason) {
       haptics.failed();
       setState('idle');
-      setError(reason instanceof ApiError ? reason.message : 'Дверь не ответила');
+      setError(reason instanceof ApiError ? reason.message : t('door.failed'));
     }
   };
 
@@ -54,8 +58,8 @@ const useLock = (
 };
 
 /** Что написано на кнопке: покой, ожидание ответа или сколько осталось открыто. */
-const lockLabel = (state: OpenState, left: number): string =>
-  state === 'opening' ? 'Открываем…' : state === 'open' ? `Открыто, ${left} с` : 'Открыть';
+const lockLabel = (t: Translate, state: OpenState, left: number): string =>
+  state === 'opening' ? t('door.opening') : state === 'open' ? t('door.open', { секунды: left }) : t('door.action');
 
 /** Строка двери: название и кнопка, которой её открывают. */
 export const DoorRow = ({
@@ -67,6 +71,7 @@ export const DoorRow = ({
   device: DeviceView;
   separator: boolean;
 }) => {
+  const t = useT();
   const lock = useLock(api, device);
 
   return (
@@ -84,11 +89,11 @@ export const DoorRow = ({
           type="button"
           size="small"
           className="steady"
-          aria-label={`Открыть: ${device.title}`}
+          aria-label={t('door.label', { дверь: device.title })}
           disabled={lock.state === 'opening'}
           onClick={lock.open}
         >
-          {lockLabel(lock.state, lock.left)}
+          {lockLabel(t, lock.state, lock.left)}
         </Button>
       }
       separator={separator}

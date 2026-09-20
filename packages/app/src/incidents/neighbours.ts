@@ -19,6 +19,7 @@ import {
 
 import { apartmentsOf, locateTarget } from '../apartments.js';
 import { assertServes } from '../buildings.js';
+import { speak } from '../language.js';
 import { formatKnock, noopNotifier, notifyResident } from '../notifier.js';
 import { type Resident } from '../repository.js';
 import { type AppDeps } from '../use-cases.js';
@@ -97,7 +98,7 @@ export const knockUpstairs = async (deps: AppDeps, command: KnockCommand): Promi
   const notifier = deps.notifier ?? noopNotifier;
 
   for (const neighbour of neighbours) {
-    await notifyResident(notifier, neighbour, formatKnock(saved), [], { askAbout: saved.id });
+    await notifyResident(notifier, neighbour, formatKnock(speak(neighbour), saved), [], { askAbout: saved.id });
   }
 
   return saved;

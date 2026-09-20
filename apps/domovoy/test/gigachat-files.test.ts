@@ -186,6 +186,13 @@ describe('снимки и голосовые через GigaChat', () => {
     assert.equal(transcriptOf('140,2.'), '140,2');
   });
 
+  it('у языка с латиницей латинская речь и есть своя', () => {
+    assert.equal(transcriptOf('Liftda qoldim, eshik ochilmayapti.', 'uz'), 'Liftda qoldim, eshik ochilmayapti.');
+    assert.equal(transcriptOf('The elevator is broken again.', 'en'), 'The elevator is broken again.');
+    assert.equal(transcriptOf('Лифт кайра бузулду.', 'ky'), 'Лифт кайра бузулду.');
+    assert.equal(transcriptOf('The elevator is broken again.', 'ky'), undefined, 'у кириллицы латиница чужая');
+  });
+
   it('показание из ответа: одно число, иначе пусто', () => {
     assert.equal(readingOf('01234,5'), 1234.5);
     assert.equal(readingOf('12345 м³'), 12345);

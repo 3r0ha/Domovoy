@@ -2,6 +2,7 @@ import {
   DomainError,
   FINAL_STATUSES,
   type Attachment,
+  type OriginalText,
   type RequestEvent,
   type RequestStatus,
   type Role,
@@ -312,6 +313,8 @@ export interface AddMessageInput {
   at: Date;
   text: string;
   attachments?: Attachment[];
+  /** Исходный текст, если `text` это перевод на русский. */
+  original?: OriginalText;
 }
 
 /** Сколько букв помещается в одно сообщение по заявке. */
@@ -345,6 +348,7 @@ export const addMessage = (request: ServiceRequest, input: AddMessageInput): Ser
     kind: 'message',
     comment: text,
     ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+    ...(input.original ? { original: input.original } : {}),
   };
 
   return { ...request, history: [...request.history, event] };

@@ -1,4 +1,6 @@
 import { needsApartment, type Resident } from '@domovoy/app';
+
+import { speak } from './i18n.js';
 import { APARTMENT_CODE_LENGTH, isApartmentCode, normalizeApartmentCode } from '@domovoy/domain';
 
 import { expect, type BotContext } from './max.js';
@@ -35,10 +37,7 @@ export const askApartment = async (
 
   expect(typed, { kind: 'code' });
 
-  await typed.reply(
-    `${prefix}Пришлите код квартиры из квитанции: 8 знаков рядом с адресом.`,
-    kit.menuKeyboard(person),
-  );
+  await typed.reply(`${prefix}${speak(person)('flat.ask')}`, kit.menuKeyboard(person));
 };
 
 /**

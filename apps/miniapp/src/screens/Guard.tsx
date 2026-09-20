@@ -1,5 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { say } from '../i18n.js';
+
 interface GuardState {
   message: string | null;
 }
@@ -27,15 +29,15 @@ export class Guard extends Component<{ children: ReactNode }, GuardState> {
 
     return (
       <div className="guard">
-        <h1>Приложение не запустилось</h1>
-        <p>Закройте его и откройте снова. Если не поможет, напишите боту словами.</p>
+        <h1>{say('chrome.guard.title')}</h1>
+        <p>{say('chrome.guard.hint')}</p>
         <button type="button" onClick={() => globalThis.location.reload()}>
-          Перезапустить
+          {say('chrome.guard.restart')}
         </button>
         <p className="guard-why">{message}</p>
         <p>
-          При аварии звоните, не дожидаясь приложения: <a href="tel:112">112</a>, газовая служба{' '}
-          <a href="tel:104">104</a>.
+          {say('chrome.guard.emergency')} <a href="tel:112">112</a>
+          {say('chrome.guard.gas')} <a href="tel:104">104</a>.
         </p>
       </div>
     );

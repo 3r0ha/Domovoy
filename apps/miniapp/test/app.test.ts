@@ -21,6 +21,10 @@ interface Profile {
   displayName: string;
   role: string;
   apartmentId: string | null;
+  /** Язык человека. Пусто: язык ещё не выбран. */
+  language?: string | null;
+  /** Согласие с документами: до него продукт показывает их. */
+  legal?: { version: string; accepted: boolean };
   /** Что подключено в этой установке: без поставщика раздела в панели нет. */
   doors?: boolean;
   payments?: boolean;
@@ -617,6 +621,105 @@ describe('тур первого входа', () => {
     const screen = await render(fetchStub);
 
     assert.equal(screen.findAll('.tour').length, 1);
+
+    await screen.unmount();
+  });
+});
+
+describe('язык мини-приложения', () => {
+  const resident = (fields: Partial<Profile>): Profile => ({
+    id: 'res-1',
+    displayName: 'Мария',
+    role: 'resident',
+    apartmentId: 'apt-1',
+    ...fields,
+  });
+
+  /** Нажатие по подписи: разметка кита меняется, а слова на экране остаются. */
+  const tap = (screen: { findAll: (selector: string) => Element[] }, text: string): void => {
+    const found = screen
+      .findAll('button, a, [class*="Tappable"]')
+      .filter((node) => (node.textContent ?? '').includes(text))
+      .at(-1);
+
+    assert.ok(found, `нечего нажать: «${text}»`);
+    (found as HTMLElement).click();
+  };
+
+  /** Языки с отметкой: в списке помечен тот, на котором человек читает. */
+  const marked = (screen: { findAll: (selector: string) => Element[] }): string[] =>
+    screen
+      .findAll('[class*="Tappable"]')
+      .filter((node) => node.querySelector('svg') !== null)
+      .map((node) => node.textContent ?? '');
+
+  it('на первом входе язык спрашивают раньше документов', async () => {
+    globalThis.localStorage.clear();
+
+    const { fetchStub, paths } = server(
+      resident({ language: null, legal: { version: '2026-09-01', accepted: false } }),
+    );
+
+    const screen = await render(fetchStub);
+
+    assert.match(screen.text, /Язык/);
+    assert.match(screen.text, /English/);
+    assert.match(screen.text, /Oʻzbekcha/);
+    assert.doesNotMatch(screen.text, /Принимаю/, 'документы идут после языка');
+
+    await screen.act(() => tap(screen, 'English'));
+
+    assert.ok(
+      paths.some((path) => path === '/api/me/language'),
+      `выбор языка не ушёл на сервер: ${paths.join(', ')}`,
+    );
+    assert.match(screen.text, /I accept/u, 'после языка спрашивают согласие, и уже на выбранном языке');
+
+    await screen.unmount();
+  });
+
+  it('сотрудника о языке не спрашивают', async () => {
+    globalThis.localStorage.clear();
+
+    const { fetchStub } = server({
+      id: 'disp-1',
+      displayName: 'Ольга',
+      role: 'dispatcher',
+      apartmentId: null,
+      language: null,
+      legal: { version: '2026-09-01', accepted: false },
+    });
+
+    const screen = await render(fetchStub);
+
+    assert.doesNotMatch(screen.text, /Oʻzbekcha/);
+    assert.match(screen.text, /Принимаю/);
+
+    await screen.unmount();
+  });
+
+  it('раздел «Язык» открыт жильцу без квартиры, и выбор меняет язык', async () => {
+    globalThis.localStorage.clear();
+
+    const { fetchStub, paths } = server(resident({ apartmentId: null, language: 'ru' }));
+
+    const screen = await render(fetchStub);
+
+    assert.match(screen.text, /Код из квитанции/);
+    assert.match(screen.text, /Язык/, 'до привязки язык тоже меняют');
+
+    await screen.act(() => tap(screen, 'Язык приложения'));
+
+    assert.match(screen.text, /Татарча/);
+    assert.deepEqual(marked(screen), ['Русский'], 'текущий язык помечен');
+
+    await screen.act(() => tap(screen, 'English'));
+
+    assert.ok(
+      paths.some((path) => path === '/api/me/language'),
+      `выбор языка не ушёл на сервер: ${paths.join(', ')}`,
+    );
+    assert.deepEqual(marked(screen), ['English'], 'язык в приложении сменился');
 
     await screen.unmount();
   });

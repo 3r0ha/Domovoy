@@ -1,0 +1,419 @@
+import type { Dictionary } from '../../translate.js';
+
+/** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
+export const app: Dictionary = {
+  // Значения домена: те же названия, что домен отдаёт смене по-русски.
+  'status.new': 'yeni',
+  'status.accepted': 'işə qəbul edilib',
+  'status.in_progress': 'icra olunur',
+  'status.needs_info': 'sakinin cavabını gözləyir',
+  'status.done': 'icra olunub, təhvili gözləyir',
+  'status.confirmed': 'bağlanıb, iş təhvil alınıb',
+  'status.rejected': 'rədd edilib',
+  'status.withdrawn': 'sakin geri götürüb',
+
+  'category.elevator': 'Lift',
+  'category.plumbing': 'Su təchizatı və kanalizasiya',
+  'category.heating': 'İstilik',
+  'category.electricity': 'Elektrik',
+  'category.cleaning': 'Təmizlik',
+  'category.yard': 'Həyət və ərazi',
+  'category.safety': 'Təhlükəsizlik',
+  'category.document': 'Arayış və sənədlər',
+  'category.other': 'Digər',
+
+  'categoryShort.elevator': 'Lift',
+  'categoryShort.plumbing': 'Su',
+  'categoryShort.heating': 'İstilik',
+  'categoryShort.electricity': 'İşıq',
+  'categoryShort.cleaning': 'Təmizlik',
+  'categoryShort.yard': 'Həyət',
+  'categoryShort.safety': 'Təhlükəsizlik',
+  'categoryShort.document': 'Arayışlar',
+  'categoryShort.other': 'Digər',
+
+  'meter.cold_water': 'Soyuq su',
+  'meter.hot_water': 'İsti su',
+  'meter.electricity': 'Elektrik',
+  'meter.heating': 'İstilik',
+  'meter.gas': 'Qaz',
+
+  'meterUnit.cold_water': 'm³',
+  'meterUnit.hot_water': 'm³',
+  'meterUnit.electricity': 'kWh',
+  'meterUnit.heating': 'Gcal',
+  'meterUnit.gas': 'm³',
+
+  'basis.meter': 'sayğac üzrə',
+  'basis.average': 'orta üzrə',
+  'basis.norm': 'normativ üzrə',
+
+  'noticeKind.meters': 'Sayğac göstəriciləri',
+  'noticeKind.works': 'Planlı işlər',
+  'noticeKind.polls': 'Mülkiyyətçilər yığıncaqları',
+  'noticeKind.news': 'Ev elanları',
+
+  'charge.maintenance': 'Saxlama və cari təmir',
+  'charge.common': '{ресурс}, evin ümumi ehtiyacları üçün',
+  'charge.recalculation': 'Yenidən hesablama: {ресурс} normadan uzun müddət kəsilib',
+
+  'chargeDetail.rate': '{расход} {единица} × {тариф} ₽',
+  'chargeDetail.area': '{площадь} m² × {тариф} ₽',
+  'chargeDetail.recalculation': 'normadan artıq {часы} saat × 0,15% × {сумма} ₽',
+  'chargeDetail.basis': '{расчёт} · {основание}',
+
+  // Месяцы: именительный для заголовка периода, родительный для «с июня по июль».
+  'month.1': 'yanvar',
+  'month.2': 'fevral',
+  'month.3': 'mart',
+  'month.4': 'aprel',
+  'month.5': 'may',
+  'month.6': 'iyun',
+  'month.7': 'iyul',
+  'month.8': 'avqust',
+  'month.9': 'sentyabr',
+  'month.10': 'oktyabr',
+  'month.11': 'noyabr',
+  'month.12': 'dekabr',
+
+  'monthOf.1': 'yanvar',
+  'monthOf.2': 'fevral',
+  'monthOf.3': 'mart',
+  'monthOf.4': 'aprel',
+  'monthOf.5': 'may',
+  'monthOf.6': 'iyun',
+  'monthOf.7': 'iyul',
+  'monthOf.8': 'avqust',
+  'monthOf.9': 'sentyabr',
+  'monthOf.10': 'oktyabr',
+  'monthOf.11': 'noyabr',
+  'monthOf.12': 'dekabr',
+
+  // Отказы, которые видит жилец. Числа и номера в них не подставляются:
+  // человеку хватает причины, подробности остаются в карточке.
+  'error.forbidden': 'Bu, başqasının məlumatlarıdır, onları açmaq olmaz',
+  'error.request_not_found': 'Müraciət tapılmadı',
+  'error.request_closed': 'Müraciət artıq bağlanıb',
+  'error.transition_not_allowed': 'Müraciətin vəziyyəti belə dəyişmir',
+  'error.too_many_requests': 'Bir saat ərzində müraciət çoxdur. Növbəti saatda davam edərik',
+  'error.apartment_not_bound': 'Bu, sahəyə aiddir, əvvəlcə qəbzdəki kodla mənzili bağlayın',
+  'error.apartment_required': 'Əvvəlcə qəbzdəki kodla mənzili bağlayın',
+  'error.code_not_apartment': 'Bu kod mənzilə aid deyil',
+  'error.code_not_valid': 'Kod uyğun gəlmir və ya artıq etibarlı deyil',
+  'error.code_not_found': 'Sizdə belə kod yoxdur',
+  'error.meter_not_found': 'Sayğac tapılmadı',
+  'error.reading_invalid': 'Göstərici sıfırdan kiçik olmayan rəqəm olmalıdır',
+  'error.reading_decreased': 'Sayğac əvvəlkindən az göstərə bilməz',
+  'error.reading_too_large': 'Bu rəqəm sayğacın tablosuna sığmır',
+  'error.reading_duplicate': 'Bu hesablama dövrü üçün göstərici artıq verilib',
+  'error.meter_not_verified': 'Sayğacın yoxlama müddəti bitib, göstərici qəbul etmək olmaz',
+  'error.meter_not_in_photo': 'Şəkildə sayğacın tablosu görünmür',
+  'error.nothing_to_pay': 'Ödəniləcək bir şey yoxdur: hamısı ödənilib',
+  'error.payments_unavailable': 'Ödəniş hazırda əlçatan deyil, sonra cəhd edin',
+  'error.devices_unavailable': 'Ağıllı ev hazırda əlçatan deyil',
+  'error.device_not_found': 'Cihaz tapılmadı',
+  'error.device_not_openable': 'Bu cihaz açılmır',
+  'error.device_not_viewable': 'Bu cihazın kamerası yoxdur',
+  'error.visit_not_found': 'Qəbula yazılma tapılmadı',
+  'error.visit_exists': 'Sizin artıq qəbula yazılmanız var',
+  'error.slot_taken': 'Bu vaxt artıq tutulub, başqasını seçin',
+  'error.reception_empty': 'İdarəetmə təşkilatı qeydiyyatla qəbul aparmır',
+  'error.ticket_not_found': 'Sorğu tapılmadı',
+  'error.ticket_closed': 'Sorğu bağlanıb, sualı yenidən verin',
+  'error.poll_not_found': 'Səsvermə tapılmadı',
+  'error.poll_closed': 'Yekunlar çıxarılıb, səs qəbul etmək olmaz',
+  'error.poll_open': 'Yığıncaq hələ davam edir, protokol yekunlara görə tərtib olunur',
+  'error.already_knocked': 'Yuxarıdakı qonşuya artıq xəbər verilib',
+  'error.no_upstairs': 'Bu mənzilin üstündə qonşu yoxdur',
+  'error.upstairs_unknown': 'Yuxarıdakı qonşu hələ tətbiqdə deyil, onu buradan çağırmaq olmaz',
+  'error.complaint_exists': 'Bu müraciət üzrə şikayət artıq göndərilib',
+  'error.text_empty': 'Nə baş verdiyini sözlə yazın',
+  'error.message_empty': 'Mesaj boşdur',
+  'error.language_unknown': 'Belə dil məndə yoxdur',
+  'error.initiative_not_found': 'Təklif tapılmadı',
+  'error.initiative_closed': 'Bu təklif üzrə yığıncaq artıq elan edilib',
+  'error.initiative_exists': 'Təklifiniz artıq imza toplayır',
+
+  // Уведомления жильцу.
+  'notice.status': 'Müraciət {номер} {состояние}.\n{суть}\n{место}.',
+  'notice.statusOf.accepted': 'işə qəbul edilib',
+  'notice.statusOf.in_progress': 'icra olunur',
+  'notice.statusOf.needs_info': 'sizin dəqiqləşdirmənizi gözləyir',
+  'notice.statusOf.done': 'icra olunub, sizin təhvil almanızı gözləyir',
+  'notice.statusOf.confirmed': 'bağlanıb, iş təhvil alınıb',
+  'notice.statusOf.rejected': 'rədd edilib',
+  'notice.statusOf.withdrawn': 'geri götürülüb',
+  'notice.message': 'Müraciət {номер}. {автор} yazır:\n{текст}',
+  'notice.author.company': 'İdarəetmə şirkəti',
+  'notice.author.resident': 'Sakin',
+  'notice.author.neighbour': 'Qonşu',
+  'notice.attachments.one': '{сколько} əlavə göndərdi',
+  'notice.attachments.few': '{сколько} əlavə göndərdi',
+  'notice.attachments.many': '{сколько} əlavə göndərdi',
+  'notice.broadcast': 'İdarəetmə şirkətinin mesajı{дом}',
+  'notice.guestEntry': 'Qonaq kodu işlədi: {устройство}, {время}',
+  'notice.guestDoor': 'qapı',
+  'notice.neighbourQuestion':
+    'Stoyak üzrə qonşu bildirir: {суть}.\nMüraciət {номер} işdədir.\nSizdə də eynidir?',
+  'notice.knock':
+    'Domovoy qapını döyür: aşağıdakı qonşuda {суть}.\n' +
+    'Sizdə sızma olub-olmadığına baxın. Varsa, suyu bağlayın və aşağıdakı düyməni basın, müraciət artıq açılıb.',
+  'notice.neighbourAlert':
+    'Qəza: {категория}, {место}.\nMüraciət {номер} işdədir, son müddət {срок}.\n' +
+    'Dəyişikliklər barədə özüm yazacağam. Sizdə də eynidir?',
+  'notice.overdue': 'Müraciət {номер}: {что}.\n{место}.\n{дальше}',
+  'notice.overdueOf.reaction': 'müraciət hələ də işə qəbul edilməyib',
+  'notice.overdueOf.resolution': 'işlər vəd olunan müddətdə görülməyib',
+  'notice.overdueEscalate': 'Mənzil müfəttişliyinə şikayət üçün əsas var.',
+  'notice.overdueWait': 'Dəyişikliklər barədə xəbər verəcəyik.',
+  'notice.worksSoon': 'Sabah planlı işlər: {категория}.\n{адресаты}, {до}.\n{название}.',
+  'notice.worksStarted':
+    'Planlı işlər başladı: {категория}.\n{название}: {адресаты}.\nBitirməyi {до} planlaşdırırıq.',
+  'notice.worksFinished':
+    'Planlı işlər qrafik üzrə başa çatdı: {название}, {адресаты}.\n' +
+    'Problem qalıbsa, yazın, müraciət rəsmiləşdirim.',
+  'notice.acceptance':
+    'Müraciət {номер}: iş icra olunmuş kimi qeyd edilib.\n{место}.\n' +
+    'Hər şey qaydasındadırsa, heç nə etmək lazım deyil, {часы} sonra müraciət özü bağlanacaq.\n' +
+    'Problem qalıbsa, onu işə qaytarın, usta yenidən gələcək.',
+  'notice.autoConfirmed':
+    'Müraciət {номер} bağlandı: {часы} ərzində etiraz olmadı.\n{место}.\n' +
+    'Problem qalıbsa, yeni müraciət yaradın, əvvəlki obyektin tarixçəsində qalacaq.',
+  'notice.staffRequest':
+    'İdarəetmə şirkəti mənziliniz üzrə müraciət açdı: {суть}.\n{номер}, son müddət {срок}.',
+  'notice.complaintSent': 'Şikayət göndərildi: {организация}.{номер}\nCavab 30 gün ərzində gəlir.',
+  'notice.complaintNumber': '\nNömrə {номер}.',
+  'notice.debt': '{долг}\n\nAşağıdakı düymə ilə ödəyə bilərsiniz.',
+
+  // Часы и дни словами: у каждого языка свой счёт, поэтому строка целиком.
+  'hours.one': '{сколько} saat',
+  'hours.few': '{сколько} saat',
+  'hours.many': '{сколько} saat',
+  'days.one': '{сколько} gün',
+  'days.few': '{сколько} gün',
+  'days.many': '{сколько} gün',
+  'days.left.one': '{сколько} gün qalıb',
+  'days.left.few': '{сколько} gün qalıb',
+  'days.left.many': '{сколько} gün qalıb',
+  'months.one': '{сколько} ay',
+  'months.few': '{сколько} ay',
+  'months.many': '{сколько} ay',
+
+  // Ответ о доме.
+  'answer.houseNow': 'Hazırda evdə:\n{строки}',
+  'answer.houseWork': '{название}: {до}.',
+  'answer.houseIncident': '{название}: müraciət {номер}, son müddət {срок}.',
+  'answer.houseShared': 'Evdə qəza və iş elan olunmayıb, amma ev üzrə müraciətlər var:\n{строки}',
+  'answer.houseSharedLine': '{название}: müraciət {номер}, {состояние}.',
+  'answer.houseAhead': 'Hazırda evdə heç nə kəsilməyib. Ən yaxını: {событие}, {когда}.',
+  'answer.houseQuiet': 'Hazırda evdə heç nə kəsilməyib və qəza yoxdur.',
+  'answer.billEmpty': 'Bu ay üçün hələ hesablama yoxdur.',
+  'answer.billLeft': 'Ödəniş {сумма}, ayın {число}-dək.',
+  'answer.billPaid': 'Bu ay üçün hamısı ödənilib.',
+  'answer.requestsEmpty': 'Sizin açıq müraciətiniz yoxdur.',
+  'answer.requests': 'Müraciətləriniz:\n{строки}',
+  'answer.requestLine': '{номер}: {состояние}, son müddət {срок}.',
+  'answer.requestWaiting': 'sizin təhvil almanızı gözləyir',
+  'answer.requestWorking': 'işdədir',
+  'answer.requestNew': 'yeni',
+
+  // Счётчики.
+  'meters.remind':
+    'Sayğac göstəricilərini vermək vaxtıdır, {осталось}:\n{приборы}\nAşağıdakı düyməni basın və sayğacdakı rəqəmləri göndərin.',
+  'meters.expired': 'Yoxlama müddəti bitib: {приборы}.\nYeni yoxlamaya qədər normativ üzrə hesablanır.',
+  'meters.name': '{прибор} ({номер})',
+  'meters.spike':
+    '«{прибор}» sayğacı üzrə dövrün sərfi: {расход} {единица}, bu, adi haldan nəzərəçarpacaq qədər çoxdur.\n' +
+    'Adi haldan çox sərf etməmisinizsə, kranları və su çənini yoxlayın.',
+  'meters.aboveNeighbours':
+    '{номер} sayğacı üzrə sərf qonşulardakından yüksəkdir: sizdə {расход} {единица}, oxşar mənzillərdə isə {соседи} {единица}.\n' +
+    'Yoxlamağa dəyər: çox vaxt bu, sızan su çəni və ya qarışdırıcı olur.',
+
+  // Долг.
+  'debt.total': 'Ödənilməyib {сумма}:\n{строки}',
+  'debt.line': '  {период}: {сумма}',
+  'debt.linePenalty': '  {период}: {сумма} və penya {пени}',
+  'debt.penalty': '\n\nGecikməyə görə cərimə: {пени}\nYekunda ödəniləcək: {итого}',
+  'debt.short': '{месяцы} üzrə köhnə borc: {сумма}',
+  'debt.shortPenalty': '{месяцы} üzrə köhnə borc: {сумма}, gecikməyə görə cərimə {пени}',
+  'debt.range': '{от} ilə {до} arasında',
+  'debt.period': '{месяц} {год}',
+
+  // Поддержка.
+  'support.answered': '{сотрудник}, idarəetmə şirkəti, «{тема}» sualına cavab verir:\n{текст}',
+  'support.waiting': 'İdarəetmə şirkətinin cavabını gözləyir.',
+  'support.earlier': 'Bundan əvvəl daha {сколько}, tam şəkildə tətbiqdə.',
+  'support.you': 'Siz',
+  'support.company': 'İdarəetmə şirkəti',
+  'support.resident': 'Sakin',
+
+  // Собрания и опросы.
+  'poll.meeting': 'Mülkiyyətçilər yığıncağı',
+  'poll.survey': 'Sakin sorğusu',
+  'poll.started': '{вид}: {название}\n\n{вопрос}\n\n{порядок}',
+  'poll.orderMeeting': '{правило}. Səsvermə {от} ilə {до} arasında gedir.',
+  'poll.orderSurvey': '{до} tarixinədək cavab vermək olar. Sorğu mülkiyyətçilər yığıncağını əvəz etmir.',
+  'poll.remind': '«{название}» yığıncağı {до} bağlanır.\n{нехватка}',
+  'poll.remindFew': 'Hamı səs verməyib: səs az olduqca qərar qəbul edilməyəcək.',
+  'poll.remindArea':
+    'Səs verən mülkiyyətçilərin sahəsi tam deyil: {площадь} m² çatmır. Səs az olduqca qərar qəbul edilməyəcək.',
+  'poll.closed': 'Yığıncaq başa çatdı: {название}\n{итог}\nİştirak: {участие}, lehinə: evin sahəsinin {за}.',
+  'poll.noQuorum': 'Kvorum yoxdur, yığıncaq baş tutmadı.',
+  'poll.passed': 'Qərar qəbul edildi.',
+  'poll.failed': 'Qərar qəbul edilmədi.',
+  'poll.voteReplaced':
+    '«{название}» yığıncağı üzrə {квартира} mənzilinin səsini {кто} dəyişdi: {ответ}.\n' +
+    'Sahənin bir səsi var, sonuncu sayılır.',
+  'poll.choice.for': 'lehinə',
+  'poll.choice.against': 'əleyhinə',
+  'poll.choice.abstain': 'bitərəf qaldı',
+  'poll.elder':
+    'Qonşular sizi {подъезд} girişinin böyüyü seçdi.\n' +
+    'Girişin ümumi əmlakı üzrə müraciətlər indi sizindir: onları siz görürsünüz və işi siz təhvil alırsınız.',
+
+  'pollRule.simple': 'Sadə səs çoxluğu',
+  'pollRule.qualified': 'Kvalifikasiyalı səs çoxluğu',
+
+  'poll.tally.for': 'Lehinə',
+  'poll.tally.against': 'Əleyhinə',
+  'poll.tally.abstain': 'Bitərəf qaldı',
+  'poll.base.participants': 'səs verənlərdən',
+  'poll.base.building': 'bütün mülkiyyətçilərdən',
+  'poll.threshold.strict': '{доля} dan çox',
+  'poll.threshold.plain': '{доля}',
+
+  'poll.result.survey': 'Sakin sorğusu, yığıncaq qərarı deyil. Cavab verdilər: evin sahəsinin {участие}.',
+  'poll.result.meeting': '{правило}. İştirak: evin sahəsinin {участие}.',
+  'poll.result.quorum':
+    'Hələ hamı səs verməyib: qərarın qüvvəyə minməsi üçün daha {площадь} m² mülkiyyətçilərinin səsi lazımdır.',
+  'poll.result.share': '{ответ}: {доля}',
+  'poll.result.needed': '{база} {порог} lazımdır, toplanıb {набрано}.',
+  'poll.result.mine': 'Mənzilin səsi: {ответ}.',
+  'poll.result.mineBy': 'Mənzilin səsi: {ответ} ({кто} verdi, mənzilin bir səsi var).',
+
+  'protocol.title': 'Mülkiyyətçilərin ümumi yığıncağının protokolu',
+  'protocol.surveyTitle': 'Sakin sorğusunun nəticələri',
+  'protocol.number': '№ {номер}',
+  'protocol.company': 'İdarəetmə şirkəti: {название}',
+  'protocol.form': 'Forma: sistem vasitəsilə qiyabi səsvermə',
+  'protocol.surveyForm': 'İdarəetmə təşkilatının sorğusu: ümumi yığıncağın qərarı deyil',
+  'protocol.notice': 'Yığıncaq haqqında bildiriş: {номер}',
+  'protocol.initiator': 'Təşəbbüskar: {кто}',
+  'protocol.surveyBy': 'Keçirdi: {кто}',
+  'protocol.administrator': 'Yığıncağın administratoru: {кто}',
+  'protocol.voting': 'Səsvermə: {от} ilə {до} arasında',
+  'protocol.agenda': 'Gündəliyin məsələsi',
+  'protocol.counting': 'Səslərin sayılması',
+  'protocol.totalArea': 'Sahələrin ümumi ölçüsü: {площадь} m²',
+  'protocol.turnout': 'İştirak etdi: {площадь} m² ({доля})',
+  'protocol.quorumYes': 'Kvorum: var, {порог} dan çox tələb olunur',
+  'protocol.quorumUnknown': 'Kvorum: təsdiqlənmir, {сколько} sahənin ölçüsü qeydə alınmayıb',
+  'protocol.quorumNo': 'Kvorum: yoxdur, {площадь} m² çatmır',
+  'protocol.line': '{ответ}: {площадь} m² ({доля})',
+  'protocol.decision': 'Qərar',
+  'protocol.rule': '{правило}: {база} {набрано}, həddi {порог}.',
+  'protocol.moreThan': '{доля} dan çox',
+  'protocol.atLeast': '{доля} dan az olmayaraq',
+  'protocol.noQuorum': 'Yığıncaq baş tutmadı: kvorum yoxdur.',
+  'protocol.formed': 'Protokol {дата} tərtib edildi',
+  'protocol.surveyFormed': 'Nəticələr {дата} yekunlaşdırıldı',
+  'protocol.attachments': 'Əlavələr: mülkiyyətçilərin reyestri, mülkiyyətçilərin qərarları, yığıncağın keçirilməsi haqqında bildiriş.',
+  'protocol.originals':
+    'Qərarların və protokolun əsli idarəetmə təşkilatına, oradan isə dövlət mənzil nəzarəti ' +
+    'orqanına təhvil verilir.',
+
+  'initiative.proposed': 'Qonşu təklif edir: {название}\n\n{описание}',
+  'initiative.meetingCalled':
+    'Təklifiniz üzrə yığıncaq elan edildi: {название}.\nSəs aşağıdakı düymə ilə verilir.',
+  'initiative.enough': 'Yığıncaq tələb etmək üçün imzalar kifayətdir',
+  'initiative.need': 'Yığıncağın təyin edilməsi üçün daha {площадь} m² mülkiyyətçilərinin imzası lazımdır',
+  'initiative.signatures': 'İmzalar: {сколько}.',
+
+  'binding.neighbour':
+    '{квартира} nömrəli mənzilinizə daha bir sakin bağlandı: {кто}.\n' +
+    'Əgər bu sizin qonşunuz deyilsə, idarəetmə şirkətinə bildirin.',
+  'binding.bound':
+    'İdarəetmə şirkəti sizi {квартира} nömrəli mənzilə bağladı.\n' +
+    'İndi sayğac göstəriciləri və yığıncaqlarda səsvermə açıqdır.',
+  'binding.unbound':
+    'İdarəetmə şirkəti sizi {квартира} nömrəli mənzildən ayırdı.\n' +
+    'Əgər bu səhvdirsə, qəbzdəki kodla yenidən bağlanın.',
+  'binding.unboundPlain':
+    'İdarəetmə şirkəti sizi mənzildən ayırdı.\n' +
+    'Əgər bu səhvdirsə, qəbzdəki kodla yenidən bağlanın.',
+
+  'quality.short': 'Hazırda açıq müraciətlər: {открыто}{просрочено}{срок}.',
+  'quality.overdueShort': ', vaxtı keçib {сколько}',
+  'quality.rateShort': ', {дни} ərzində vaxtında {доля}',
+  'quality.title': 'İdarəetmə şirkəti {дни} ərzində necə işləyir:',
+  'quality.titleAt': 'İdarəetmə şirkəti {дни} ərzində necə işləyir, {адрес}:',
+  'quality.created': '  Verilmiş müraciətlər: {сколько}',
+  'quality.closed': '  Bağlanıb: {сколько}',
+  'quality.inTime': '  Vaxtında: {доля}',
+  'quality.hours': '  Orta iş vaxtı: {часы} saat',
+  'quality.hoursBefore': '  Orta iş vaxtı: {часы} saat, bir ay əvvəl {раньше} saat',
+  'quality.rating': '  Sakinlərin qiymətləndirməsi: 5 baldan {оценка} ({сколько} nəfər qiymət verdi)',
+  'quality.open': 'Hazırda açıq müraciətlər: {сколько}',
+  'quality.openOverdue': 'Hazırda açıq müraciətlər: {сколько}, vaxtı keçib {просрочено}',
+
+  'clarify.where': 'Bu harada baş verdi?',
+  'clarify.whichFlat': 'Bu hansı mənzildə baş verdi?',
+  'clarify.flat': '{номер} nömrəli mənzil',
+  'clarify.entrance': '{номер} nömrəli giriş',
+
+  'device.snapshot': '{устройство}: {время} kadrı',
+
+  // Приём в управляющей организации.
+  'visit.booked': 'İdarəetmə təşkilatı sizi qəbula yazdı: {когда}.\n{тема}',
+  'visit.cancelled': '{день} saat {время} qəbulu idarəetmə təşkilatı tərəfindən ləğv edildi.',
+
+  // Помощник без модели.
+  'assistant.offTopic':
+    'Mən yalnız ev və bu tətbiqlə kömək edirəm: müraciətlər, sayğaclar, qəbz, yığıncaqlar, ' +
+    'qapılar və idarəetmə təşkilatına suallar. Qalanına idarəetmə təşkilatından bir əməkdaş cavab verəcək.',
+  'assistant.fallback':
+    'Sualı başa düşmədim. Burada nasazlıq barədə bildirmək, göstəriciləri ötürmək, müraciətlərə baxmaq ' +
+    'və idarəetmə təşkilatına yazmaq olar.',
+  'assistant.section': '{раздел}: {описание}.',
+  'assistant.answerInQuestionLanguage': 'Sual hansı dildə verilibsə, həmin dildə cavab ver.',
+  'assistant.answerInLanguage': 'Sualın dili aydın deyilsə, {язык} adlanan dildə cavab ver.',
+  'assistant.reportLanguage': 'language sahəsində sualın dil kodunu qaytar, bunlardan biri: {коды}.',
+  'assistant.offerLanguage': 'Sizinlə {язык} dilində danışa bilərəm: aşağıdakı düyməni basın.',
+  'assistant.languageButton': '{язык} dilində danış',
+
+  // Разделы продукта словами жильца: ими подписаны кнопки и ответы помощника.
+  'capability.new.title': 'Nasazlıq barədə bildirmək',
+  'capability.new.about':
+    'Nəyin sındığını sözlə və ya şəkillə təsvir edin: məhsul kateqoriyanı müəyyən edib müddəti bildirəcək',
+  'capability.list.title': 'Müraciətlərim',
+  'capability.list.about': 'Öz müraciətlərinizə baxın: vəziyyət, müddət, işi kim aparır, və görüləni təhvil alın',
+  'capability.meters.title': 'Sayğac göstəriciləri',
+  'capability.meters.about': 'Su, elektrik və istilik sayğaclarının göstəricilərini ötürün',
+  'capability.bill.title': 'Qəbz və ödəniş',
+  'capability.bill.about': 'Ay üzrə hesablamaya, borca və penyaya baxın və ödəyin',
+  'capability.home.title': 'Ev: qapılar və kameralar',
+  'capability.home.about':
+    'Giriş qapısını və ya şlaqbaumu açın, kameradan kadra baxın, qonağa birdəfəlik kod verin',
+  'capability.news.title': 'Ev elanları',
+  'capability.news.about': 'İdarəetmə təşkilatının elanlarını oxuyun və planlı işlərdən xəbər tutun',
+  'capability.tour.title': 'Tətbiq üzrə tur',
+  'capability.tour.about': 'Bölmələrin qısa göstərişini keçin: nə haradadır və nədən başlamaq lazımdır',
+  'capability.polls.title': 'Mülkiyyətçilər yığıncaqları',
+  'capability.polls.about': 'Yığıncaqda səs verin, qonşunun təklifini dəstəkləyin, protokolu oxuyun',
+  'capability.support.title': 'İdarəetmə təşkilatına sual',
+  'capability.support.about': 'Sual verin və yazışma ilə cavab alın, telefonları və iş rejimini görün',
+  'capability.visits.title': 'Qəbula yazılma',
+  'capability.visits.about': 'İdarəetmə təşkilatında boş qəbul saatını seçin',
+  'capability.bind.title': 'Mənzili bağlamaq',
+  'capability.bind.about': 'Qəbzdəki kodu daxil edin ki, sayğaclar, qəbz və yığıncaqda səs açılsın',
+  'capability.capital.title': 'Əsaslı təmir',
+  'capability.capital.about': 'Haqqa, evin yığdığı vəsaitə və regional proqram üzrə iş illərinə baxın',
+  'capability.quality.title': 'Şirkət necə işləyir',
+  'capability.quality.about': 'Neçə müraciətin vaxtında bağlandığına və evdə ən çox nəyin sındığına baxın',
+  'capability.language.title': 'Məhsulun dili',
+  'capability.language.about': 'Məhsulun sizinlə danışdığı dili seçin',
+  'capability.profile.title': 'Profil və məlumatlarım',
+  'capability.profile.about': 'Telefon, bildirişlər, öz məlumatlarının yüklənməsi və profilin silinməsi',
+  'capability.stickers.title': 'Obyekt kodları',
+  'capability.stickers.about': 'Giriş, lift və ya mənzil kodu olan stiker alın',
+};

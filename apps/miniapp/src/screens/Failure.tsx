@@ -2,6 +2,7 @@ import { Button } from '@maxhub/max-ui';
 import type { ReactNode } from 'react';
 
 import { describeFailure, worthRetrying } from '../api.js';
+import { useT } from '../i18n.js';
 import { Empty } from './Empty.js';
 import { IconWarning } from './icons.js';
 
@@ -16,13 +17,14 @@ export interface FailureProps {
 
 /** Отказ вместо данных: одинаково выглядит на любом экране. */
 export const Failure = ({ title, error, onRetry, children }: FailureProps) => {
+  const t = useT();
   const hint = describeFailure(error);
 
   return (
     <Empty icon={<IconWarning />} title={title} {...(hint && hint !== title ? { hint } : {})}>
       {onRetry && worthRetrying(error) ? (
         <Button type="button" onClick={onRetry}>
-          Повторить
+          {t('chrome.retry')}
         </Button>
       ) : null}
 

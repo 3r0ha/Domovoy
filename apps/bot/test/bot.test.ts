@@ -25,6 +25,7 @@ import { type MockPlatform, type SentMessage, startMockPlatform } from '@maxkit/
 import { MemoryMarkerStore, type MarkerStore } from '@maxkit/runtime';
 
 import { createDomovoyBot } from '../dist/index.js';
+import { RU } from '../dist/i18n.js';
 import { menuFor } from '../dist/menu.js';
 
 const MINI_APP = 'https://domovoy.homes/app';
@@ -176,6 +177,13 @@ describe('чат-бот управляющей компании', () => {
     }
   };
 
+  /** Первый разговор начинается с выбора языка: дальше продукт говорит на нём. */
+  const chooseLanguage = async (userId: number, chatId: number, code = 'ru'): Promise<void> => {
+    await waitForMessage(chatId, /Choose your language/);
+
+    platform.userPressesButton(`lang:${code}`, { userId, chatId });
+  };
+
   /** Ждёт всплывающее уведомление на нажатие кнопки. */
   const waitForToast = async (pattern: RegExp, timeoutMs = 6000): Promise<string> => {
     const deadline = Date.now() + timeoutMs;
@@ -245,9 +253,13 @@ describe('чат-бот управляющей компании', () => {
         { buildingId: BUILDING_ID, code: 'lift-2', title: 'Лифт, подъезд 2', kind: 'lift' },
         { buildingId: BUILDING_ID, code: 'domofon-1', title: 'Домофон, подъезд 1', kind: 'intercom' },
       ],
-      // Согласие с документами у заведённых людей уже есть: его отдельно
+      // Согласие с документами и язык у заведённых людей уже есть: их отдельно
       // проверяет разговор с новым человеком.
-      residents: residents.map((person) => ({ ...person, legalVersion: LEGAL_VERSION })),
+      residents: residents.map((person) => ({
+        ...person,
+        legalVersion: LEGAL_VERSION,
+        language: person.language ?? ('ru' as const),
+      })),
     });
 
     let counter = 0;
@@ -332,6 +344,75 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('первый разговор начинается с выбора языка, и язык клиента стоит первым', async () => {
+    const bot = await start();
+
+    platform.pushUpdate({
+      update_type: 'bot_started',
+      timestamp: Date.now(),
+      chat_id: 5101,
+      user: { user_id: 5101, first_name: 'Улугбек', is_bot: false },
+      user_locale: 'uz-UZ',
+    });
+
+    const asked = await waitForMessage(5101, /Choose your language/);
+
+    assert.match(asked, /Выберите язык/, 'вопрос виден и тем, кто не читает по-русски');
+    assert.doesNotMatch(asked, /персональные данные/, 'до выбора языка документы не показывают');
+
+    const order = [
+      ...JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []).matchAll(/"payload":"lang:([a-z]+)"/gu),
+    ].map((match) => match[1]);
+
+    assert.equal(order[0], 'uz', 'язык клиента стоит первым в списке');
+    assert.ok(order.includes('ru') && order.includes('en'), 'остальные языки на месте');
+
+    platform.userPressesButton('lang:uz', { userId: 5101, chatId: 5101 });
+
+    // После выбора разговор идёт дальше: приветствие и документы на выбранном языке.
+    await waitForMessage(5101, /shaxsiy maʼlumotlar/u);
+
+    assert.equal((await bot.deps.repository.findResidentByMaxUserId(5101))?.language, 'uz');
+
+    await bot.stop();
+  });
+
+  it('команда языка меняет язык и помечает выбранный', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/lang', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Choose your language/);
+
+    assert.match(
+      JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []),
+      /✅ Русский/,
+      'выбранный язык помечен',
+    );
+
+    platform.userPressesButton('lang:uz', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Til: Oʻzbekcha/u);
+
+    assert.equal((await bot.deps.repository.findResidentByMaxUserId(3003))?.language, 'uz');
+
+    await bot.stop();
+  });
+
+  it('в меню жильца есть смена языка', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/start', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Здравствуйте/);
+
+    platform.userPressesButton('group:me', { userId: 3003, chatId: 3003 });
+
+    const group = JSON.stringify((await waitForKeyboard(3003)) ?? []);
+
+    assert.match(group, /Язык/);
+    assert.match(group, /"payload":"menu:lang"/);
+
+    await bot.stop();
+  });
+
   it('новичку по наклейке сначала документы и код квартиры, а объект ждёт привязки', async () => {
     const bot = await start();
     const payload = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' });
@@ -344,6 +425,7 @@ describe('чат-бот управляющей компании', () => {
       payload,
     });
 
+    await chooseLanguage(1001, 2001);
     await waitForMessage(2001, /персональные данные/);
     assert.doesNotMatch(platform.outgoing.map((message) => message.text).join(' '), /Лифт, подъезд 2/);
 
@@ -419,9 +501,11 @@ describe('чат-бот управляющей компании', () => {
       user: { user_id: 1001, first_name: 'Иван', is_bot: false },
       payload,
     });
-    await platform.waitForOutgoing(1, 3000);
+
+    await chooseLanguage(1001, 2001);
 
     // Первый разговор начинается с документов и кода квартиры: без них продукт не записывает.
+    await waitForMessage(2001, /персональные данные/);
     platform.userPressesButton('legal:accept', { userId: 1001, chatId: 2001 });
     await waitForMessage(2001, /код квартиры из квитанции/);
 
@@ -1293,6 +1377,28 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('вопрос на другом языке получает и ответ, и кнопку перехода на этот язык', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    platform.userSends('/help', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Спрашивайте о доме/);
+
+    platform.userSends('Hisoblagichlarni qayerda toʻlayman?', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Oʻzbekcha/u);
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /lang:uz/u, 'перейти на язык вопроса нечем');
+    assert.match(keyboard, /talk:stop/u, 'ответ на месте, разговор продолжается');
+
+    platform.userPressesButton('lang:uz', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Til: Oʻzbekcha/u);
+
+    assert.equal((await bot.deps.repository.findResidentByMaxUserId(3003))?.language, 'uz');
+
+    await bot.stop();
+  });
+
   it('кнопка под закрытой заявкой соседа отвечает словами, а не молчанием', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 
@@ -2128,6 +2234,28 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userPressesButton('unmute:news', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Снова буду присылать/);
+
+    await bot.stop();
+  });
+
+  it('кнопки под уведомлением идут на языке жильца', async () => {
+    const manager: Resident = {
+      id: 'mgr-lang',
+      maxUserId: 5088,
+      displayName: 'Нина',
+      role: 'manager',
+      buildingId: BUILDING_ID,
+    };
+
+    const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'uz' }, manager]);
+
+    await publishAnnouncement(bot.deps, { resident: manager, title: 'Субботник', body: 'В субботу во дворе' });
+    await waitForMessage(3003, /Субботник/);
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /Bildirishnomalar/u, 'отказ от уведомлений на языке жильца');
+    assert.doesNotMatch(keyboard, /Уведомления/u);
 
     await bot.stop();
   });
@@ -3773,6 +3901,8 @@ describe('чат-бот управляющей компании', () => {
       payload,
     });
 
+    await chooseLanguage(4005, 4005);
+
     const greeting = await waitForMessage(4005, /Теперь я знаю, что вы в квартире/);
 
     assert.match(greeting, /квартире 1/);
@@ -4922,7 +5052,7 @@ describe('названия в меню', () => {
       );
 
       return [...menu.top, ...menu.groups.flatMap((group) => [{ title: group.title }, ...group.items])]
-        .map((item) => item.title)
+        .map((item) => RU(item.title))
         .filter((title) => width(title) > LIMIT);
     });
 
@@ -4948,13 +5078,14 @@ describe('названия в меню', () => {
     assert.deepEqual(without, []);
   });
 
-  it('жильцу без квартиры меню сводится к привязке и, на проверке, роли', () => {
+  it('жильцу без квартиры меню сводится к привязке, языку и, на проверке, роли', () => {
     const plain = menuFor(UNBOUND_RESIDENT);
     const demo = menuFor(UNBOUND_RESIDENT, { demo: true });
 
-    assert.deepEqual(plain.top.map((item) => item.command), ['flat']);
+    // Язык остаётся и здесь: без него человек не прочтёт саму просьбу о коде.
+    assert.deepEqual(plain.top.map((item) => item.command), ['flat', 'lang']);
     assert.deepEqual(plain.groups, []);
-    assert.deepEqual(demo.top.map((item) => item.command), ['flat', 'demo']);
+    assert.deepEqual(demo.top.map((item) => item.command), ['flat', 'lang', 'demo']);
 
     // Сотрудника без квартиры правило не касается: у него дом из назначения роли.
     const staff = menuFor({ ...UNBOUND_RESIDENT, role: 'technician', buildingId: BUILDING_ID });

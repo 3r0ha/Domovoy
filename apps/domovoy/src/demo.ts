@@ -181,6 +181,7 @@ export const demoData = (): DemoData => ({
       apartmentId: 'apt-1',
       apartmentIds: ['apt-1', 'apt-17-4'],
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'res-ivan',
@@ -189,6 +190,7 @@ export const demoData = (): DemoData => ({
       role: 'resident',
       apartmentId: 'apt-2',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'staff-dispatcher',
@@ -198,6 +200,7 @@ export const demoData = (): DemoData => ({
       apartmentId: 'apt-17-8',
       apartmentIds: ['apt-17-8'],
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'staff-technician',
@@ -205,6 +208,7 @@ export const demoData = (): DemoData => ({
       displayName: 'Сергей Малых',
       role: 'technician',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'staff-manager',
@@ -212,6 +216,7 @@ export const demoData = (): DemoData => ({
       displayName: 'Нина Гордеева',
       role: 'manager',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'staff-contractor',
@@ -219,6 +224,7 @@ export const demoData = (): DemoData => ({
       displayName: 'Лифтсервис',
       role: 'contractor',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'res-anna',
@@ -227,6 +233,7 @@ export const demoData = (): DemoData => ({
       role: 'resident',
       apartmentId: 'apt-3',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
     {
       id: 'res-petr',
@@ -235,6 +242,7 @@ export const demoData = (): DemoData => ({
       role: 'resident',
       apartmentId: 'apt-6',
       buildingId: BUILDING_ID,
+      language: 'ru',
     },
   ],
 });

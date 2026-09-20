@@ -1,4 +1,5 @@
 import { commonNeedsTitle } from './common.js';
+import { chargeDetailKey, chargeKey, meterKindKey } from './keys.js';
 import { roundMoney } from './numbers.js';
 import { METER_RULES, type MeterKind } from './meters.js';
 import type { ConsumptionBasis } from './norms.js';
@@ -14,6 +15,14 @@ export interface ChargeLine {
   detail?: string;
   /** Чем посчитано, если не по показаниям жильца. */
   basis?: ConsumptionBasis;
+  /** Ключ перевода названия: по нему слой приложения берёт строку на языке жильца. */
+  titleKey?: string;
+  /** Ресурс строки: по нему переводится название ресурса внутри названия строки. */
+  kind?: MeterKind;
+  /** Ключ перевода расшифровки. */
+  detailKey?: string;
+  /** Числа расшифровки: единица ресурса подставляется по {@link ChargeLine.kind}. */
+  detailValues?: Readonly<Record<string, string | number>>;
 }
 
 export interface Charges {
@@ -116,10 +125,14 @@ export const chargesFor = (input: ChargeInput): Charges => {
 
       return {
         title: item.title,
+        titleKey: meterKindKey(item.kind),
+        kind: item.kind,
         amount: roundMoney(item.amount * rate),
         detail:
           `${decimal(item.amount)} ${item.unit} × ${decimal(rate)} ₽` +
           (item.basis && item.basis !== 'meter' ? ` · ${BASIS_TITLES[item.basis]}` : ''),
+        detailKey: chargeDetailKey('rate'),
+        detailValues: { расход: decimal(item.amount), тариф: decimal(rate) },
         ...(item.basis && item.basis !== 'meter' ? { basis: item.basis } : {}),
       };
     });
@@ -137,8 +150,12 @@ export const chargesFor = (input: ChargeInput): Charges => {
 
     lines.push({
       title: `Перерасчёт: ${line.title.toLowerCase()} отключали дольше нормы`,
+      titleKey: chargeKey('recalculation'),
+      kind: outage.kind,
       amount: -reduction,
       detail: `${decimal(outage.excessHours)} ч сверх нормы × 0,15% × ${decimal(line.amount)} ₽`,
+      detailKey: chargeDetailKey('recalculation'),
+      detailValues: { часы: decimal(outage.excessHours), сумма: decimal(line.amount) },
     });
   }
 
@@ -152,8 +169,12 @@ export const chargesFor = (input: ChargeInput): Charges => {
 
     lines.push({
       title,
+      titleKey: chargeKey('common'),
+      kind: item.kind,
       amount: roundMoney(item.amount * rate),
       detail: `${decimal(item.amount)} ${METER_RULES[item.kind].unit} × ${decimal(rate)} ₽`,
+      detailKey: chargeDetailKey('rate'),
+      detailValues: { расход: decimal(item.amount), тариф: decimal(rate) },
     });
   }
 
@@ -166,8 +187,11 @@ export const chargesFor = (input: ChargeInput): Charges => {
   if (input.area > 0 && maintenance > 0) {
     lines.push({
       title: 'Содержание и текущий ремонт',
+      titleKey: chargeKey('maintenance'),
       amount: roundMoney(input.area * maintenance),
       detail: `${decimal(input.area)} м² × ${decimal(maintenance)} ₽`,
+      detailKey: chargeDetailKey('area'),
+      detailValues: { площадь: decimal(input.area), тариф: decimal(maintenance) },
     });
   }
 

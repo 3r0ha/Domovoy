@@ -1,11 +1,15 @@
 import { type ReactNode } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
+import { say } from './i18n.js';
 import { type Screen } from './navigation.js';
 import type { RoleView } from './views.js';
 import {
   IconBuildings,
   IconCalendar,
   IconChat,
+  IconGlobe,
   IconHelp,
   IconHome,
   IconKey,
@@ -39,44 +43,103 @@ export interface Section {
 }
 
 /** Разделы жильца. «Новая заявка» это действие, поэтому не вкладка. */
-const RESIDENT_SECTIONS: readonly Section[] = [
-  { screen: 'list', title: 'Заявки', hint: 'Обращения и приёмка', icon: IconRequests, tone: 'tile-blue' },
-  { screen: 'home', title: 'Дом', hint: 'Двери и камеры', icon: IconKey, tone: 'tile-teal' },
-  { screen: 'meters', title: 'Оплата', hint: 'Квитанция и показания', icon: IconMeters, tone: 'tile-yellow' },
-  { screen: 'news', title: 'Новости', hint: 'Объявления дома', icon: IconNews, tone: 'tile-orange' },
+const residentSections = (t: Translate): readonly Section[] => [
+  { screen: 'list', title: t('sections.list.title'), hint: t('sections.list.hint'), icon: IconRequests, tone: 'tile-blue' },
+  { screen: 'home', title: t('sections.home.title'), hint: t('sections.home.hint'), icon: IconKey, tone: 'tile-teal' },
+  {
+    screen: 'meters',
+    title: t('sections.meters.title'),
+    hint: t('sections.meters.hint'),
+    icon: IconMeters,
+    tone: 'tile-yellow',
+  },
+  { screen: 'news', title: t('sections.news.title'), hint: t('sections.news.hint'), icon: IconNews, tone: 'tile-orange' },
 ];
 
 /** Профиль: он есть и у жильца без квартиры, там документы и свои данные. */
-const PROFILE: Section = { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey' };
+const profileSection = (t: Translate): Section => ({
+  screen: 'profile',
+  title: t('sections.profile.title'),
+  hint: t('sections.profile.hint'),
+  icon: IconPerson,
+  tone: 'tile-grey',
+});
 
-const RESIDENT_EXTRA: readonly Section[] = [
-  { screen: 'polls', title: 'Собрания', hint: 'Голосования и предложения', icon: IconPolls, tone: 'tile-green' },
-  { screen: 'quality', title: 'Работа дома', hint: 'Как справляется компания', icon: IconReport, tone: 'tile-blue' },
-  { screen: 'support', title: 'Поддержка', hint: 'Вопрос в управляющую компанию', icon: IconChat, tone: 'tile-teal' },
-  { screen: 'visits', title: 'Приём', hint: 'Запись в управляющую компанию', icon: IconCalendar, tone: 'tile-green' },
+/** Язык: он нужен и до квартиры, иначе остальные разделы не прочитать. */
+const languageSection = (t: Translate): Section => ({
+  screen: 'language',
+  title: t('sections.language.title'),
+  hint: t('sections.language.hint'),
+  icon: IconGlobe,
+  tone: 'tile-blue',
+});
+
+const residentExtra = (t: Translate): readonly Section[] => [
+  { screen: 'polls', title: t('sections.polls.title'), hint: t('sections.polls.hint'), icon: IconPolls, tone: 'tile-green' },
+  {
+    screen: 'quality',
+    title: t('sections.quality.title'),
+    hint: t('sections.quality.hint'),
+    icon: IconReport,
+    tone: 'tile-blue',
+  },
+  {
+    screen: 'support',
+    title: t('sections.support.title'),
+    hint: t('sections.support.hint'),
+    icon: IconChat,
+    tone: 'tile-teal',
+  },
+  {
+    screen: 'visits',
+    title: t('sections.visits.title'),
+    hint: t('sections.visits.hint'),
+    icon: IconCalendar,
+    tone: 'tile-green',
+  },
   {
     screen: 'capital',
-    title: 'Капремонт',
-    hint: 'Что и в каком году делают по программе',
+    title: t('sections.capital.title'),
+    hint: t('sections.capital.hint'),
     icon: IconRepair,
     tone: 'tile-orange',
   },
-  { screen: 'help', title: 'Помощник', hint: 'Спросите словами, что нужно', icon: IconHelp, tone: 'tile-yellow' },
-  PROFILE,
+  { screen: 'help', title: t('sections.help.title'), hint: t('sections.help.hint'), icon: IconHelp, tone: 'tile-yellow' },
+  profileSection(t),
+  languageSection(t),
 ];
 
 /** Подрядчику дом не показывают: у него только порученные наряды. */
-const CONTRACTOR_SECTIONS: readonly Section[] = [
+const contractorSections = (t: Translate): readonly Section[] => [
   { screen: 'list', title: 'Наряды', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
-  { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey' },
+  profileSection(t),
 ];
 
 /** Своя квартира есть и у подрядчика: наряды чужого дома с ней не связаны. */
-const CONTRACTOR_EXTRA: readonly Section[] = [
-  { screen: 'meters', title: 'Оплата', hint: 'Ваша квитанция', icon: IconMeters, tone: 'tile-yellow' },
-  { screen: 'support', title: 'Поддержка', hint: 'Вопрос в управляющую компанию', icon: IconChat, tone: 'tile-teal' },
-  { screen: 'polls', title: 'Собрания', hint: 'Голосования и предложения', icon: IconPolls, tone: 'tile-green' },
-  { screen: 'quality', title: 'Работа дома', hint: 'Как справляются в вашем доме', icon: IconReport, tone: 'tile-blue' },
+const contractorExtra = (t: Translate): readonly Section[] => [
+  {
+    screen: 'meters',
+    title: t('sections.meters.title'),
+    hint: t('sections.meters.hint.own'),
+    icon: IconMeters,
+    tone: 'tile-yellow',
+  },
+  {
+    screen: 'support',
+    title: t('sections.support.title'),
+    hint: t('sections.support.hint'),
+    icon: IconChat,
+    tone: 'tile-teal',
+  },
+  { screen: 'polls', title: t('sections.polls.title'), hint: t('sections.polls.hint'), icon: IconPolls, tone: 'tile-green' },
+  {
+    screen: 'quality',
+    title: t('sections.quality.title'),
+    hint: t('sections.quality.hint.house'),
+    icon: IconReport,
+    tone: 'tile-blue',
+  },
+  languageSection(t),
 ];
 
 /** Разделы сотрудника: в панели то, чем пользуются в смену, остальное в «Ещё». */
@@ -224,6 +287,9 @@ const STAFF_EXTRA: readonly Section[] = [
   { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey', group: 'Своё' },
 ];
 
+/** Язык сотрудник меняет там же, где и остальное своё. */
+const staffExtra = (t: Translate): readonly Section[] => [...STAFF_EXTRA, { ...languageSection(t), group: 'Своё' }];
+
 /** Разделы про свою квартиру: в шапке над ними стоит переключатель квартиры. */
 export const HOME_SCREENS: readonly Screen[] = ['meters', 'polls', 'quality'];
 
@@ -270,14 +336,14 @@ const REQUIRES: Readonly<Partial<Record<Screen, keyof Offer>>> = {
 };
 
 /** Раздел проверки: в обычной установке его нет вовсе. */
-const DEMO_SECTION: Section = {
+const demoSection = (t: Translate): Section => ({
   screen: 'demo',
-  title: 'Роль',
-  hint: 'Посмотреть продукт другой стороной',
+  title: t('sections.demo.title'),
+  hint: t('sections.demo.hint'),
   icon: IconPeople,
   tone: 'tile-green',
-  group: 'Проверка',
-};
+  group: t('sections.demo.group'),
+});
 
 /** Есть ли раздел в этой установке: по ссылке на него тоже не попасть. */
 export const offeredScreen = (screen: Screen, offer: Offer = {}): boolean => {
@@ -289,45 +355,55 @@ export const offeredScreen = (screen: Screen, offer: Offer = {}): boolean => {
 };
 
 /** Какие разделы видит человек и что из них попадает в нижнюю панель. */
-export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}): Layout => {
+export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}, t: Translate = say): Layout => {
   const contractor = role === 'contractor';
   const isStaff = role !== 'resident';
   const needsBinding = !isStaff && !bound;
+  const demo = demoSection(t);
 
   const flat: Section = {
     screen: 'bind',
-    title: needsBinding || contractor ? 'Квартира' : bound ? 'Добавить квартиру' : 'Моя квартира',
-    hint: 'По коду из квитанции',
+    title:
+      needsBinding || contractor
+        ? t('sections.bind.title')
+        : bound
+          ? t('sections.bind.title.add')
+          : t('sections.bind.title.own'),
+    hint: t('sections.bind.hint'),
     icon: IconHome,
     tone: 'tile-blue',
   };
 
-  // Жильцу без квартиры дома нет: только привязка, профиль и, на проверке,
+  // Жильцу без квартиры дома нет: только привязка, профиль, язык и, на проверке,
   // примерка роли. Панели разделов у него нет, к профилю ведёт сам экран.
   if (needsBinding) {
-    return { everything: [flat, PROFILE, ...(offer.demo === true ? [DEMO_SECTION] : [])], tabs: [], hidden: [] };
+    return {
+      everything: [flat, profileSection(t), languageSection(t), ...(offer.demo === true ? [demo] : [])],
+      tabs: [],
+      hidden: [],
+    };
   }
 
   const sections = contractor
-    ? CONTRACTOR_SECTIONS
+    ? contractorSections(t)
     : role === 'technician'
       ? TECHNICIAN_SECTIONS
       : isStaff
         ? STAFF_SECTIONS
-        : RESIDENT_SECTIONS;
+        : residentSections(t);
 
   const extra = contractor
     ? bound
-      ? CONTRACTOR_EXTRA
+      ? contractorExtra(t)
       : []
-    : (isStaff ? STAFF_EXTRA : RESIDENT_EXTRA).filter(
+    : (isStaff ? staffExtra(t) : residentExtra(t)).filter(
         (section) =>
           (!FOR_MANAGER.includes(section.screen) || role === 'manager') &&
           (!FOR_DISPATCHER.includes(section.screen) || role === 'manager' || role === 'dispatcher') &&
           (!FOR_BOUND.includes(section.screen) || bound),
       );
 
-  const everything = [...sections, ...extra, flat, DEMO_SECTION].filter(
+  const everything = [...sections, ...extra, flat, demo].filter(
     (section) =>
       offeredScreen(section.screen, offer) &&
       (!isStaff || contractor || offer.demo === true || !RESIDENT_OWN.includes(section.screen)),
@@ -340,6 +416,15 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
     hidden: everything.slice(inBar.length),
     tabs: fits
       ? inBar
-      : [...inBar, { screen: 'more', title: 'Ещё', hint: 'Остальные разделы', icon: IconMore, tone: 'tile-grey' }],
+      : [
+          ...inBar,
+          {
+            screen: 'more',
+            title: t('sections.more.title'),
+            hint: t('sections.more.hint'),
+            icon: IconMore,
+            tone: 'tile-grey',
+          },
+        ],
   };
 };

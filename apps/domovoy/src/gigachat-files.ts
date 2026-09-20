@@ -1,5 +1,6 @@
 import type { MeterVision, Transcriber } from '@domovoy/app';
 import { DomainError } from '@domovoy/domain';
+import { languageScript, languageTitle, type Language } from '@domovoy/i18n';
 
 import { audioSeconds, sniffAudio, webmToOgg, type AudioContainer } from './audio.js';
 import { sharedTokenSource, type GigaChatOptions } from './gigachat.js';
@@ -37,11 +38,14 @@ const ABOUT_METER =
   'Если на снимке нет табло счётчика, ответь «нет». ' +
   'Если табло есть, но цифры не прочитать или рядов цифр несколько, ответь «неясно».';
 
-const ABOUT_VOICE =
+/** Язык говорящего дописывается к просьбе: без него модель ждёт русскую речь. */
+const aboutVoice = (language: Language | undefined): string =>
   'Это голосовое сообщение жильца управляющей организации дома. ' +
-  'Расшифруй речь дословно, слово в слово: без пересказа, без пояснений и без вступления. ' +
+  `Человек говорит на языке: ${language ? languageTitle(language) : 'русский'}. ` +
+  'Расшифруй речь дословно, слово в слово, на языке говорящего: без перевода, без пересказа, ' +
+  'без пояснений и без вступления. ' +
   'Числа, которые человек называет как показание счётчика, запиши цифрами. ' +
-  'Если речи нет, речь не на русском языке или слова не разобрать, ответь одним словом «нет».';
+  'Если речи нет, язык не тот или слова не разобрать, ответь одним словом «нет».';
 
 /** Ответ модели, по которому ясно, что разобрать не вышло. */
 const NOTHING = /^\s*[«"']?нет[»"']?\s*[.!]?\s*$/iu;
@@ -77,8 +81,14 @@ const NAME_BY_IMAGE: Record<string, string> = {
 const isDownloadable = (token: string): boolean =>
   token.startsWith('http://') || token.startsWith('https://') || token.startsWith('data:');
 
-/** Речь на чужом языке: латиницы в ответе больше, чем кириллицы. */
-const foreign = (text: string): boolean => {
+/**
+ * Расшифровка не на том языке: у языка с кириллицей латиницы в ответе больше,
+ * чем кириллицы. У языков с латиницей, армянским, грузинским письмом и
+ * иероглифами такой проверки нет: там латиница и есть свой язык.
+ */
+const foreign = (text: string, language: Language | undefined): boolean => {
+  if (language && languageScript(language) !== 'cyrillic') return false;
+
   const latin = (text.match(/\p{Script=Latin}/gu) ?? []).length;
   const cyrillic = (text.match(/\p{Script=Cyrillic}/gu) ?? []).length;
 
@@ -86,7 +96,7 @@ const foreign = (text: string): boolean => {
 };
 
 /** Расшифровка из ответа модели. Пусто, если ответ не расшифровка. */
-export const transcriptOf = (said: string): string | undefined => {
+export const transcriptOf = (said: string, language?: Language): string | undefined => {
   const text = said
     .trim()
     .replace(WRAPPING, '')
@@ -96,7 +106,7 @@ export const transcriptOf = (said: string): string | undefined => {
     .replace(/(\d)\.$/u, '$1')
     .trim();
 
-  if (text.length === 0 || NOTHING.test(text) || RETOLD.test(text) || foreign(text)) return undefined;
+  if (text.length === 0 || NOTHING.test(text) || RETOLD.test(text) || foreign(text, language)) return undefined;
 
   return text;
 };
@@ -286,12 +296,12 @@ export const createGigaChatFiles = (
   };
 
   const transcriber: Transcriber = {
-    async transcribe(attachment) {
+    async transcribe(attachment, language) {
       if (attachment.kind !== 'voice' || !isDownloadable(attachment.token)) return undefined;
 
-      const said = await askAbout(attachment.token, asVoice, ABOUT_VOICE, MAX_VOICE_BYTES);
+      const said = await askAbout(attachment.token, asVoice, aboutVoice(language), MAX_VOICE_BYTES);
 
-      return said === undefined ? undefined : transcriptOf(said);
+      return said === undefined ? undefined : transcriptOf(said, language);
     },
   };
 

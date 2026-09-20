@@ -1,6 +1,7 @@
 import { useBridge } from '@maxkit/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { say } from './i18n.js';
 import type { TourStep } from './screens/Tour.js';
 import type { Section } from './sections.js';
 
@@ -36,16 +37,16 @@ const tourSteps = (sections: readonly Section[], demo = false): TourStep[] => [
   })),
   {
     anchor: 'assistant',
-    title: 'Помощник',
-    text: 'Спросите словами, что нужно. Он ответит и откроет нужный раздел.',
+    title: say('tour.assistant.title'),
+    text: say('tour.assistant.text'),
   },
   // В режиме проверки роль примеряется здесь же: иначе жюри заводит пять учётных записей.
   ...(demo
     ? [
         {
           anchor: 'tab-more',
-          title: 'Роль для проверки',
-          text: 'В разделе «Ещё» лежит «Роль»: смотрите продукт глазами жильца, диспетчера, мастера или управляющего.',
+          title: say('tour.role.title'),
+          text: say('tour.role.text'),
         },
       ]
     : []),

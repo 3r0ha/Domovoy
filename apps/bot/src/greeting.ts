@@ -1,6 +1,7 @@
 import {
   actionsFor,
   describeContext,
+  languageChosen,
   legalAccepted,
   listRequestsFor,
   needsApartment,
@@ -20,9 +21,12 @@ import {
   reportersCount,
   type Role,
 } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
 import { askApartment } from './apartment.js';
+import { speak } from './i18n.js';
 import { actionKeyboard, bindIfApartment, cancelKeyboard, errorText, replyIfOpen } from './keyboards.js';
+import { askLanguage } from './language.js';
 import { expect, inChat, strong, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
 import type { BotKit } from './kit.js';
@@ -62,12 +66,14 @@ const bound = async (kit: BotKit, typed: BotContext, payload: string): Promise<b
 
 /** Ответ на удачную привязку: что теперь доступно. */
 export const sayBound = async (kit: BotKit, typed: BotContext, flat: BindResult): Promise<void> => {
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
   await typed.reply(
     flat.alreadyBound
-      ? `Вы уже привязаны к квартире ${flat.apartment.number}.`
-      : `Готово. Теперь я знаю, что вы в квартире ${flat.apartment.number}.\n` +
-        'Можно отправлять цифры со счётчиков, смотреть счёт и голосовать на собраниях дома.',
-    kit.menuKeyboard(await kit.residentOf(typed)),
+      ? t('flat.already', { номер: flat.apartment.number })
+      : t('flat.bound', { номер: flat.apartment.number }),
+    kit.menuKeyboard(resident),
   );
 
   await continueWithObject(kit, typed, flat);
@@ -88,12 +94,14 @@ const continueWithObject = async (kit: BotKit, typed: BotContext, flat: BindResu
 
   if (!described) return;
 
+  const resident = await kit.residentOf(typed);
+
   if (described.buildingId !== flat.apartment.buildingId) {
-    await typed.reply('Код с наклейки от другого дома: заявку по нему не заведу.');
+    await typed.reply(speak(resident)('sticker.other_house'));
     return;
   }
 
-  await askAboutObject(kit, typed, payload, described, await kit.residentOf(typed));
+  await askAboutObject(kit, typed, payload, described, resident);
 };
 
 /**
@@ -156,28 +164,33 @@ const askAboutObject = async (
 ): Promise<void> => {
   expect(typed, { kind: 'description', target: payload });
 
+  const t = speak(resident);
   const passport = await objectPassport(kit.deps, payload, resident);
   const open = passport?.open[0];
 
   const known = open
-    ? `\nОб этом уже сообщили: заявка ${open.number}, ` +
-      `${STATUS_TITLES[open.status]}.` +
-      `${reportersCount(open) > 1 ? ` Обращений: ${reportersCount(open)}.` : ''}` +
-      '\nЕсли проблема та же, просто опишите её, я добавлю вас к этой заявке.'
+    ? `\n${t('object.known', { номер: open.number, состояние: STATUS_TITLES[open.status] })}` +
+      `${reportersCount(open) > 1 ? ` ${t('object.reporters', { сколько: reportersCount(open) })}` : ''}` +
+      `\n${t('object.same')}`
     : '';
 
-  const repaired = passport?.lastRepairAt && !open ? `\nПоследний ремонт: ${formatDate(passport.lastRepairAt)}` : '';
+  const repaired =
+    passport?.lastRepairAt && !open ? `\n${t('object.repaired', { дата: formatDate(passport.lastRepairAt) })}` : '';
 
   await typed.reply(
-    `${resident.displayName}, вы обратились по объекту: ${described.target}.` +
+    t('object.ask', { имя: resident.displayName, объект: described.target }) +
       known +
       repaired +
-      '\nОпишите одним сообщением, что случилось, и заявку оформлю сам.',
-    cancelKeyboard(),
+      `\n${t('object.describe')}`,
+    cancelKeyboard(t),
   );
 };
 
-/** Начало разговора: с кодом объекта сразу к делу, без него короткое меню. */
+/**
+ * Начало разговора. Первым делом язык: человек, который не читает по-русски,
+ * иначе упирается в приветствие, которого не понимает. Код из ссылки ждёт
+ * выбора и разбирается сразу после него.
+ */
 export const greet = async (kit: BotKit, typed: BotContext, payload?: string | null): Promise<void> => {
   typed.session ??= {};
 
@@ -186,12 +199,27 @@ export const greet = async (kit: BotKit, typed: BotContext, payload?: string | n
     return;
   }
 
+  const person = await kit.residentOf(typed);
+
+  if (!languageChosen(person)) {
+    typed.session.afterLang = payload ?? '';
+
+    await askLanguage(typed, person);
+    return;
+  }
+
+  await welcome(kit, typed, payload);
+};
+
+/** Приветствие после выбора языка: код из ссылки, здравствуйте и документы. */
+export const welcome = async (kit: BotKit, typed: BotContext, payload?: string | null): Promise<void> => {
   if (payload && ((await bound(kit, typed, payload)) || (await aboutObject(kit, typed, payload)))) return;
 
   const person = await kit.residentOf(typed);
+  const t = speak(person);
 
   // Код из ссылки мог устареть или быть набран с ошибкой: молчать об этом нельзя.
-  const missed = payload ? 'Код из ссылки не подошёл: такого объекта в доме нет.\n\n' : '';
+  const missed = payload ? `${t('start.code_unknown')}\n\n` : '';
 
   // Жилец без квартиры после согласия видит одно: просьбу о коде.
   if (legalAccepted(person) && needsApartment(person)) {
@@ -199,14 +227,14 @@ export const greet = async (kit: BotKit, typed: BotContext, payload?: string | n
     return;
   }
 
-  await typed.reply(`${missed}${hello(person.role)}`, kit.menuKeyboard(person));
+  await typed.reply(`${missed}${hello(person.role, t)}`, kit.menuKeyboard(person));
 
   // Первый разговор начинается с документов: дальше продукт сохраняет данные.
   if (!legalAccepted(person)) await askLegal(kit, typed);
 };
 
 /** Приветствие под роль: жильцу о заявке, смене о работе. */
-const hello = (role: Role): string => {
+const hello = (role: Role, t: Translate): string => {
   if (role === 'contractor') {
     return 'Здравствуйте! Здесь порученные вам наряды: суть, адрес и срок.\nВыберите, что нужно.';
   }
@@ -218,9 +246,5 @@ const hello = (role: Role): string => {
     );
   }
 
-  return (
-    `${strong('Здравствуйте!')} Я помогу с домом: сообщить о поломке, отправить цифры со счётчиков,\n` +
-    'посмотреть счёт, открыть дверь подъезда.\n\n' +
-    'Можно просто написать словами: «течёт кран», «открыть дверь», «когда уберут подъезд».'
-  );
+  return `${strong(t('greeting.hello'))} ${t('greeting.resident')}`;
 };

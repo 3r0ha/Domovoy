@@ -14,14 +14,17 @@ import {
   formatMoney,
   type MeterKind,
   DomainError,
-  METER_RULES,
+  meterKindKey,
+  meterUnitKey,
   OPEN_STATUSES,
   formatDate,
   sectionParam,
 } from '@domovoy/domain';
 import type { NotificationAction } from '@domovoy/app';
+import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { RU } from './i18n.js';
 import { PROMPTS, ROOT_MENUS, SCREENS } from './max.js';
 import type { Extra } from './kit.js';
 
@@ -37,12 +40,12 @@ export const screenOf = <T>(extra: T): T => {
 };
 
 /** Опрос соседа об аварии: два ответа и ни одного поля для ввода. */
-export const alertKeyboard = (requestId: string) => ({
+export const alertKeyboard = (requestId: string, t: Translate = RU) => ({
   attachments: [
     Keyboard.inlineKeyboard([
       [
-        Keyboard.button.callback('🙋 И у меня', `same:${requestId}`),
-        Keyboard.button.callback('👌 Всё работает', `fine:${requestId}`),
+        Keyboard.button.callback(t('button.also_me'), `same:${requestId}`),
+        Keyboard.button.callback(t('button.works'), `fine:${requestId}`),
       ],
     ]),
   ],
@@ -55,11 +58,13 @@ export const decimal = (value: number): string => value.toLocaleString('ru-RU', 
 
 
 /** Ряды оплаты: месяц и долг за прошлые месяцы платят отдельно. */
-export const payRows = (month: number | undefined, debt: number | undefined): ButtonRows => [
-  ...(month === undefined ? [] : [[Keyboard.button.callback(`💳 За месяц ${formatMoney(month)}`, 'pay')]]),
+export const payRows = (month: number | undefined, debt: number | undefined, t: Translate = RU): ButtonRows => [
+  ...(month === undefined
+    ? []
+    : [[Keyboard.button.callback(t('button.pay_month', { сумма: formatMoney(month) }), 'pay')]]),
   ...(debt === undefined
     ? []
-    : [[Keyboard.button.callback(`💰 Старый долг ${formatMoney(debt)}`, 'pay-debt')]]),
+    : [[Keyboard.button.callback(t('button.pay_debt', { сумма: formatMoney(debt) }), 'pay-debt')]]),
 ];
 
 /** Каждая дверь своей кнопкой. */
@@ -67,21 +72,22 @@ export const doorKeyboard = (
   devices: readonly { id: string; title: string }[],
   cameras: readonly { id: string; title: string }[] = [],
   guestFor?: string,
+  t: Translate = RU,
 ) => ({
   attachments: [
     Keyboard.inlineKeyboard([
       ...devices.map((device) => [Keyboard.button.callback(`🚪 ${device.title}`, `door:${device.id}`)]),
       ...cameras.map((device) => [Keyboard.button.callback(`📷 ${device.title}`, `camera:${device.id}`)]),
       // Список дверей остаётся и после открытия: нажали не ту, открывают рядом.
-      ...(guestFor ? [[Keyboard.button.callback('🔑 Код гостю', `guest:${guestFor}`)]] : []),
+      ...(guestFor ? [[Keyboard.button.callback(t('button.guest_code'), `guest:${guestFor}`)]] : []),
     ]),
   ],
 });
 
 /** Обращение в поддержку: ответить можно прямо из уведомления. */
-export const supportKeyboard = (ticketId: string) => ({
+export const supportKeyboard = (ticketId: string, t: Translate = RU) => ({
   attachments: [
-    Keyboard.inlineKeyboard([[Keyboard.button.callback('💬 Ответить по обращению', `ticket:${ticketId}`)]]),
+    Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.answer_ticket'), `ticket:${ticketId}`)]]),
   ],
 });
 
@@ -104,23 +110,27 @@ export const demoKeyboard = (roles: readonly { role: string; title: string; curr
         Keyboard.button.callback(`${item.current ? '✅' : '👤'} ${item.title}`, `demo:${item.role}`),
       ),
     ),
-    [Keyboard.button.callback('🏠 Меню', 'group:back')],
+    [Keyboard.button.callback(RU('button.menu'), 'group:back')],
   ]);
 
 /** Свободные часы приёма: день и время на кнопке, по две в ряд. */
-export const visitKeyboard = (slots: readonly { at: string; title: string }[], miniAppUrl?: string) =>
+export const visitKeyboard = (
+  slots: readonly { at: string; title: string }[],
+  miniAppUrl?: string,
+  t: Translate = RU,
+) =>
   keyboardOf([
     ...pairs(slots.map((slot) => Keyboard.button.callback(`🗓 ${slot.title}`, `visit:${slot.at}`))),
     // Остальные дни открываются календарём: кнопками их два десятка.
-    ...appRow(miniAppUrl, 'Другие дни в приложении', 'visits'),
-    [Keyboard.button.callback('🏠 Меню', 'group:back')],
+    ...appRow(miniAppUrl, t('button.other_days'), 'visits'),
+    [Keyboard.button.callback(t('button.menu'), 'group:back')],
   ]);
 
 /** Под своей записью на приём: отмена и возврат в меню. */
-export const visitCancelKeyboard = (visitId: string) =>
+export const visitCancelKeyboard = (visitId: string, t: Translate = RU) =>
   keyboardOf([
-    [Keyboard.button.callback('✖️ Отменить запись', `visit-cancel:${visitId}`)],
-    [Keyboard.button.callback('🏠 Меню', 'group:back')],
+    [Keyboard.button.callback(t('button.cancel_visit'), `visit-cancel:${visitId}`)],
+    [Keyboard.button.callback(t('button.menu'), 'group:back')],
   ]);
 
 /** Личная переписка: собеседник известен и без контекста сообщения. */
@@ -130,12 +140,12 @@ export const PERSONAL = {};
  * Клавиатура из готовых рядов: пустые ряды выбрасываются. Если известно, где
  * идёт разговор, и кнопок не осталось, в переписке остаётся меню.
  */
-export const keyboardOf = (rows: ButtonRows, where?: Parameters<typeof menuButton>[0]) => {
+export const keyboardOf = (rows: ButtonRows, where?: Parameters<typeof menuButton>[0], t: Translate = RU) => {
   const filled = rows.filter((row) => row.length > 0);
 
   if (filled.length > 0) return { attachments: [Keyboard.inlineKeyboard(filled)] };
 
-  return where ? menuButton(where) : undefined;
+  return where ? menuButton(where, t) : undefined;
 };
 
 /**
@@ -163,8 +173,8 @@ const pairs = (
 };
 
 /** Адресат по адресу: дом, подъезд, стояк и перечисленные квартиры. */
-export const guestKeyboard = (deviceId: string) => ({
-  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('🔑 Код гостю', `guest:${deviceId}`)]])],
+export const guestKeyboard = (deviceId: string, t: Translate = RU) => ({
+  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.guest_code'), `guest:${deviceId}`)]])],
 });
 
 /** Заявка, по которой ещё есть смысл разговаривать. */
@@ -177,10 +187,11 @@ export const actionKeyboard = (
   replyTo?: string,
   assignTo?: string,
   passTo?: string,
+  t: Translate = RU,
 ) => {
   const buttons = actions.map((action) =>
     Keyboard.button.callback(
-      actionTitle(action.from, action.to, action.requiresComment),
+      actionTitle(action.from, action.to, action.requiresComment, t),
       `${action.requiresComment ? 'ask' : 'req'}:${action.requestId}:${action.to}`,
     ),
   );
@@ -189,16 +200,16 @@ export const actionKeyboard = (
     buttons,
     ...(assignTo ? [[Keyboard.button.callback('👷 Назначить', `assign:${assignTo}`)]] : []),
     ...(passTo ? [[Keyboard.button.callback('📨 Передать', `pass:${passTo}`)]] : []),
-    ...(replyTo ? [[Keyboard.button.callback('💬 Написать по заявке', `say:${replyTo}`)]] : []),
+    ...(replyTo ? [[Keyboard.button.callback(t('button.reply_request'), `say:${replyTo}`)]] : []),
   ]);
 };
 
 /** Уточнение адреса: варианты идут кнопками, номер варианта лежит в payload. */
-export const whereKeyboard = (requestId: string, options: readonly { label: string }[]) => {
+export const whereKeyboard = (requestId: string, options: readonly { label: string }[], t: Translate = RU) => {
   const built = keyboardOf([
     ...options.map((option, index) => [Keyboard.button.callback(option.label, `where:${requestId}:${index}`)]),
     // Не «Отмена»: заявка уже принята, и отменой человек читает отказ от неё.
-    [Keyboard.button.callback('🤷 Не знаю, где именно', `where:${requestId}:skip`)],
+    [Keyboard.button.callback(t('button.where_unknown'), `where:${requestId}:skip`)],
   ]);
 
   // Выход здесь свой: без пометки к нему дописывались бы ещё «Назад» и «Меню»,
@@ -257,13 +268,13 @@ export const ASSIGNEES_SHOWN = 5;
 
 /** Подписи кнопок перехода. */
 export const ACTION_TITLES: Record<string, string> = {
-  accepted: '✅ Взять',
-  in_progress: '🔧 В работу',
-  needs_info: '❓ Уточнить',
-  done: '🏁 Сдать работу',
-  confirmed: '✅ Всё сделали, спасибо',
-  rejected: '⛔ Отклонить',
-  withdrawn: '✖️ Отозвать заявку',
+  accepted: 'action.accepted',
+  in_progress: 'action.in_progress',
+  needs_info: 'action.needs_info',
+  done: 'action.done',
+  confirmed: 'action.confirmed',
+  rejected: 'action.rejected',
+  withdrawn: 'action.withdrawn',
 };
 
 /**
@@ -273,23 +284,25 @@ export const ACTION_TITLES: Record<string, string> = {
  * уточняющий вопрос тоже подписан по-разному: жилец отвечает, смена возвращает
  * наряд в работу.
  */
-export const actionTitle = (from: string, to: string, explains = false): string => {
-  if (from === 'done' && to === 'in_progress') return '↩️ Не сделано, вернуть';
-  if (from === 'done' && to === 'confirmed' && explains) return '✅ Закрыть заявку';
+export const actionTitle = (from: string, to: string, explains = false, t: Translate = RU): string => {
+  if (from === 'done' && to === 'in_progress') return t('action.return');
+  if (from === 'done' && to === 'confirmed' && explains) return t('action.close');
   // Заявка ждёт ответа жильца: «В работу» на этой кнопке не говорит ему ничего.
-  if (from === 'needs_info' && to === 'in_progress') return '💬 Ответить';
+  if (from === 'needs_info' && to === 'in_progress') return t('action.answer');
 
-  return ACTION_TITLES[to] ?? to;
+  const key = ACTION_TITLES[to];
+
+  return key ? t(key) : to;
 };
 
 /** Следующая страница того же списка. */
-export const moreKeyboard = (what: string, offset: number, title = '⬇️ Ещё') => ({
+export const moreKeyboard = (what: string, offset: number, title = RU('button.more')) => ({
   attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback(title, `more:${what}:${offset}`)]])],
 });
 
 /** Заявка соседа: подтвердить, что то же самое. */
-export const alsoKeyboard = (requestId: string) => ({
-  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('🙋 И у меня', `support:${requestId}`)]])],
+export const alsoKeyboard = (requestId: string, t: Translate = RU) => ({
+  attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.also_me'), `support:${requestId}`)]])],
 });
 
 /** Единственное продолжение разговора: одна кнопка под ответом. */
@@ -306,10 +319,13 @@ export const copyKeyboard = (title: string, payload: string) => ({
  * Возврат в меню: под ответом, за которым ничего не следует. В общем чате кнопки
  * нет: меню там личное, и в разговор соседей оно не выносится.
  */
-export const menuButton = (context?: { message?: { recipient?: { chat_type?: string } } }) => {
+export const menuButton = (
+  context?: { message?: { recipient?: { chat_type?: string } } },
+  t: Translate = RU,
+) => {
   const where = context?.message?.recipient?.chat_type;
 
-  return where === 'chat' || where === 'channel' ? undefined : oneKeyboard('🏠 Меню', 'group:back');
+  return where === 'chat' || where === 'channel' ? undefined : oneKeyboard(t('button.menu'), 'group:back');
 };
 
 /**
@@ -323,49 +339,54 @@ export const errorText = (error: unknown): string => {
 };
 
 /** Кнопка, которой отказ исправляют. Пусто, если исправлять нечем. */
-export const errorAction = (error: unknown) =>
+export const errorAction = (error: unknown, t: Translate = RU) =>
   error instanceof DomainError && error.code === 'apartment_not_bound'
-    ? oneKeyboard('🏢 Квартира', 'menu:flat')
+    ? oneKeyboard(t('button.flat'), 'menu:flat')
     : undefined;
 
 /** Куда идти после отказа: непривязанной квартире нужна привязка, остальным меню. */
-export const afterError = (error: unknown, context?: Parameters<typeof menuButton>[0]) =>
-  errorAction(error) ?? menuButton(context);
+export const afterError = (error: unknown, context?: Parameters<typeof menuButton>[0], t: Translate = RU) =>
+  errorAction(error, t) ?? menuButton(context, t);
 
 /** Под своими данными: отвязка квартиры и удаление профиля. */
-export const dataKeyboard = (bound: boolean, context?: Parameters<typeof menuButton>[0]) =>
+export const dataKeyboard = (
+  bound: boolean,
+  context?: Parameters<typeof menuButton>[0],
+  t: Translate = RU,
+) =>
   screenOf(keyboardOf(
     [
-      [Keyboard.button.callback('📄 Прислать файлом', 'mydata:file')],
+      [Keyboard.button.callback(t('button.export'), 'mydata:file')],
       // Настройка уведомлений живёт здесь же по смыслу: «отпишите меня от
       // уведомлений» приводило на этот экран, а выключателя на нём не было.
-      [Keyboard.button.callback('🔔 Уведомления', 'app:notices')],
-      ...(bound ? [[Keyboard.button.callback('🏢 Отвязать квартиру', 'leave:ask')]] : []),
-      [Keyboard.button.callback('🗑 Удалить меня', 'forget:ask')],
-      [Keyboard.button.callback('🏠 Меню', 'group:back')],
+      [Keyboard.button.callback(t('button.notices'), 'app:notices')],
+      ...(bound ? [[Keyboard.button.callback(t('button.unbind'), 'leave:ask')]] : []),
+      [Keyboard.button.callback(t('button.forget'), 'forget:ask')],
+      [Keyboard.button.callback(t('button.menu'), 'group:back')],
     ],
     context,
+    t,
   ));
 
 /** Оценка работы при приёмке: пять звёзд и возможность промолчать. */
-export const rateKeyboard = (requestId: string): Extra => ({
+export const rateKeyboard = (requestId: string, t: Translate = RU): Extra => ({
   attachments: [
     Keyboard.inlineKeyboard([
       // Пять звёзд в один ряд сжимаются до нечитаемых: цифра рядом со значком
       // понятнее, чем ряд из одинаковых картинок разной длины.
       [1, 2, 3].map((stars) => Keyboard.button.callback(`${stars} ⭐`, `rate:${requestId}:${stars}`)),
       [4, 5].map((stars) => Keyboard.button.callback(`${stars} ⭐`, `rate:${requestId}:${stars}`)),
-      [Keyboard.button.callback('Принять без оценки', `rate:${requestId}:0`)],
+      [Keyboard.button.callback(t('button.rate_none'), `rate:${requestId}:0`)],
     ]),
   ],
 });
 
 /** Подтверждение того, что не отменить: согласие и отказ. */
-export const confirmKeyboard = (title: string, payload: string) =>
+export const confirmKeyboard = (title: string, payload: string, t: Translate = RU) =>
   screenOf({
     attachments: [
       Keyboard.inlineKeyboard([
-        [Keyboard.button.callback(title, payload), Keyboard.button.callback('✖️ Отмена', 'cancel')],
+        [Keyboard.button.callback(title, payload), Keyboard.button.callback(t('button.cancel'), 'cancel')],
       ]),
     ],
   });
@@ -374,9 +395,9 @@ export const confirmKeyboard = (title: string, payload: string) =>
  * Разговор, из которого нужно уметь выйти, не набирая команду. Такой экран
  * помечается подсказкой: он живёт до ответа или отмены и потом убирается.
  */
-export const cancelKeyboard = (): Extra => {
+export const cancelKeyboard = (t: Translate = RU): Extra => {
   const built = {
-    attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback('✖️ Отмена', 'cancel')]])],
+    attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.cancel'), 'cancel')]])],
   };
 
   PROMPTS.add(built);
@@ -389,12 +410,12 @@ export const cancelKeyboard = (): Extra => {
  * Начало разговора: готовые вопросы кнопками. Человеку, который не знает, что
  * спросить, проще нажать пример, чем придумывать формулировку.
  */
-export const startersKeyboard = (starters: readonly string[]): Extra => {
+export const startersKeyboard = (starters: readonly string[], t: Translate = RU): Extra => {
   const built = {
     attachments: [
       Keyboard.inlineKeyboard([
         ...starters.slice(0, 3).map((_, at) => [Keyboard.button.callback(starters[at]!, `starter:${at}`)]),
-        [Keyboard.button.callback('✖️ Отмена', 'cancel')],
+        [Keyboard.button.callback(t('button.cancel'), 'cancel')],
       ]),
     ],
   };
@@ -410,13 +431,18 @@ export const startersKeyboard = (starters: readonly string[]): Extra => {
  * Пока выход не нажали, следующее сообщение человека это следующий вопрос, и
  * снова нажимать «Спросить» не нужно.
  */
-export const talkKeyboard = (section?: { title: string; command: string }): Extra => {
+export const talkKeyboard = (
+  section?: { title: string; command: string },
+  t: Translate = RU,
+  language?: { title: string; code: string },
+): Extra => {
   const built = {
     attachments: [
       Keyboard.inlineKeyboard([
         ...(section ? [[Keyboard.button.callback(section.title, `menu:${section.command}`)]] : []),
-        [Keyboard.button.callback('✖️ Закончить разговор', 'talk:stop')],
-        [Keyboard.button.callback('🏠 Меню', 'group:back')],
+        ...(language ? [[Keyboard.button.callback(language.title, `lang:${language.code}`)]] : []),
+        [Keyboard.button.callback(t('button.end_talk'), 'talk:stop')],
+        [Keyboard.button.callback(t('button.menu'), 'group:back')],
       ]),
     ],
   };
@@ -441,13 +467,14 @@ export const talkKeyboard = (section?: { title: string; command: string }): Extr
 export const metersForValueKeyboard = (
   states: readonly { meter: { id: string; kind: string } }[],
   value: number,
+  t: Translate = RU,
 ): Extra =>
   screenOf({
     attachments: [
       Keyboard.inlineKeyboard(
         states.map((state) => [
           Keyboard.button.callback(
-            `💧 ${METER_RULES[state.meter.kind as MeterKind].title}`,
+            `💧 ${t(meterKindKey(state.meter.kind as MeterKind))}`,
             `meter-read:${state.meter.id}:${value}`,
           ),
         ]),
@@ -457,13 +484,14 @@ export const metersForValueKeyboard = (
 
 export const metersKeyboard = (
   states: readonly { meter: { id: string; kind: string; serial: string }; submittedThisMonth: boolean }[],
+  t: Translate = RU,
 ): Extra =>
   screenOf({
     attachments: [
       Keyboard.inlineKeyboard(
         states.map((state) => [
           Keyboard.button.callback(
-            `${state.submittedThisMonth ? '✅' : '💧'} ${METER_RULES[state.meter.kind as MeterKind].title}`,
+            `${state.submittedThisMonth ? '✅' : '💧'} ${t(meterKindKey(state.meter.kind as MeterKind))}`,
             `meter:${state.meter.id}`,
           ),
         ]),
@@ -471,28 +499,33 @@ export const metersKeyboard = (
     ],
   });
 
-export const readingKeyboard = (meterId: string, canSkip: boolean) => ({
+export const readingKeyboard = (meterId: string, canSkip: boolean, t: Translate = RU) => ({
   attachments: [
     Keyboard.inlineKeyboard([
       [
-        ...(canSkip ? [Keyboard.button.callback('⏭ Пропустить', `meter-skip:${meterId}`)] : []),
-        Keyboard.button.callback('✖️ Отмена', 'cancel'),
+        ...(canSkip ? [Keyboard.button.callback(t('button.skip_meter'), `meter-skip:${meterId}`)] : []),
+        Keyboard.button.callback(t('button.cancel'), 'cancel'),
       ],
       // Список приборов показывали экраном раньше: без этой кнопки к нему
       // не вернуться, а отмена уводит из счётчиков совсем.
-      [Keyboard.button.callback('💧 К списку счётчиков', 'menu:meters')],
+      [Keyboard.button.callback(t('button.to_meters'), 'menu:meters')],
     ]),
   ],
 });
 
 /** Что спросить по счётчику. */
-export const readingPrompt = (state: MeterState): string => {
-  const rule = METER_RULES[state.meter.kind];
+export const readingPrompt = (state: MeterState, t: Translate = RU): string => {
+  const unit = t(meterUnitKey(state.meter.kind));
   const previous = state.last
-    ? `\nПрошлое показание: ${formatMeterValue(state.last.value)} ${rule.unit} от ${formatDate(state.last.at)}`
+    ? `\n${t('meters.previous', {
+        значение: `${formatMeterValue(state.last.value)} ${unit}`,
+        дата: formatDate(state.last.at),
+      })}`
     : '';
 
-  return `${rule.title}, счётчик ${state.meter.serial}.${previous}\nОтправьте показание числом.`;
+  const прибор = t(meterKindKey(state.meter.kind));
+
+  return `${t('meters.prompt', { прибор, номер: state.meter.serial })}${previous}\n${t('meters.send_number')}`;
 };
 
 /** Привязка по коду квартиры, если код именно от неё. */
@@ -506,11 +539,11 @@ export const bindIfApartment = async (deps: AppDeps, resident: Resident, code: s
 };
 
 /** Ряд бюллетеня: три ответа, как в бумажном бланке. */
-export const pollRow = (pollId: string): ButtonRows[number] =>
+export const pollRow = (pollId: string, t: Translate = RU): ButtonRows[number] =>
   (['for', 'against', 'abstain'] as const).map((choice) => {
     // «Воздержался» на кнопке человек читает как отказ от голосования вообще:
     // в протоколе слово остаётся прежним, а на кнопке говорится просто.
-    const title = choice === 'abstain' ? 'Не хочу решать' : choiceTitle(choice);
+    const title = choice === 'abstain' ? t('vote.abstain') : choiceTitle(t, choice);
     const mark = choice === 'for' ? '✅' : choice === 'against' ? '❌' : '⚪';
 
     return Keyboard.button.callback(
@@ -520,22 +553,24 @@ export const pollRow = (pollId: string): ButtonRows[number] =>
   });
 
 /** Бюллетень: три кнопки, как в бумажном бланке. */
-export const pollKeyboard = (pollId: string) => ({
-  attachments: [Keyboard.inlineKeyboard([pollRow(pollId)])],
+export const pollKeyboard = (pollId: string, t: Translate = RU) => ({
+  attachments: [Keyboard.inlineKeyboard([pollRow(pollId, t)])],
 });
 
-export const flatTitle = (apartment: OwnApartment): string =>
-  apartment.address ? `квартира ${apartment.number}, ${apartment.address}` : `квартира ${apartment.number}`;
+export const flatTitle = (apartment: OwnApartment, t: Translate = RU): string =>
+  apartment.address
+    ? t('flat.title_address', { номер: apartment.number, адрес: apartment.address })
+    : t('flat.title', { номер: apartment.number });
 
 /** Выбор одной из своих квартир. */
-export const flatKeyboard = (own: readonly OwnApartment[]) =>
+export const flatKeyboard = (own: readonly OwnApartment[], t: Translate = RU) =>
   screenOf({
   attachments: [
     Keyboard.inlineKeyboard([
       ...own
         .filter((apartment) => !apartment.current)
         .map((apartment) => {
-          const title = flatTitle(apartment);
+          const title = flatTitle(apartment, t);
 
           return [
             Keyboard.button.callback(
@@ -545,31 +580,31 @@ export const flatKeyboard = (own: readonly OwnApartment[]) =>
           ];
         }),
       // Квартиру могли привязать по чужому коду: отсюда это и исправляют.
-      [Keyboard.button.callback('🏢 Отвязать квартиру', 'leave:ask')],
+      [Keyboard.button.callback(t('button.unbind'), 'leave:ask')],
     ]),
   ],
   });
 
 /** Подпись под предложением соседа: одна кнопка. */
-export const initiativeKeyboard = (initiativeId: string) => ({
+export const initiativeKeyboard = (initiativeId: string, t: Translate = RU) => ({
   attachments: [
-    Keyboard.inlineKeyboard([[Keyboard.button.callback('🙋 Поддержать', `sign:${initiativeId}`)]]),
+    Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.sign'), `sign:${initiativeId}`)]]),
   ],
 });
 
-export const formatInitiative = (view: InitiativeView): string =>
+export const formatInitiative = (view: InitiativeView, t: Translate = RU): string =>
   `${view.initiative.title}\n${view.initiative.question}\n\n` +
-  `${formatDemand(view)}. Подписей: ${view.signatures}.`;
+  `${formatDemand(t, view)}. ${t('app.initiative.signatures', { сколько: view.signatures })}`;
 
 /** О чём спросить, прежде чем выполнить переход. */
 export const COMMENT_PROMPTS: Record<string, string> = {
-  in_progress: 'Что именно не сделано? Напишите одним сообщением, передам мастеру.',
-  needs_info: 'Что нужно уточнить у жильца? Напишите вопрос одним сообщением.',
-  rejected: 'Почему заявка отклоняется? Причину увидит жилец.',
+  in_progress: 'comment.in_progress',
+  needs_info: 'comment.needs_info',
+  rejected: 'comment.rejected',
   // Мастер сдаёт работу с телефона и на ходу: длинного рассказа от него не ждут.
-  done: 'Что сделано? Напишите коротко, отметку увидит жилец.',
+  done: 'comment.done',
   // Заявку за жильца закрывает смена, когда он сказал о приёмке голосом.
-  confirmed: 'Кто принял работу? Напишите одним сообщением, запишу в историю заявки.',
+  confirmed: 'comment.confirmed',
 };
 
 /** Чем подтверждается написанное: у сдачи это отметка о работе, а не причина. */
@@ -577,4 +612,3 @@ export const COMMENT_DONE: Record<string, string> = {
   done: 'Отметку увидит жилец.',
   confirmed: 'Записал в историю заявки.',
 };
-

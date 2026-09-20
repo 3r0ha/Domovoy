@@ -25,10 +25,12 @@ import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
 import { askAssistant, capabilitiesFor, findCapability, type Capability } from '../assistant.js';
 import { actingHouse } from '../buildings.js';
+import { speak } from '../language.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
 import { assertSaid } from '../said.js';
+import { intoRussian } from '../translation.js';
 import { createServiceRequest, targetOf, type AppDeps, type CreateRequestCommand } from '../use-cases.js';
 import { zoneOf } from '../zone.js';
 import { confirmIncident, notifyStaff } from './notify.js';
@@ -262,10 +264,19 @@ const SHORT_ENOUGH = 40;
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
   const buildingId = actingHouse(deps, command.resident);
 
+  // Смена работает по-русски, и по русскому тексту считаются категория, срок
+  // и поиск. Написанное на другом языке переводится, оригинал остаётся при заявке.
+  const told = await intoRussian(deps, command.resident.language, command.description);
+  const spoken: CreateRequestCommand = {
+    ...command,
+    description: told.text,
+    ...(told.original ? { original: told.original } : {}),
+  };
+
   // Длинный рассказ не отбивается: продукт сокращает его сам, а человек
   // остаётся с заявкой, а не с отказом по длине.
-  const said = await fitted(deps, command.description);
-  const sized: CreateRequestCommand = { ...command, description: said };
+  const said = await fitted(deps, spoken.description);
+  const sized: CreateRequestCommand = { ...spoken, description: said };
 
   // Сначала смотрим, не про раздел ли речь: «капитальный ремонт» и «оплатить»
   // это просьба открыть его, и отбраковывать такие слова как бессмысленные
@@ -286,7 +297,7 @@ export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand
   const house = deps.reasoner ? await houseFor(deps, command, buildingId).catch(() => undefined) : undefined;
   const read = await understandRequest(sized.description, deps.reasoner, house);
 
-  const where = await whereFrom(deps, command, read, buildingId);
+  const where = await whereFrom(deps, sized, read, buildingId);
 
   const enriched: CreateRequestCommand = {
     ...sized,
@@ -445,8 +456,11 @@ const attachFlat = async (deps: AppDeps, request: ServiceRequest, author: Reside
     await notifyResident(
       notifier,
       person,
-      `Управляющая компания завела заявку по вашей квартире: ${saved.title}.\n` +
-        `${saved.number}, срок до ${formatMoment(saved.resolutionDueAt, zone)}.`,
+      speak(person)('app.notice.staffRequest', {
+        суть: saved.title,
+        номер: saved.number,
+        срок: formatMoment(saved.resolutionDueAt, zone),
+      }),
       actionsFor(saved, person),
       saved.id,
     );

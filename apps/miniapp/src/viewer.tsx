@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { useTrapped } from './focus.js';
+import { useT } from './i18n.js';
 
 type Show = (source: string, alt?: string) => void;
 
@@ -13,6 +14,7 @@ export const useViewer = (): Show => useContext(ViewerContext);
 export const Viewer = ({ children }: { children: ReactNode }) => {
   const [shown, setShown] = useState<{ source: string; alt: string } | null>(null);
   const box = useTrapped<HTMLDivElement>(shown !== null);
+  const t = useT();
 
   useEffect(() => {
     if (!shown) return undefined;
@@ -35,7 +37,7 @@ export const Viewer = ({ children }: { children: ReactNode }) => {
           className="viewer"
           role="dialog"
           aria-modal="true"
-          aria-label={shown.alt || 'Снимок'}
+          aria-label={shown.alt || t('viewer.title')}
           ref={box}
           onClick={() => setShown(null)}
         >
@@ -44,7 +46,7 @@ export const Viewer = ({ children }: { children: ReactNode }) => {
           <button
             type="button"
             className="viewer-close"
-            aria-label="Закрыть снимок"
+            aria-label={t('viewer.close')}
             onClick={(event) => {
               event.stopPropagation();
               setShown(null);

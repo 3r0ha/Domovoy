@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
 import { RetryLink } from './Retry.js';
@@ -26,6 +27,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
   const [done, setDone] = useState(false);
   const [flat, setFlat] = useState('');
   const haptics = useHaptics();
+  const t = useT();
 
   const anyApartment = asked.data?.anyApartment === true;
   const flats = useBridgeRequest(
@@ -56,23 +58,28 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
   };
 
   return (
-    <Group title="Уточните адрес">
+    <Group title={t('request.clarify')}>
       <div className="block">
         <p className="description">{asked.data.question}</p>
 
         {/* Список квартир не дошёл: без этой строки выбор просто отсутствует,
             и заявку не к чему привязать. */}
         {anyApartment && all.length === 0 && flats.error ? (
-          <RetryLink title="Список квартир не загрузился" onRetry={flats.reload} />
+          <RetryLink title={t('request.clarify.flats.failed')} onRetry={flats.reload} />
         ) : null}
 
         {anyApartment && all.length > 0 ? (
           <div className="clarify-flat">
-            <select className="chat-flat" aria-label="Квартира" value={flat} onChange={(event) => setFlat(event.target.value)}>
-              <option value="">Выберите квартиру</option>
+            <select
+              className="chat-flat"
+              aria-label={t('request.clarify.flat')}
+              value={flat}
+              onChange={(event) => setFlat(event.target.value)}
+            >
+              <option value="">{t('request.clarify.flat.pick')}</option>
               {all.map((apartment) => (
                 <option key={apartment.id} value={apartment.id}>
-                  {`кв. ${apartment.number}`}
+                  {t('request.clarify.flat.number', { номер: apartment.number })}
                 </option>
               ))}
             </select>
@@ -83,7 +90,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
               disabled={flat === '' || busy !== null}
               onClick={() => void choose(`apt_${flat}`)}
             >
-              {busy === `apt_${flat}` ? 'Отправляем…' : 'Указать квартиру'}
+              {busy === `apt_${flat}` ? t('request.sending') : t('request.clarify.flat.send')}
             </button>
           </div>
         ) : null}
@@ -97,7 +104,7 @@ export const Clarify = ({ api, requestId, onChanged }: ClarifyProps) => {
               disabled={busy !== null}
               onClick={() => void choose(option.startParam)}
             >
-              {busy === option.startParam ? 'Отправляем…' : option.label}
+              {busy === option.startParam ? t('request.sending') : option.label}
             </button>
           ))}
         </div>

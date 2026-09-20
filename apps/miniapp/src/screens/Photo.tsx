@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { useViewer } from '../viewer.js';
 
 export interface PhotoProps {
@@ -13,6 +14,7 @@ export interface PhotoProps {
 /** Снимок из заявки. */
 export const Photo = ({ api, token, alt }: PhotoProps) => {
   const show = useViewer();
+  const t = useT();
   const [source, setSource] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -43,11 +45,16 @@ export const Photo = ({ api, token, alt }: PhotoProps) => {
     };
   }, [api, token]);
 
-  if (failed) return <span className="badge">фото недоступно</span>;
-  if (!source) return <span className="badge">фото загружается…</span>;
+  if (failed) return <span className="badge">{t('photo.failed')}</span>;
+  if (!source) return <span className="badge">{t('photo.loading')}</span>;
 
   return (
-    <button type="button" className="photo-open" aria-label={`Открыть снимок: ${alt}`} onClick={() => show(source, alt)}>
+    <button
+      type="button"
+      className="photo-open"
+      aria-label={t('photo.open', { подпись: alt })}
+      onClick={() => show(source, alt)}
+    >
       <img src={source} alt={alt} />
     </button>
   );

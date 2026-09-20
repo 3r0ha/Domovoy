@@ -1,9 +1,11 @@
 import type { Announcement, Building, Resident } from '@domovoy/app';
+import { isLanguage } from '@domovoy/i18n';
 import type {
   Apartment,
   Attachment,
   Handoff,
   MeterKind,
+  OriginalText,
   RequestCategory,
   RequestEvent,
   RequestJoin,
@@ -27,6 +29,7 @@ export interface ResidentRow {
   serves_building_ids: string[] | null;
   legal_version: string | null;
   legal_at: Date | null;
+  language: string | null;
 }
 
 export interface RequestRow {
@@ -53,6 +56,8 @@ export interface RequestRow {
   rating: number | null;
   knocked_at: Date | null;
   title: string;
+  original_text: string | null;
+  original_language: string | null;
 }
 
 export interface ApartmentRow {
@@ -88,7 +93,21 @@ export interface EventRow {
   is_message: boolean;
   on_site: boolean;
   at: Date;
+  original_text: string | null;
+  original_language: string | null;
 }
+
+/**
+ * Исходный текст из двух колонок. Язык проверяется по перечню продукта: в базе
+ * это строка, и старая или чужая запись не должна попадать в заявку как язык.
+ */
+export const toOriginal = (
+  text: string | null,
+  language: string | null,
+): { original?: OriginalText } =>
+  text !== null && language !== null && isLanguage(language)
+    ? { original: { text, language } }
+    : {};
 
 export const toResident = (row: ResidentRow): Resident => ({
   id: row.id,
@@ -107,6 +126,7 @@ export const toResident = (row: ResidentRow): Resident => ({
     : {}),
   ...(row.legal_version ? { legalVersion: row.legal_version } : {}),
   ...(row.legal_at ? { legalAt: row.legal_at } : {}),
+  ...(row.language && isLanguage(row.language) ? { language: row.language } : {}),
 });
 
 export const toTarget = (row: RequestRow): RequestTarget => {
@@ -167,6 +187,7 @@ export const toRequest = (
   status: row.status,
   title: row.title,
   description: row.description,
+  ...toOriginal(row.original_text, row.original_language),
   target: toTarget(row),
   createdAt: row.created_at,
   reactionDueAt: row.reaction_due_at,

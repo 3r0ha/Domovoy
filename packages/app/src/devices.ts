@@ -1,6 +1,7 @@
 import { DomainError, formatClock, isCompanyStaff, type Apartment, type RequestTarget } from '@domovoy/domain';
 
 import { recordAction } from './audit.js';
+import { speak } from './language.js';
 import { formatGuestEntry, noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -275,7 +276,10 @@ export const sendSnapshot = async (
     contentType: file.contentType,
     content: file.content,
     encoding: file.encoding,
-    text: `${device.title}: кадр на ${formatClock(snapshot.at)}`,
+    text: speak(resident)('app.device.snapshot', {
+      устройство: device.title,
+      время: formatClock(snapshot.at),
+    }),
   });
 
   return { title: device.title, at: snapshot.at, ...(messageId ? { messageId } : {}) };
@@ -299,7 +303,13 @@ export const openByCode = async (deps: AppDeps, code: string): Promise<void> => 
 
   const device = (await ask(() => hub(deps).list(home))).find((item) => item.id === opened.deviceId);
 
-  await notifyResident(deps.notifier ?? noopNotifier, host, formatGuestEntry(device?.title ?? 'дверь', deps.now()));
+  const t = speak(host);
+
+  await notifyResident(
+    deps.notifier ?? noopNotifier,
+    host,
+    formatGuestEntry(t, device?.title ?? t('app.notice.guestDoor'), deps.now()),
+  );
 };
 
 /** Датчики дома и их связь. Доступно смене. */

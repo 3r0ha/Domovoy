@@ -2,6 +2,7 @@ import {
   CATEGORY_RULES,
   INSPECTION_RULES,
   allowedTransitions,
+  categoryKey,
   describeAudience,
   describeTarget,
   describeUntil,
@@ -10,16 +11,19 @@ import {
   formatDay,
   formatMoment,
   formatSpan,
-  plural,
   type Inspection,
   type PlannedWork,
   type RequestStatus,
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import type { Language, Translate } from '@domovoy/i18n';
+
 import type { NoticeKind } from '@domovoy/domain';
 
+import { counted, speakDefault } from './language.js';
 import type { Resident } from './repository.js';
+import { withOriginal } from './translation.js';
 import { formatMomentAt } from './zone.js';
 
 /** Действие, доступное получателю прямо из уведомления. */
@@ -36,6 +40,8 @@ export interface Notification {
   /** Кому: идентификатор пользователя MAX, а не внутренний. */
   maxUserId: number;
   text: string;
+  /** Язык получателя: на нём идут подписи кнопок под сообщением. */
+  language?: Language;
   /** Что получатель может сделать в ответ, не открывая приложение. */
   actions?: NotificationAction[];
   /** Заявка, по которой можно ответить прямо в чате. */
@@ -129,38 +135,47 @@ export const createCollectingNotifier = (): Notifier & {
   };
 };
 
+/** Язык продукта: им говорят со сменой и с домовым чатом. */
+const RU = speakDefault();
+
 /**
  * Где случилось: категория и объект. Категорию опускаем, когда объект её уже
- * называет, иначе выходит «Лифт, Лифт, подъезд 2».
+ * называет, иначе выходит «Лифт, Лифт, подъезд 2». Совпадение сверяется по
+ * русскому названию: объект приходит из справочника дома на одном языке.
  */
-export const describePlace = (request: ServiceRequest): string => {
+export const describePlace = (request: ServiceRequest, t: Translate = RU): string => {
   const category = CATEGORY_RULES[request.category].title;
   const target = describeTarget(request.target);
   const told = request.category === 'other' || target.toLowerCase().startsWith(category.toLowerCase());
 
-  return told ? target : `${category}, ${target}`;
+  return told ? target : `${t(categoryKey(request.category))}, ${target}`;
 };
 
-const STATUS_MESSAGES: Record<string, string> = {
-  accepted: 'принята в работу',
-  in_progress: 'выполняется',
-  needs_info: 'ждёт вашего уточнения',
-  done: 'выполнена, ждёт вашей приёмки',
-  confirmed: 'закрыта, работа принята',
-  rejected: 'отклонена',
-  withdrawn: 'снята',
+/** Состояния заявки словами жильца: ему важно, что ждут от него. */
+const STATUS_KEYS: Record<string, string> = {
+  accepted: 'app.notice.statusOf.accepted',
+  in_progress: 'app.notice.statusOf.in_progress',
+  needs_info: 'app.notice.statusOf.needs_info',
+  done: 'app.notice.statusOf.done',
+  confirmed: 'app.notice.statusOf.confirmed',
+  rejected: 'app.notice.statusOf.rejected',
+  withdrawn: 'app.notice.statusOf.withdrawn',
 };
 
 /** Текст уведомления о смене статуса. */
-export const formatStatusChange = (request: ServiceRequest): string => {
-  const status = STATUS_MESSAGES[request.status] ?? request.status;
+export const formatStatusChange = (t: Translate, request: ServiceRequest): string => {
+  const key = STATUS_KEYS[request.status];
+  const status = key ? t(key) : request.status;
   const last = request.history.at(-1);
   const comment = last?.comment ? `\n${last.comment}` : '';
 
   return (
-    `Заявка ${request.number} ${status}.\n` +
-    `${request.title}\n` +
-    `${describePlace(request)}.${comment}`
+    t('app.notice.status', {
+      номер: request.number,
+      состояние: status,
+      суть: request.title,
+      место: describePlace(request, t),
+    }) + comment
   );
 };
 
@@ -175,16 +190,16 @@ export const formatAssignment = (request: ServiceRequest, timeZone?: string): st
 };
 
 /** Сообщение в переписке по заявке: кто написал, видно по подписи отправителя. */
-export const formatMessage = (request: ServiceRequest, author: string, text: string): string =>
-  `Заявка ${request.number}. ${author} пишет:\n${text}`;
+export const formatMessage = (t: Translate, request: ServiceRequest, author: string, text: string): string =>
+  t('app.notice.message', { номер: request.number, автор: author, текст: text });
 
 /** Адрес дописывается тем, у кого домов больше одного. */
 export const formatAnnouncement = (title: string, body: string, house?: string): string =>
   `${title}${house ? `\n${house}` : ''}\n\n${body}`;
 
 /** Рассылка: получатель должен видеть, что пишет управляющая компания, а не бот. */
-export const formatBroadcast = (text: string, house?: string): string =>
-  `Сообщение управляющей компании${house ? `, ${house}` : ''}\n\n${text}`;
+export const formatBroadcast = (t: Translate, text: string, house?: string): string =>
+  `${t('app.notice.broadcast', { дом: house ? `, ${house}` : '' })}\n\n${text}`;
 
 /** Назначенный обход: мастер узнаёт о нём так же, как о наряде. */
 export const formatInspection = (inspection: Inspection): string => {
@@ -193,8 +208,8 @@ export const formatInspection = (inspection: Inspection): string => {
 };
 
 /** Гость вошёл по выданному коду. */
-export const formatGuestEntry = (device: string, at: Date): string =>
-  `Гостевой код сработал: ${device}, ${formatClock(at)}`;
+export const formatGuestEntry = (t: Translate, device: string, at: Date): string =>
+  t('app.notice.guestEntry', { устройство: device, время: formatClock(at) });
 
 /** Сколько знаков описания входит в уведомление: остальное читают в карточке. */
 export const DESCRIPTION_IN_NOTICE = 300;
@@ -214,76 +229,85 @@ export const formatNewRequest = (request: ServiceRequest, reporters: number): st
   const urgent = request.priority === 'emergency' ? 'АВАРИЯ. ' : '';
   const confirmed = reporters > 1 ? `\nСообщили: ${reporters}` : '';
 
+  // Смена читает перевод, а под ним, то, что человек написал своими словами.
+  const original = request.original
+    ? { ...request.original, text: shortened(request.original.text) }
+    : undefined;
+
   return (
     `${urgent}Новая заявка: ${request.title}\n` +
     `${describePlace(request)} · ${request.number}\n` +
-    `${shortened(request.description)}${confirmed}`
+    `${withOriginal(shortened(request.description), original)}${confirmed}`
   );
 };
 
 /** Вопрос соседям, когда сообщила одна квартира. */
-export const formatNeighbourQuestion = (request: ServiceRequest): string =>
-  `Сосед по стояку сообщает: ${request.title.toLowerCase()}.\n` +
-  `Заявка ${request.number} в работе.\n` +
-  'У вас то же самое?';
+export const formatNeighbourQuestion = (t: Translate, request: ServiceRequest): string =>
+  t('app.notice.neighbourQuestion', { суть: request.title.toLowerCase(), номер: request.number });
 
 /** Стук к соседу сверху: без номера квартиры и имени того, у кого течёт. */
-export const formatKnock = (request: ServiceRequest): string =>
-  `Домовой стучится: у соседа снизу ${request.title.toLowerCase()}.\n` +
-  'Посмотрите, не течёт ли у вас. Если да, перекройте воду и нажмите кнопку ниже, заявка уже открыта.';
+export const formatKnock = (t: Translate, request: ServiceRequest): string =>
+  t('app.notice.knock', { суть: request.title.toLowerCase() });
 
-export const formatNeighbourAlert = (request: ServiceRequest, dueAt: Date): string => {
-  const due = formatMoment(dueAt);
-
-  return (
-    `Авария: ${CATEGORY_RULES[request.category].title.toLowerCase()}, ${describeTarget(request.target)}.\n` +
-    `Заявка ${request.number} в работе, срок до ${due}.\n` +
-    'Об изменениях напишу сам. У вас то же самое?'
-  );
-};
+export const formatNeighbourAlert = (t: Translate, request: ServiceRequest, dueAt: Date): string =>
+  t('app.notice.neighbourAlert', {
+    категория: t(categoryKey(request.category)).toLowerCase(),
+    место: describeTarget(request.target),
+    номер: request.number,
+    срок: formatMoment(dueAt),
+  });
 
 /** Сообщение о нарушенном сроке. */
-export const formatOverdue = (request: ServiceRequest, kind: 'reaction' | 'resolution', canEscalate: boolean): string => {
-  const what =
-    kind === 'reaction'
-      ? 'заявку до сих пор не приняли в работу'
-      : 'работы не сделали в обещанный срок';
-
-  const next = canEscalate ? '\nЕсть основание обратиться в жилищную инспекцию.' : '\nСообщим об изменениях.';
-
-  return `Заявка ${request.number}: ${what}.\n${describeTarget(request.target)}.${next}`;
-};
+export const formatOverdue = (
+  t: Translate,
+  request: ServiceRequest,
+  kind: 'reaction' | 'resolution',
+  canEscalate: boolean,
+): string =>
+  t('app.notice.overdue', {
+    номер: request.number,
+    что: t(`app.notice.overdueOf.${kind}`),
+    место: describeTarget(request.target),
+    дальше: canEscalate ? t('app.notice.overdueEscalate') : t('app.notice.overdueWait'),
+  });
 
 /** Работы завтра. */
-export const formatWorksSoon = (work: PlannedWork, now: Date): string =>
-  `Завтра плановые работы: ${CATEGORY_RULES[work.category].title.toLowerCase()}.\n` +
-  `${describeAudience(work.audience)}, ${describeUntil(work, now)}.\n` +
-  `${work.title}.`;
+export const formatWorksSoon = (t: Translate, work: PlannedWork, now: Date): string =>
+  t('app.notice.worksSoon', {
+    категория: t(categoryKey(work.category)).toLowerCase(),
+    адресаты: describeAudience(work.audience),
+    до: describeUntil(work, now),
+    название: work.title,
+  });
 
 /** Работы начались. */
-export const formatWorksStarted = (work: PlannedWork, now: Date): string =>
-  `Начались плановые работы: ${CATEGORY_RULES[work.category].title.toLowerCase()}.\n` +
-  `${work.title}: ${describeAudience(work.audience)}.\n` +
-  `Закончить планируем ${describeUntil(work, now)}.`;
+export const formatWorksStarted = (t: Translate, work: PlannedWork, now: Date): string =>
+  t('app.notice.worksStarted', {
+    категория: t(categoryKey(work.category)).toLowerCase(),
+    название: work.title,
+    адресаты: describeAudience(work.audience),
+    до: describeUntil(work, now),
+  });
 
 /** Работы закончились по графику. */
-export const formatWorksFinished = (work: PlannedWork): string =>
-  `Плановые работы завершены по графику: ${work.title}, ${describeAudience(work.audience)}.\n` +
-  'Если проблема осталась, напишите, и оформлю заявку.';
+export const formatWorksFinished = (t: Translate, work: PlannedWork): string =>
+  t('app.notice.worksFinished', { название: work.title, адресаты: describeAudience(work.audience) });
 
 /** Напоминание жильцу о приёмке работы. */
-export const formatAcceptanceReminder = (request: ServiceRequest, hoursLeft: number): string =>
-  `Заявка ${request.number}: работа отмечена выполненной.\n` +
-  `${describePlace(request)}.\n` +
-  `Если всё в порядке, ничего делать не нужно, через ${plural(hoursLeft, 'час', 'часа', 'часов')} ` +
-  'заявка закроется сама.\n' +
-  'Если проблема осталась, верните её в работу, и мастер придёт снова.';
+export const formatAcceptanceReminder = (t: Translate, request: ServiceRequest, hoursLeft: number): string =>
+  t('app.notice.acceptance', {
+    номер: request.number,
+    место: describePlace(request, t),
+    часы: counted(t, 'hours', hoursLeft),
+  });
 
 /** Заявка закрылась без ответа жильца. */
-export const formatAutoConfirmed = (request: ServiceRequest, hours: number): string =>
-  `Заявка ${request.number} закрыта: за ${plural(hours, 'час', 'часа', 'часов')} возражений не поступило.\n` +
-  `${describePlace(request)}.\n` +
-  'Если проблема осталась, создайте новую заявку, прежняя останется в истории объекта.';
+export const formatAutoConfirmed = (t: Translate, request: ServiceRequest, hours: number): string =>
+  t('app.notice.autoConfirmed', {
+    номер: request.number,
+    часы: counted(t, 'hours', hours),
+    место: describePlace(request, t),
+  });
 
 /** Предупреждение сотруднику: срок вот-вот сгорит. */
 export const formatDeadlineWarning = (
@@ -362,6 +386,7 @@ export const notifyAbout = async (
   await deliver(notifier, {
     maxUserId: resident.maxUserId,
     text,
+    ...(resident.language ? { language: resident.language } : {}),
     ...(about.section ? { section: about.section } : {}),
     ...(about.mutable ? { mutable: about.mutable } : {}),
     ...(about.complaintFor ? { complaintFor: about.complaintFor } : {}),
@@ -402,6 +427,7 @@ export const notifyResident = async (
   await deliver(notifier, {
     maxUserId: resident.maxUserId,
     text,
+    ...(resident.language ? { language: resident.language } : {}),
     ...(actions.length > 0 ? { actions } : {}),
     ...(replyTo ? { replyTo } : {}),
     ...(askAbout ? { askAbout } : {}),

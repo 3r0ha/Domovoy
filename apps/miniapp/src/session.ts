@@ -2,6 +2,7 @@ import { useBridge } from '@maxkit/react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { ApiError, describeFailure, type DomovoyApi, type Profile } from './api.js';
+import { say } from './i18n.js';
 
 const TOKEN_KEY = 'session-token';
 
@@ -60,7 +61,7 @@ export const useSession = (api: DomovoyApi, initData: string | null): SessionSta
       }
 
       if (!initData) {
-        fail('Приложение открыто вне MAX: параметры запуска недоступны');
+        fail(say('session.outside'));
         return;
       }
 

@@ -1,0 +1,408 @@
+import type { Dictionary } from '../../translate.js';
+
+/** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
+export const app: Dictionary = {
+  'status.new': 'yangi',
+  'status.accepted': 'ishga qabul qilindi',
+  'status.in_progress': 'bajarilmoqda',
+  'status.needs_info': 'yashovchining javobini kutmoqda',
+  'status.done': 'bajarildi, qabul qilish kutilmoqda',
+  'status.confirmed': 'yopildi, ish qabul qilindi',
+  'status.rejected': 'rad etildi',
+  'status.withdrawn': 'yashovchi qaytarib oldi',
+
+  'category.elevator': 'Lift',
+  'category.plumbing': 'Suv va kanalizatsiya',
+  'category.heating': 'Isitish',
+  'category.electricity': 'Elektr',
+  'category.cleaning': 'Tozalash',
+  'category.yard': 'Hovli va hudud',
+  'category.safety': 'Xavfsizlik',
+  'category.document': 'Maʼlumotnoma va hujjatlar',
+  'category.other': 'Boshqa',
+
+  'categoryShort.elevator': 'Lift',
+  'categoryShort.plumbing': 'Suv',
+  'categoryShort.heating': 'Issiqlik',
+  'categoryShort.electricity': 'Yorugʻlik',
+  'categoryShort.cleaning': 'Tozalash',
+  'categoryShort.yard': 'Hovli',
+  'categoryShort.safety': 'Xavfsizlik',
+  'categoryShort.document': 'Maʼlumotnoma',
+  'categoryShort.other': 'Boshqa',
+
+  'meter.cold_water': 'Sovuq suv',
+  'meter.hot_water': 'Issiq suv',
+  'meter.electricity': 'Elektr',
+  'meter.heating': 'Isitish',
+  'meter.gas': 'Gaz',
+
+  'meterUnit.cold_water': 'm³',
+  'meterUnit.hot_water': 'm³',
+  'meterUnit.electricity': 'kWh',
+  'meterUnit.heating': 'Gcal',
+  'meterUnit.gas': 'm³',
+
+  'basis.meter': 'hisoblagich boʻyicha',
+  'basis.average': 'oʻrtacha boʻyicha',
+  'basis.norm': 'meʼyor boʻyicha',
+
+  'noticeKind.meters': 'Hisoblagich koʻrsatkichlari',
+  'noticeKind.works': 'Rejali ishlar',
+  'noticeKind.polls': 'Mulkdorlar yigʻilishi',
+  'noticeKind.news': 'Uy eʼlonlari',
+
+  'charge.maintenance': 'Saqlash va joriy taʼmir',
+  'charge.common': 'Uyning umumiy ehtiyojlariga {ресурс}',
+  'charge.recalculation': 'Qayta hisob: {ресурс} meʼyordagidan uzoqroq oʻchirilgan',
+
+  'chargeDetail.rate': '{расход} {единица} × {тариф} ₽',
+  'chargeDetail.area': '{площадь} m² × {тариф} ₽',
+  'chargeDetail.recalculation': 'meʼyordan ortiq {часы} soat × 0,15% × {сумма} ₽',
+  'chargeDetail.basis': '{расчёт} · {основание}',
+
+  'month.1': 'yanvar',
+  'month.2': 'fevral',
+  'month.3': 'mart',
+  'month.4': 'aprel',
+  'month.5': 'may',
+  'month.6': 'iyun',
+  'month.7': 'iyul',
+  'month.8': 'avgust',
+  'month.9': 'sentabr',
+  'month.10': 'oktabr',
+  'month.11': 'noyabr',
+  'month.12': 'dekabr',
+
+  'monthOf.1': 'yanvar',
+  'monthOf.2': 'fevral',
+  'monthOf.3': 'mart',
+  'monthOf.4': 'aprel',
+  'monthOf.5': 'may',
+  'monthOf.6': 'iyun',
+  'monthOf.7': 'iyul',
+  'monthOf.8': 'avgust',
+  'monthOf.9': 'sentabr',
+  'monthOf.10': 'oktabr',
+  'monthOf.11': 'noyabr',
+  'monthOf.12': 'dekabr',
+
+  'error.forbidden': 'Bu begona maʼlumot, uni ochib boʻlmaydi',
+  'error.request_not_found': 'Ariza topilmadi',
+  'error.request_closed': 'Ariza allaqachon yopilgan',
+  'error.transition_not_allowed': 'Ariza holati bunday oʻzgarmaydi',
+  'error.too_many_requests': 'Bir soatda juda koʻp ariza. Keyingi soatda davom etamiz',
+  'error.apartment_not_bound': 'Bu xonadonga tegishli, avval kvitansiyadagi kod bilan kvartirani bogʻlang',
+  'error.apartment_required': 'Avval kvitansiyadagi kod bilan kvartirani bogʻlang',
+  'error.code_not_apartment': 'Bu kod kvartiraniki emas',
+  'error.code_not_valid': 'Kod toʻgʻri kelmadi yoki endi amal qilmaydi',
+  'error.code_not_found': 'Sizda bunday kod yoʻq',
+  'error.meter_not_found': 'Hisoblagich topilmadi',
+  'error.reading_invalid': 'Koʻrsatkich noldan kichik boʻlmagan son boʻlishi kerak',
+  'error.reading_decreased': 'Hisoblagich avvalgidan kam koʻrsata olmaydi',
+  'error.reading_too_large': 'Bu qiymat hisoblagich tablosiga sigʻmaydi',
+  'error.reading_duplicate': 'Bu hisob davri uchun koʻrsatkich allaqachon yuborilgan',
+  'error.meter_not_verified': 'Hisoblagich tekshiruvi muddati tugagan, koʻrsatkichni qabul qilib boʻlmaydi',
+  'error.meter_not_in_photo': 'Suratda hisoblagich tablosi koʻrinmayapti',
+  'error.nothing_to_pay': 'Toʻlaydigan narsa yoʻq: hammasi toʻlangan',
+  'error.payments_unavailable': 'Toʻlov hozir ishlamayapti, keyinroq urinib koʻring',
+  'error.devices_unavailable': 'Aqlli uy hozir ishlamayapti',
+  'error.device_not_found': 'Qurilma topilmadi',
+  'error.device_not_openable': 'Bu qurilma ochilmaydi',
+  'error.device_not_viewable': 'Bu qurilmada kamera yoʻq',
+  'error.visit_not_found': 'Navbat topilmadi',
+  'error.visit_exists': 'Sizda qabulga navbat bor',
+  'error.slot_taken': 'Bu vaqt band, boshqasini tanlang',
+  'error.reception_empty': 'Boshqaruv tashkiloti navbat boʻyicha qabul qilmaydi',
+  'error.ticket_not_found': 'Murojaat topilmadi',
+  'error.ticket_closed': 'Murojaat yopilgan, savolni qaytadan bering',
+  'error.poll_not_found': 'Ovoz berish topilmadi',
+  'error.poll_closed': 'Yakun chiqarilgan, ovozni qabul qilib boʻlmaydi',
+  'error.poll_open': 'Yigʻilish hali davom etyapti, bayonnoma yakunidan keyin tuziladi',
+  'error.already_knocked': 'Yuqoridagi qoʻshniga allaqachon xabar berildi',
+  'error.no_upstairs': 'Bu kvartiraning tepasida qoʻshni yoʻq',
+  'error.upstairs_unknown': 'Yuqoridagi qoʻshni hali ilovada yoʻq, uni bu yerdan chaqirib boʻlmaydi',
+  'error.complaint_exists': 'Bu ariza boʻyicha murojaat allaqachon yuborilgan',
+  'error.text_empty': 'Nima boʻlganini soʻz bilan yozing',
+  'error.message_empty': 'Xabar boʻsh',
+  'error.language_unknown': 'Menda bunday til yoʻq',
+  'error.initiative_not_found': 'Taklif topilmadi',
+  'error.initiative_closed': 'Bu taklif boʻyicha yigʻilish allaqachon eʼlon qilingan',
+  'error.initiative_exists': 'Taklifingiz allaqachon imzo toʻplamoqda',
+
+  'notice.status': 'Ariza {номер} {состояние}.\n{суть}\n{место}.',
+  'notice.statusOf.accepted': 'ishga qabul qilindi',
+  'notice.statusOf.in_progress': 'bajarilmoqda',
+  'notice.statusOf.needs_info': 'sizning javobingizni kutmoqda',
+  'notice.statusOf.done': 'bajarildi, sizning qabulingizni kutmoqda',
+  'notice.statusOf.confirmed': 'yopildi, ish qabul qilindi',
+  'notice.statusOf.rejected': 'rad etildi',
+  'notice.statusOf.withdrawn': 'olib tashlandi',
+  'notice.message': 'Ariza {номер}. {автор} yozmoqda:\n{текст}',
+  'notice.author.company': 'Boshqaruv kompaniyasi',
+  'notice.author.resident': 'Yashovchi',
+  'notice.author.neighbour': 'Qoʻshni',
+  'notice.attachments.one': '{сколько} ta ilova yubordi',
+  'notice.attachments.few': '{сколько} ta ilova yubordi',
+  'notice.attachments.many': '{сколько} ta ilova yubordi',
+  'notice.broadcast': 'Boshqaruv kompaniyasining xabari{дом}',
+  'notice.guestEntry': 'Mehmon kodi ishladi: {устройство}, {время}',
+  'notice.guestDoor': 'eshik',
+  'notice.neighbourQuestion':
+    'Umumiy quvurdagi qoʻshni xabar bermoqda: {суть}.\nAriza {номер} ishda.\nSizda ham shundaymi?',
+  'notice.knock':
+    'Domovoy eshikni taqillatmoqda: pastdagi qoʻshnida {суть}.\n' +
+    'Sizda suv oqmayaptimi, qarang. Oqayotgan boʻlsa, suvni berkiting va quyidagi tugmani bosing, ariza ochilgan.',
+  'notice.neighbourAlert':
+    'Avariya: {категория}, {место}.\nAriza {номер} ishda, muddati {срок} gacha.\n' +
+    'Oʻzgarishlarni oʻzim yozaman. Sizda ham shundaymi?',
+  'notice.overdue': 'Ariza {номер}: {что}.\n{место}.\n{дальше}',
+  'notice.overdueOf.reaction': 'arizani hanuz ishga qabul qilishmadi',
+  'notice.overdueOf.resolution': 'ishlar vaʼda qilingan muddatda bajarilmadi',
+  'notice.overdueEscalate': 'Uy-joy inspeksiyasiga murojaat qilishga asos bor.',
+  'notice.overdueWait': 'Oʻzgarishlar haqida xabar beramiz.',
+  'notice.worksSoon': 'Ertaga rejali ishlar: {категория}.\n{адресаты}, {до}.\n{название}.',
+  'notice.worksStarted':
+    'Rejali ishlar boshlandi: {категория}.\n{название}: {адресаты}.\nTugatish rejasi: {до}.',
+  'notice.worksFinished':
+    'Rejali ishlar jadval boʻyicha tugadi: {название}, {адресаты}.\n' +
+    'Muammo qolgan boʻlsa, yozing, ariza rasmiylashtiraman.',
+  'notice.acceptance':
+    'Ariza {номер}: ish bajarilgan deb belgilandi.\n{место}.\n' +
+    'Hammasi joyida boʻlsa, hech narsa qilish shart emas, {часы}dan keyin ariza oʻzi yopiladi.\n' +
+    'Muammo qolgan boʻlsa, uni ishga qaytaring, usta yana keladi.',
+  'notice.autoConfirmed':
+    'Ariza {номер} yopildi: {часы} ichida eʼtiroz kelmadi.\n{место}.\n' +
+    'Muammo qolgan boʻlsa, yangi ariza yarating, avvalgisi obyekt tarixida qoladi.',
+  'notice.staffRequest':
+    'Boshqaruv kompaniyasi kvartirangiz boʻyicha ariza ochdi: {суть}.\n{номер}, muddati {срок} gacha.',
+  'notice.complaintSent': 'Murojaat yuborildi: {организация}.{номер}\nJavob 30 kun ichida keladi.',
+  'notice.complaintNumber': '\nRaqami {номер}.',
+  'notice.debt': '{долг}\n\nQuyidagi tugma bilan toʻlash mumkin.',
+
+  'hours.one': '{сколько} soat',
+  'hours.few': '{сколько} soat',
+  'hours.many': '{сколько} soat',
+  'days.one': '{сколько} kun',
+  'days.few': '{сколько} kun',
+  'days.many': '{сколько} kun',
+  'days.left.one': '{сколько} kun qoldi',
+  'days.left.few': '{сколько} kun qoldi',
+  'days.left.many': '{сколько} kun qoldi',
+  'months.one': '{сколько} oy',
+  'months.few': '{сколько} oy',
+  'months.many': '{сколько} oy',
+
+  'answer.houseNow': 'Hozir uyda:\n{строки}',
+  'answer.houseWork': '{название}: {до}.',
+  'answer.houseIncident': '{название}: ariza {номер}, muddati {срок}.',
+  'answer.houseShared': 'Uyda avariya va ishlar eʼlon qilinmagan, lekin uy boʻyicha arizalar bor:\n{строки}',
+  'answer.houseSharedLine': '{название}: ariza {номер}, {состояние}.',
+  'answer.houseAhead': 'Hozir uyda hech narsa oʻchirilmagan. Eng yaqini: {событие}, {когда}.',
+  'answer.houseQuiet': 'Hozir uyda hech narsa oʻchirilmagan va avariya yoʻq.',
+  'answer.billEmpty': 'Bu oy uchun hisob hali yoʻq.',
+  'answer.billLeft': 'Toʻlash kerak: {сумма}, {число}-sanagacha.',
+  'answer.billPaid': 'Bu oy uchun hammasi toʻlangan.',
+  'answer.requestsEmpty': 'Sizda ochiq ariza yoʻq.',
+  'answer.requests': 'Sizning arizalaringiz:\n{строки}',
+  'answer.requestLine': '{номер}: {состояние}, muddati {срок}.',
+  'answer.requestWaiting': 'sizning qabulingizni kutmoqda',
+  'answer.requestWorking': 'ishda',
+  'answer.requestNew': 'yangi',
+
+  'meters.remind':
+    'Hisoblagich koʻrsatkichlarini yuborish vaqti keldi, {осталось}:\n{приборы}\n' +
+    'Quyidagi tugmani bosing va hisoblagichdagi raqamlarni yuboring.',
+  'meters.expired': 'Tekshiruv muddati tugadi: {приборы}.\nYangi tekshiruvgacha meʼyor boʻyicha hisoblanadi.',
+  'meters.name': '{прибор} ({номер})',
+  'meters.spike':
+    '«{прибор}» hisoblagichi boʻyicha davr sarfi: {расход} {единица}, bu odatdagidan ancha koʻp.\n' +
+    'Odatdagidan koʻp ishlatmagan boʻlsangiz, joʻmrak va bachokni tekshiring.',
+  'meters.aboveNeighbours':
+    '{номер} hisoblagich sarfi qoʻshnilarnikidan koʻp: sizda {расход} {единица}, oʻxshash kvartiralarda {соседи} {единица}.\n' +
+    'Tekshirib koʻrgan maʼqul: koʻpincha buning sababi oqayotgan bachok yoki jumrak.',
+
+  'debt.total': 'Toʻlanmagan {сумма}:\n{строки}',
+  'debt.line': '  {период}: {сумма}',
+  'debt.linePenalty': '  {период}: {сумма} va penya {пени}',
+  'debt.penalty': '\n\nKechikkani uchun jarima: {пени}\nJami toʻlash kerak: {итого}',
+  'debt.short': 'Eski qarz, {месяцы} uchun: {сумма}',
+  'debt.shortPenalty': 'Eski qarz, {месяцы} uchun: {сумма}, kechikkani uchun jarima {пени}',
+  'debt.range': '{от}dan {до}gacha',
+  'debt.period': '{месяц} {год}',
+
+  'support.answered': '{сотрудник}, boshqaruv kompaniyasi, «{тема}» savoliga javob beradi:\n{текст}',
+  'support.waiting': 'Boshqaruv kompaniyasining javobini kutmoqda.',
+  'support.earlier': 'Avvalroq yana {сколько}, toʻligʻi ilovada.',
+  'support.you': 'Siz',
+  'support.company': 'Boshqaruv kompaniyasi',
+  'support.resident': 'Yashovchi',
+
+  'poll.meeting': 'Mulkdorlar yigʻilishi',
+  'poll.survey': 'Yashovchilar soʻrovi',
+  'poll.started': '{вид}: {название}\n\n{вопрос}\n\n{порядок}',
+  'poll.orderMeeting': '{правило}. Ovoz berish {от}dan {до}gacha davom etadi.',
+  'poll.orderSurvey': '{до}gacha javob berish mumkin. Soʻrov mulkdorlar yigʻilishining oʻrnini bosmaydi.',
+  'poll.remind': '«{название}» yigʻilishi yopiladi: {до}.\n{нехватка}',
+  'poll.remindFew': 'Hamma ovoz bermadi: ovoz kam boʻlsa, qaror qabul qilinmaydi.',
+  'poll.remindArea':
+    'Maydonning hamma mulkdori ovoz bermadi: {площадь} m² yetishmayapti. Ovoz kam boʻlsa, qaror qabul qilinmaydi.',
+  'poll.closed': 'Yigʻilish tugadi: {название}\n{итог}\nIshtirok: {участие}, yoqlab: uy maydonining {за} qismi.',
+  'poll.noQuorum': 'Kvorum yoʻq, yigʻilish boʻlmadi.',
+  'poll.passed': 'Qaror qabul qilindi.',
+  'poll.failed': 'Qaror qabul qilinmadi.',
+  'poll.voteReplaced':
+    '«{название}» yigʻilishida {квартира} kvartiraning ovozini {кто} oʻzgartirdi: {ответ}.\n' +
+    'Xonadonda bitta ovoz bor, oxirgisi hisoblanadi.',
+  'poll.choice.for': 'yoqlab',
+  'poll.choice.against': 'qarshi',
+  'poll.choice.abstain': 'betaraf',
+  'poll.elder':
+    'Qoʻshnilar sizni {подъезд} podyezdga oqsoqol qilib sayladi.\n' +
+    'Podyezdning umumiy mulki boʻyicha arizalar endi sizniki: ularni siz koʻrasiz va ishni siz qabul qilasiz.',
+
+  'pollRule.simple': 'Oddiy koʻpchilik',
+  'pollRule.qualified': 'Malakali koʻpchilik',
+
+  'poll.tally.for': 'Yoqlab',
+  'poll.tally.against': 'Qarshi',
+  'poll.tally.abstain': 'Betaraf',
+  'poll.base.participants': 'ovoz berganlardan',
+  'poll.base.building': 'barcha mulkdorlardan',
+  'poll.threshold.strict': '{доля} dan koʻp',
+  'poll.threshold.plain': '{доля}',
+
+  'poll.result.survey': 'Yashovchilar soʻrovi, yigʻilish qarori emas. Javob berdilar: uy maydonining {участие} qismi.',
+  'poll.result.meeting': '{правило}. Ishtirok: uy maydonining {участие} qismi.',
+  'poll.result.quorum':
+    'Hali hamma ovoz bermadi: qaror qabul qilinishi uchun yana {площадь} m² mulkdorlarining ovozi kerak.',
+  'poll.result.share': '{ответ}: {доля}',
+  'poll.result.needed': '{база} {порог} kerak, toʻplandi {набрано}.',
+  'poll.result.mine': 'Kvartira ovozi: {ответ}.',
+  'poll.result.mineBy': 'Kvartira ovozi: {ответ} ({кто} berdi, kvartiraning bitta ovozi bor).',
+
+  'protocol.title': 'Mulkdorlar umumiy yigʻilishi bayonnomasi',
+  'protocol.surveyTitle': 'Yashovchilar soʻrovi natijalari',
+  'protocol.number': '№ {номер}',
+  'protocol.company': 'Boshqaruv kompaniyasi: {название}',
+  'protocol.form': 'Shakli: tizim orqali sirtqi ovoz berish',
+  'protocol.surveyForm': 'Boshqaruv tashkilotining soʻrovi: umumiy yigʻilish qarori emas',
+  'protocol.notice': 'Yigʻilish haqida xabar: {номер}',
+  'protocol.initiator': 'Tashabbuskor: {кто}',
+  'protocol.surveyBy': 'Oʻtkazdi: {кто}',
+  'protocol.administrator': 'Yigʻilish administratori: {кто}',
+  'protocol.voting': 'Ovoz berish: {от} dan {до} gacha',
+  'protocol.agenda': 'Kun tartibidagi masala',
+  'protocol.counting': 'Ovozlarni sanash',
+  'protocol.totalArea': 'Xonalarning umumiy maydoni: {площадь} m²',
+  'protocol.turnout': 'Ishtirok etdi: {площадь} m² ({доля})',
+  'protocol.quorumYes': 'Kvorum: bor, {порог} dan koʻp talab qilinadi',
+  'protocol.quorumUnknown': 'Kvorum: tasdiqlanmadi, {сколько} xonaning maydoni kiritilmagan',
+  'protocol.quorumNo': 'Kvorum: yoʻq, {площадь} m² yetishmaydi',
+  'protocol.line': '{ответ}: {площадь} m² ({доля})',
+  'protocol.decision': 'Qaror',
+  'protocol.rule': '{правило}: {база} {набрано}, boʻsagʻa {порог}.',
+  'protocol.moreThan': '{доля} dan koʻp',
+  'protocol.atLeast': '{доля} dan kam emas',
+  'protocol.noQuorum': 'Yigʻilish boʻlmadi: kvorum yoʻq.',
+  'protocol.formed': 'Bayonnoma {дата} tuzildi',
+  'protocol.surveyFormed': 'Natijalar {дата} chiqarildi',
+  'protocol.attachments': 'Ilovalar: mulkdorlar reestri, mulkdorlar qarorlari, yigʻilish oʻtkazish haqidagi xabar.',
+  'protocol.originals':
+    'Qarorlar va bayonnomaning asl nusxalari boshqaruv tashkilotiga, undan keyin davlat uy-joy ' +
+    'nazorati organiga topshiriladi.',
+
+  'initiative.proposed': 'Qoʻshni taklif qiladi: {название}\n\n{описание}',
+  'initiative.meetingCalled':
+    'Taklifingiz boʻyicha yigʻilish eʼlon qilindi: {название}.\nOvoz quyidagi tugma bilan beriladi.',
+  'initiative.enough': 'Yigʻilish talab qilish uchun imzolar yetarli',
+  'initiative.need': 'Yigʻilish tayinlanishi uchun yana {площадь} m² mulkdorlarining imzosi kerak',
+  'initiative.signatures': 'Imzolar: {сколько}.',
+
+  'binding.neighbour':
+    '{квартира} kvartirangizga yana bitta yashovchi bogʻlandi: {кто}.\n' +
+    'Agar bu sizning qoʻshningiz boʻlmasa, boshqaruv kompaniyasiga xabar bering.',
+  'binding.bound':
+    'Boshqaruv kompaniyasi sizni {квартира} kvartiraga bogʻladi.\n' +
+    'Endi hisoblagich koʻrsatkichlari va yigʻilishlarda ovoz berish ochiq.',
+  'binding.unbound':
+    'Boshqaruv kompaniyasi sizni {квартира} kvartiradan uzdi.\n' +
+    'Agar bu xato boʻlsa, kvitansiyadagi kod bilan qaytadan bogʻlaning.',
+  'binding.unboundPlain':
+    'Boshqaruv kompaniyasi sizni kvartiradan uzdi.\n' +
+    'Agar bu xato boʻlsa, kvitansiyadagi kod bilan qaytadan bogʻlaning.',
+
+  'quality.short': 'Hozir ochiq arizalar: {открыто}{просрочено}{срок}.',
+  'quality.overdueShort': ', muddati oʻtgan {сколько}',
+  'quality.rateShort': ', {дни} ichida muddatida {доля}',
+  'quality.title': 'Boshqaruv kompaniyasi {дни} ichida qanday ishlaydi:',
+  'quality.titleAt': 'Boshqaruv kompaniyasi {дни} ichida qanday ishlaydi, {адрес}:',
+  'quality.created': '  Berilgan arizalar: {сколько}',
+  'quality.closed': '  Yopilgan: {сколько}',
+  'quality.inTime': '  Muddatida: {доля}',
+  'quality.hours': '  Oʻrtacha ish vaqti: {часы} soat',
+  'quality.hoursBefore': '  Oʻrtacha ish vaqti: {часы} soat, bir oy oldin {раньше} soat',
+  'quality.rating': '  Yashovchilar bahosi: 5 dan {оценка} ({сколько} kishi baholadi)',
+  'quality.open': 'Hozir ochiq arizalar: {сколько}',
+  'quality.openOverdue': 'Hozir ochiq arizalar: {сколько}, muddati oʻtgan {просрочено}',
+
+  'clarify.where': 'Bu qayerda boʻldi?',
+  'clarify.whichFlat': 'Bu qaysi kvartirada boʻldi?',
+  'clarify.flat': '{номер} kvartira',
+  'clarify.entrance': '{номер} podyezd',
+
+  'device.snapshot': '{устройство}: {время} dagi kadr',
+
+  'visit.booked': 'Boshqaruv tashkiloti sizni qabulga yozdi: {когда}.\n{тема}',
+  'visit.cancelled': '{день} kuni {время}dagi qabulni boshqaruv tashkiloti bekor qildi.',
+
+  'assistant.offTopic':
+    'Men faqat uy va shu ilova boʻyicha yordam beraman: arizalar, hisoblagichlar, kvitansiya, yigʻilishlar, ' +
+    'eshiklar va boshqaruv tashkilotiga savollar. Qolganiga boshqaruv tashkilotidagi odam javob beradi.',
+  'assistant.fallback':
+    'Savolni tushunmadim. Bu yerda nima buzilganini aytish, koʻrsatkich yuborish, arizalarni koʻrish ' +
+    'va boshqaruv tashkilotiga yozish mumkin.',
+  'assistant.section': '{раздел}: {описание}.',
+  'assistant.answerInQuestionLanguage': 'Savol qaysi tilda berilgan boʻlsa, oʻsha tilda javob ber.',
+  'assistant.answerInLanguage': 'Savol tili tushunarsiz boʻlsa, {язык} deb ataladigan tilda javob ber.',
+  'assistant.reportLanguage': 'language maydonida savol tili kodini qaytar, ulardan biri: {коды}.',
+  'assistant.offerLanguage': 'Siz bilan {язык} tilida gaplasha olaman: quyidagi tugmani bosing.',
+  'assistant.languageButton': '{язык} tilida gaplashish',
+
+  'capability.new.title': 'Buzilgani haqida xabar berish',
+  'capability.new.about':
+    'Nima buzilganini soʻz yoki surat bilan aytish: mahsulot turkumni aniqlaydi va muddatni aytadi',
+  'capability.list.title': 'Mening arizalarim',
+  'capability.list.about':
+    'Oʻz murojaatlaringizni koʻrish: holati, muddati, ishni kim olib borayotgani, va bajarilganini qabul qilish',
+  'capability.meters.title': 'Hisoblagich koʻrsatkichlari',
+  'capability.meters.about': 'Suv, elektr va issiqlik hisoblagichlari koʻrsatkichlarini yuborish',
+  'capability.bill.title': 'Kvitansiya va toʻlov',
+  'capability.bill.about': 'Oylik hisob, qarz va penyani koʻrish hamda toʻlash',
+  'capability.home.title': 'Uy: eshiklar va kameralar',
+  'capability.home.about':
+    'Podyezd eshigi yoki shlagbaumni ochish, kameradan kadr koʻrish, mehmonga bir martalik kod berish',
+  'capability.news.title': 'Uy eʼlonlari',
+  'capability.news.about': 'Boshqaruv tashkiloti eʼlonlarini oʻqish va rejali ishlar haqida bilish',
+  'capability.tour.title': 'Ilova boʻylab sayr',
+  'capability.tour.about': 'Boʻlimlar boʻyicha qisqa koʻrsatuv: nima qayerda va nimadan boshlash',
+  'capability.polls.title': 'Mulkdorlar yigʻilishi',
+  'capability.polls.about': 'Yigʻilishda ovoz berish, qoʻshnining taklifini qoʻllab-quvvatlash, bayonnomani oʻqish',
+  'capability.support.title': 'Boshqaruv tashkilotiga savol',
+  'capability.support.about': 'Savol berish va yozishmada javob olish, telefon va ish vaqtini koʻrish',
+  'capability.visits.title': 'Qabulga yozilish',
+  'capability.visits.about': 'Boshqaruv tashkilotida boʻsh qabul soatini tanlash',
+  'capability.bind.title': 'Kvartirani bogʻlash',
+  'capability.bind.about':
+    'Kvitansiyadagi kodni kiriting, shunda hisoblagichlar, kvitansiya va yigʻilishdagi ovoz ochiladi',
+  'capability.capital.title': 'Kapital taʼmir',
+  'capability.capital.about': 'Badal, uy jamgʻarganini va mintaqaviy dastur boʻyicha ish yillarini koʻrish',
+  'capability.quality.title': 'Kompaniya qanday ishlaydi',
+  'capability.quality.about': 'Muddatida qancha ariza yopilganini va uyda nima koʻproq buzilishini koʻrish',
+  'capability.language.title': 'Mahsulot tili',
+  'capability.language.about': 'Mahsulot siz bilan gaplashadigan tilni tanlash',
+  'capability.profile.title': 'Profil va mening maʼlumotlarim',
+  'capability.profile.about': 'Telefon, bildirishnomalar, oʻz maʼlumotlarini yuklab olish va profilni oʻchirish',
+  'capability.stickers.title': 'Obyekt kodlari',
+  'capability.stickers.about': 'Podyezd, lift yoki kvartira kodi bilan stiker olish',
+};

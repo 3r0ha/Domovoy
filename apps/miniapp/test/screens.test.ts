@@ -1525,6 +1525,48 @@ describe('действия сотрудника над заявкой', () => {
     return { screen, calls };
   };
 
+  it('под переводом смена видит то, что человек написал сам', async () => {
+    const { screen } = await openAs(
+      { '/api/requests/req-1/actions': { actions: [] } },
+      {
+        description: 'Нет горячей воды со вчерашнего вечера',
+        original: { text: 'Kechadan beri issiq suv yoʻq', language: 'uz' },
+        history: [
+          {
+            at: '2026-09-03T09:00:00.000Z',
+            status: 'new',
+            role: 'resident',
+            kind: 'message',
+            comment: 'Вода так и не появилась',
+            original: { text: 'Suv hali ham yoʻq', language: 'uz' },
+          },
+        ],
+      },
+    );
+
+    assert.match(screen.text, /Нет горячей воды со вчерашнего вечера/u, 'перевод для смены на месте');
+    assert.match(screen.text, /Kechadan beri issiq suv yoʻq/u, 'исходного текста заявки нет');
+    assert.match(screen.text, /Suv hali ham yoʻq/u, 'исходного текста реплики нет');
+    assert.match(screen.text, /Oʻzbekcha/u, 'язык оригинала не назван');
+
+    await screen.unmount();
+  });
+
+  it('жилец видит свою заявку без пометок о переводе', async () => {
+    const { screen } = await openAs(
+      { '/api/requests/req-1/actions': { actions: [] } },
+      {
+        description: 'Нет горячей воды со вчерашнего вечера',
+        original: { text: 'Kechadan beri issiq suv yoʻq', language: 'uz' },
+      },
+      { staff: false },
+    );
+
+    assert.doesNotMatch(screen.text, /Kechadan beri/u, 'жильцу показали служебный оригинал');
+
+    await screen.unmount();
+  });
+
   it('показывает только те кнопки, которые разрешены роли', async () => {
     const { screen } = await openAs({ '/api/requests/req-1/actions': { actions: ['accepted', 'rejected'] } });
 
@@ -3719,6 +3761,50 @@ describe('первый вход и помощник', () => {
     await screen.act(() => tap(screen, 'Открыть'));
 
     assert.deepEqual(went, ['meters']);
+
+    await screen.unmount();
+  });
+
+  it('под ответом на чужом языке стоит переход на этот язык', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      'GET /api/assistant': { starters: [] },
+      '/api/assistant': {
+        answer: 'Hisoblagichlar «Toʻlov» boʻlimida.',
+        screen: 'meters',
+        offerLanguage: 'uz',
+        offerTitle: 'Oʻzbekcha tilida gaplashish',
+        by: 'model',
+      },
+      '/api/me/language': { language: 'uz' },
+    });
+    const picked: string[] = [];
+
+    const screen = await render(
+      createElement(Assistant as never, {
+        api,
+        onGo: () => undefined,
+        onLanguage: (language: string) => picked.push(language),
+        onClose: () => undefined,
+      } as never),
+      bridge,
+    );
+
+    await screen.act(() =>
+      typeInto(screen.find<HTMLTextAreaElement>('textarea'), 'Hisoblagichlarni qayerda toʻlayman?'),
+    );
+    await screen.act(() => screen.find<HTMLButtonElement>('.composer-send').click());
+    await screen.act(() => {});
+
+    assert.match(screen.text, /Hisoblagichlar «Toʻlov»/u);
+
+    await screen.act(() => tap(screen, 'Oʻzbekcha tilida gaplashish'));
+    await screen.act(() => {});
+
+    const sent = calls.find((call) => call.path === '/api/me/language' && call.method === 'POST');
+
+    assert.deepEqual(JSON.parse(sent?.body ?? '{}'), { language: 'uz' }, 'выбор языка не ушёл на сервер');
+    assert.deepEqual(picked, ['uz'], 'приложение не узнало о новом языке');
 
     await screen.unmount();
   });

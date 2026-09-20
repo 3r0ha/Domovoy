@@ -1,6 +1,7 @@
 import { arrearsFor, chargesForResident, formatDebtShort, metersFor } from '@domovoy/app';
-import { DomainError, formatMoney, METER_RULES, verificationState } from '@domovoy/domain';
+import { DomainError, formatMoney, meterKindKey, verificationState } from '@domovoy/domain';
 
+import { speak } from '../i18n.js';
 import {
   afterError,
   appRow,
@@ -33,15 +34,13 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
   return {
   meters: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     try {
       const meters = await metersFor(deps, resident);
 
       if (meters.length === 0) {
-        await typed.reply(
-          'За вашей квартирой счётчиков не записано. Если они есть, скажите об этом управляющей компании.',
-          oneKeyboard('✉️ Написать в компанию', 'menu:support'),
-        );
+        await typed.reply(t('meters.none'), oneKeyboard(t('button.write_company'), 'menu:support'));
         return;
       }
 
@@ -53,18 +52,18 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
 
       if (expired.length > 0) {
         await typed.reply(
-          `Истёк срок проверки счётчика: ${expired
-            .map((state) => `${METER_RULES[state.meter.kind].title} № ${state.meter.serial}`)
-            .join(', ')}.\n` +
-            'Пока его не проверят, показания принять не могу, и за эту услугу считают по средней норме.\n' +
-            'Проверку заказывают в управляющей компании.',
-          oneKeyboard('✉️ Написать в компанию', 'menu:support'),
+          t('meters.expired', {
+            приборы: expired
+              .map((state) => `${t(meterKindKey(state.meter.kind))} № ${state.meter.serial}`)
+              .join(', '),
+          }),
+          oneKeyboard(t('button.write_company'), 'menu:support'),
         );
       }
 
       if (pending.length === 0) {
         if (expired.length < meters.length) {
-          await typed.reply('Показания за этот месяц уже поданы. Спасибо.', menuButton(typed));
+          await typed.reply(t('meters.done'), menuButton(typed, t));
         }
         return;
       }
@@ -75,8 +74,8 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
         const ready = meters.filter((state) => verificationState(state.meter, now) !== 'expired');
 
         await typed.reply(
-          `Показания за этот месяц: подано ${ready.length - pending.length} из ${ready.length}. Выберите счётчик.`,
-          metersKeyboard(ready),
+          t('meters.progress', { подано: ready.length - pending.length, всего: ready.length }),
+          metersKeyboard(ready, t),
         );
         return;
       }
@@ -84,23 +83,24 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       typed.session ??= {};
       expect(typed, { kind: 'reading', meterId: pending[0]!.meter.id });
 
-      await typed.reply(readingPrompt(pending[0]!), readingKeyboard(pending[0]!.meter.id, false));
+      await typed.reply(readingPrompt(pending[0]!, t), readingKeyboard(pending[0]!.meter.id, false, t));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed, t));
     }
   },
 
   /** Квитанция: сумма и из чего сложилась. */
   bill: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     try {
       const charges = await chargesForResident(deps, resident);
       const left = Math.max(0, charges.total - charges.paid);
 
       if (charges.lines.length === 0) {
-        await typed.reply('За этот месяц начислений пока нет.', menuButton(typed));
+        await typed.reply(t('bill.empty'), menuButton(typed, t));
         return;
       }
 
@@ -112,10 +112,13 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
       await typed.reply(
         [
           left > 0
-            ? `Заплатить ${strong(formatMoney(left))} до ${strong(dueDate(deps.now(), charges.dueDay))}`
-            : `Начислено ${formatMoney(charges.total)}, за этот месяц всё оплачено`,
+            ? t('bill.total', {
+                сумма: strong(formatMoney(left)),
+                срок: strong(dueDate(deps.now(), charges.dueDay)),
+              })
+            : t('bill.paid', { сумма: formatMoney(charges.total) }),
           debt,
-          'Из чего сложилось и за что, смотрите в приложении.',
+          t('bill.where'),
         ]
           .filter(Boolean)
           .join('\n'),
@@ -127,15 +130,17 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
             ...payRows(
               deps.payments && left > 0 ? left : undefined,
               deps.payments && arrears.total + arrears.penalty > 0 ? arrears.total + arrears.penalty : undefined,
+              t,
             ),
-            ...appRow(kit.miniAppUrl, 'Квитанция в приложении', 'meters'),
+            ...appRow(kit.miniAppUrl, t('button.bill_in_app'), 'meters'),
           ],
           typed,
+          t,
         ),
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed, t));
     }
     },
   };

@@ -1,10 +1,13 @@
+import { useT } from '../i18n.js';
+
 /** Маскот по состоянию дома: спокойно, просрочка, авария. */
 export type Mood = 'sleeping' | 'walking' | 'alarmed';
 
-const LABEL: Record<Mood, string> = {
-  sleeping: 'Домовой спит',
-  walking: 'Домовой обходит дом',
-  alarmed: 'Домовой встревожен',
+/** Ключ подписи к картинке: сама подпись приходит из словаря. */
+const LABEL_KEY: Record<Mood, string> = {
+  sleeping: 'chrome.domovoy.sleeping',
+  walking: 'chrome.domovoy.walking',
+  alarmed: 'chrome.domovoy.alarmed',
 };
 
 export interface DomovoyProps {
@@ -23,16 +26,20 @@ const asset = (name: string): string => {
   return `${base}domovoy/${name}`;
 };
 
-export const Domovoy = ({ mood, size = 96 }: DomovoyProps) => (
-  <img
-    className="domovoy"
-    src={asset(`${mood}.webp`)}
-    alt={LABEL[mood]}
-    data-mood={mood}
-    width={size}
-    height={size}
-  />
-);
+export const Domovoy = ({ mood, size = 96 }: DomovoyProps) => {
+  const t = useT();
+
+  return (
+    <img
+      className="domovoy"
+      src={asset(`${mood}.webp`)}
+      alt={t(LABEL_KEY[mood])}
+      data-mood={mood}
+      width={size}
+      height={size}
+    />
+  );
+};
 
 /** Фонарь домового: им отмечено ожидание. */
 export const Lantern = ({ size = 20 }: { size?: number }) => (

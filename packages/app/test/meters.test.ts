@@ -241,6 +241,20 @@ describe('напоминание о показаниях', () => {
     assert.match(deps.notifier.sent[0]?.text ?? '', /Холодная вода \(ХВС-1\)/);
   });
 
+  it('называет прибор на языке жильца, а заводской номер оставляет как есть', async () => {
+    const deps = await setup();
+
+    await deps.repository.saveResident({ ...maria, language: 'uz' });
+    deps.notifier.sent.length = 0;
+
+    await remindAboutReadings(deps, BUILDING_ID);
+
+    const text = deps.notifier.sent.find((sent) => sent.maxUserId === maria.maxUserId)?.text ?? '';
+
+    assert.match(text, /Sovuq suv \(ХВС-1\)/);
+    assert.doesNotMatch(text, /Холодная вода/);
+  });
+
   it('дом читается пачкой: по прибору на квартиру, сотни запросов', async () => {
     const deps = await setup();
     const calls: string[] = [];

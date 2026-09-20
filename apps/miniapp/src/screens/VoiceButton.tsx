@@ -1,6 +1,8 @@
 import { useId, useRef } from 'react';
 
 import { type DomovoyApi } from '../api.js';
+import { useCapabilities } from '../capabilities.js';
+import { useT } from '../i18n.js';
 import { useVoice } from '../use-voice.js';
 import { ErrorText } from './ErrorText.js';
 import { IconMic } from './icons.js';
@@ -29,7 +31,9 @@ const clock = (seconds: number): string => `${Math.floor(seconds / 60)}:${String
  * уходит сама: человек должен увидеть, что именно распознали, и поправить.
  */
 export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) => {
+  const capabilities = useCapabilities();
   const voice = useVoice(api, onText);
+  const t = useT();
   const field = useId();
   const since = useRef(0);
   const held = useRef(false);
@@ -59,8 +63,11 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
     if (Date.now() - since.current >= LOCK_MS) voice.stop();
   };
 
-  const caption = recording ? 'Готово' : decoding ? 'Расшифровываем…' : 'Сказать голосом';
-  const aria = recording ? `Остановить запись: ${label}` : `Записать голосом: ${label}`;
+  // Расшифровывать запись нечем: кнопка вела бы к отказу, поэтому её нет.
+  if (!capabilities.voice) return null;
+
+  const caption = recording ? t('voice.stop') : decoding ? t('voice.decoding') : t('voice.say');
+  const aria = recording ? t('voice.aria.stop', { поле: label }) : t('voice.aria.start', { поле: label });
   const shape = compact ? 'voice-key voice-round' : 'voice-key voice-wide';
 
   return (
@@ -94,8 +101,8 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
           <label
             className={decoding ? `${shape} voice-busy` : shape}
             htmlFor={field}
-            title={`Записать голосом: ${label}`}
-            aria-label={`Записать голосом: ${label}`}
+            title={t('voice.aria.start', { поле: label })}
+            aria-label={t('voice.aria.start', { поле: label })}
             role="button"
             tabIndex={decoding ? -1 : 0}
             onKeyDown={(event) => {
@@ -106,7 +113,7 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
             }}
           >
             <IconMic />
-            {compact ? null : <span>{decoding ? 'Расшифровываем…' : 'Сказать голосом'}</span>}
+            {compact ? null : <span>{decoding ? t('voice.decoding') : t('voice.say')}</span>}
           </label>
 
           <input id={field} className="voice-file" type="file" accept="audio/*" capture onChange={voice.attach} />
@@ -115,7 +122,7 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
 
       {decoding ? (
         <span className="voice-note" role="status">
-          Расшифровываем…
+          {t('voice.decoding')}
         </span>
       ) : null}
 
@@ -132,7 +139,7 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
                 voice.start();
               }}
             >
-              Повторить
+              {t('voice.retry')}
             </button>
           ) : null}
         </span>

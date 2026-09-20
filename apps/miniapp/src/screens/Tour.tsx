@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { useTrapped } from '../focus.js';
+import { useT } from '../i18n.js';
 
 /** Шаг тура: что подсвечиваем и что об этом говорим. */
 export interface TourStep {
@@ -55,6 +56,7 @@ export const Tour = ({ steps, onDone }: TourProps) => {
   const anchor = step?.anchor;
   const done = useRef(onDone);
   const card = useTrapped<HTMLElement>(true);
+  const t = useT();
 
   done.current = onDone;
 
@@ -98,7 +100,7 @@ export const Tour = ({ steps, onDone }: TourProps) => {
 
   return (
     <div className="tour" role="dialog" aria-modal="true" aria-label={step.title}>
-      <button type="button" className="tour-veil" aria-label="Пропустить подсказку" onClick={onDone} />
+      <button type="button" className="tour-veil" aria-label={t('tour.skip.aria')} onClick={onDone} />
 
       {hole ? (
         <span
@@ -117,16 +119,14 @@ export const Tour = ({ steps, onDone }: TourProps) => {
         <p className="hint">{step.text}</p>
 
         <div className="tour-actions">
-          <span className="hint aside">
-            {index + 1} из {steps.length}
-          </span>
+          <span className="hint aside">{t('tour.step', { номер: index + 1, всего: steps.length })}</span>
 
           <button type="button" className="link" onClick={onDone}>
-            Пропустить
+            {t('tour.skip')}
           </button>
 
           <button type="button" className="tour-next" onClick={next}>
-            {last ? 'Понятно' : 'Дальше'}
+            {last ? t('tour.done') : t('tour.next')}
           </button>
         </div>
       </section>

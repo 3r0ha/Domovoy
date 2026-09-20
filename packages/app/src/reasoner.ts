@@ -1,5 +1,7 @@
 import { CATEGORY_RULES, suggestCategory, suggestPriority, type Priority, type RequestCategory } from '@domovoy/domain';
 
+import type { Language } from '@domovoy/i18n';
+
 /** Часть дома, о которой написал человек. */
 export type Place = 'apartment' | 'entrance' | 'house';
 
@@ -52,6 +54,11 @@ export interface AssistInput {
   /** Разделы, доступные этой роли: из них модель выбирает переход. */
   sections: { screen: string; title: string; about: string }[];
   /**
+   * На каком языке отвечать. Та же просьба идёт и строкой в `knowledge`:
+   * канал к модели о языках знать не обязан.
+   */
+  language?: Language;
+  /**
    * Прошлые реплики разговора, от старых к новым. По ним читается «а если нет?»
    * и «сколько это стоит»: без них второй вопрос подряд теряет смысл.
    */
@@ -62,6 +69,8 @@ export interface AssistInput {
 export interface AssistFields {
   answer?: string;
   screen?: string;
+  /** Код языка, на котором задан вопрос: по нему продукт предлагает сменить язык. */
+  language?: string;
 }
 
 /** Что модель знает, когда спрашивает адрес обращения. */

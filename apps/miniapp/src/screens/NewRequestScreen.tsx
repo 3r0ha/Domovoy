@@ -1,6 +1,8 @@
 import { useBridgeRequest, useClosingConfirmation } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import {
   ApiError,
   formatDeadline,
@@ -10,6 +12,7 @@ import {
   type SubmitResult,
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { usePhotos } from '../use-photos.js';
 import { Composer } from './Composer.js';
 import { ErrorText } from './ErrorText.js';
@@ -31,20 +34,20 @@ export interface NewRequestScreenProps {
 }
 
 /** С чего чаще всего начинают: нажатие ставит начало фразы в поле ввода. */
-const COMMON = [
-  'Нет горячей воды',
-  'Не работает лифт',
-  'Не горит свет на площадке',
-  'Течёт труба',
-  'Не работает домофон',
-  'Грязно в подъезде',
+const common = (t: Translate): string[] => [
+  t('new.common.water'),
+  t('new.common.lift'),
+  t('new.common.light'),
+  t('new.common.pipe'),
+  t('new.common.intercom'),
+  t('new.common.dirt'),
 ];
 
 /** Что окажется в поле после нажатия на частую поломку. */
-const replaced = (typed: string, problem: string): string => {
+const replaced = (problems: readonly string[], typed: string, problem: string): string => {
   const written = typed.trim();
 
-  if (written.length === 0 || COMMON.includes(written)) return problem;
+  if (written.length === 0 || problems.includes(written)) return problem;
 
   return `${written}. ${problem}`;
 };
@@ -65,6 +68,8 @@ export const NewRequestScreen = ({
   const [sent, setSent] = useState('');
   const photos = usePhotos(api);
   const haptics = useHaptics();
+  const t = useT();
+  const problems = common(t);
   const [scanned, setScanned] = useState<string | null>(null);
   const startParam = scanned ?? opened;
   const [planned, setPlanned] = useState<{ work: PlannedWorkView; description: string } | null>(null);
@@ -142,7 +147,7 @@ export const NewRequestScreen = ({
       onCreated(result.request?.id);
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить заявку');
+      setError(reason instanceof ApiError ? reason.message : t('new.failed'));
     } finally {
       setSending(false);
     }
@@ -159,7 +164,7 @@ export const NewRequestScreen = ({
       onSupport?.();
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить вопрос');
+      setError(reason instanceof ApiError ? reason.message : t('new.failed.question'));
     } finally {
       setSending(false);
     }
@@ -184,7 +189,7 @@ export const NewRequestScreen = ({
       onCreated(asked.requestId);
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось отправить ответ');
+      setError(reason instanceof ApiError ? reason.message : t('new.failed.answer'));
     } finally {
       setSending(false);
     }
@@ -202,7 +207,7 @@ export const NewRequestScreen = ({
       setJoined({ joined: true, request });
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось подтвердить');
+      setError(reason instanceof ApiError ? reason.message : t('new.failed.confirm'));
     } finally {
       setConfirming(null);
     }
@@ -231,14 +236,14 @@ export const NewRequestScreen = ({
       <div className="chat-flow">
         <article className="said said-bot">
           {target ? <span className="said-who">{target}</span> : null}
-          <p className="description">Что случилось?</p>
+          <p className="description">{t('new.what')}</p>
         </article>
 
-        {fresh ? <p className="hint chat-note">Выберите частое или опишите своими словами</p> : null}
+        {fresh ? <p className="hint chat-note">{t('new.hint')}</p> : null}
 
         {fresh ? (
           <div className="chips chat-common">
-            {COMMON.map((problem) => (
+            {problems.map((problem) => (
               <button
                 key={problem}
                 type="button"
@@ -248,7 +253,7 @@ export const NewRequestScreen = ({
                   // Второе нажатие раньше не делало ничего, хотя отвечало
                   // вибрацией: поставленную подсказку оно теперь заменяет,
                   // а к своим словам дописывается.
-                  setDescription(replaced(description, problem));
+                  setDescription(replaced(problems, description, problem));
                 }}
               >
                 {problem}
@@ -259,7 +264,7 @@ export const NewRequestScreen = ({
 
         {context.error ? (
           <article className="said said-bot">
-            <p className="description">Код с наклейки не распознан, заявку заведу по вашей квартире.</p>
+            <p className="description">{t('new.code.unknown')}</p>
           </article>
         ) : null}
 
@@ -275,11 +280,14 @@ export const NewRequestScreen = ({
           <div key={request.id} className="turn turn-bot">
             <article className="said said-bot">
               <p className="description">
-                Об этом уже сообщили: {request.title}. {request.statusTitle ?? statusTitle(request.status)},{' '}
-                {formatDeadline(request.resolutionDueAt)}.
+                {t('new.known', {
+                  заголовок: request.title,
+                  состояние: request.statusTitle ?? statusTitle(request.status),
+                  срок: formatDeadline(request.resolutionDueAt),
+                })}
               </p>
 
-              {request.mine ? <p className="hint">Вы сообщили</p> : null}
+              {request.mine ? <p className="hint">{t('new.known.mine')}</p> : null}
             </article>
 
             {request.mine ? null : (
@@ -289,7 +297,7 @@ export const NewRequestScreen = ({
                 disabled={confirming !== null}
                 onClick={() => void confirmSame(request.id)}
               >
-                {confirming === request.id ? 'Отправляем…' : 'И у меня'}
+                {confirming === request.id ? t('new.sending') : t('new.same')}
               </button>
             )}
           </div>
@@ -318,7 +326,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void send(answered.description, true)}
             >
-              {sending ? 'Отправляем…' : 'Всё равно оформить'}
+              {sending ? t('new.sending') : t('new.anyway')}
             </button>
 
             <button
@@ -327,7 +335,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void toSupport(answered.description)}
             >
-              Спросить в поддержке
+              {t('new.support')}
             </button>
           </div>
         ) : null}
@@ -347,7 +355,7 @@ export const NewRequestScreen = ({
               className="inline-btn"
               onClick={() => onCreated(joined?.request?.id ?? asked?.requestId)}
             >
-              Подожду
+              {t('new.wait')}
             </button>
 
             <button
@@ -356,7 +364,7 @@ export const NewRequestScreen = ({
               disabled={sending}
               onClick={() => void send(planned.description, true)}
             >
-              {sending ? 'Отправляем…' : 'Это другое'}
+              {sending ? t('new.sending') : t('new.other')}
             </button>
           </div>
         ) : null}
@@ -365,14 +373,17 @@ export const NewRequestScreen = ({
           <div className="turn turn-bot">
             <article className="said said-bot">
               <p className="description">
-                Похоже на уже поданную: {joined.request.title}.{' '}
-                {joined.request.statusTitle ?? statusTitle(joined.request.status)},{' '}
-                {formatDeadline(joined.request.resolutionDueAt)}. Сообщили: {joined.request.reporters}.
+                {t('new.joined', {
+                  заголовок: joined.request.title,
+                  состояние: joined.request.statusTitle ?? statusTitle(joined.request.status),
+                  срок: formatDeadline(joined.request.resolutionDueAt),
+                  сколько: joined.request.reporters,
+                })}
               </p>
             </article>
 
             <button type="button" className="inline-btn" onClick={() => onCreated(joined.request?.id)}>
-              К заявкам
+              {t('new.toRequests')}
             </button>
 
             <button
@@ -386,7 +397,7 @@ export const NewRequestScreen = ({
                 if (sent) void send(sent, true, apartFrom);
               }}
             >
-              {sending ? 'Отправляем…' : 'Это другое'}
+              {sending ? t('new.sending') : t('new.other')}
             </button>
           </div>
         ) : null}
@@ -394,11 +405,11 @@ export const NewRequestScreen = ({
         {asked ? (
           <div className="turn turn-bot">
             <article className="said said-bot">
-              <p className="description">Заявка принята. {asked.question}</p>
+              <p className="description">{t('new.asked', { вопрос: asked.question })}</p>
             </article>
 
             <button type="button" className="inline-btn" onClick={() => onCreated(asked.requestId)}>
-              Пропустить
+              {t('new.skip')}
             </button>
           </div>
         ) : null}
@@ -426,8 +437,8 @@ export const NewRequestScreen = ({
         <Composer
           api={api}
           id="description"
-          label={asked ? 'Уточнение' : 'Что случилось'}
-          placeholder="Опишите, что случилось"
+          label={asked ? t('new.label.clarify') : t('new.label')}
+          placeholder={t('new.placeholder')}
           value={asked ? answer : description}
           busy={sending}
           photos={photos}

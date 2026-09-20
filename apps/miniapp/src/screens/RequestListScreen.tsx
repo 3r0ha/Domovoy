@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { actionTitle, describeFailure, type DomovoyApi, type RequestView } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -91,6 +92,7 @@ export const RequestListScreen = ({
   const [failed, setFailed] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const haptics = useHaptics();
+  const t = useT();
 
   /**
    * Наряд берут в работу одним нажатием: закрывает его мастер на экране заявки,
@@ -119,14 +121,14 @@ export const RequestListScreen = ({
   const create =
     !staff && onNewRequest ? (
       <Button type="button" size="large" stretched data-guide="new" onClick={onNewRequest}>
-        Оставить заявку
+        {t('requests.create')}
       </Button>
     ) : null;
 
   if (requests.loading && !requests.data) return <Skeleton />;
 
   if (requests.error) {
-    return <Failure title="Заявки не загрузились" error={requests.error} onRetry={requests.reload} />;
+    return <Failure title={t('requests.failed')} error={requests.error} onRetry={requests.reload} />;
   }
 
   const now = staff ? null : <HouseNow api={api} onOpen={onOpen} />;
@@ -162,7 +164,7 @@ export const RequestListScreen = ({
             ) : null}
           </Empty>
         ) : (
-          <Empty icon={<IconRequests />} title="Открытых заявок нет" hint="Расскажите, что случилось">
+          <Empty icon={<IconRequests />} title={t('requests.empty')} hint={t('requests.empty.hint')}>
             {create}
           </Empty>
         )
@@ -170,7 +172,7 @@ export const RequestListScreen = ({
         <Rows
           requests={active}
           staff={staff}
-          title={staff ? 'Ваши наряды' : 'Ваши заявки'}
+          title={staff ? 'Ваши наряды' : t('requests.mine')}
           {...(staff ? { starting, onStart: (id: string, to: 'accepted' | 'in_progress') => void start(id, to) } : {})}
           onOpen={onOpen}
         />
@@ -179,7 +181,7 @@ export const RequestListScreen = ({
       <Group>
         <CellSimple
           className={showClosed ? 'row-open' : ''}
-          title={staff ? 'Закрытые наряды' : 'Закрытые заявки'}
+          title={staff ? 'Закрытые наряды' : t('requests.closed')}
           showChevron
           height="compact"
           onClick={() => {
@@ -201,12 +203,16 @@ export const RequestListScreen = ({
           : null}
 
         {showClosed && closed.done && closed.items.length === 0 ? (
-          <CellSimple title="Пусто" height="compact" separator />
+          <CellSimple title={t('requests.none')} height="compact" separator />
         ) : null}
 
         {showClosed && closed.started && !closed.done ? (
           <CellAction mode="secondary" disabled={closed.loading} onClick={readClosed}>
-            {closed.error ? `${closed.error}. Повторить` : closed.loading ? 'Загружаем…' : 'Показать ещё'}
+            {closed.error
+              ? t('requests.more.retry', { причина: closed.error })
+              : closed.loading
+                ? t('requests.more.loading')
+                : t('requests.more')}
           </CellAction>
         ) : null}
       </Group>

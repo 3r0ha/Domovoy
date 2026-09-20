@@ -2,6 +2,8 @@ import { Button, CellAction, CellInput, CellList, CellSimple } from '@maxhub/max
 import { useBridgeRequest } from '@maxkit/react';
 import { useEffect, useRef, useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import {
   ApiError,
   decimal,
@@ -13,6 +15,7 @@ import {
   type DomovoyApi,
   type MeterView,
 } from '../api.js';
+import { useT } from '../i18n.js';
 import { ChargesCard } from './ChargesCard.js';
 import { Empty } from './Empty.js';
 import { Failure } from './Failure.js';
@@ -40,15 +43,18 @@ export interface MetersScreenProps {
 
 /** Месяц и срок подачи. */
 const describePeriod = (
+  t: Translate,
   done: boolean,
   at: Date,
   window: { fromDay: number; toDay: number } | undefined,
 ): string => {
   const month = monthName(at.getMonth());
 
-  if (done) return `Показания за ${month} поданы`;
+  if (done) return t('meters.period.done', { месяц: month });
 
-  return window ? `Показания за ${month} · до ${window.toDay} числа` : `Показания за ${month}`;
+  return window
+    ? t('meters.period.due', { месяц: month, день: window.toDay })
+    : t('meters.period', { месяц: month });
 };
 
 /** Сколько месяцев прошло с последнего показания. */
@@ -64,20 +70,19 @@ const monthsSince = (at: string | undefined, now: Date): number => {
 const AVERAGE_MONTHS = 3;
 
 /** Чем считается счёт, пока показаний нет. */
-const silence = (meter: MeterView, now: Date): string | null => {
+const silence = (t: Translate, meter: MeterView, now: Date): string | null => {
   if (meter.submittedThisMonth) return null;
 
   const months = monthsSince(meter.lastAt, now);
 
   if (months <= 1) return null;
 
-  return months > AVERAGE_MONTHS
-    ? 'Показаний нет, считаем по средней норме'
-    : 'Показаний нет, считаем по прошлым месяцам';
+  return months > AVERAGE_MONTHS ? t('meters.silence.norm') : t('meters.silence.average');
 };
 
 /** Расход по месяцам столбиками. */
 const History = ({ api, meter, version }: { api: DomovoyApi; meter: MeterView; version: number }) => {
+  const t = useT();
   const history = useBridgeRequest((alive) => api.until(alive).meterHistory(meter.id), [api, meter.id, version]);
   const periods = (history.data ?? []).filter((period) => period.consumption > 0);
 
@@ -88,7 +93,11 @@ const History = ({ api, meter, version }: { api: DomovoyApi; meter: MeterView; v
     `${monthName(new Date(period.at).getMonth())} ${decimal(period.consumption)} ${meter.unit}`;
 
   return (
-    <div className="spark" role="img" aria-label={`Расход по месяцам: ${periods.map(describe).join(', ')}`}>
+    <div
+      className="spark"
+      role="img"
+      aria-label={t('meters.history.label', { список: periods.map(describe).join(', ') })}
+    >
       {periods.map((period, index) => (
         <span
           key={period.at}
@@ -115,6 +124,7 @@ const MeterCard = ({
   version: number;
   onSubmitted: () => void;
 }) => {
+  const t = useT();
   const [value, setValue] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,13 +156,13 @@ const MeterCard = ({
         if (!active) return;
 
         if (read.value === undefined) {
-          setError('Цифры на снимке не разобрать. Снимите ближе и без бликов или введите цифрами');
+          setError(t('meters.photo.unreadable'));
         } else {
           setValue(String(read.value));
         }
       })
       .catch((reason: unknown) => {
-        if (active) setError(reason instanceof ApiError ? reason.message : 'Не удалось разобрать фотографию');
+        if (active) setError(reason instanceof ApiError ? reason.message : t('meters.photo.failed'));
       })
       .finally(() => {
         if (!active) return;
@@ -164,7 +174,7 @@ const MeterCard = ({
     return () => {
       active = false;
     };
-  }, [snapshot, api, meter.id]);
+  }, [snapshot, api, meter.id, t]);
 
   const submit = async (): Promise<void> => {
     // Повтор по Enter, пока показание ещё летит, подал бы его дважды.
@@ -173,7 +183,7 @@ const MeterCard = ({
     const parsed = parseDecimal(value);
 
     if (parsed === null) {
-      setError('Отправьте показание цифрами');
+      setError(t('meters.input.digits'));
       return;
     }
 
@@ -192,7 +202,7 @@ const MeterCard = ({
       setEditing(false);
       onSubmitted();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Показание не принято');
+      setError(reason instanceof ApiError ? reason.message : t('meters.submit.failed'));
     } finally {
       setSending(false);
     }
@@ -200,10 +210,10 @@ const MeterCard = ({
 
   const sent = meter.submittedThisMonth && !editing;
   const expired = meter.verification === 'expired';
-  const silent = silence(meter, new Date());
+  const silent = silence(t, meter, new Date());
   const was =
     meter.lastValue === undefined
-      ? `Показаний ещё не было · ${meter.serial}`
+      ? t('meters.last.never', { номер: meter.serial })
       : `${decimal(meter.lastValue)} ${meter.unit}${meter.lastAt ? ` · ${formatPublished(meter.lastAt)}` : ''}`;
 
   return (
@@ -211,17 +221,17 @@ const MeterCard = ({
       <CellSimple
         className="meter-row"
         title={meter.title}
-        subtitle={sent ? was : meter.lastValue === undefined ? was : `Было ${was}`}
+        subtitle={sent ? was : meter.lastValue === undefined ? was : t('meters.last.was', { показание: was })}
         after={
           expired ? (
             <span className="row-state">
               <span className="dot dot-bad" />
-              истёк срок проверки
+              {t('meters.verification.state')}
             </span>
           ) : (
             <span className="row-state">
               <span className={meter.submittedThisMonth ? 'dot dot-good' : 'dot dot-muted'} />
-              {meter.submittedThisMonth ? 'подано' : 'ждём'}
+              {meter.submittedThisMonth ? t('meters.state.sent') : t('meters.state.waiting')}
             </span>
           )
         }
@@ -238,13 +248,13 @@ const MeterCard = ({
 
       {expired ? (
         <p className="hint inset">
-          {meter.verifiedUntil ? `Срок проверки истёк ${formatDay(meter.verifiedUntil)}. ` : ''}
-          Пока счётчик не проверят, за услугу считают по средней норме
+          {meter.verifiedUntil ? t('meters.verification.expiredAt', { дата: formatDay(meter.verifiedUntil) }) : ''}
+          {t('meters.verification.hint')}
         </p>
       ) : null}
 
       {meter.verification === 'soon' && meter.verifiedUntil ? (
-        <p className="hint inset">Проверить счётчик нужно до {formatDay(meter.verifiedUntil)}</p>
+        <p className="hint inset">{t('meters.verification.soon', { дата: formatDay(meter.verifiedUntil) })}</p>
       ) : null}
 
       {silent && !expired ? <p className="hint inset">{silent}</p> : null}
@@ -255,33 +265,33 @@ const MeterCard = ({
         <>
           {/* Подпись видимая, а не только для голосового помощника: по одному
               полю человек не понимает, какие именно цифры от него ждут. */}
-          <p className="hint inset">Посмотрите на счётчик и напишите цифры, которые на нём сейчас.</p>
+          <p className="hint inset">{t('meters.input.hint')}</p>
 
           <CellInput
             className="field-row"
             type="text"
             inputMode="decimal"
-            aria-label={`Показание: ${meter.title}`}
+            aria-label={t('meters.input.label', { счётчик: meter.title })}
             value={value}
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !sending) void submit();
             }}
-            placeholder={`Показание, ${meter.unit}`}
+            placeholder={t('meters.input.placeholder', { единица: meter.unit })}
           />
 
           {value.trim().length > 0 || sending ? (
             <CellAction className="reading-send" mode="primary" disabled={sending} onClick={() => void submit()}>
-              {sending ? 'Отправляем…' : 'Подать'}
+              {sending ? t('meters.submit.sending') : t('meters.submit.action')}
             </CellAction>
           ) : reading ? (
             <p className="hint inset reading-wait" role="status">
-              Читаю табло…
+              {t('meters.photo.reading')}
             </p>
           ) : photoSupported ? (
             <div className="reading-photo">
               <PhotoField
-                label="Снять табло"
+                label={t('meters.photo.take')}
                 count={0}
                 uploading={photo.uploading}
                 error={photo.error}
@@ -298,9 +308,11 @@ const MeterCard = ({
       {result ? (
         <p className={result.spike ? 'error inset' : 'hint inset'} role="status">
           {/* Расход считается от прошлого показания: у первого сравнивать не с чем. */}
-          Принято
-          {meter.lastValue === undefined ? '' : ` · расход ${decimal(result.consumption)} ${meter.unit}`}
-          {result.spike ? ' · больше обычного' : ''}
+          {t('meters.result.accepted')}
+          {meter.lastValue === undefined
+            ? ''
+            : t('meters.result.consumption', { расход: decimal(result.consumption), единица: meter.unit })}
+          {result.spike ? t('meters.result.spike') : ''}
         </p>
       ) : null}
 
@@ -314,6 +326,7 @@ const MeterCard = ({
  * Сколько квартир дома уже подали показания. Имён в полосе нет.
  */
 const Together = ({ api, version }: { api: DomovoyApi; version: number }) => {
+  const t = useT();
   const progress = useBridgeRequest((alive) => api.until(alive).readingProgress(), [api, version]);
   const total = progress.data?.total ?? 0;
   const submitted = progress.data?.submitted ?? 0;
@@ -327,7 +340,7 @@ const Together = ({ api, version }: { api: DomovoyApi; version: number }) => {
       <span className="together-bar">
         <span style={{ width: `${Math.round((submitted / total) * 100)}%` }} />
       </span>
-      {left === 0 ? 'Дом передал показания' : `Осталось ${left} из ${total}`}
+      {left === 0 ? t('meters.together.done') : t('meters.together.left', { осталось: left, всего: total })}
     </p>
   );
 };
@@ -341,6 +354,7 @@ export const MetersScreen = ({
   onBind,
   onSupport,
 }: MetersScreenProps) => {
+  const t = useT();
   const meters = useBridgeRequest((alive) => api.until(alive).meters(), [api]);
   const [submitted, setSubmitted] = useState(0);
 
@@ -348,10 +362,10 @@ export const MetersScreen = ({
 
   if (meters.error) {
     return (
-      <Failure title="Счётчики недоступны" error={meters.error} onRetry={meters.reload}>
+      <Failure title={t('meters.failure')} error={meters.error} onRetry={meters.reload}>
         {onBind && needsApartment(meters.error) ? (
           <Button type="button" onClick={onBind}>
-            Привязать квартиру
+            {t('meters.bind')}
           </Button>
         ) : null}
       </Failure>
@@ -360,13 +374,9 @@ export const MetersScreen = ({
 
   if (meters.data?.length === 0) {
     return (
-      <Empty
-        icon={<IconMeters />}
-        title="Счётчиков нет"
-        hint="За вашей квартирой счётчиков не записано. Если они есть, скажите об этом управляющей компании."
-      >
+      <Empty icon={<IconMeters />} title={t('meters.empty')} hint={t('meters.empty.hint')}>
         <Button type="button" onClick={onSupport}>
-          Написать в компанию
+          {t('meters.support')}
         </Button>
       </Empty>
     );
@@ -378,7 +388,7 @@ export const MetersScreen = ({
     <section className="list">
       <ChargesCard api={api} version={submitted} payable={payable !== false} model={paymentsModel} />
 
-      <p className="group-title">{describePeriod(done, new Date(), readingWindow)}</p>
+      <p className="group-title">{describePeriod(t, done, new Date(), readingWindow)}</p>
 
       <Together api={api} version={submitted} />
 

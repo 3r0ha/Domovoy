@@ -18,11 +18,15 @@ import {
   type SupportTicket,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { assertServes, homeBuildingOf } from './buildings.js';
+import { speak, speakDefault } from './language.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import { rememberResidents } from './people.js';
 import type { Resident } from './repository.js';
 import { assertSaid } from './said.js';
+import { intoLanguage, intoRussian, withOriginal } from './translation.js';
 import type { AppDeps } from './use-cases.js';
 import { zoneOf } from './zone.js';
 
@@ -47,7 +51,11 @@ const staffOf = async (deps: AppDeps, buildingId: string): Promise<Resident[]> =
 
 /** Вопрос в управляющую компанию: новое обращение или реплика в открытом. @throws {DomainError} */
 export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Promise<SupportTicket> => {
-  await assertSaid(deps, command.text, {
+  // Смена читает вопрос по-русски, поэтому перевод идёт до проверки сказанного:
+  // по делу ли вопрос, решается по тому же тексту, который увидит человек в смене.
+  const told = await intoRussian(deps, command.resident.language, command.text);
+
+  await assertSaid(deps, told.text, {
     asked: 'вопрос в управляющую организацию',
     hint: 'Напишите вопрос словами.',
     role: command.resident.role,
@@ -65,18 +73,20 @@ export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Pro
         from: 'resident',
         authorId: resident.id,
         authorName: resident.displayName,
-        text: command.text,
+        text: told.text,
         ...(command.attachments?.length ? { attachments: command.attachments } : {}),
         at: now,
+        ...(told.original ? { original: told.original } : {}),
       })
     : openTicket({
         id: deps.createId(),
         buildingId,
         residentId: resident.id,
         authorName: resident.displayName,
-        text: command.text,
+        text: told.text,
         ...(command.attachments?.length ? { attachments: command.attachments } : {}),
         at: now,
+        ...(told.original ? { original: told.original } : {}),
       });
 
   const saved = await deps.repository.saveSupportTicket(ticket);
@@ -87,9 +97,11 @@ export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Pro
   const notifier = deps.notifier ?? noopNotifier;
   const last = saved.messages.at(-1)?.text ?? '';
   // Ответ даётся кнопкой из самого уведомления, поэтому команду называть незачем.
-  const text =
+  const text = withOriginal(
     `Вопрос в поддержку, пишет ${resident.displayName}: «${saved.subject}»` +
-    (last === saved.subject ? '' : `\n${last}`);
+      (last === saved.subject ? '' : `\n${last}`),
+    told.original,
+  );
 
   for (const person of await staffOf(deps, saved.buildingId)) {
     if (person.id === resident.id) continue;
@@ -131,11 +143,19 @@ export const answerSupport = async (deps: AppDeps, command: AnswerSupportCommand
 
   const asked = await deps.repository.findResident(saved.residentId);
 
+  // Ответ переводится до доставки: жилец читает его на своём языке, а канал
+  // уведомлений получает готовый текст.
+  const answer = await intoLanguage(deps, asked, command.text.trim());
+
   // Жилец подписан именем, и ответ ему приходит так же: он видит, с кем говорит.
   await notifyResident(
     deps.notifier ?? noopNotifier,
     asked,
-    `${staff.displayName}, управляющая компания, отвечает на вопрос «${saved.subject}»:\n${command.text.trim()}`,
+    speak(asked)('app.support.answered', {
+      сотрудник: staff.displayName,
+      тема: saved.subject,
+      текст: answer,
+    }),
     [],
     { answerAbout: saved.id },
   );
@@ -255,14 +275,16 @@ export interface TicketTextOptions {
   viewerId?: string;
   /** Сейчас: от него считается, сколько вопрос ждёт ответа. */
   now?: Date;
+  /** Язык читающего. Без него переписка показывается по-русски. */
+  t?: Translate;
 }
 
 /** Вторая строка переписки: жильцу о состоянии, смене о том, кто спросил и сколько ждёт. */
-const ticketState = (card: TicketCard, viewerId: string | undefined, now: Date | undefined): string => {
-  const waiting = card.waitingSince && now ? `ждёт ${formatSpan(card.waitingSince, now)}` : '';
+const ticketState = (card: TicketCard, options: TicketTextOptions, t: Translate): string => {
+  const waiting = card.waitingSince && options.now ? `ждёт ${formatSpan(card.waitingSince, options.now)}` : '';
 
-  if (card.ticket.residentId === viewerId) {
-    return waitsForAnswer(card.ticket) ? 'Ждёт ответа управляющей компании.' : '';
+  if (card.ticket.residentId === options.viewerId) {
+    return waitsForAnswer(card.ticket) ? t('app.support.waiting') : '';
   }
 
   return [describeAsker(card), waiting || TICKET_STATUS_TITLES[card.ticket.status]].filter(Boolean).join(' · ');
@@ -273,27 +295,34 @@ const SHOWN_MESSAGES = 6;
 
 /** Переписка словами: так её показывает бот. */
 export const formatTicket = (card: TicketCard, options: TicketTextOptions = {}): string => {
-  const { zone, viewerId, now } = options;
+  const { zone, viewerId } = options;
   const { ticket } = card;
+  const t = options.t ?? speakDefault();
 
   // Тема повторяет начало первого сообщения, поэтому в переписке её не показываем.
-  const lines = [ticketState(card, viewerId, now), ''].filter((line) => line !== '');
+  const lines = [ticketState(card, options, t), ''].filter((line) => line !== '');
 
   // Длинная переписка в сообщение не помещается: видны последние реплики,
   // а начало остаётся в приложении.
   const shown = ticket.messages.slice(-SHOWN_MESSAGES);
 
   if (shown.length < ticket.messages.length) {
-    lines.push(`Ранее ещё ${ticket.messages.length - shown.length}, целиком в приложении.`, '');
+    lines.push(t('app.support.earlier', { сколько: ticket.messages.length - shown.length }), '');
   }
 
   for (const message of shown) {
     const who =
       message.authorId === viewerId
-        ? 'Вы'
-        : (message.authorName ?? (message.from === 'staff' ? 'Управляющая компания' : 'Жилец'));
+        ? t('app.support.you')
+        : (message.authorName ?? t(message.from === 'staff' ? 'app.support.company' : 'app.support.resident'));
 
-    lines.push(`${who}, ${formatMoment(message.at, zone)}:`, message.text, '');
+    // Автор читает свой текст, остальные, перевод с пометкой и оригиналом.
+    const said =
+      message.authorId === viewerId && message.original
+        ? message.original.text
+        : withOriginal(message.text, message.original);
+
+    lines.push(`${who}, ${formatMoment(message.at, zone)}:`, said, '');
   }
 
   return lines.join('\n').trimEnd();

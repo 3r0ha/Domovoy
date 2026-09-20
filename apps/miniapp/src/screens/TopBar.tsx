@@ -1,4 +1,5 @@
 import { formatPublished, type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { ApartmentPicker } from './ApartmentPicker.js';
 import { AssistantButton } from './Assistant.js';
 import { BuildingPicker } from './BuildingPicker.js';
@@ -22,11 +23,12 @@ export interface TopBarProps {
 
 /** Нет связи: что показано на экране и насколько оно старое. */
 const Saved = ({ api }: { api: DomovoyApi }) => {
+  const t = useT();
   const at = api.savedAt();
 
   return (
     <p className="offline-note" role="status">
-      Нет связи. {at ? `Показываем сохранённое ${formatPublished(at)}` : 'Показывать пока нечего'}
+      {at ? t('chrome.offline.saved', { когда: formatPublished(at) }) : t('chrome.offline.nothing')}
     </p>
   );
 };
@@ -44,35 +46,39 @@ export const TopBar = ({
   apartment,
   onRefresh,
   onAssistant,
-}: TopBarProps) => (
-  <header
-    className={['topbar', scrolled ? 'topbar-scrolled' : '', title.length > LONG_TITLE ? 'topbar-long' : '']
-      .filter(Boolean)
-      .join(' ')}
-  >
-    <div className="topbar-line">
-      <h1 className="screen-title">{title}</h1>
+}: TopBarProps) => {
+  const t = useT();
 
-      <div className="topbar-acts">
-        {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
+  return (
+    <header
+      className={['topbar', scrolled ? 'topbar-scrolled' : '', title.length > LONG_TITLE ? 'topbar-long' : '']
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <div className="topbar-line">
+        <h1 className="screen-title">{title}</h1>
 
-        <button type="button" className="refresh" aria-label="Обновить" onClick={onRefresh}>
-          <IconRefresh />
-        </button>
+        <div className="topbar-acts">
+          {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
+
+          <button type="button" className="refresh" aria-label={t('chrome.refresh')} onClick={onRefresh}>
+            <IconRefresh />
+          </button>
+        </div>
       </div>
-    </div>
 
-    {/* Связи нет: важно не только это, но и на какой момент показано то, что
-        на экране. Значком в углу такое не сказать, поэтому строкой и словами. */}
-    {offline ? <Saved api={api} /> : null}
+      {/* Связи нет: важно не только это, но и на какой момент показано то, что
+          на экране. Значком в углу такое не сказать, поэтому строкой и словами. */}
+      {offline ? <Saved api={api} /> : null}
 
-    {/* Дом и квартира идут своей строкой: адрес длинный, а название экрана
-        и помощник не должны из-за него ужиматься. */}
-    {building || apartment ? (
-      <div className="topbar-pickers">
-        {building ? <BuildingPicker api={api} value={building.value} onChange={building.onChange} /> : null}
-        {apartment ? <ApartmentPicker api={api} value={apartment.value} onChange={apartment.onChange} /> : null}
-      </div>
-    ) : null}
-  </header>
-);
+      {/* Дом и квартира идут своей строкой: адрес длинный, а название экрана
+          и помощник не должны из-за него ужиматься. */}
+      {building || apartment ? (
+        <div className="topbar-pickers">
+          {building ? <BuildingPicker api={api} value={building.value} onChange={building.onChange} /> : null}
+          {apartment ? <ApartmentPicker api={api} value={apartment.value} onChange={apartment.onChange} /> : null}
+        </div>
+      ) : null}
+    </header>
+  );
+};

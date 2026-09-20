@@ -102,7 +102,7 @@ describe('запуск продукта', () => {
     platform.userSends('/start', { userId: 4242, chatId: 4242 });
 
     await waitFor(
-      async () => Promise.resolve(platform.outgoing.some((message) => /Здравствуйте/.test(message.text))),
+      async () => Promise.resolve(platform.outgoing.some((message) => /Choose your language/u.test(message.text))),
       15_000,
       `Бот не ответил. Вывод процесса:\n${output}`,
     );
@@ -187,7 +187,7 @@ describe('запуск в режиме вебхука', () => {
     platform.userSends('/start', { userId: 5252, chatId: 5252 });
 
     await waitFor(
-      async () => Promise.resolve(platform.outgoing.some((message) => /Здравствуйте/.test(message.text))),
+      async () => Promise.resolve(platform.outgoing.some((message) => /Choose your language/u.test(message.text))),
       15_000,
       `Бот не ответил. Вывод процесса:\n${output}`,
     );
@@ -261,7 +261,7 @@ describe('запуск с недоступным Redis', () => {
     platform.userSends('/start', { userId: 6262, chatId: 6262 });
 
     await waitFor(
-      async () => Promise.resolve(platform.outgoing.some((message) => /Здравствуйте/.test(message.text))),
+      async () => Promise.resolve(platform.outgoing.some((message) => /Choose your language/u.test(message.text))),
       15_000,
       `Бот не ответил. Вывод процесса:\n${output}`,
     );

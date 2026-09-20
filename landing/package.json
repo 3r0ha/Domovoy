@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@domovoy/domain": "*",
+    "@domovoy/i18n": "*",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { actionTitle, describeFailure, type DomovoyApi, type RequestView, type StaffMemberView } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -106,6 +107,7 @@ export const RequestActions = ({
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const result = usePhotos(api);
   const haptics = useHaptics();
+  const t = useT();
   const actions = useBridgeRequest(
     (alive) => api.until(alive).actions(request.id),
     [api, request.id, request.status],
@@ -161,7 +163,7 @@ export const RequestActions = ({
 
   // Несостоявшийся список действий не выглядит как «делать нечего».
   if (actions.error && !actions.data) {
-    return <Failure title="Действия не загрузились" error={actions.error} onRetry={actions.reload} />;
+    return <Failure title={t('request.actions.failed')} error={actions.error} onRetry={actions.reload} />;
   }
 
   const available = (actions.data?.actions ?? []).filter((action) => !only || only.includes(action));
@@ -184,10 +186,10 @@ export const RequestActions = ({
 
       {asking && confirms(asking) ? (
         <Confirm
-          title={`Отозвать заявку ${request.number}?`}
-          text="Мастер по ней не придёт, вернуть её будет нельзя."
+          title={t('request.withdraw.ask', { номер: request.number })}
+          text={t('request.withdraw.hint')}
           confirmLabel={actionTitle('withdrawn')}
-          busyLabel="Отзываем…"
+          busyLabel={t('request.withdraw.busy')}
           busy={busy}
           danger
           onConfirm={() => void apply(asking)}

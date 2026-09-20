@@ -2,6 +2,8 @@ import { Button, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import {
   ApiError,
   formatDay,
@@ -13,11 +15,13 @@ import {
   type TicketView,
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { usePhotos } from '../use-photos.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Attachments } from './Attachments.js';
 import { Composer } from './Composer.js';
+import { Original } from './Original.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
 import { IconChat, IconPerson, IconWarning } from './icons.js';
@@ -53,22 +57,23 @@ const asker = (ticket: TicketView): string =>
     .join(' · ');
 
 /** Состояние обращения глазами жильца: со сроком ответа, пока он идёт. */
-const state = (ticket: TicketView): string =>
+const state = (t: Translate, ticket: TicketView): string =>
   [
     ticket.statusTitle,
     formatPublished(ticket.updatedAt),
-    ticket.answerDueAt ? `ответ до ${formatDay(ticket.answerDueAt)}` : '',
+    ticket.answerDueAt ? t('support.due', { дата: formatDay(ticket.answerDueAt) }) : '',
   ]
     .filter(Boolean)
     .join(' · ');
 
 /** Контакты дома: ответственный от компании и кто сейчас дежурит. */
 const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
+  const t = useT();
   const { contact, duty, service } = contacts;
   const call = (phone: string): void => void globalThis.open(`tel:${phone}`, '_self');
 
   return (
-    <Group title="К кому обращаться">
+    <Group title={t('support.contacts')}>
       {service?.emergencyPhone ? (
         <CellSimple
           before={
@@ -76,8 +81,8 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
               <IconWarning />
             </span>
           }
-          title="Аварийная служба"
-          subtitle={`${service.emergencyPhone} · круглосуточно`}
+          title={t('support.emergency')}
+          subtitle={t('support.emergency.hours', { телефон: service.emergencyPhone })}
           height="compact"
           showChevron
           onClick={() => call(service.emergencyPhone ?? '')}
@@ -90,7 +95,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
             <IconPerson />
           </span>
         }
-        title={contact?.name ?? contacts.managementCompany ?? 'Управляющая компания'}
+        title={contact?.name ?? contacts.managementCompany ?? t('support.company')}
         subtitle={contact?.role ?? contacts.address}
         height="compact"
         separator={Boolean(service?.emergencyPhone)}
@@ -98,7 +103,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {contact?.phone ? (
         <CellSimple
-          title="Позвонить"
+          title={t('support.call')}
           subtitle={contact.phone}
           height="compact"
           separator
@@ -109,7 +114,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {contact?.email ? (
         <CellSimple
-          title="Написать письмо"
+          title={t('support.email')}
           subtitle={contact.email}
           height="compact"
           separator
@@ -120,7 +125,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {service?.phone || service?.hours ? (
         <CellSimple
-          title="Управляющая организация"
+          title={t('support.service')}
           subtitle={[service.phone, service.hours].filter(Boolean).join(' · ')}
           height="compact"
           separator
@@ -130,7 +135,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {service?.office ? (
         <CellSimple
-          title="Приём"
+          title={t('support.office')}
           subtitle={[service.office, service.officeHours].filter(Boolean).join(' · ')}
           height="compact"
           separator
@@ -139,7 +144,7 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {duty ? (
         <CellSimple
-          title="Дежурит сейчас"
+          title={t('support.duty')}
           subtitle={duty.phone ? `${duty.displayName} · ${duty.phone}` : duty.displayName}
           height="compact"
           separator
@@ -164,6 +169,7 @@ const Thread = ({
   onChanged: (ticket: TicketView) => void;
   onBack: () => void;
 }) => {
+  const t = useT();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,7 +190,7 @@ const Thread = ({
       onChanged(saved);
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Сообщение не ушло');
+      setError(reason instanceof ApiError ? reason.message : t('support.send.failed'));
     } finally {
       setBusy(false);
     }
@@ -203,7 +209,7 @@ const Thread = ({
   return (
     <section className="chat">
       <button type="button" className="link back-link" onClick={onBack}>
-        <span aria-hidden="true">‹</span> Все вопросы
+        <span aria-hidden="true">‹</span> {t('support.all')}
       </button>
 
       {/* Кто спрашивает и к какому сроку ждёт ответа: это шапка переписки, а не первое сообщение. */}
@@ -212,16 +218,17 @@ const Thread = ({
       <div className="chat-flow">
         {ticket.messages.map((message, index) => (
           <article key={`${message.at}-${index}`} className={message.own ? 'said said-own' : 'said'}>
-            {message.own ? null : <span className="said-who">{message.authorName ?? 'Управляющая компания'}</span>}
+            {message.own ? null : <span className="said-who">{message.authorName ?? t('support.company')}</span>}
             {message.text ? <p className="description">{message.text}</p> : null}
-            <Attachments api={api} items={message.attachments ?? []} alt={message.authorName ?? 'Вложение'} />
+            <Original {...(message.original ? { original: message.original } : {})} staff={staff} />
+            <Attachments api={api} items={message.attachments ?? []} alt={message.authorName ?? t('support.attachment')} />
             <time className="said-at">{formatPublished(message.at)}</time>
           </article>
         ))}
       </div>
 
       {closed ? (
-        <p className="hint chat-closed">Вопрос закрыт</p>
+        <p className="hint chat-closed">{t('support.closed')}</p>
       ) : (
         <div className="chat-foot">
           {error ? <ErrorText>{error}</ErrorText> : null}
@@ -234,15 +241,15 @@ const Thread = ({
               disabled={busy}
               onClick={() => void run(() => api.closeSupport(ticket.id))}
             >
-              {staff ? 'Закрыть вопрос' : 'Вопрос закрыт'}
+              {staff ? 'Закрыть вопрос' : t('support.close')}
             </button>
           ) : null}
 
           <Composer
             api={api}
             id={`support-reply-${ticket.id}`}
-            label={staff ? 'Ответ жильцу' : 'Сообщение'}
-            placeholder={staff ? 'Ответ жильцу' : 'Сообщение'}
+            label={staff ? 'Ответ жильцу' : t('support.message')}
+            placeholder={staff ? 'Ответ жильцу' : t('support.message')}
             value={text}
             busy={busy}
             photos={photos}
@@ -266,6 +273,7 @@ const Ask = ({
   onAsked: (ticket: TicketView) => void;
   onBack: () => void;
 }) => {
+  const t = useT();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -285,7 +293,7 @@ const Ask = ({
       onAsked(ticket);
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Вопрос не ушёл');
+      setError(reason instanceof ApiError ? reason.message : t('support.ask.failed'));
     } finally {
       setBusy(false);
     }
@@ -294,12 +302,12 @@ const Ask = ({
   return (
     <section className="chat">
       <button type="button" className="link back-link" onClick={onBack}>
-        <span aria-hidden="true">‹</span> Все вопросы
+        <span aria-hidden="true">‹</span> {t('support.all')}
       </button>
 
       <div className="chat-flow">
         <article className="said said-bot">
-          <p className="description">Спросите управляющую компанию о чём угодно</p>
+          <p className="description">{t('support.ask.hint')}</p>
         </article>
       </div>
 
@@ -309,8 +317,8 @@ const Ask = ({
         <Composer
           api={api}
           id="support-ask"
-          label="Вопрос"
-          placeholder="Вопрос"
+          label={t('support.ask.label')}
+          placeholder={t('support.ask.label')}
           value={text}
           busy={busy}
           photos={photos}
@@ -325,6 +333,7 @@ const Ask = ({
 
 /** Поддержка: контакты дома и переписка с управляющей компанией. */
 export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: SupportScreenProps) => {
+  const t = useT();
   const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
   const tickets = useBridgeRequest((alive) => api.until(alive).supportTickets(), [api]);
   const [changed, setChanged] = useState<TicketView[]>([]);
@@ -340,14 +349,14 @@ export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: Supp
 
   const back = onBack ? (
     <button type="button" className="link back-link" onClick={onBack}>
-      <span aria-hidden="true">‹</span> {backTitle ?? 'Назад'}
+      <span aria-hidden="true">‹</span> {backTitle ?? t('app.back')}
     </button>
   ) : null;
 
   if (tickets.loading && !tickets.data) return <Skeleton count={2} />;
 
   if (tickets.error && !tickets.data) {
-    return <Failure title="Поддержка недоступна" error={tickets.error} onRetry={tickets.reload} />;
+    return <Failure title={t('support.failed')} error={tickets.error} onRetry={tickets.reload} />;
   }
 
   if (asking) {
@@ -393,19 +402,19 @@ export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: Supp
 
       {staff ? null : (
         <Button type="button" stretched size="large" onClick={() => setAsking(true)}>
-          Новый вопрос
+          {t('support.ask')}
         </Button>
       )}
 
       {merged.length === 0 ? (
         <Empty
           icon={<IconChat />}
-          title={staff ? 'Вопросов нет' : 'Вы ещё не спрашивали'}
-          hint={staff ? 'Здесь появятся вопросы жильцов дома' : 'Спросите управляющую компанию о чём угодно'}
+          title={staff ? 'Вопросов нет' : t('support.empty')}
+          hint={staff ? 'Здесь появятся вопросы жильцов дома' : t('support.ask.hint')}
         />
       ) : (
         <Group
-          title={staff ? 'Вопросы жильцов' : 'Ваши вопросы'}
+          title={staff ? 'Вопросы жильцов' : t('support.yours')}
           {...(staff && waiting > 0 ? { aside: `${plural(waiting, 'ждёт', 'ждут', 'ждут')} ответа` } : {})}
         >
           {merged.map((ticket, index) => (
@@ -418,10 +427,10 @@ export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: Supp
                 </span>
               }
               title={ticket.subject}
-              subtitle={staff ? asker(ticket) : state(ticket)}
+              subtitle={staff ? asker(ticket) : state(t, ticket)}
               after={
                 (staff ? ticket.status === 'open' : ticket.status === 'answered') ? (
-                  <span className="badge badge-waiting" aria-label="ждёт вас">
+                  <span className="badge badge-waiting" aria-label={t('support.waiting')}>
                     1
                   </span>
                 ) : null

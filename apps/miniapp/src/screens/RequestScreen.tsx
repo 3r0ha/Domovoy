@@ -2,6 +2,8 @@ import { Button, CellAction, CellList, CellSimple, Textarea } from '@maxhub/max-
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import {
   ApiError,
   describeFailure,
@@ -20,11 +22,13 @@ import {
   type RequestView,
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
 import { usePhotos } from '../use-photos.js';
 import { Failure } from './Failure.js';
 import { ErrorText } from './ErrorText.js';
 import { Attachments } from './Attachments.js';
+import { Original } from './Original.js';
 import { Composer } from './Composer.js';
 import { RequestActions } from './RequestActions.js';
 import { RetryLink } from './Retry.js';
@@ -75,37 +79,47 @@ const TONE: Record<string, string> = {
   rejected: 'dot-muted',
 };
 
-const RATINGS = ['плохо', 'так себе', 'нормально', 'хорошо', 'отлично'];
+const ratings = (t: Translate): string[] => [
+  t('request.rating.bad'),
+  t('request.rating.poor'),
+  t('request.rating.fair'),
+  t('request.rating.good'),
+  t('request.rating.great'),
+];
 
 /** Срок словами: до приёма считается срок ответа, дальше срок работы. */
-const deadline = (request: RequestView): string => {
-  if (request.status === 'rejected') return 'отклонена';
-  if (request.status === 'withdrawn') return 'снята';
-  if (CLOSED.includes(request.status)) return 'закрыта';
+const deadline = (t: Translate, request: RequestView): string => {
+  if (request.status === 'rejected') return t('request.deadline.rejected');
+  if (request.status === 'withdrawn') return t('request.deadline.withdrawn');
+  if (CLOSED.includes(request.status)) return t('request.deadline.closed');
   if (request.status === 'done') {
     return request.autoConfirmAt
-      ? `закроется сама через ${formatLeft(request.autoConfirmAt)}`
-      : 'ждём вашей приёмки';
+      ? t('request.deadline.auto', { срок: formatLeft(request.autoConfirmAt) })
+      : t('request.deadline.waiting');
   }
 
-  if (request.overdue) return `просрочено ${formatSince(request.dueAt)}`;
+  if (request.overdue) return t('request.overdue', { срок: formatSince(request.dueAt) });
 
-  return request.status === 'new' ? `ответ через ${formatLeft(request.dueAt)}` : `осталось ${formatLeft(request.dueAt)}`;
+  return request.status === 'new'
+    ? t('request.deadline.answer', { срок: formatLeft(request.dueAt) })
+    : t('request.deadline.left', { срок: formatLeft(request.dueAt) });
 };
 
 /** Ближайший срок числом и часом: он же стоит в полосе над ним. */
-const dueLine = (request: RequestView): string | null => {
+const dueLine = (t: Translate, request: RequestView): string | null => {
   if (ENDED.includes(request.status)) return null;
 
   const when = formatDue(request.status === 'new' ? request.dueAt : request.resolutionDueAt);
 
   if (!when) return null;
 
-  return request.status === 'new' ? `Срок ответа: ${when}` : `Срок работ: ${when}`;
+  return request.status === 'new' ? t('request.due.answer', { срок: when }) : t('request.due.work', { срок: when });
 };
 
 /** Полоса срока. У нарушенного её нет. */
 const Deadline = ({ request }: { request: RequestView }) => {
+  const t = useT();
+
   if (ENDED.includes(request.status) || request.status === 'done' || request.overdue) return null;
 
   const from = new Date(request.createdAt).getTime();
@@ -118,7 +132,7 @@ const Deadline = ({ request }: { request: RequestView }) => {
   const tone = used > 0.75 ? 'bar-warn' : '';
 
   return (
-    <div className={`bar ${tone}`.trim()} role="img" aria-label={deadline(request)}>
+    <div className={`bar ${tone}`.trim()} role="img" aria-label={deadline(t, request)}>
       <span style={{ width: `${Math.round(used * 100)}%` }} />
     </div>
   );
@@ -126,13 +140,16 @@ const Deadline = ({ request }: { request: RequestView }) => {
 
 /** Что показал опрос соседей. */
 const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
+  const t = useT();
   const spread = view.spread;
 
   if (!spread) return null;
 
   if (!staff) {
     return spread.affected > 1 ? (
-      <p className="hint">Об этом сообщили {plural(spread.affected, 'сосед', 'соседа', 'соседей')}</p>
+      <p className="hint">
+        {t('request.spread', { соседи: plural(spread.affected, 'сосед', 'соседа', 'соседей') })}
+      </p>
     ) : null;
   }
 
@@ -194,18 +211,20 @@ const TIP: Record<string, string> = {
 };
 
 /** Кто написал: своё сообщение подписывается «Вы». */
-const author = (event: HistoryEventView, staff?: boolean): string => {
-  if (event.speaker) return event.speaker === 'you' ? 'Вы' : 'Сосед';
+const author = (t: Translate, event: HistoryEventView, staff?: boolean): string => {
+  if (event.speaker) return event.speaker === 'you' ? t('request.author.you') : t('request.author.neighbour');
 
-  if (event.role === 'resident') return staff ? 'Жилец' : 'Вы';
+  if (event.role === 'resident') return staff ? 'Жилец' : t('request.author.you');
 
-  return staff ? 'Вы' : 'Управляющая компания';
+  return staff ? 'Вы' : t('request.author.company');
 };
 
 /** Заявка, к которой срок больше не применяется: снятая или отклонённая. */
 const DROPPED = ['withdrawn', 'rejected'];
 
+
 const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestView; staff?: boolean }) => {
+  const t = useT();
   const current = request.history.findLastIndex((event) => event.kind !== 'message');
 
   const due = Date.parse(request.resolutionDueAt);
@@ -215,7 +234,7 @@ const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestVie
 
   const rows = request.history.map((event, index) => {
     const said = event.kind === 'message';
-    const label = said ? author(event, staff) : statusTitle(event.status, staff);
+    const label = said ? author(t, event, staff) : statusTitle(event.status, staff);
     const mine = event.speaker ? event.speaker === 'you' : (event.role === 'resident') !== Boolean(staff);
     const attachments = event.attachments ?? [];
     const talk =
@@ -224,6 +243,7 @@ const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestVie
           <div className={mine ? 'bubble bubble-mine' : 'bubble'}>
             {said && !mine ? <span className="bubble-author">{label}</span> : null}
             {event.comment ? <p className="description">{event.comment}</p> : null}
+            <Original {...(event.original ? { original: event.original } : {})} staff={staff} />
             <Attachments api={api} items={attachments} alt={label} />
             {said ? <time className="said-at">{formatPublished(event.at)}</time> : null}
           </div>
@@ -242,7 +262,7 @@ const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestVie
       <li key={`${event.at}-${index}`} className={index === current ? 'now' : undefined}>
         <span className="status">{label}</span> <time>{formatPublished(event.at)}</time>
 
-        {event.onSite ? <span className="on-site">на месте</span> : null}
+        {event.onSite ? <span className="on-site">{t('request.onsite')}</span> : null}
         {talk}
       </li>
     );
@@ -253,7 +273,7 @@ const History = ({ api, request, staff }: { api: DomovoyApi; request: RequestVie
       before,
       0,
       <li key="due" className={missed ? 'due-mark due-missed' : 'due-mark'}>
-        <span className="status">{missed ? 'Просрочено' : 'Срок'}</span>{' '}
+        <span className="status">{missed ? t('request.history.missed') : t('request.history.due')}</span>{' '}
         <time>{formatPublished(request.resolutionDueAt)}</time>
       </li>,
     );
@@ -272,6 +292,7 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
   const say = useToast();
+  const t = useT();
 
   const support = async (): Promise<void> => {
     setBusy(true);
@@ -280,11 +301,11 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
     try {
       await api.supportRequest(request.id);
       haptics.done();
-      say('Записал: у вас то же самое');
+      say(t('request.support.done'));
       onChanged();
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не получилось');
+      setError(reason instanceof ApiError ? reason.message : t('request.support.failed'));
     } finally {
       setBusy(false);
     }
@@ -295,12 +316,12 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
       <CellList mode="island">
         <CellSimple
           className="row-split"
-          title="У вас то же самое?"
+          title={t('request.support.ask')}
           height="compact"
         />
 
         <CellAction className="row-split" mode="primary" disabled={busy} onClick={() => void support()}>
-          {busy ? 'Отправляем…' : 'И у меня'}
+          {busy ? t('request.sending') : t('request.support.yes')}
         </CellAction>
       </CellList>
 
@@ -318,10 +339,11 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
   const [error, setError] = useState<string | null>(null);
   const haptics = useHaptics();
   const say = useToast();
+  const t = useT();
 
   if (request.category !== LEAKS) return null;
 
-  if (request.knocked) return <p className="hint">Соседу сверху сообщили</p>;
+  if (request.knocked) return <p className="hint">{t('request.knock.done')}</p>;
 
   if (!request.canKnock) return null;
 
@@ -332,11 +354,11 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
     try {
       await api.knockUpstairs(request.id);
       haptics.done();
-      say('Соседу сверху сообщили');
+      say(t('request.knock.done'));
       onChanged();
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Не получилось сообщить');
+      setError(reason instanceof ApiError ? reason.message : t('request.knock.failed'));
     } finally {
       setBusy(false);
     }
@@ -347,13 +369,13 @@ const Knock = ({ api, request, onChanged }: { api: DomovoyApi; request: RequestV
       <CellList mode="island">
         <CellSimple
           className="row-split"
-          title="Течёт сверху?"
-          subtitle="Домовой спросит соседа, не у него ли, без вашего имени и номера квартиры"
+          title={t('request.knock.title')}
+          subtitle={t('request.knock.hint')}
           height="compact"
         />
 
         <CellAction className="row-split" mode="secondary" disabled={busy} onClick={() => void knock()}>
-          {busy ? 'Отправляем…' : 'Сообщить соседу сверху'}
+          {busy ? t('request.sending') : t('request.knock.send')}
         </CellAction>
       </CellList>
 
@@ -379,6 +401,7 @@ const Talk = ({
   const [error, setError] = useState<string | null>(null);
   const photos = usePhotos(api);
   const haptics = useHaptics();
+  const t = useT();
 
   const answering = !staff && request.status === 'needs_info';
   const shared = !staff && !answering && request.reporters > 1;
@@ -406,7 +429,7 @@ const Talk = ({
       photos.reset();
       onChanged();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Сообщение не отправлено');
+      setError(reason instanceof ApiError ? reason.message : t('request.talk.failed'));
     } finally {
       setBusy(false);
     }
@@ -419,8 +442,10 @@ const Talk = ({
       <Composer
         api={api}
         id={`request-say-${request.id}`}
-        label={answering ? 'Ответ на уточнение' : 'Сообщение по заявке'}
-        placeholder={answering ? 'Ваш ответ' : shared ? 'Соседям и в УК' : 'Сообщение'}
+        label={answering ? t('request.talk.label.answer') : t('request.talk.label')}
+        placeholder={
+          answering ? t('request.talk.placeholder.answer') : shared ? t('request.talk.placeholder.shared') : t('request.talk.placeholder')
+        }
         value={text}
         busy={busy}
         photos={photos}
@@ -440,6 +465,8 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
   const [failed, setFailed] = useState<string | undefined>(undefined);
   const haptics = useHaptics();
   const say = useToast();
+  const t = useT();
+  const words = ratings(t);
 
   const decide = async (accepted: boolean): Promise<void> => {
     if (!accepted && comment.trim().length === 0) {
@@ -456,7 +483,7 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
         ...(accepted && rating ? { rating } : {}),
       });
       haptics.done();
-      say(accepted ? 'Работа принята, заявка закрыта' : 'Заявка вернулась в работу');
+      say(accepted ? t('request.accept.done') : t('request.accept.returned'));
       onChanged();
     } catch (error: unknown) {
       setFailed(describeFailure(error));
@@ -469,12 +496,12 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
   if (returning) {
     return (
       <section className="block">
-        <h2>Что не сделано?</h2>
+        <h2>{t('request.return.title')}</h2>
         <Textarea
           mode="secondary"
           rows={3}
           value={comment}
-          placeholder="Опишите, что осталось"
+          placeholder={t('request.return.placeholder')}
           onChange={(event) => setComment(event.target.value)}
         />
         <div className="actions">
@@ -485,10 +512,10 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
             disabled={busy || comment.trim().length === 0}
             onClick={() => void decide(false)}
           >
-            Вернуть в работу
+            {t('request.return.send')}
           </Button>
           <button type="button" className="link" onClick={() => setReturning(false)}>
-            Отмена
+            {t('request.cancel')}
           </button>
         </div>
 
@@ -500,16 +527,16 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
   return (
     <>
       <section className="block">
-        <h2>Работа сделана?</h2>
+        <h2>{t('request.accept.title')}</h2>
 
-        <div className="rating" role="group" aria-label="Оценка работы">
+        <div className="rating" role="group" aria-label={t('request.rating.label')}>
           <span className="stars">
-            {RATINGS.map((title, index) => (
+            {words.map((title, index) => (
               <button
                 key={title}
                 type="button"
                 className={rating !== null && index + 1 <= rating ? 'star star-on' : 'star'}
-                aria-label={`${index + 1} из 5, ${title}`}
+                aria-label={t('request.rating.star', { номер: index + 1, оценка: title })}
                 aria-pressed={rating === index + 1}
                 disabled={busy}
                 onClick={() => {
@@ -522,12 +549,12 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
             ))}
           </span>
 
-          <span className="rating-word">{rating === null ? '' : RATINGS[rating - 1]}</span>
+          <span className="rating-word">{rating === null ? '' : words[rating - 1]}</span>
         </div>
 
         <div className="actions">
           <Button type="button" stretched size="large" disabled={busy} onClick={() => void decide(true)}>
-            Принять работу
+            {t('request.accept.send')}
           </Button>
         </div>
 
@@ -536,7 +563,7 @@ const Acceptance = ({ api, request, onChanged }: { api: DomovoyApi; request: Req
 
       <CellList className="actions-more" mode="island">
         <CellAction mode="secondary" disabled={busy} onClick={() => setReturning(true)}>
-          Вернуть в работу
+          {t('request.return.send')}
         </CellAction>
       </CellList>
     </>
@@ -565,6 +592,7 @@ const Complaint = ({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const say = useToast();
+  const t = useT();
 
   const keep = (next: ComplaintOffer): void => {
     OFFERS.set(request.id, next);
@@ -579,7 +607,7 @@ const Complaint = ({
       keep(await api.complaint(request.id));
     } catch (error) {
       // Отказ проверки кнопку не убирает: попробовать ещё раз есть чем.
-      setFailed(error instanceof ApiError ? error.message : 'Не удалось проверить сроки');
+      setFailed(error instanceof ApiError ? error.message : t('request.complaint.failed.check'));
     } finally {
       setBusy(false);
     }
@@ -595,9 +623,9 @@ const Complaint = ({
 
       keep({ ...(offer ?? { possible: true, reason: '' }), sent: receipt });
       setAsking(false);
-      say('Обращение отправлено');
+      say(t('request.complaint.done'));
     } catch (error) {
-      setFailed(error instanceof ApiError ? error.message : 'Обращение не ушло');
+      setFailed(error instanceof ApiError ? error.message : t('request.complaint.failed.send'));
     } finally {
       setBusy(false);
     }
@@ -611,19 +639,26 @@ const Complaint = ({
     <div className="complaint">
       {offer ? null : (
         <button type="button" className="link quiet" disabled={busy} onClick={() => void check()}>
-          {busy ? 'Проверяем сроки…' : 'Пожаловаться в жилинспекцию'}
+          {busy ? t('request.complaint.checking') : t('request.complaint.start')}
         </button>
       )}
 
       {done ? (
         <p className="hint">
-          Отправлено: {done.organization}
-          {done.externalId ? `, обращение ${done.externalId}` : ''}. Ответ до {formatDay(done.dueAt)}.
+          {t('request.complaint.sent', {
+            организация: done.organization,
+            обращение: done.externalId ? t('request.complaint.sent.number', { номер: done.externalId }) : '',
+            срок: formatDay(done.dueAt),
+          })}
         </p>
       ) : null}
 
       {offer && !done ? (
-        <p className="hint">{offer.possible ? `Основание: ${offer.reason}` : `Жалобу пока не отправить: ${offer.reason}`}</p>
+        <p className="hint">
+          {offer.possible
+            ? t('request.complaint.reason', { основание: offer.reason })
+            : t('request.complaint.no', { причина: offer.reason })}
+        </p>
       ) : null}
 
       {/* Отправку человек видит там же, где узнал об основании: текст открывается
@@ -631,16 +666,16 @@ const Complaint = ({
       {offer?.possible && !done ? (
         <div className="actions">
           <Button type="button" stretched size="large" disabled={busy} onClick={() => setAsking(true)}>
-            Отправить жалобу
+            {t('request.complaint.send')}
           </Button>
 
           {offer.complaint ? (
             <button
               type="button"
               className="link"
-              onClick={() => onDocument('Жалоба в жилинспекцию', offer.complaint ?? '')}
+              onClick={() => onDocument(t('request.complaint.title'), offer.complaint ?? '')}
             >
-              Прочитать жалобу
+              {t('request.complaint.read')}
             </button>
           ) : null}
         </div>
@@ -651,18 +686,18 @@ const Complaint = ({
         <button
           type="button"
           className="link"
-          onClick={() => onDocument('Жалоба в жилинспекцию', offer.complaint ?? '')}
+          onClick={() => onDocument(t('request.complaint.title'), offer.complaint ?? '')}
         >
-          Прочитать жалобу
+          {t('request.complaint.read')}
         </button>
       ) : null}
 
       {asking ? (
         <Confirm
-          title="Отправить жалобу?"
-          text="Уйдёт в жилинспекцию от вашего имени. Ответ в течение 30 дней."
-          confirmLabel="Отправить"
-          busyLabel="Отправляем…"
+          title={t('request.complaint.ask')}
+          text={t('request.complaint.ask.hint')}
+          confirmLabel={t('request.complaint.confirm')}
+          busyLabel={t('request.sending')}
           busy={busy}
           onConfirm={() => void send()}
           onCancel={() => setAsking(false)}
@@ -701,6 +736,7 @@ export const RequestScreen = ({
   meName,
   selfAssigned,
 }: RequestScreenProps) => {
+  const t = useT();
   const request = useBridgeRequest((alive) => api.until(alive).getRequest(id), [api, id]);
   // Список сотрудников нужен тому, кто выбирает исполнителя: мастер и подрядчик берут наряд на себя.
   const picks = Boolean(staff) && !selfAssigned;
@@ -714,20 +750,20 @@ export const RequestScreen = ({
   if (request.loading && !request.data) return <Skeleton count={1} />;
 
   if (request.error || !request.data) {
-    return <Failure title="Заявка не загрузилась" error={request.error} onRetry={request.reload} />;
+    return <Failure title={t('request.failed')} error={request.error} onRetry={request.reload} />;
   }
 
   const view = request.data;
   const mine = !staff && view.mine !== false;
   const watching = !staff && view.mine === false;
   const ended = ENDED.includes(view.status);
-  const due = dueLine(view);
+  const due = dueLine(t, view);
 
   return (
     <div className="list">
       {onBack ? (
         <button type="button" className="link back-link" onClick={onBack}>
-          <span aria-hidden="true">‹</span> {backTitle ?? 'Назад'}
+          <span aria-hidden="true">‹</span> {backTitle ?? t('request.back')}
         </button>
       ) : null}
 
@@ -744,7 +780,7 @@ export const RequestScreen = ({
         <p className="request-title">{view.title}</p>
 
         <p className="hint">
-          {tight(view.target)} · <span className={view.overdue ? 'overdue' : undefined}>{deadline(view)}</span>
+          {tight(view.target)} · <span className={view.overdue ? 'overdue' : undefined}>{deadline(t, view)}</span>
         </p>
 
         <Deadline request={view} />
@@ -753,18 +789,20 @@ export const RequestScreen = ({
 
         {view.description === view.title ? null : <p className="description">{view.description}</p>}
 
-        <Attachments api={api} items={view.attachments} alt={`Фото к заявке ${view.number}`} />
+        <Original {...(view.original ? { original: view.original } : {})} staff={staff} />
+
+        <Attachments api={api} items={view.attachments} alt={t('request.photo.alt', { номер: view.number })} />
 
         {view.hint ? <p className="row-state request-hint">{view.hint}</p> : null}
 
-        {view.assigneeName ? <p className="hint">Работу ведёт {view.assigneeName}</p> : null}
+        {view.assigneeName ? <p className="hint">{t('request.assignee', { имя: view.assigneeName })}</p> : null}
 
         {/* Памятка исполнителю, а не жильцу: с чем его пускают в квартиру. */}
         {view.workerNote ? <p className="hint aside">{view.workerNote}</p> : null}
 
         <Spread view={view} staff={staff} />
         {staff ? <Contact api={api} id={view.id} /> : null}
-        {view.rating ? <p className="hint">Оценка жильца: {view.rating} из 5</p> : null}
+        {view.rating ? <p className="hint">{t('request.rating.value', { оценка: view.rating })}</p> : null}
       </section>
 
       {/* Сотрудники не дошли: без этой строки назначение выглядит так, будто
@@ -804,7 +842,7 @@ export const RequestScreen = ({
       {mine && view.status === 'done' ? <Acceptance api={api} request={view} onChanged={reload} /> : null}
 
       <section className="block">
-        <h2>История</h2>
+        <h2>{t('request.history')}</h2>
         <History api={api} request={view} staff={staff} />
 
         {ended || watching ? null : <Talk api={api} request={view} staff={staff} onChanged={reload} />}

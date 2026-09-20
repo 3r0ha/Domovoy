@@ -1,3 +1,6 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { RU } from '../i18n.js';
 import { appRow, keyboardOf } from '../keyboards.js';
 import type { BotContext } from '../max.js';
 import type { BotKit } from '../kit.js';
@@ -22,10 +25,11 @@ export const inApp = async (
   typed: BotContext,
   text: string,
   screen: string,
-  title = 'Открыть в приложении',
+  title?: string,
+  t: Translate = RU,
 ): Promise<void> => {
   await typed.reply(
-    kit.miniAppUrl ? text : `${text}\nОткройте мини-приложение «Домовой» в MAX.`,
-    keyboardOf([...appRow(kit.miniAppUrl, title, screen)], typed),
+    kit.miniAppUrl ? text : `${text}\n${t('app.install')}`,
+    keyboardOf([...appRow(kit.miniAppUrl, title ?? t('button.in_app'), screen)], typed, t),
   );
 };

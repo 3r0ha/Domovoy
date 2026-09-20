@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { DEFAULT_TARIFFS, DomainError, leftToPay } from '@domovoy/domain';
+import { translatorFor } from '@domovoy/i18n';
 
 import {
   InMemoryRepository,
+  chargeLineDetail,
+  chargeLineTitle,
   chargesForResident,
   createMockPayments,
   listAudit,
@@ -90,6 +93,13 @@ describe('квитанция', () => {
 
     assert.equal(upkeep?.amount, 1620);
     assert.equal(charges.total, 2055);
+
+    // Название строки и её расшифровка приходят жильцу на его языке.
+    const uzbek = translatorFor('uz');
+
+    assert.equal(chargeLineTitle(uzbek, water), 'Sovuq suv');
+    assert.equal(chargeLineDetail(uzbek, water), '10 m³ × 43,5 ₽');
+    assert.equal(chargeLineDetail(uzbek, upkeep), '50 m² × 32,4 ₽');
   });
 
   it('объявленное отключение дольше нормы снижает плату за ресурс', async () => {

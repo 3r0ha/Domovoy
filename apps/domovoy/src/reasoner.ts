@@ -353,7 +353,19 @@ const doingPrompt = (input: DoingInput): string =>
     `<<<${input.text}>>>`,
   ].join('\n');
 
-export const createHttpReasoner = (options: HttpReasonerOptions): Reasoner => {
+/** Один вопрос модели: правила, текст и предел ответа. */
+export type AskModel = (
+  system: string,
+  text: string,
+  tokens: number,
+  waitMs?: number,
+) => Promise<string | undefined>;
+
+/**
+ * Канал к модели: очередь, таймаут и память об уже заданных вопросах. Один канал
+ * на ключ делят все, кто к модели ходит: у бесплатного тарифа один поток.
+ */
+export const createChat = (options: HttpReasonerOptions): AskModel => {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
@@ -446,6 +458,11 @@ export const createHttpReasoner = (options: HttpReasonerOptions): Reasoner => {
     return answer;
   };
 
+  return ask;
+};
+
+/** Разбор обращения поверх готового канала к модели. */
+export const reasonerOver = (ask: AskModel): Reasoner => {
   return {
     async understand(description, house) {
       const answer = await ask(`${SYSTEM}${aboutHouse(house)}`, description, 300);
@@ -522,6 +539,8 @@ export const createHttpReasoner = (options: HttpReasonerOptions): Reasoner => {
     },
   };
 };
+
+export const createHttpReasoner = (options: HttpReasonerOptions): Reasoner => reasonerOver(createChat(options));
 
 /** Разбор из настроек окружения. Без адреса продукт работает на ключевых словах. */
 export const reasonerFromEnv = (

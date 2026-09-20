@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { useTrapped } from '../focus.js';
+import { useT } from '../i18n.js';
 
 export interface ConfirmProps {
   /** О чём спрашивают: «Отправить рассылку?». */
@@ -42,6 +43,7 @@ export const Confirm = ({
   onCancel,
 }: ConfirmProps) => {
   const sheet = useTrapped<HTMLElement>(true);
+  const t = useT();
 
   useEffect(() => {
     const close = (event: KeyboardEvent): void => {
@@ -57,7 +59,7 @@ export const Confirm = ({
 
   return (
     <div className="guide" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="guide-veil" aria-label="Отмена" onClick={onCancel} />
+      <button type="button" className="guide-veil" aria-label={t('request.cancel')} onClick={onCancel} />
 
       <section className="guide-sheet confirm" ref={sheet}>
         <h2 className="guide-title">{title}</h2>
@@ -83,11 +85,11 @@ export const Confirm = ({
             disabled={!ready}
             onClick={onConfirm}
           >
-            {busy ? (busyLabel ?? 'Отправляем…') : confirmLabel}
+            {busy ? (busyLabel ?? t('request.sending')) : confirmLabel}
           </button>
 
           <button type="button" className="inline-btn" disabled={busy} onClick={onCancel}>
-            Отмена
+            {t('request.cancel')}
           </button>
         </div>
       </section>

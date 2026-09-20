@@ -2,13 +2,20 @@ import {
   DEFAULT_TIME_ZONE,
   DomainError,
   METER_RULES,
+  chargeDetailKey,
   chargesFor,
+  consumptionBasisKey,
   excessOutageHours,
   leftToPay,
+  meterKindKey,
+  meterUnitKey,
+  type ChargeLine,
   type Charges,
   type MeterKind,
   type Outage,
 } from '@domovoy/domain';
+
+import type { Translate } from '@domovoy/i18n';
 
 import { endOfPeriod, monthBefore, periodConsumption, startOfPeriod } from './consumption.js';
 import { commonNeedsShare, knownForCommon } from './house-meters.js';
@@ -140,6 +147,34 @@ export const chargesForResident = async (deps: AppDeps, resident: Resident): Pro
     ...(outages.length > 0 ? { outages } : {}),
     ...(paid === undefined ? {} : { paid }),
   });
+};
+
+/**
+ * Название строки квитанции словами человека. Ключ и ресурс приходят из домена,
+ * а строка без ключа остаётся такой, какой её посчитали.
+ */
+export const chargeLineTitle = (t: Translate, line: ChargeLine): string =>
+  line.titleKey ? t(line.titleKey, line.kind ? { ресурс: t(meterKindKey(line.kind)) } : undefined) : line.title;
+
+/** Чем посчитан расход строки: «по среднему», «по нормативу». */
+export const chargeBasisTitle = (t: Translate, line: ChargeLine): string | undefined =>
+  line.basis ? t(consumptionBasisKey(line.basis)) : undefined;
+
+/**
+ * Расшифровка строки квитанции словами человека: «12,4 м³ × 43,50 ₽».
+ * Единица берётся по ресурсу строки, основание расчёта дописывается следом.
+ */
+export const chargeLineDetail = (t: Translate, line: ChargeLine): string | undefined => {
+  if (!line.detailKey) return line.detail;
+
+  const values: Record<string, string | number> = { ...line.detailValues };
+
+  if (line.kind) values['единица'] = t(meterUnitKey(line.kind));
+
+  const said = t(line.detailKey, values);
+  const basis = chargeBasisTitle(t, line);
+
+  return basis ? t(chargeDetailKey('basis'), { расчёт: said, основание: basis }) : said;
 };
 
 /** Сколько платежей показываем: за год. */

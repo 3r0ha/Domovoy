@@ -1,6 +1,7 @@
 import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident } from '@domovoy/app';
 import { DomainError, isCompanyStaff } from '@domovoy/domain';
 
+import { speak } from '../i18n.js';
 import { menuButton, visitCancelKeyboard } from '../keyboards.js';
 import { inApp } from './in-app.js';
 import { inChat, plain, strong } from '../max.js';
@@ -51,12 +52,13 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
 
   return {
     visit: async (typed) => {
+      const resident = await residentOf(typed);
+      const t = speak(resident);
+
       if (inChat(typed)) {
-        await typed.reply('Записаться на приём можно в личной переписке со мной.');
+        await typed.reply(t('visit.in_chat'));
         return;
       }
-
-      const resident = await residentOf(typed);
 
       try {
         if (isCompanyStaff(resident.role)) {
@@ -82,18 +84,18 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
         // этого приложение открывать незачем.
         if (reception.mine) {
           await typed.reply(
-            `Вы записаны на приём: ${strong(formatVisit(reception.mine, await zoneOf(deps, reception.buildingId)))}`,
-            visitCancelKeyboard(reception.mine.id),
+            t('visit.mine', {
+              когда: strong(formatVisit(reception.mine, await zoneOf(deps, reception.buildingId))),
+            }),
+            visitCancelKeyboard(reception.mine.id, t),
           );
           return;
         }
 
         if (reception.slots.length === 0) {
           await typed.reply(
-            reception.windows.length === 0
-              ? 'Приём по записи не ведётся. Напишите в управляющую компанию, ответит смена.'
-              : 'Свободных часов на ближайшие две недели нет.',
-            menuButton(typed),
+            reception.windows.length === 0 ? t('visit.no_reception') : t('visit.no_slots'),
+            menuButton(typed, t),
           );
           return;
         }
@@ -103,15 +105,17 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
         await inApp(
           kit,
           typed,
-          `${strong(reception.office ? `Приём: ${plain(reception.office)}` : 'Приём по записи')}\n` +
-            `Свободных часов: ${reception.slots.length}. Время выбирается в приложении.`,
+          `${strong(
+            reception.office ? t('visit.title_office', { офис: plain(reception.office) }) : t('visit.title'),
+          )}\n${t('visit.free', { сколько: reception.slots.length })}`,
           'visits',
-          'Выбрать время',
+          t('button.visit_choose'),
+          t,
         );
       } catch (error) {
         await typed.reply(
-          error instanceof DomainError ? error.message : 'Не получилось открыть запись на приём',
-          menuButton(typed),
+          error instanceof DomainError ? error.message : t('visit.not_opened'),
+          menuButton(typed, t),
         );
       }
     },

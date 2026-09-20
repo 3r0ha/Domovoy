@@ -2,6 +2,7 @@ import { useClosingConfirmation } from '@maxkit/react';
 import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
 
 import type { DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import type { PhotoUpload } from '../use-photos.js';
 import { ErrorText } from './ErrorText.js';
 import { IconCamera, IconSend } from './icons.js';
@@ -32,8 +33,6 @@ const MAX_HEIGHT = 120;
 /** На телефоне Enter переносит строку: Shift там нет, а отправляет кнопка рядом. */
 const touchScreen = (): boolean =>
   typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(pointer: coarse)').matches;
-
-const ENTER_HINT = 'Enter отправляет, Shift+Enter переносит строку';
 
 /** Поле растёт под текст, пока не упрётся в потолок. */
 const fit = (node: HTMLTextAreaElement | null): void => {
@@ -73,6 +72,7 @@ export const Composer = ({
 }: ComposerProps) => {
   const pick = useId();
   const field = useFit(value);
+  const t = useT();
 
   // Закрытие с непустым полем клиент MAX переспросит.
   useClosingConfirmation(value.trim().length > 0);
@@ -89,8 +89,8 @@ export const Composer = ({
       <label
         className={photos.uploading ? 'composer-icon composer-busy' : 'composer-icon'}
         htmlFor={pick}
-        title="Приложить фото"
-        aria-label="Приложить фото"
+        title={t('photo.attach')}
+        aria-label={t('photo.attach')}
         role="button"
         tabIndex={0}
         onKeyDown={(event) => {
@@ -122,7 +122,7 @@ export const Composer = ({
         className="composer-field"
         id={id}
         aria-label={label}
-        title={touchScreen() ? undefined : ENTER_HINT}
+        title={touchScreen() ? undefined : t('request.composer.enter')}
         rows={1}
         maxLength={2000}
         value={value}
@@ -140,8 +140,8 @@ export const Composer = ({
       <button
         type="button"
         className="composer-send"
-        aria-label="Отправить"
-        title="Отправить"
+        aria-label={t('request.composer.send')}
+        title={t('request.composer.send')}
         disabled={!ready}
         onClick={onSend}
       >

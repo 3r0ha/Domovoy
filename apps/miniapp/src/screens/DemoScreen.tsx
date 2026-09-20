@@ -3,6 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState, type ReactNode } from 'react';
 
 import { describeFailure, type DemoRoleView, type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
 import { Failure } from './Failure.js';
 import { IconBuildings, IconCheck, IconPerson, IconQueue, IconWrench } from './icons.js';
@@ -24,6 +25,7 @@ const LOOKS: Readonly<Record<string, { icon: () => ReactNode; tone: string }>> =
 
 /** Роль для проверки: один аккаунт смотрит продукт глазами любой из сторон. */
 export const DemoScreen = ({ api, onSwitched }: DemoScreenProps) => {
+  const t = useT();
   const roles = useBridgeRequest((alive) => api.until(alive).demoRoles(), [api]);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export const DemoScreen = ({ api, onSwitched }: DemoScreenProps) => {
   if (roles.loading && !roles.data) return <Skeleton count={5} />;
 
   if (roles.error || !roles.data) {
-    return <Failure title="Роли не загрузились" error={roles.error} onRetry={roles.reload} />;
+    return <Failure title={t('demo.failed')} error={roles.error} onRetry={roles.reload} />;
   }
 
   const take = async (role: DemoRoleView): Promise<void> => {
@@ -67,7 +69,7 @@ export const DemoScreen = ({ api, onSwitched }: DemoScreenProps) => {
               }
               after={role.current ? <IconCheck /> : undefined}
               title={role.title}
-              subtitle={busy === role.role ? 'Переключаем…' : role.about}
+              subtitle={busy === role.role ? t('demo.switching') : role.about}
               separator={index > 0}
               onClick={() => void take(role)}
             />

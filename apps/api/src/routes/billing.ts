@@ -1,5 +1,8 @@
 import {
+  chargeLineDetail,
+  chargeLineTitle,
   chargesForResident,
+  speak,
   payCharges,
   paymentHistory,
   arrearsFor,
@@ -41,6 +44,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       const byNorm = charges.lines.some((line) => line.basis === 'norm');
 
       const staff = isCompanyStaff(resident.role);
+      const t = speak(resident);
 
       const bases: string[] = [
         ...(byNorm ? [basisFor('norm', staff), basisFor('typicalNorm', staff)] : []),
@@ -49,6 +53,11 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
       return {
         ...charges,
+        lines: charges.lines.map((line) => ({
+          ...line,
+          title: chargeLineTitle(t, line),
+          ...(chargeLineDetail(t, line) ? { detail: chargeLineDetail(t, line) } : {}),
+        })),
         debt: debt.total,
         ...(debt.penalty > 0 ? { penalty: debt.penalty } : {}),
         ...(debtRange(debt) ? { debtFor: debtRange(debt) } : {}),

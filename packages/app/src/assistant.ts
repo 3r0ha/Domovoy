@@ -1,7 +1,10 @@
 import { PLAIN, isCompanyStaff, type Role } from '@domovoy/domain';
 
+import { LANGUAGES, languageFrom, languageTitle, translatorFor, type Language, type Translate } from '@domovoy/i18n';
+
 import { describeHouseNow } from './answers.js';
 import { dossierFor } from './dossier.js';
+import { languageOf, languageOfText, speakDefault } from './language.js';
 import type { Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -11,6 +14,11 @@ import type { AppDeps } from './use-cases.js';
  * идти, и отдаёт готовый переход: раздел приложения либо команду бота.
  */
 export interface Capability {
+  /**
+   * Ключ перевода названия и описания. Есть у того, что видит жилец: разделы
+   * смены остаются по-русски, она работает на языке организации.
+   */
+  key?: string;
   /** Имя раздела мини-приложения: по нему приложение и открывает экран. */
   screen: string;
   /** Команда бота, если то же самое делается в переписке. */
@@ -36,6 +44,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'new',
     command: '/new',
+    key: 'new',
     title: 'Сообщить о поломке',
     about: 'Описать словами, фотографией или голосом, что сломалось: продукт определит категорию и назовёт срок',
     roles: HOUSEHOLD,
@@ -52,6 +61,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'list',
     command: '/my',
+    key: 'list',
     title: 'Мои заявки',
     about: 'Посмотреть свои обращения: состояние, срок, кто ведёт работу, и принять сделанное',
     roles: ['resident'],
@@ -68,6 +78,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'meters',
     command: '/meters',
+    key: 'meters',
     title: 'Показания счётчиков',
     about: 'Передать показания счётчиков воды, электричества и тепла',
     words: /показани|счётчик|счетчик|(?<![а-я])ипу(?![а-я])|прибор[а-я]* уч[её]та|передать цифры/i,
@@ -77,6 +88,7 @@ export const CAPABILITIES: readonly Capability[] = [
     // счётчика, а сумма и оплата. Раньше одна возможность вела в оба дела.
     screen: 'meters',
     command: '/bill',
+    key: 'bill',
     title: 'Квитанция и оплата',
     about: 'Посмотреть начисление за месяц, долг и пени и заплатить',
     words: /квитанц|оплат|плат[иеёя]|начисл|(?<![а-я])долж(ен|на)|сколько я должен|сч[её]т за квартир|долг|пени/i,
@@ -84,6 +96,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'home',
     command: '/door',
+    key: 'home',
     title: 'Дом: двери и камеры',
     about: 'Открыть дверь подъезда или шлагбаум, посмотреть кадр с камеры, выдать гостю одноразовый код',
     words: /дверь|домофон|шлагбаум|камер|гост|код для гост|код друг|код курьер|открыть подъезд|открыть ворота|ворота|калитк|впусти|пропусти/i,
@@ -91,6 +104,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'news',
     command: '/news',
+    key: 'news',
     title: 'Объявления дома',
     about: 'Прочитать объявления управляющей организации и узнать о плановых работах',
     words:
@@ -98,6 +112,7 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     screen: 'tour',
+    key: 'tour',
     title: 'Тур по приложению',
     about: 'Пройти короткий показ разделов: что где лежит и с чего начать',
     words: /(^|[^а-яё])тур(?![а-яё])|покажи тур|как пользоваться|как этим пользоваться|что здесь можно|что тут можно|с чего начать|как работает приложени|обучени|подсказки по приложени/i,
@@ -105,6 +120,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'polls',
     command: '/vote',
+    key: 'polls',
     title: 'Собрания собственников',
     about: 'Проголосовать на собрании, поддержать предложение соседа, прочитать протокол',
     words: /собрани|голос|кворум|протокол|предлож|инициатив|опрос жильц/i,
@@ -112,6 +128,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'support',
     command: '/support',
+    key: 'support',
     title: 'Вопрос в управляющую организацию',
     about: 'Задать вопрос и получить ответ перепиской, увидеть телефоны и режим работы',
     roles: HOUSEHOLD,
@@ -129,6 +146,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'visits',
     command: '/visit',
+    key: 'visits',
     title: 'Запись на приём',
     about: 'Выбрать свободный час приёма в управляющей организации',
     roles: HOUSEHOLD,
@@ -144,6 +162,7 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     screen: 'bind',
+    key: 'bind',
     title: 'Привязать квартиру',
     about: 'Ввести код из квитанции, чтобы открылись счётчики, квитанция и голос на собрании',
     roles: ['resident', 'contractor'],
@@ -151,6 +170,7 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     screen: 'capital',
+    key: 'capital',
     title: 'Капитальный ремонт',
     about: 'Посмотреть взнос, накопленное домом и годы работ по региональной программе',
     words: /капремонт|капитальн|капиталк|крыш[аиу]|фасад|замен[аеуы] лифт|менять лифт|взнос|региональн[а-я]* программ/i,
@@ -158,13 +178,26 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'quality',
     command: '/house',
+    key: 'quality',
     title: 'Как работает компания',
     about: 'Посмотреть, сколько заявок закрыто в срок и что чаще всего ломается в доме',
     words: /как работает|работает ук|работает компани|работает управляющ|качеств|в срок|статистик|чаще всего ломает|что ломается/i,
   },
   {
+    // Слова о языке идут на всех наших языках: тот, кому нужен этот раздел,
+    // по-русски спросить о нём не может.
+    screen: 'language',
+    command: '/lang',
+    key: 'language',
+    title: 'Язык продукта',
+    about: 'Выбрать язык, на котором продукт говорит с вами',
+    words:
+      /сменить язык|поменять язык|выбрать язык|другой язык|язык продукта|change language|switch language|choose language|tilni oʻzgartirish|tilni ozgartirish|tilni tanlash|тілді ауыстыру|тілді таңдау|тилди өзгөртүү|тилди тандоо|телне үзгәртү|тағйири забон|интихоби забон|dili dəyişmək|dili seçmək|dili üýtgetmek|schimbă limba|schimba limba|լեզուն փոխել|ენის შეცვლა|更改语言|切换语言/i,
+  },
+  {
     screen: 'profile',
     command: '/mydata',
+    key: 'profile',
     title: 'Профиль и мои данные',
     about: 'Телефон, уведомления, выгрузка своих данных и удаление профиля',
     words: /профил|поменять телефон|сменить телефон|номер телефона|свой телефон|уведомлен|мои данн|свои данн|выгруз|удалить профил/i,
@@ -172,6 +205,7 @@ export const CAPABILITIES: readonly Capability[] = [
   {
     screen: 'stickers',
     command: '/stickers',
+    key: 'stickers',
     title: 'Коды объектов',
     about: 'Получить наклейку с кодом подъезда, лифта или квартиры',
     words: /наклейк|стикер|qr|код объекта|печат[а-я]* код|распечатать код|код подъезда|код лифта/i,
@@ -257,6 +291,14 @@ export const CAPABILITIES: readonly Capability[] = [
 export const capabilitiesFor = (role: Role): Capability[] =>
   CAPABILITIES.filter((item) => !item.roles || item.roles.includes(role));
 
+/** Название раздела словами человека. Без ключа остаётся русское название. */
+export const capabilityTitle = (t: Translate, item: Capability): string =>
+  item.key ? t(`app.capability.${item.key}.title`) : item.title;
+
+/** Что человек здесь делает, словами его языка. */
+export const capabilityAbout = (t: Translate, item: Capability): string =>
+  item.key ? t(`app.capability.${item.key}.about`) : item.about;
+
 /**
  * Раздел словами этой роли. Один и тот же экран у жильца и у смены называется
  * по-разному, поэтому искать его по всему списку нельзя.
@@ -299,6 +341,14 @@ export interface AssistantAnswer {
   title?: string;
   /** Та же возможность в переписке с ботом. */
   command?: string;
+  /**
+   * Язык вопроса, если он не тот, что человек выбрал. Продукт предлагает
+   * перейти на него второй кнопкой: спросивший на своём языке не обязан
+   * искать выбор языка в настройках.
+   */
+  offerLanguage?: Language;
+  /** Подпись кнопки перехода на этот язык, написанная на нём самом. */
+  offerTitle?: string;
   /** Ответ собрала модель или подобрали ключевые слова. */
   by: 'model' | 'keywords';
 }
@@ -371,25 +421,28 @@ const FALLBACK: Readonly<Record<'staff' | 'household', { screen: string; answer:
   },
 };
 
-const plainAnswer = (question: string, role: Role): AssistantAnswer => {
+const plainAnswer = (t: Translate, question: string, role: Role): AssistantAnswer => {
   const found = findCapability(question, role);
 
   if (!found) {
-    const fallback = FALLBACK[isCompanyStaff(role) ? 'staff' : 'household'];
+    const staff = isCompanyStaff(role);
+    const fallback = FALLBACK[staff ? 'staff' : 'household'];
     const section = capabilityFor(fallback.screen, role);
 
     return {
-      answer: fallback.answer,
+      answer: staff ? fallback.answer : t('app.assistant.fallback'),
       screen: fallback.screen,
-      ...(section ? { title: section.title } : {}),
+      ...(section ? { title: capabilityTitle(t, section) } : {}),
       by: 'keywords',
     };
   }
 
+  const title = capabilityTitle(t, found);
+
   return {
-    answer: `${found.title}: ${found.about}.`,
+    answer: t('app.assistant.section', { раздел: title, описание: capabilityAbout(t, found) }),
     screen: found.screen,
-    title: found.title,
+    title,
     ...(found.command ? { command: found.command } : {}),
     by: 'keywords',
   };
@@ -472,11 +525,30 @@ export const STAFF_KNOWLEDGE: readonly string[] = [
   'Приёмные часы дома задаёт смена, а пришедшего без записи она оформляет сама.',
 ];
 
-/** Что помощник объясняет человеку в его роли. */
-export const knowledgeFor = (role: Role): string[] => [
+/**
+ * Что помощник объясняет человеку в его роли. Язык, если он не русский, идёт
+ * туда же: модель получает устройство продукта по-русски, а отвечает человеку
+ * на его языке.
+ */
+export const knowledgeFor = (role: Role, language?: Language): string[] => [
   ...ASSISTANT_KNOWLEDGE,
   ...(isCompanyStaff(role) ? STAFF_KNOWLEDGE : []),
+  ...(language ? languageRules(language) : []),
 ];
+
+/**
+ * Что модель должна знать о языках: отвечать на языке вопроса, а непонятный
+ * язык не выдумывать, и назвать язык вопроса отдельным полем.
+ */
+const languageRules = (language: Language): string[] => {
+  const ru = speakDefault();
+
+  return [
+    ru('app.assistant.answerInQuestionLanguage'),
+    ru('app.assistant.answerInLanguage', { язык: languageTitle(language) }),
+    ru('app.assistant.reportLanguage', { коды: LANGUAGES.map((known) => known.code).join(', ') }),
+  ];
+};
 
 /**
  * Помощник в приложении и в переписке: короткий ответ и готовый переход.
@@ -500,13 +572,14 @@ export const offTopicFor = (role: Role): string => (isCompanyStaff(role) ? OFF_T
  * жильцу разговор с живым сотрудником идёт в поддержке, а сотруднику остаётся
  * очередь дома: поддержка у него чужая, там он сам отвечает жильцам.
  */
-const declined = (role: Role): AssistantAnswer => {
-  const to = capabilityFor(isCompanyStaff(role) ? 'queue' : 'support', role);
+const declined = (t: Translate, role: Role): AssistantAnswer => {
+  const staff = isCompanyStaff(role);
+  const to = capabilityFor(staff ? 'queue' : 'support', role);
 
   return {
-    answer: offTopicFor(role),
+    answer: staff ? OFF_TOPIC_STAFF : t('app.assistant.offTopic'),
     offTopic: true,
-    ...(to ? { screen: to.screen, title: to.title } : {}),
+    ...(to ? { screen: to.screen, title: capabilityTitle(t, to) } : {}),
     ...(to?.command ? { command: to.command } : {}),
     by: 'model',
   };
@@ -523,13 +596,14 @@ const OUTAGE =
  */
 const bySignal = async (
   deps: AppDeps,
+  t: Translate,
   resident: Resident,
   asked: string,
   modelled: boolean,
 ): Promise<AssistantAnswer | undefined> => {
   const found = findCapability(asked, resident.role);
 
-  if (found?.screen === 'tour') return plainAnswer(asked, resident.role);
+  if (found?.screen === 'tour') return plainAnswer(t, asked, resident.role);
 
   if (modelled || !OUTAGE.test(asked)) return undefined;
 
@@ -541,9 +615,27 @@ const bySignal = async (
   return {
     answer: now,
     screen: news.screen,
-    title: news.title,
+    title: capabilityTitle(t, news),
     ...(news.command ? { command: news.command } : {}),
     by: 'keywords',
+  };
+};
+
+/**
+ * Предложение перейти на язык вопроса. Строка и подпись кнопки идут на том же
+ * языке: человек, спросивший по-узбекски, читает и предложение по-узбекски.
+ */
+const offering = (answer: AssistantAnswer, spoken: Language | undefined, chosen: Language): AssistantAnswer => {
+  if (!spoken || spoken === chosen) return answer;
+
+  const voice = translatorFor(spoken);
+  const язык = languageTitle(spoken);
+
+  return {
+    ...answer,
+    answer: `${answer.answer}\n\n${voice('app.assistant.offerLanguage', { язык })}`,
+    offerLanguage: spoken,
+    offerTitle: voice('app.assistant.languageButton', { язык }),
   };
 };
 
@@ -555,13 +647,21 @@ export const askAssistant = async (
 ): Promise<AssistantAnswer> => {
   const asked = question.trim().slice(0, QUESTION_MAX_LENGTH);
   const reasoner: Reasoner | undefined = deps.reasoner;
-  const signalled = asked.length > 0 ? await bySignal(deps, resident, asked, reasoner?.assist !== undefined) : undefined;
+  const chosen = languageOf(resident);
 
-  if (signalled) return signalled;
+  // Отвечают на языке вопроса, а не на языке профиля: человек мог сменить
+  // язык в поездке или писать на родном, выбрав в настройках другой.
+  const heard = languageOfText(asked);
+  const t = translatorFor(heard ?? chosen);
 
-  const plain = plainAnswer(asked, resident.role);
+  const signalled =
+    asked.length > 0 ? await bySignal(deps, t, resident, asked, reasoner?.assist !== undefined) : undefined;
 
-  if (asked.length === 0 || !reasoner?.assist) return plain;
+  if (signalled) return offering(signalled, heard, chosen);
+
+  const plain = plainAnswer(t, asked, resident.role);
+
+  if (asked.length === 0 || !reasoner?.assist) return offering(plain, heard, chosen);
 
   // Смайлик, междометие или одно слово вроде «когда»: модели тут решать нечего,
   // а отказ «это не про дом» звучит грубее, чем просьба сказать словами.
@@ -570,7 +670,7 @@ export const askAssistant = async (
   const words = asked.split(/\s+/u).filter(Boolean).length;
   const answering = history.length > 0;
 
-  if (!answering && (letters < 3 || words < 2)) return plain;
+  if (!answering && (letters < 3 || words < 2)) return offering(plain, heard, chosen);
 
   const staff = isCompanyStaff(resident.role);
 
@@ -587,9 +687,9 @@ export const askAssistant = async (
   // звучат посторонним, а спрашивают про сроки и смену.
   const known = findCapability(asked, resident.role) !== undefined;
 
-  if (about === false && !known) return declined(resident.role);
+  if (about === false && !known) return offering(declined(t, resident.role), heard, chosen);
 
-  return answerByModel(deps, resident, asked, history, plain);
+  return answerByModel(deps, resident, asked, history, plain, heard);
 };
 
 /** Ответ модели, проверенный по фактам и по разделам этой роли. */
@@ -599,10 +699,12 @@ const answerByModel = async (
   asked: string,
   history: readonly { asked: string; said: string }[],
   plain: AssistantAnswer,
+  heard: Language | undefined,
 ): Promise<AssistantAnswer> => {
   const reasoner = deps.reasoner;
+  const chosen = languageOf(resident);
 
-  if (!reasoner?.assist) return plain;
+  if (!reasoner?.assist) return offering(plain, heard, chosen);
 
   const sections = capabilitiesFor(resident.role).map((item) => ({
     screen: item.screen,
@@ -616,17 +718,23 @@ const answerByModel = async (
     .assist({
       question: asked,
       facts,
-      knowledge: knowledgeFor(resident.role),
+      knowledge: knowledgeFor(resident.role, chosen),
       sections,
+      language: chosen,
       ...(history.length > 0 ? { history: [...history] } : {}),
     })
     .catch(() => undefined);
 
-  if (!read?.answer?.trim()) return plain;
+  if (!read?.answer?.trim()) return offering(plain, heard, chosen);
 
   // Сумма, которой нет в фактах, отбрасывает весь ответ: подбор по словам
   // скажет меньше, но не назовёт человеку цифру, которой никто не считал.
-  if (!groundedInMoney(read.answer, facts)) return plain;
+  if (!groundedInMoney(read.answer, facts)) return offering(plain, heard, chosen);
+
+  // Язык вопроса называет модель, а не угадывает продукт: она видит весь текст.
+  // Незнакомый код остаётся без внимания, и тогда решают буквы и слова.
+  const spoken = languageFrom(read.language) ?? heard;
+  const voice = translatorFor(spoken ?? chosen);
 
   // Раздел, которого у роли нет, помощник не предлагает: кнопка вела бы в отказ.
   // Раздел, которого модель не назвала, берётся подбором по словам: ответ, в
@@ -635,11 +743,15 @@ const answerByModel = async (
   const screen = named ?? findCapability(asked, resident.role)?.screen;
   const capability = capabilityFor(screen, resident.role);
 
-  return {
-    answer: quoted(dashless(unmarked(read.answer.trim()))).slice(0, ANSWER_MAX_LENGTH),
-    ...(screen ? { screen } : {}),
-    ...(capability?.title ? { title: capability.title } : {}),
-    ...(capability?.command ? { command: capability.command } : {}),
-    by: 'model',
-  };
+  return offering(
+    {
+      answer: quoted(dashless(unmarked(read.answer.trim()))).slice(0, ANSWER_MAX_LENGTH),
+      ...(screen ? { screen } : {}),
+      ...(capability ? { title: capabilityTitle(voice, capability) } : {}),
+      ...(capability?.command ? { command: capability.command } : {}),
+      by: 'model',
+    },
+    spoken,
+    chosen,
+  );
 };

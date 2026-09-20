@@ -14,7 +14,8 @@
     "@domovoy/app": "0.1.0",
     "@domovoy/domain": "0.1.0",
     "@maxkit/max-bot-api": "0.3.0-maxkit.1",
-    "@maxkit/runtime": "0.1.0"
+    "@maxkit/runtime": "0.1.0",
+    "@domovoy/i18n": "0.1.0"
   },
   "devDependencies": {
     "@maxkit/platform-mock": "0.1.0"

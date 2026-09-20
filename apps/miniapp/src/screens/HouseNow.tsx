@@ -1,7 +1,10 @@
 import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { formatDeadline, formatDue, type DomovoyApi, type HouseNowView } from '../api.js';
+import { useT } from '../i18n.js';
 import { Domovoy } from './Domovoy.js';
 import { Group } from './Group.js';
 import { IconNews, IconWarning } from './icons.js';
@@ -12,21 +15,24 @@ export interface HouseNowProps {
   onOpen: (id: string) => void;
 }
 
-const MOOD: Record<HouseNowView['mood'], string> = {
-  sleeping: 'В доме спокойно',
-  walking: 'Есть просрочка',
-  alarmed: 'Авария в доме',
-};
+const moodTitle = (t: Translate, kind: HouseNowView['mood']): string =>
+  ({
+    sleeping: t('home.mood.sleeping'),
+    walking: t('home.mood.walking'),
+    alarmed: t('home.mood.alarmed'),
+  })[kind];
 
 /** Та же строка, когда перечислять нечего: авария, о которой человек сам сообщил, стоит в его заявках. */
-const MOOD_ALONE: Record<HouseNowView['mood'], string> = {
-  sleeping: 'В доме спокойно',
-  walking: 'Есть просрочка по вашим заявкам',
-  alarmed: 'Авария в доме: она в ваших заявках',
-};
+const moodAlone = (t: Translate, kind: HouseNowView['mood']): string =>
+  ({
+    sleeping: t('home.mood.alone.sleeping'),
+    walking: t('home.mood.alone.walking'),
+    alarmed: t('home.mood.alone.alarmed'),
+  })[kind];
 
 /** Что в доме прямо сейчас. */
 export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
+  const t = useT();
   const state = useBridgeRequest((alive) => api.until(alive).houseNow(), [api]);
   const incidents = state.data?.incidents ?? [];
   const works = state.data?.works ?? [];
@@ -43,10 +49,10 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
       {quiet ? (
         <p className={`mood mood-${mood}`}>
           <Domovoy mood={mood} size={44} />
-          {MOOD_ALONE[mood]}
+          {moodAlone(t, mood)}
         </p>
       ) : (
-        <Group title={MOOD[mood]} className={`house-now house-now-${mood}`}>
+        <Group title={moodTitle(t, mood)} className={`house-now house-now-${mood}`}>
           {incidents.map((item, index) => (
             <CellSimple
               key={item.id}
@@ -72,7 +78,7 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
                 </span>
               }
               title={item.title}
-              subtitle={`${item.audience} · до ${formatDue(item.until)}`}
+              subtitle={t('home.works.until', { кому: item.audience, срок: formatDue(item.until) })}
               separator={index > 0 || incidents.length > 0}
             />
           ))}

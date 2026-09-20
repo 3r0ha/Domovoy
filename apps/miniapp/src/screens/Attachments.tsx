@@ -1,4 +1,5 @@
 import type { AttachmentView, DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { Photo } from './Photo.js';
 
 export interface AttachmentsProps {
@@ -10,6 +11,8 @@ export interface AttachmentsProps {
 
 /** Вложения сообщения: снимки картинками, остальное словами. */
 export const Attachments = ({ api, items, alt }: AttachmentsProps) => {
+  const t = useT();
+
   if (items.length === 0) return null;
 
   return (
@@ -23,7 +26,11 @@ export const Attachments = ({ api, items, alt }: AttachmentsProps) => {
 
         return (
           <span key={`${attachment.token}-${index}`} className="badge">
-            {attachment.kind === 'photo' ? 'фото' : attachment.kind === 'voice' ? 'голосовое' : 'файл'}
+            {attachment.kind === 'photo'
+              ? t('request.attachment.photo')
+              : attachment.kind === 'voice'
+                ? t('request.attachment.voice')
+                : t('request.attachment.file')}
             {attachment.transcript ? `: ${attachment.transcript}` : ''}
           </span>
         );

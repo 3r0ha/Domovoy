@@ -1,5 +1,6 @@
-import { DomainError, NOTICE_KINDS, NOTICE_TITLES, type NoticeKind } from '@domovoy/domain';
+import { DomainError, NOTICE_KINDS, noticeKindKey, type NoticeKind } from '@domovoy/domain';
 
+import { speak } from './language.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -18,8 +19,11 @@ export interface NoticeView {
   on: boolean;
 }
 
-export const listNotices = (resident: Resident): NoticeView[] =>
-  NOTICE_KINDS.map((kind) => ({ kind, title: NOTICE_TITLES[kind], on: !isMuted(resident, kind) }));
+export const listNotices = (resident: Resident): NoticeView[] => {
+  const t = speak(resident);
+
+  return NOTICE_KINDS.map((kind) => ({ kind, title: t(noticeKindKey(kind)), on: !isMuted(resident, kind) }));
+};
 
 /** Включает или выключает уведомление. @throws {DomainError} */
 export const setNotice = async (

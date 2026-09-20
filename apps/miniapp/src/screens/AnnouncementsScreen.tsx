@@ -2,7 +2,10 @@ import { Button, IconButton, Input, Textarea } from '@maxhub/max-ui';
 import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState, type FormEvent } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { ApiError, parseCount, plural, type AnnouncementView, type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -224,19 +227,20 @@ const shortMoment = (isoDate: string, now: Date = new Date()): string => {
 };
 
 /** Когда объявление вышло: сегодняшнее и вчерашнее названы словом, старое датой. */
-const publishedAt = (isoDate: string, now: Date = new Date()): string => {
+const publishedAt = (t: Translate, isoDate: string, now: Date = new Date()): string => {
   const at = new Date(isoDate);
   const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
   const time = at.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-  if (at.toDateString() === now.toDateString()) return `сегодня, ${time}`;
-  if (at.toDateString() === yesterday.toDateString()) return `вчера, ${time}`;
+  if (at.toDateString() === now.toDateString()) return t('news.today', { время: time });
+  if (at.toDateString() === yesterday.toDateString()) return t('news.yesterday', { время: time });
 
   return `${at.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}, ${time}`;
 };
 
 /** Три состояния работ: объявлены, идут, закончились. */
 const Works = ({ works }: { works: NonNullable<AnnouncementView['works']> }) => {
+  const t = useT();
   const now = Date.now();
   const from = new Date(works.from).getTime();
   const until = new Date(works.until).getTime();
@@ -245,7 +249,7 @@ const Works = ({ works }: { works: NonNullable<AnnouncementView['works']> }) => 
     return (
       <p className="row-state">
         <span className="dot dot-good" />
-        закончили {shortMoment(works.until)}
+        {t('news.works.done', { момент: shortMoment(works.until) })}
       </p>
     );
   }
@@ -253,20 +257,27 @@ const Works = ({ works }: { works: NonNullable<AnnouncementView['works']> }) => 
   return (
     <p className="row-state">
       <span className={now >= from ? 'dot dot-warn' : 'dot'} />
-      {now >= from ? `идут до ${shortMoment(works.until)}` : `с ${shortMoment(works.from)}`}
+      {now >= from
+        ? t('news.works.now', { момент: shortMoment(works.until) })
+        : t('news.works.from', { момент: shortMoment(works.from) })}
     </p>
   );
 };
 
 /** Пересылка объявления в чат. */
 const Share = ({ announcement }: { announcement: AnnouncementView }) => {
+  const t = useT();
   const bridge = useBridge();
   const toMax = useSupports('shareToMax');
   const native = useSupports('shareNative');
 
   if (!toMax && !native) return null;
 
-  const text = [announcement.title, announcement.body, `Кого касается: ${announcement.audience}`].join('\n\n');
+  const text = [
+    announcement.title,
+    announcement.body,
+    t('news.share.audience', { адресат: announcement.audience }),
+  ].join('\n\n');
 
   const share = async (): Promise<void> => {
     try {
@@ -282,7 +293,7 @@ const Share = ({ announcement }: { announcement: AnnouncementView }) => {
       className="share"
       size="small"
       variant="ghost"
-      aria-label="Переслать"
+      aria-label={t('news.share')}
       onClick={() => void share()}
     >
       <IconShare />
@@ -290,31 +301,36 @@ const Share = ({ announcement }: { announcement: AnnouncementView }) => {
   );
 };
 
-const AnnouncementCard = ({ announcement, showReach }: { announcement: AnnouncementView; showReach?: boolean }) => (
-  <article className="announcement">
-    <h2 className="announcement-title">{announcement.title}</h2>
+const AnnouncementCard = ({ announcement, showReach }: { announcement: AnnouncementView; showReach?: boolean }) => {
+  const t = useT();
 
-    {/* Абзацы объявления сохраняются: иначе суть аварии слипается со сроком. */}
-    <p className="description announcement-body">{announcement.body}</p>
+  return (
+    <article className="announcement">
+      <h2 className="announcement-title">{announcement.title}</h2>
 
-    {announcement.works ? <Works works={announcement.works} /> : null}
+      {/* Абзацы объявления сохраняются: иначе суть аварии слипается со сроком. */}
+      <p className="description announcement-body">{announcement.body}</p>
 
-    <footer>
-      <span className="where">
-        {publishedAt(announcement.createdAt)} · {announcement.audience}
+      {announcement.works ? <Works works={announcement.works} /> : null}
 
-        {showReach ? ` · ${countFlats(announcement.recipients)}` : ''}
-      </span>
-      <Share announcement={announcement} />
-    </footer>
-  </article>
-);
+      <footer>
+        <span className="where">
+          {publishedAt(t, announcement.createdAt)} · {announcement.audience}
+
+          {showReach ? ` · ${countFlats(announcement.recipients)}` : ''}
+        </span>
+        <Share announcement={announcement} />
+      </footer>
+    </article>
+  );
+};
 
 /** Жилец видит адресованное ему, сотрудник всё по дому. */
 /** Сколько объявлений приходит за раз, как и на сервере. */
 const PAGE = 20;
 
 export const AnnouncementsScreen = ({ api, showReach }: AnnouncementsScreenProps) => {
+  const t = useT();
   const announcements = useBridgeRequest((alive) => api.until(alive).listAnnouncements(), [api]);
   const older = usePages<AnnouncementView>((cursor) => api.listAnnouncements(cursor), PAGE);
   const feed = [...(announcements.data ?? []), ...older.items];
@@ -326,14 +342,14 @@ export const AnnouncementsScreen = ({ api, showReach }: AnnouncementsScreenProps
       {announcements.loading && !announcements.data ? <Skeleton count={2} /> : null}
 
       {announcements.error ? (
-        <Failure title="Объявления не загрузились" error={announcements.error} onRetry={announcements.reload} />
+        <Failure title={t('news.failed')} error={announcements.error} onRetry={announcements.reload} />
       ) : null}
 
       {!announcements.loading && announcements.data?.length === 0 ? (
         <Empty
           icon={<IconNews />}
-          title="Объявлений нет"
-          hint="Здесь появятся отключения, работы и собрания"
+          title={t('news.empty')}
+          hint={t('news.empty.hint')}
         />
       ) : null}
 

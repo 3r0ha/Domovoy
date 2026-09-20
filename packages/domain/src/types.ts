@@ -1,3 +1,5 @@
+import type { Language } from '@domovoy/i18n';
+
 /** Часовой пояс дома. */
 export const DEFAULT_TIME_ZONE = 'Europe/Moscow';
 
@@ -81,6 +83,15 @@ export interface Attachment {
   transcript?: string;
 }
 
+/**
+ * То, что человек написал своими словами, когда продукт перевёл это на русский.
+ * Смена работает по переводу, автор видит свой текст.
+ */
+export interface OriginalText {
+  text: string;
+  language: Language;
+}
+
 export interface RequestEvent {
   at: Date;
   status: RequestStatus;
@@ -89,6 +100,8 @@ export interface RequestEvent {
   /** Сообщение в переписке по заявке: состояние оно не меняет. */
   kind?: 'message';
   comment?: string;
+  /** Исходный текст сообщения, если `comment` это перевод. */
+  original?: OriginalText;
   /** Исполнитель, назначенный этим переходом. */
   assigneeId?: string;
   /** Что мастер приложил к переходу. */
@@ -114,6 +127,8 @@ export interface ServiceRequest {
   /** Короткая суть заявки, одна строка. */
   title: string;
   description: string;
+  /** Исходное обращение, если `description` это перевод на русский. */
+  original?: OriginalText;
   status: RequestStatus;
   createdAt: Date;
   /** Срок первой реакции: диспетчер обязан принять заявку до него. */
@@ -171,6 +186,7 @@ export type ErrorCode =
   | 'initiative_not_found'
   | 'inspection_not_found'
   | 'item_not_found'
+  | 'language_unknown'
   | 'meter_not_found'
   | 'notice_unknown'
   | 'poll_not_found'

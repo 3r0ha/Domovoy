@@ -1,7 +1,9 @@
-import { acceptLegal, legalAccepted } from '@domovoy/app';
-import { LEGAL_DOCUMENTS } from '@domovoy/domain';
+import { acceptLegal, legalAccepted, type Resident } from '@domovoy/app';
+import { legalDocuments } from '@domovoy/domain';
+import { DEFAULT_LANGUAGE, legalLanguage, type Language } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { speak } from '../i18n.js';
 import { needsFlat } from '../apartment.js';
 import { appRow, keyboardOf } from '../keyboards.js';
 import { ROOT_MENUS, type BotContext } from '../max.js';
@@ -10,12 +12,24 @@ import type { BotKit, Handler } from '../kit.js';
 /** Сайт по умолчанию: там же, где лежит лендинг продукта. */
 const SITE = 'https://domovoy.homes';
 
-/** Ссылка на документ: сайт открывается в браузере, приложение показывает его внутри. */
-const linkTo = (kit: BotKit, slug: string): string => `${kit.siteUrl ?? SITE}/${slug}/`;
+/**
+ * Ссылка на документ: сайт открывается в браузере, приложение показывает его
+ * внутри. Язык человека ведёт на свою страницу, русская редакция лежит в корне.
+ */
+const linkTo = (kit: BotKit, slug: string, language: Language): string => {
+  const site = kit.siteUrl ?? SITE;
+
+  return language === DEFAULT_LANGUAGE ? `${site}/${slug}/` : `${site}/${language}/${slug}/`;
+};
 
 /** Документы кнопками: полные тексты в переписку не уходят. */
-const documentRows = (kit: BotKit) =>
-  LEGAL_DOCUMENTS.map((document) => [Keyboard.button.link(document.short, linkTo(kit, document.slug))]);
+const documentRows = (kit: BotKit, resident: Resident) => {
+  const language = legalLanguage(resident.language);
+
+  return legalDocuments(language).map((document) => [
+    Keyboard.button.link(document.short, linkTo(kit, document.slug, language)),
+  ]);
+};
 
 /**
  * Согласие с документами до обработки данных. Политику обработки персональных
@@ -23,22 +37,20 @@ const documentRows = (kit: BotKit) =>
  * поэтому она приходит ссылкой на сайт и текстом в переписку.
  */
 export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> => {
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
   // Экран согласия остаётся сам по себе: с «Назад» и «Меню» человек уходил
   // в меню, выбирал дело и упирался в те же документы новой копией сообщения.
   const screen = keyboardOf(
-    [[Keyboard.button.callback('✅ Принимаю', 'legal:accept')], ...documentRows(kit)],
+    [[Keyboard.button.callback(t('button.accept_legal'), 'legal:accept')], ...documentRows(kit, resident)],
     typed,
+    t,
   );
 
   if (screen) ROOT_MENUS.add(screen);
 
-  await typed.reply(
-    'Домовой обрабатывает персональные данные по поручению управляющей организации дома.\n' +
-      'Политика обработки и пользовательское соглашение, по кнопкам ниже.\n' +
-      `Нажимая «Принимаю», вы соглашаетесь с ними. Без согласия я не смогу принять заявку ` +
-      'и сохранить показания.',
-    screen,
-  );
+  await typed.reply(t('legal.ask'), screen);
 };
 
 /**
@@ -69,9 +81,15 @@ export const legalCommands = (kit: BotKit): Record<string, Handler> => ({
       return;
     }
 
+    const t = speak(resident);
+
     await typed.reply(
-      'Вы согласились с действующей редакцией.\nПолные тексты открываются по кнопкам.',
-      keyboardOf([...documentRows(kit), ...appRow(kit.miniAppUrl, 'Документы в приложении', 'profile')], typed),
+      t('legal.accepted'),
+      keyboardOf(
+        [...documentRows(kit, resident), ...appRow(kit.miniAppUrl, t('button.legal_in_app'), 'profile')],
+        typed,
+        t,
+      ),
     );
   },
 });
@@ -89,5 +107,5 @@ export const takeLegal = async (kit: BotKit, typed: BotContext): Promise<void> =
   // Жилец без квартиры после согласия получает одно сообщение: просьбу о коде.
   if (await needsFlat(kit, typed)) return;
 
-  await typed.reply('Спасибо. Чем помочь?', kit.menuKeyboard(saved));
+  await typed.reply(speak(saved)('legal.thanks'), kit.menuKeyboard(saved));
 };

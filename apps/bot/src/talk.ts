@@ -1,5 +1,6 @@
 import { askAssistant, startersFor } from '@domovoy/app';
 
+import { speak } from './i18n.js';
 import { startersKeyboard, talkKeyboard } from './keyboards.js';
 import { itemFor } from './menu.js';
 import { thinking } from './thinking.js';
@@ -15,12 +16,9 @@ export const startTalk = async (kit: BotKit, typed: BotContext): Promise<void> =
   expect(typed, { kind: 'assistant' });
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
-  await typed.reply(
-    'Спрашивайте о доме и о том, как что сделать. Отвечу и открою нужный раздел.\n' +
-      'Спрашивать можно подряд, разговор закончится по кнопке.',
-    startersKeyboard(startersFor(resident.role)),
-  );
+  await typed.reply(t('talk.start'), startersKeyboard(startersFor(resident.role), t));
 };
 
 /**
@@ -30,7 +28,8 @@ export const startTalk = async (kit: BotKit, typed: BotContext): Promise<void> =
  */
 export const answerFromAssistant = async (kit: BotKit, typed: BotContext, question: string): Promise<void> => {
   const resident = await kit.residentOf(typed);
-  const waiting = thinking(kit, typed);
+  const t = speak(resident);
+  const waiting = thinking(kit, typed, t('thinking.default'));
   const help = await askAssistant(kit.deps, resident, question, typed.session?.talk ?? []).finally(waiting);
 
   remember(typed, question, help.answer);
@@ -40,9 +39,16 @@ export const answerFromAssistant = async (kit: BotKit, typed: BotContext, questi
   const command = help.command?.replace(/^\//, '');
   const item = command ? itemFor(resident, command) : undefined;
 
+  // Вопрос на другом языке: под ответом стоит и переход в раздел, и переход
+  // на этот язык. Ответ человеку нужен сразу, а язык он выберет заодно.
+  const language =
+    help.offerLanguage && help.offerTitle
+      ? { title: help.offerTitle, code: help.offerLanguage }
+      : undefined;
+
   await typed.reply(
-    `${help.answer}\n\nСпросите ещё, я отвечу. Или закончите разговор.`,
-    talkKeyboard(item && command ? { title: item.title, command } : undefined),
+    `${help.answer}\n\n${t('talk.more')}`,
+    talkKeyboard(item && command ? { title: t(item.title), command } : undefined, t, language),
   );
 };
 

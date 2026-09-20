@@ -1,7 +1,11 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
+
+import { DEFAULT_LANGUAGE, legalLanguages, legalTextsFor, type Language } from '@domovoy/i18n';
 
 import { precompress } from '../scripts/precompress.mjs';
 
@@ -20,6 +24,7 @@ const SECTIONS = [
   'house',
   'report',
   'chat',
+  'language',
   'auto',
 ];
 
@@ -112,7 +117,11 @@ const extras = (): Plugin => ({
   name: 'domovoy-extras',
   apply: 'build',
   generateBundle() {
-    const urls = ['/', ...SECTIONS.map((id) => `/${id}/`), ...LEGAL.map((id) => `/${id}/`)];
+    const urls = [
+      '/',
+      ...SECTIONS.map((id) => `/${id}/`),
+      ...LEGAL.flatMap((slug) => legalLanguages().map((language) => legalUrl(slug, language))),
+    ];
 
     this.emitFile({
       type: 'asset',
@@ -130,6 +139,54 @@ const extras = (): Plugin => ({
 
 /** Документы продукта: свои страницы, чтобы на них можно было дать ссылку из чата. */
 const LEGAL = ['privacy', 'terms'];
+
+/** Адрес документа: русская редакция лежит в корне, у остальных языков свой каталог. */
+const legalUrl = (slug: string, language: Language): string =>
+  language === DEFAULT_LANGUAGE ? `/${slug}/` : `/${language}/${slug}/`;
+
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+/**
+ * Страница документа на другом языке: русская разметка с подставленными
+ * названием, описанием и адресами. Голова страницы остаётся одна на все языки,
+ * а перевод документа сам даёт страницу.
+ */
+const translated = (template: string, slug: string, language: Language): string => {
+  const texts = legalTextsFor(language);
+  const text = texts.find((item) => item.slug === slug);
+
+  if (!text) return template;
+
+  let html = template.replace('<html lang="ru">', `<html lang="${language}">`);
+
+  for (const other of LEGAL) html = html.replaceAll(`/${other}/`, `/${language}/${other}/`);
+
+  const title = escapeHtml(`${text.title} · Домовой`);
+  const about = escapeHtml(text.about);
+
+  html = html
+    .replace(/<title>[^<]*<\/title>/, () => `<title>${title}</title>`)
+    .replace(/(name="description" content=")[^"]*/, (_whole, head: string) => `${head}${about}`)
+    .replace(/(property="og:title" content=")[^"]*/, (_whole, head: string) => `${head}${title}`)
+    .replace(/(property="og:description" content=")[^"]*/, (_whole, head: string) => `${head}${about}`)
+    .replace(/(property="og:locale" content=")[^"]*/, (_whole, head: string) => `${head}${language}`)
+    .replace(/(<h1[^>]*>)[^<]*/, (_whole, head: string) => `${head}${escapeHtml(text.title)}`)
+    .replace(/(<\/h1>\s*<p[^>]*>)[^<]*/, (_whole, head: string) => `${head}${about}`)
+    .replace(`data-legal="${slug}"`, `data-legal="${slug}" data-language="${language}"`);
+
+  // Ссылка на второй документ внизу страницы: её название тоже на языке страницы.
+  for (const other of texts) {
+    if (other.slug === slug) continue;
+
+    html = html.replace(
+      new RegExp(`(href="/${language}/${other.slug}/"[^>]*>)[^<]*`),
+      (_whole, head: string) => `${head}${escapeHtml(other.title)}`,
+    );
+  }
+
+  return html;
+};
 
 /** Адрес бота обязателен: без него кнопки «Открыть в MAX» и noscript ведут в никуда. */
 const botLink = (): Plugin => ({
@@ -152,9 +209,39 @@ const botLink = (): Plugin => ({
 });
 
 const page = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
-const pages: Record<string, string> = { home: page('index.html') };
 
-for (const id of [...SECTIONS, ...LEGAL]) pages[id] = page(`${id}/index.html`);
+/**
+ * Страницы документов по языкам. Нерусские собираются из русской разметки и
+ * пишутся рядом перед сборкой: адрес страницы задаётся путём её файла.
+ */
+const legalPages = (): Record<string, string> => {
+  const entries: Record<string, string> = {};
+
+  for (const language of legalLanguages()) {
+    for (const slug of LEGAL) {
+      const source = page(`${slug}/index.html`);
+
+      if (language === DEFAULT_LANGUAGE) {
+        entries[slug] = source;
+        continue;
+      }
+
+      const file = page(`${language}/${slug}/index.html`);
+      const html = translated(readFileSync(source, 'utf8'), slug, language);
+
+      mkdirSync(dirname(file), { recursive: true });
+      if (!existsSync(file) || readFileSync(file, 'utf8') !== html) writeFileSync(file, html);
+
+      entries[`${language}-${slug}`] = file;
+    }
+  }
+
+  return entries;
+};
+
+const pages: Record<string, string> = { home: page('index.html'), ...legalPages() };
+
+for (const id of SECTIONS) pages[id] = page(`${id}/index.html`);
 
 export default defineConfig({
   plugins: [botLink(), react(), extras(), precompress()],

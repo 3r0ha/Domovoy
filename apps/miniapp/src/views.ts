@@ -1,5 +1,7 @@
 /** Что мини-приложение получает от сервера. */
 
+import type { Language } from '@domovoy/i18n';
+
 export interface AttachmentView {
   kind: 'photo' | 'voice' | 'file';
   /** Ссылка на файл платформы либо `file:<id>` для того, что прислали из мини-приложения и что лежит у нас. */
@@ -32,6 +34,10 @@ export interface AssistantView {
   title?: string;
   /** Та же возможность командой бота. */
   command?: string;
+  /** Язык вопроса, если он не тот, что выбран: на него предлагается перейти. */
+  offerLanguage?: Language;
+  /** Подпись кнопки перехода на этот язык, на нём же. */
+  offerTitle?: string;
   /** Ответ собрала модель или подобрали ключевые слова. */
   by: 'model' | 'keywords';
 }
@@ -67,6 +73,12 @@ export interface ResponsibilityView {
   handoffs?: HandoffView[];
 }
 
+/** Текст, как его написал человек, и язык, на котором он написан. */
+export interface OriginalTextView {
+  text: string;
+  language: string;
+}
+
 export interface RequestView {
   id: string;
   number: string;
@@ -82,6 +94,8 @@ export interface RequestView {
   /** Короткая суть в одну строку, её показывают в списках. */
   title: string;
   description: string;
+  /** Как написал жилец, если писал не по-русски: смена читает перевод и оригинал. */
+  original?: OriginalTextView;
   target: string;
   createdAt: string;
   reactionDueAt: string;
@@ -134,6 +148,8 @@ export interface HistoryEventView {
   /** Сообщение в переписке: состояние оно не меняет. */
   kind?: 'message';
   comment?: string;
+  /** Исходный текст реплики, если она написана не по-русски. */
+  original?: OriginalTextView;
   /** Снимок, приложенный к этому переходу: чаще всего результат работы мастера. */
   attachments?: AttachmentView[];
   /** Мастер отсканировал наклейку объекта: он был на месте. */
@@ -633,6 +649,8 @@ export interface Profile {
   displayName: string;
   role: RoleView;
   apartmentId: string | null;
+  /** Язык человека. Пусто: язык ещё не выбран. */
+  language?: Language | null;
   /** Согласие с документами: до него продукт показывает их. */
   legal?: { version: string; accepted: boolean };
   /** Квартира и адрес словами: их показывает профиль. */
@@ -648,6 +666,8 @@ export interface Profile {
   readingWindow?: { fromDay: number; toDay: number };
   /** Есть ли чем прочитать показание с фотографии табло. */
   meterPhoto?: boolean;
+  /** Есть ли чем расшифровать запись: без этого кнопку записи не показывают. */
+  voice?: boolean;
   /** Подключён ли платёжный шлюз: без него оплату не предлагают. */
   payments?: boolean;
   /** Подключены ли домофон и датчики. */
@@ -679,6 +699,8 @@ export interface TicketMessageView {
   own?: boolean;
   authorName?: string;
   text: string;
+  /** Как написал жилец, если писал не по-русски. */
+  original?: OriginalTextView;
   attachments?: AttachmentView[];
 }
 

@@ -26,6 +26,7 @@ import type {
   VisitStatus,
   Vote,
 } from '@domovoy/domain';
+import type { Language } from '@domovoy/i18n';
 
 import type { AuditAction } from './audit.js';
 
@@ -52,6 +53,8 @@ export interface Resident {
   phone?: string;
   /** Редакция документов, с которой человек согласился. */
   legalVersion?: string;
+  /** Язык, на котором продукт с ним говорит. Пусто: язык ещё не выбран. */
+  language?: Language;
   /** Когда согласие получено. */
   legalAt?: Date;
 }

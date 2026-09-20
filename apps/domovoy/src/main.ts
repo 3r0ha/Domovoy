@@ -43,6 +43,7 @@ import { gigaChatFromEnv } from './gigachat.js';
 import { gigaChatFilesFromEnv } from './gigachat-files.js';
 import { reasonerFromEnv } from './reasoner.js';
 import { transcriberFromEnv } from './transcriber.js';
+import { translatorFromEnv } from './translator.js';
 
 /** Точка сборки продукта. */
 const env = (name: string, fallback?: string): string => {
@@ -286,11 +287,19 @@ const main = async (): Promise<void> => {
 
   // Сначала GigaChat: у него бесплатный режим и российская инфраструктура.
   // Дальше любая служба, совместимая с форматом OpenAI.
+  const gigachat = gigaChatFromEnv(process.env, (error) => console.error('GigaChat не ответил', error));
+
   const reasoner =
-    gigaChatFromEnv(process.env, (error) => console.error('GigaChat не ответил', error)) ??
+    gigachat?.reasoner ??
     reasonerFromEnv(process.env, (error) => console.error('Не удалось разобрать обращение', error));
 
+  // Перевод идёт через ту же модель и тот же ключ: отдельной переменной у него нет.
+  const translate =
+    gigachat?.translate ??
+    translatorFromEnv(process.env, (error) => console.error('Не удалось перевести текст', error));
+
   if (!reasoner) console.warn('Модель не задана, категорию подскажут ключевые слова');
+  if (!translate) console.warn('Модель не задана, написанное не по-русски дойдёт до смены как есть');
 
   const botName = process.env['BOT_NAME']?.trim() || DEFAULT_BOT_NAME;
 
@@ -324,6 +333,7 @@ const main = async (): Promise<void> => {
     ...(city ? { city } : {}),
     ...(vision ? { vision } : {}),
     ...(reasoner ? { reasoner } : {}),
+    ...(translate ? { translate } : {}),
     ...(lock ? { lock } : {}),
   };
 
@@ -466,6 +476,7 @@ const main = async (): Promise<void> => {
     ...(vision ? { vision } : {}),
     ...(transcriber ? { transcriber } : {}),
     ...(reasoner ? { reasoner } : {}),
+    ...(translate ? { translate } : {}),
     ...(sessionStore ? { sessionStore } : {}),
     ...(process.env['METRICS_TOKEN'] ? { metrics: { token: process.env['METRICS_TOKEN'] } } : {}),
     ...(receiver ? { updates: { receiver, header: BOT_API_SECRET_HEADER, path: webhookPath } } : {}),

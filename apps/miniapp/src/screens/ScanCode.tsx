@@ -3,6 +3,9 @@ import { Button } from '@maxhub/max-ui';
 import { useBridge, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
+import { useT } from '../i18n.js';
 import { ErrorText } from './ErrorText.js';
 import { IconScan } from './icons.js';
 
@@ -32,21 +35,22 @@ export const codeFromScan = (scanned: string): string | undefined => {
  * Почему камера не открылась. Отказ без слов выглядит как несработавшее
  * нажатие: человек жмёт ещё раз и снова ничего не получает.
  */
-const cameraRefusal = (reason: unknown): string | null => {
-  if (!(reason instanceof MaxBridgeError)) return 'Камера не открылась, введите код вручную';
+const cameraRefusal = (t: Translate, reason: unknown): string | null => {
+  if (!(reason instanceof MaxBridgeError)) return t('scan.camera.closed');
 
   // Закрытое самим человеком окно камеры объяснять нечего.
   if (reason.isAborted) return null;
-  if (reason.isPermissionDenied) return 'Нет доступа к камере: разрешите его в настройках клиента MAX';
-  if (reason.isUnsupported || reason.isOutsideMax) return 'Этот клиент MAX не читает коды, введите код вручную';
+  if (reason.isPermissionDenied) return t('scan.camera.denied');
+  if (reason.isUnsupported || reason.isOutsideMax) return t('scan.camera.unsupported');
 
-  return 'Камера не открылась, введите код вручную';
+  return t('scan.camera.closed');
 };
 
 /** Чтение наклейки камерой клиента MAX. */
 export const useCodeScanner = (
   onScanned: (startParam: string) => void,
 ): { supported: boolean; error: string | null; scan: () => void } => {
+  const t = useT();
   const bridge = useBridge();
   const supported = useSupports('codeReader');
   const [error, setError] = useState<string | null>(null);
@@ -59,13 +63,13 @@ export const useCodeScanner = (
       const code = result.code === undefined ? undefined : codeFromScan(result.code);
 
       if (!code) {
-        setError('Это не код объекта');
+        setError(t('scan.notCode'));
         return;
       }
 
       onScanned(code);
     } catch (reason) {
-      setError(cameraRefusal(reason));
+      setError(cameraRefusal(t, reason));
     }
   };
 
@@ -74,6 +78,7 @@ export const useCodeScanner = (
 
 /** Кнопка показывается только там, где клиент MAX умеет читать коды. */
 export const ScanCode = ({ onScanned, compact }: ScanCodeProps) => {
+  const t = useT();
   const scanner = useCodeScanner(onScanned);
 
   if (!scanner.supported) return null;
@@ -84,8 +89,8 @@ export const ScanCode = ({ onScanned, compact }: ScanCodeProps) => {
         <button
           type="button"
           className="composer-icon"
-          aria-label="Сканировать код"
-          title="Сканировать код"
+          aria-label={t('scan.action')}
+          title={t('scan.action')}
           onClick={scanner.scan}
         >
           <IconScan />
@@ -99,7 +104,7 @@ export const ScanCode = ({ onScanned, compact }: ScanCodeProps) => {
   return (
     <div className="scan">
       <Button type="button" size="small" variant="secondary" iconBefore={<IconScan />} onClick={scanner.scan}>
-        Сканировать код
+        {t('scan.action')}
       </Button>
       {scanner.error ? <ErrorText>{scanner.error}</ErrorText> : null}
     </div>

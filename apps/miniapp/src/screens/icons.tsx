@@ -138,6 +138,15 @@ export const IconHelp = () => (
   </svg>
 );
 
+/** Язык: шар с меридианами. */
+export const IconGlobe = () => (
+  <svg {...base}>
+    <circle cx="12" cy="12" r="8.6" />
+    <path d="M3.4 12h17.2" />
+    <path d="M12 3.4c2.2 2.4 3.4 5.4 3.4 8.6s-1.2 6.2-3.4 8.6c-2.2-2.4-3.4-5.4-3.4-8.6S9.8 5.8 12 3.4Z" />
+  </svg>
+);
+
 export const IconPlus = () => (
   <svg {...base}>
     <path d="M12 5.5v13M5.5 12h13" />

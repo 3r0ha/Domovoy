@@ -11,6 +11,7 @@ import {
 } from '@domovoy/domain';
 
 import { apartmentsOf } from './apartments.js';
+import { speak } from './language.js';
 import type { Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -40,6 +41,7 @@ const CHANGEABLE = ['new', 'accepted'];
 const candidatesFor = async (deps: AppDeps, resident: Resident, request: ServiceRequest): Promise<TargetOption[]> => {
   const buildingId = request.buildingId;
   const options: TargetOption[] = [];
+  const t = speak(resident);
 
   for (const apartmentId of apartmentsOf(resident)) {
     const apartment = await deps.repository.findApartment(apartmentId);
@@ -47,7 +49,7 @@ const candidatesFor = async (deps: AppDeps, resident: Resident, request: Service
     if (apartment?.buildingId !== buildingId) continue;
 
     options.push({
-      label: `Квартира ${apartment.number}`,
+      label: t('app.clarify.flat', { номер: apartment.number }),
       startParam: encodeTarget({ kind: 'apartment', apartmentId: apartment.id }),
     });
   }
@@ -55,7 +57,10 @@ const candidatesFor = async (deps: AppDeps, resident: Resident, request: Service
   const apartments = await deps.repository.listApartments(buildingId);
 
   for (const entrance of [...new Set(apartments.map((apartment) => apartment.entrance))].sort((a, b) => a - b)) {
-    options.push({ label: `Подъезд ${entrance}`, startParam: encodeTarget({ kind: 'entrance', buildingId, entrance }) });
+    options.push({
+      label: t('app.clarify.entrance', { номер: entrance }),
+      startParam: encodeTarget({ kind: 'entrance', buildingId, entrance }),
+    });
   }
 
   for (const item of await deps.repository.listEquipment(buildingId)) {
@@ -152,11 +157,12 @@ export const clarifyTarget = async (
     .slice(0, MAX_OPTIONS);
 
   const options = chosen.length > 0 ? chosen : candidates.slice(0, MAX_OPTIONS);
-  const asked = read?.question?.trim() ? read.question.trim().slice(0, 200) : 'Где это случилось?';
+  const t = speak(resident);
+  const asked = read?.question?.trim() ? read.question.trim().slice(0, 200) : t('app.clarify.where');
 
   // Смене вопрос задаёт сам продукт: список квартир модели не отдавали, и её
   // вопрос про подъезд разошёлся бы с кнопками.
-  const question = anyApartment ? 'В какой квартире это случилось?' : asked;
+  const question = anyApartment ? t('app.clarify.whichFlat') : asked;
 
   return { question, options, ...(anyApartment ? { anyApartment } : {}) };
 };

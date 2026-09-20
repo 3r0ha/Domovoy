@@ -451,6 +451,7 @@ describe('профиль и уведомления', () => {
       payments: false,
       doors: false,
       model: [],
+      language: null,
       legal: { version: LEGAL_VERSION, accepted: false },
     });
 

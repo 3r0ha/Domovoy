@@ -9,6 +9,7 @@ import {
   submitReading,
   addHouseMeter,
   houseMetersFor,
+  speak,
   submitHouseReading,
 } from '@domovoy/app';
 import {
@@ -39,8 +40,9 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       const resident = await currentResident(request.max.userId);
       const state = await metersFor(deps, resident);
       const now = deps.now();
+      const t = speak(resident);
 
-      return state.map((meter) => serializeMeter(meter, now));
+      return state.map((meter) => serializeMeter(meter, now, t));
     });
 
     /** Сколько квартир дома уже передали показания. Имён в ответе нет. */

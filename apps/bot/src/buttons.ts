@@ -11,6 +11,7 @@ import {
   homeOf,
   personalDataSummary,
   roleTitle,
+  setLanguage,
   takeDemoRole,
   forgetResident,
   unbindApartment,
@@ -55,7 +56,9 @@ import {
   STATUS_TITLES,
   type NoticeKind,
 } from '@domovoy/domain';
+import { languageTitle } from '@domovoy/i18n';
 
+import { speak } from './i18n.js';
 import {
   actionKeyboard,
   afterError,
@@ -84,7 +87,7 @@ import {
   replyIfOpen,
   visitKeyboard,
 } from './keyboards.js';
-import { sayBound } from './greeting.js';
+import { sayBound, welcome } from './greeting.js';
 import { takeReading } from './readings.js';
 import { inApp } from './commands/in-app.js';
 import { takeLegal } from './commands/legal.js';
@@ -100,6 +103,7 @@ import {
   morphing,
   plain,
   pressedMid,
+  speaking,
   strong,
   toast,
   type BotContext,
@@ -111,22 +115,24 @@ import type { BotKit, Extra } from './kit.js';
 export type Button = (kit: BotKit, typed: BotContext, args: string[]) => Promise<void>;
 
 /** Отказ правил объясняется словами, всё остальное поднимается выше. */
-const explain = async (typed: BotContext, error: unknown, prefix = 'Не получилось'): Promise<void> => {
+const explain = async (typed: BotContext, error: unknown, prefix?: string): Promise<void> => {
   if (!(error instanceof DomainError)) throw error;
 
-  const fix = errorAction(error);
+  const t = speaking(typed);
+  const said = prefix ?? t('error.failed_short');
+  const fix = errorAction(error, t);
 
   // Отказ на нажатие показывается сразу уведомлением, а следом остаётся
   // сообщением: всплывающее живёт пару секунд, и человек, который читает
   // медленно, решает, что кнопка не сработала. В общем чате остаётся
   // уведомление: разбирательство при соседях никому не нужно.
   if (!fix && typed.callback?.callback_id) {
-    await toast(typed, `${prefix}: ${error.message}`);
+    await toast(typed, `${said}: ${error.message}`);
 
     if (inChat(typed)) return;
   }
 
-  await typed.reply(`${prefix}: ${errorText(error)}`, fix ?? menuButton(typed));
+  await typed.reply(`${said}: ${errorText(error)}`, fix ?? menuButton(typed, t));
 };
 
 /**
@@ -135,13 +141,13 @@ const explain = async (typed: BotContext, error: unknown, prefix = 'Не пол�
  * сообщением, а не советом его открыть.
  */
 const stale = async (typed: BotContext, kit?: BotKit): Promise<void> => {
-  await toast(typed, 'Эта кнопка уже не работает');
+  await toast(typed, speaking(typed)('button.stale'));
 
   if (!kit || inChat(typed)) return;
 
   const resident = await kit.residentOf(typed);
 
-  await typed.reply('Эта кнопка из старого сообщения. Вот с чего можно начать.', kit.menuKeyboard(resident));
+  await typed.reply(speak(resident)('button.stale_more'), kit.menuKeyboard(resident));
 };
 
 /** «Рассылка должникам» из списка долгов: письмо собирается там же, где и остальные. */
@@ -162,7 +168,9 @@ const app: Button = async (kit, typed, [name]) => {
 
   if (!item?.app) return stale(typed, kit);
 
-  await inApp(kit, typed, `${strong(item.title)}\n${item.app.about}`, item.app.screen);
+  const t = speak(resident);
+
+  await inApp(kit, typed, `${strong(t(item.title))}\n${t(item.app.about)}`, item.app.screen, undefined, t);
 };
 
 /**
@@ -191,14 +199,12 @@ const menu: Button = async (kit, typed, [name]) => {
 /** Группа меню: её пункты показываются вторым экраном, с возвратом назад. */
 const group: Button = async (kit, typed, [key]) => {
   if (inChat(typed)) {
-    await typed.reply(
-      'Меню открывается в переписке со мной.',
-      kit.openApp(undefined, typed),
-    );
+    await typed.reply(speaking(typed)('menu.in_chat'), kit.openApp(undefined, typed));
     return;
   }
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   if (!key || key === 'back') {
     typed.session ??= {};
@@ -218,8 +224,8 @@ const group: Button = async (kit, typed, [key]) => {
 
   // Заголовка группы человеку мало: строка объясняет, что тут делают.
   await typed.reply(
-    chosen.about ? `${strong(chosen.title)}\n${chosen.about}` : strong(chosen.title),
-    groupKeyboard(chosen),
+    chosen.about ? `${strong(t(chosen.title))}\n${t(chosen.about)}` : strong(t(chosen.title)),
+    groupKeyboard(chosen, t),
   );
 };
 
@@ -228,37 +234,41 @@ const group: Button = async (kit, typed, [key]) => {
  * набор кнопок и не понимает, куда попал и за какой адрес отвечает бот.
  */
 export const menuTitle = async (kit: BotKit, resident: Resident): Promise<string> => {
+  const t = speak(resident);
   const home = await homeOf(kit.deps, resident).catch(() => undefined);
   const building = home ? await kit.deps.repository.findBuilding(home) : undefined;
   const apartment = resident.apartmentId
     ? await kit.deps.repository.findApartment(resident.apartmentId).catch(() => undefined)
     : undefined;
 
-  const where = [building?.address, apartment ? `кв. ${apartment.number}` : '']
+  const where = [building?.address, apartment ? t('flat.short', { номер: apartment.number }) : '']
     .filter(Boolean)
     .join(', ');
 
   const who = resident.role === 'resident' ? '' : roleTitle(resident.role);
 
   return [
-    strong(`Домовой${where ? `: ${plain(where)}` : ''}${who ? ` · ${who}` : ''}`),
+    strong(
+      `${t('menu.title')}${where ? `: ${plain(where)}` : ''}${who ? ` · ${who}` : ''}`,
+    ),
     // Кнопки это короткий путь, а не единственный: словами делается то же самое,
     // и человеку проще написать «открыть дверь», чем искать её в меню.
-    'Можно написать словами: «открыть дверь», «сколько платить», «течёт кран».',
+    t('menu.words'),
   ].join('\n');
 };
 
 /** Экран, с которого человек ушёл в разговор: группа меню либо первый экран. */
 const backTo = async (kit: BotKit, typed: BotContext): Promise<{ title: string; extra: Extra | undefined }> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const key = typed.session?.menu;
   const chosen = key ? groupFor(resident, key, { doors: Boolean(kit.deps.hub) }) : undefined;
 
   if (!chosen) return { title: await menuTitle(kit, resident), extra: kit.menuKeyboard(resident) };
 
   return {
-    title: chosen.about ? `${strong(chosen.title)}\n${chosen.about}` : strong(chosen.title),
-    extra: groupKeyboard(chosen),
+    title: chosen.about ? `${strong(t(chosen.title))}\n${t(chosen.about)}` : strong(t(chosen.title)),
+    extra: groupKeyboard(chosen, t),
   };
 };
 
@@ -271,7 +281,7 @@ const cancel: Button = async (kit, typed) => {
   forget(typed);
 
   if (inChat(typed)) {
-    await toast(typed, 'Отменил');
+    await toast(typed, speaking(typed)('dialog.cancelled_toast'));
     return;
   }
 
@@ -304,19 +314,52 @@ const starter: Button = async (kit, typed, [at]) => {
   if (asked === undefined) await stale(typed, kit);
 };
 
+/** Выбранный язык: дальше продукт говорит на нём. */
+const language: Button = async (kit, typed, [code]) => {
+  if (!code) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+
+  try {
+    const saved = await setLanguage(kit.deps, resident, code);
+
+    typed.session ??= {};
+    typed.session.lang = saved.language;
+
+    // Первый выбор: за ним идёт само начало разговора вместе с кодом из ссылки,
+    // который его дожидался.
+    const started = typed.session.afterLang;
+
+    if (started !== undefined) {
+      delete typed.session.afterLang;
+
+      await welcome(kit, typed, started || undefined);
+      return;
+    }
+
+    await typed.reply(
+      speak(saved)('lang.chosen', { язык: languageTitle(saved.language ?? 'ru') }),
+      kit.menuKeyboard(saved),
+    );
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
 /** «Всё равно оставить заявку»: обращение, на которое ответили работами или советом. */
 const anyway: Button = async (kit, typed) => {
   const description = typed.session?.plannedDescription;
+  const author = await kit.residentOf(typed);
+  const t = speak(author);
 
   if (!description) {
     expect(typed, { kind: 'description' });
 
-    await typed.reply('Не помню, о чём было обращение. Напишите ещё раз, что случилось.', cancelKeyboard());
+    await typed.reply(t('dialog.forgot'), cancelKeyboard(t));
     return;
   }
 
   const startParam = typed.session?.plannedTarget;
-  const author = await kit.residentOf(typed);
 
   delete typed.session?.plannedDescription;
   delete typed.session?.plannedTarget;
@@ -336,26 +379,31 @@ const ballot: Button = async (kit, typed, [pollId, choice]) => {
   if (!pollId || !choice) return stale(typed, kit);
 
   const voter = await kit.residentOf(typed);
+  const t = speak(voter);
 
   try {
     const view = await vote(kit.deps, { resident: voter, pollId, choice: choice as never });
     const publicly = inChat(typed);
 
+    // В общем чате итоги читают все соседи: там они остаются на языке дома.
     await typed.reply(
-      formatPollResult(view, { personal: !publicly }),
-      view.open ? pollKeyboard(view.poll.id) : undefined,
+      formatPollResult(view, { personal: !publicly, ...(publicly ? {} : { t }) }),
+      view.open ? pollKeyboard(view.poll.id, t) : undefined,
     );
 
     if (publicly && voter.maxUserId !== undefined) {
       await kit.bot.api
         .sendMessageToUser(
           voter.maxUserId,
-          `Собрание «${view.poll.title}». Голос квартиры: ${choiceTitle(choice as never).toLowerCase()}.`,
+          t('vote.counted', {
+            собрание: view.poll.title,
+            ответ: choiceTitle(t, choice as never).toLowerCase(),
+          }),
         )
         .catch(() => undefined);
     }
   } catch (error) {
-    await explain(typed, error, 'Голос не принят');
+    await explain(typed, error, t('vote.refused'));
   }
 };
 
@@ -364,15 +412,19 @@ const flat: Button = async (kit, typed, [apartmentId]) => {
   if (!apartmentId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const saved = await useApartment(kit.deps, resident, apartmentId);
     const apartment = (await listOwnApartments(kit.deps, saved)).find((item) => item.current);
 
-    await toast(typed, apartment ? `Показания и квитанция: ${flatTitle(apartment)}` : 'Квартира выбрана');
+    await toast(
+      typed,
+      apartment ? t('flat.used', { квартира: flatTitle(apartment, t) }) : t('flat.used_plain'),
+    );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed, t));
   }
 };
 
@@ -407,14 +459,15 @@ const sign: Button = async (kit, typed, [initiativeId]) => {
   if (!initiativeId) return stale(typed, kit);
 
   const signer = await kit.residentOf(typed);
+  const t = speak(signer);
 
   try {
     await typed.reply(
-      formatInitiative(await supportInitiative(kit.deps, { resident: signer, initiativeId })),
-      menuButton(typed),
+      formatInitiative(await supportInitiative(kit.deps, { resident: signer, initiativeId }), t),
+      menuButton(typed, t),
     );
   } catch (error) {
-    await explain(typed, error, 'Подпись не принята');
+    await explain(typed, error, t('sign.refused'));
   }
 };
 
@@ -424,14 +477,15 @@ const sign: Button = async (kit, typed, [initiativeId]) => {
  */
 const payMonth: Button = async (kit, typed, [step]) => {
   const payer = await kit.residentOf(typed);
+  const t = speak(payer);
 
   if (step !== 'yes') {
     const charges = await chargesForResident(kit.deps, payer);
     const left = Math.max(0, charges.total - charges.paid);
 
     await typed.reply(
-      `Оплатить за месяц ${formatMoney(left)}?`,
-      confirmKeyboard(`💳 Да, оплатить ${formatMoney(left)}`, 'pay:yes'),
+      t('pay.month_ask', { сумма: formatMoney(left) }),
+      confirmKeyboard(t('button.pay_month_yes', { сумма: formatMoney(left) }), 'pay:yes', t),
     );
     return;
   }
@@ -439,26 +493,24 @@ const payMonth: Button = async (kit, typed, [step]) => {
   try {
     const receipt = await payCharges(kit.deps, payer);
 
-    await typed.reply(
-      `Оплачено ${formatMoney(receipt.amount)}. Квитанция придёт в приложение.`,
-      menuButton(typed),
-    );
+    await typed.reply(t('pay.month_done', { сумма: formatMoney(receipt.amount) }), menuButton(typed, t));
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed, t));
   }
 };
 
 const payDebt: Button = async (kit, typed, [step]) => {
   const payer = await kit.residentOf(typed);
+  const t = speak(payer);
 
   if (step !== 'yes') {
     const debt = await arrearsFor(kit.deps, payer);
     const total = debt.total + debt.penalty;
 
     await typed.reply(
-      `Погасить долг за прошлые месяцы ${formatMoney(total)}?`,
-      confirmKeyboard(`💰 Да, погасить ${formatMoney(total)}`, 'pay-debt:yes'),
+      t('pay.debt_ask', { сумма: formatMoney(total) }),
+      confirmKeyboard(t('button.pay_debt_yes', { сумма: formatMoney(total) }), 'pay-debt:yes', t),
     );
     return;
   }
@@ -467,10 +519,13 @@ const payDebt: Button = async (kit, typed, [step]) => {
     const receipts = await payArrears(kit.deps, payer);
     const total = receipts.reduce((sum, receipt) => sum + receipt.amount, 0);
 
-    await typed.reply(`Долг погашен: ${formatMoney(total)} за ${months(receipts.length)}.`, menuButton(typed));
+    await typed.reply(
+      t('pay.debt_done', { сумма: formatMoney(total), месяцы: months(receipts.length) }),
+      menuButton(typed, t),
+    );
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
-    await typed.reply(errorText(error), afterError(error, typed));
+    await typed.reply(errorText(error), afterError(error, typed, t));
   }
 };
 
@@ -478,6 +533,7 @@ const door: Button = async (kit, typed, [deviceId]) => {
   if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const device = await openDevice(kit.deps, resident, deviceId);
@@ -490,14 +546,15 @@ const door: Button = async (kit, typed, [deviceId]) => {
     const devices = await devicesFor(kit.deps, resident, apartment?.entrance).catch(() => []);
 
     await typed.reply(
-      `${device.title}: открыто.`,
+      t('door.opened', { дверь: device.title }),
       devices.length > 1
         ? doorKeyboard(
             devices.filter((item) => item.kind !== 'camera'),
             devices.filter((item) => item.kind === 'camera'),
             device.id,
+            t,
           )
-        : guestKeyboard(device.id),
+        : guestKeyboard(device.id, t),
     );
   } catch (error) {
     await explain(typed, error);
@@ -509,13 +566,14 @@ const camera: Button = async (kit, typed, [deviceId]) => {
   if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const sent = await sendSnapshot(kit.deps, resident, deviceId);
 
-    await toast(typed, `${sent.title}: кадр отправлен`);
+    await toast(typed, t('door.snapshot', { камера: sent.title }));
   } catch (error) {
-    await explain(typed, error, 'Кадр не пришёл');
+    await explain(typed, error, t('door.no_snapshot'));
   }
 };
 
@@ -523,14 +581,14 @@ const guest: Button = async (kit, typed, [deviceId]) => {
   if (!deviceId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const issued = await inviteGuest(kit.deps, resident, deviceId);
 
     await typed.reply(
-      `Код для гостя: ${strong(issued.code)}\n` +
-        `Пусть наберёт его на домофоне у подъезда. Код работает сегодня до ${formatClock(issued.expiresAt)}.`,
-      copyKeyboard('Скопировать код', issued.code),
+      t('door.guest_code', { код: strong(issued.code), время: formatClock(issued.expiresAt) }),
+      copyKeyboard(t('button.copy_code'), issued.code),
     );
   } catch (error) {
     await explain(typed, error);
@@ -544,6 +602,7 @@ const alarmAnswer =
     if (!requestId) return stale(typed, kit);
 
     const neighbour = await kit.residentOf(typed);
+    const t = speak(neighbour);
 
     try {
       const { request: updated, counted } = await answerAlert(kit.deps, {
@@ -555,24 +614,24 @@ const alarmAnswer =
       // Ответ виден сообщением, а не всплывающим уведомлением: его человек
       // читает две секунды и решает, что нажатие не сработало.
       if (!counted) {
-        await typed.reply(`Вы уже отвечали по заявке ${updated.number}.`, menuButton(typed));
+        await typed.reply(t('request.answered_already', { номер: updated.number }), menuButton(typed, t));
         return;
       }
 
       if (!affected) {
-        await typed.reply('Спасибо, записал: причина не в общем стояке, а в квартире соседа.', menuButton(typed));
+        await typed.reply(t('request.fine'), menuButton(typed, t));
         return;
       }
 
       await typed.reply(
-        `Записал: у вас то же самое. Заявка ${strong(updated.number)}, об изменениях сообщу.`,
-        actionKeyboard([], replyIfOpen(updated)),
+        t('request.same_here', { номер: strong(updated.number) }),
+        actionKeyboard([], replyIfOpen(updated), undefined, undefined, t),
       );
     } catch (error) {
       // Заявку соседа могли уже закрыть: человеку это говорят словами, иначе
       // нажатие выглядит сломанным.
       if (error instanceof DomainError && error.code === 'request_closed') {
-        await typed.reply('Спасибо. По этой заявке работы уже закончены.', menuButton(typed));
+        await typed.reply(t('request.closed_already'), menuButton(typed, t));
         return;
       }
 
@@ -584,26 +643,27 @@ const alarmAnswer =
 const support: Button = async (kit, typed, [requestId]) => {
   if (!requestId) return stale(typed, kit);
 
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
   // Свой вопрос сотрудника: он идёт тем же путём, что и вопрос жильца.
   if (requestId === 'own') {
     expect(typed, { kind: 'support' });
 
-    await typed.reply('Напишите вопрос одним сообщением, передам управляющей компании.', cancelKeyboard());
+    await typed.reply(t('support.ask'), cancelKeyboard(t));
 
     return;
   }
 
   try {
-    const { request: updated, reporters } = await supportRequest(
-      kit.deps,
-      await kit.residentOf(typed),
-      requestId,
-    );
+    const { request: updated, reporters } = await supportRequest(kit.deps, resident, requestId);
 
     await typed.reply(
-      `Записал: у вас то же самое. Заявка ${updated.number}, ` +
-        `${plural(reporters, 'сообщил', 'сообщили', 'сообщили')}, об изменениях сообщу.`,
-      actionKeyboard([], replyIfOpen(updated)),
+      t('request.same_counted', {
+        номер: updated.number,
+        сообщили: plural(reporters, 'сообщил', 'сообщили', 'сообщили'),
+      }),
+      actionKeyboard([], replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {
     await explain(typed, error);
@@ -615,15 +675,14 @@ const ticket: Button = async (kit, typed, [ticketId]) => {
   if (!ticketId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   typed.session ??= {};
   expect(typed, { kind: 'support', ticketId });
 
   await typed.reply(
-    isCompanyStaff(resident.role)
-      ? 'Напишите ответ жильцу одним сообщением.'
-      : 'Напишите сообщение по этому обращению.',
-    cancelKeyboard(),
+    isCompanyStaff(resident.role) ? 'Напишите ответ жильцу одним сообщением.' : t('support.reply_ask'),
+    cancelKeyboard(t),
   );
 };
 
@@ -634,6 +693,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
   const option = mine ? asked?.options[Number(index)] : undefined;
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   // Адрес человек не знает: заявка от этого не пропадает, и сказать об этом
   // надо словами. Иначе кнопка читается как отказ от самой заявки.
@@ -641,7 +701,7 @@ const where: Button = async (kit, typed, [requestId, index]) => {
     delete typed.session?.where;
     forget(typed);
 
-    await typed.reply('Хорошо, адрес уточнит мастер на месте. Заявка уже у смены.', kit.menuKeyboard(resident));
+    await typed.reply(t('request.where_skipped'), kit.menuKeyboard(resident));
 
     return;
   }
@@ -654,11 +714,11 @@ const where: Button = async (kit, typed, [requestId, index]) => {
     delete typed.session?.where;
 
     await typed.reply(
-      `Записал: ${describeTarget(updated.target)}. Заявка ${updated.number} уже у смены.`,
-      actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated)),
+      t('request.where_set', { где: describeTarget(updated.target), номер: updated.number }),
+      actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {
-    await explain(typed, error, 'Адрес не уточнили');
+    await explain(typed, error, t('request.where_refused'));
   }
 };
 
@@ -732,6 +792,7 @@ const visit: Button = async (kit, typed, parts) => {
   if (!at) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     // Пока сообщение висело в переписке, час мог занять сосед: тему спрашивать поздно.
@@ -739,19 +800,19 @@ const visit: Button = async (kit, typed, parts) => {
 
     if (!hours.some((hour) => hour.at === at)) {
       await typed.reply(
-        hours.length === 0 ? 'Этот час заняли, свободных пока нет.' : 'Этот час заняли. Выберите другой.',
-        hours.length === 0 ? menuButton(typed) : visitKeyboard(hours),
+        hours.length === 0 ? t('visit.taken_none') : t('visit.taken'),
+        hours.length === 0 ? menuButton(typed, t) : visitKeyboard(hours, undefined, t),
       );
       return;
     }
   } catch (error) {
-    await explain(typed, error, 'Запись не открылась');
+    await explain(typed, error, t('visit.not_opened'));
     return;
   }
 
   expect(typed, { kind: 'visit', at });
 
-  await typed.reply('С чем придёте? Напишите одной строкой.', cancelKeyboard());
+  await typed.reply(t('visit.topic_ask'), cancelKeyboard(t));
 };
 
 /** Отмена своей записи на приём. */
@@ -759,12 +820,13 @@ const visitCancel: Button = async (kit, typed, [visitId]) => {
   if (!visitId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     await dropVisit(kit.deps, resident, visitId);
-    await typed.reply('Запись на приём отменена.', kit.menuKeyboard(resident));
+    await typed.reply(t('visit.cancelled'), kit.menuKeyboard(resident));
   } catch (error) {
-    await explain(typed, error, 'Запись не отменилась');
+    await explain(typed, error, t('visit.not_cancelled'));
   }
 };
 
@@ -772,10 +834,12 @@ const visitCancel: Button = async (kit, typed, [visitId]) => {
 const say: Button = async (kit, typed, [requestId]) => {
   if (!requestId) return stale(typed, kit);
 
+  const t = speak(await kit.residentOf(typed));
+
   typed.session ??= {};
   expect(typed, { kind: 'message', requestId });
 
-  await typed.reply('Напишите ответ одним сообщением, передам по этой заявке.', cancelKeyboard());
+  await typed.reply(t('request.reply_ask'), cancelKeyboard(t));
 };
 
 /**
@@ -787,14 +851,15 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
   if (!requestId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     // Обращение уходит в надзорный орган и отзыву не подлежит: между чтением
     // текста и отправкой стоит ответ человека.
     if (what === 'send') {
       await typed.reply(
-        'Отправить это обращение в жилищную инспекцию? Отозвать его будет нельзя.',
-        confirmKeyboard('📨 Да, отправить', `gzhi:${requestId}:yes`),
+        t('gzhi.confirm'),
+        confirmKeyboard(t('button.complaint_yes'), `gzhi:${requestId}:yes`, t),
       );
 
       return;
@@ -804,10 +869,10 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
       const { handoff } = await sendComplaint(kit.deps, resident, requestId);
 
       await typed.reply(
-        `Обращение отправлено: ${handoff.organization}.` +
-          `${handoff.externalId ? `\nНомер обращения ${handoff.externalId}.` : ''}\n` +
-          'Ответ придёт сюда, на него есть 30 дней.',
-        menuButton(typed),
+        t('gzhi.sent', { организация: handoff.organization }) +
+          `${handoff.externalId ? `\n${t('gzhi.number_full', { номер: handoff.externalId })}` : ''}\n` +
+          t('gzhi.answer_days'),
+        menuButton(typed, t),
       );
 
       return;
@@ -816,25 +881,22 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
     const offer = await escalationFor(kit.deps, resident, requestId);
 
     if (!offer.possible || !offer.complaint) {
-      await typed.reply('По этой заявке оснований для обращения нет.', menuButton(typed));
+      await typed.reply(t('gzhi.no_ground'), menuButton(typed, t));
       return;
     }
 
     if (offer.sent) {
       await typed.reply(
-        `Обращение по этой заявке уже отправлено: ${offer.sent.organization}.` +
-          `${offer.sent.externalId ? ` Номер ${offer.sent.externalId}.` : ''}`,
-        menuButton(typed),
+        t('gzhi.sent_before', { организация: offer.sent.organization }) +
+          `${offer.sent.externalId ? ` ${t('gzhi.number', { номер: offer.sent.externalId })}` : ''}`,
+        menuButton(typed, t),
       );
 
       return;
     }
 
-    await typed.reply(`Основание: ${offer.reason}.\nТекст обращения:`);
-    await typed.reply(
-      offer.complaint,
-      oneKeyboard('📨 Отправить в инспекцию', `gzhi:${requestId}:send`),
-    );
+    await typed.reply(t('gzhi.reason_short', { основание: offer.reason }));
+    await typed.reply(offer.complaint, oneKeyboard(t('button.complaint'), `gzhi:${requestId}:send`));
   } catch (error) {
     await explain(typed, error);
   }
@@ -909,16 +971,16 @@ const notice =
     if (!kind) return stale(typed, kit);
 
     const resident = await kit.residentOf(typed);
+    const t = speak(resident);
 
     try {
       const list = await setNotice(kit.deps, resident, kind as NoticeKind, on);
       const changed = list.find((item) => item.kind === kind);
+      const what = changed?.title.toLowerCase() ?? t('notice.such');
 
       await typed.reply(
-        on
-          ? `Снова буду присылать: ${changed?.title.toLowerCase() ?? 'такие уведомления'}.`
-          : `Больше не пришлю: ${changed?.title.toLowerCase() ?? 'такие уведомления'}. Об авариях и своих заявках сообщу всё равно.`,
-        oneKeyboard(on ? '🔕 Уведомления' : '🔔 Уведомления', `${on ? 'mute' : 'unmute'}:${kind}`),
+        on ? t('notice.on', { что: what }) : t('notice.off', { что: what }),
+        oneKeyboard(t(on ? 'button.mute' : 'button.notices'), `${on ? 'mute' : 'unmute'}:${kind}`),
       );
     } catch (error) {
       await explain(typed, error);
@@ -944,29 +1006,24 @@ const more: Button = async (kit, typed, [what, from]) => {
 /** Отвязка квартиры: сначала вопрос, потом действие. */
 const leave: Button = async (kit, typed, [step]) => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const own = apartmentsOf(resident);
 
   if (own.length === 0) {
-    await toast(typed, 'Квартира и так не привязана');
+    await toast(typed, t('flat.not_bound'));
     return;
   }
 
   if (step !== 'yes') {
-    await typed.reply(
-      'Отвязать квартиру? Заявки и показания останутся у дома, привязать снова можно кодом из квитанции.',
-      confirmKeyboard('🚪 Да, отвязать', 'leave:yes'),
-    );
+    await typed.reply(t('flat.unbind_ask'), confirmKeyboard(t('button.unbind_yes'), 'leave:yes', t));
     return;
   }
 
   try {
     const unbound = await unbindApartment(kit.deps, resident, resident.id);
 
-    await toast(typed, 'Квартира отвязана');
-    await typed.reply(
-      'Квартира отвязана. Привязать снова можно кодом из квитанции.',
-      kit.menuKeyboard(unbound),
-    );
+    await toast(typed, t('flat.unbound_toast'));
+    await typed.reply(t('flat.unbound'), kit.menuKeyboard(unbound));
   } catch (error) {
     await explain(typed, error);
   }
@@ -975,23 +1032,17 @@ const leave: Button = async (kit, typed, [step]) => {
 /** Удаление профиля: имя стирается, квартира отвязывается, дела дома остаются. */
 const forgetMe: Button = async (kit, typed, [step]) => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   if (step !== 'yes') {
-    await typed.reply(
-      'Удалить профиль? Имя сотрётся, квартира отвяжется, уведомления перестанут приходить. ' +
-        'Заявки, показания и голоса останутся у дома обезличенными.',
-      confirmKeyboard('🗑 Да, удалить', 'forget:yes'),
-    );
+    await typed.reply(t('forget.ask'), confirmKeyboard(t('button.forget_yes'), 'forget:yes', t));
     return;
   }
 
   try {
     await forgetResident(kit.deps, resident);
 
-    await typed.reply(
-      'Профиль удалён. Если понадоблюсь снова, просто напишите мне: заведу новый.',
-      menuButton(typed),
-    );
+    await typed.reply(t('forget.done'), menuButton(typed, t));
   } catch (error) {
     await explain(typed, error);
   }
@@ -1017,6 +1068,7 @@ const mydata: Button = async (kit, typed, [what]) => {
   if (what !== 'file') return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const data = await exportPersonalData(kit.deps, resident);
   const text = formatPersonalData(data, await zoneOf(kit.deps, resident.buildingId));
 
@@ -1030,7 +1082,7 @@ const mydata: Button = async (kit, typed, [what]) => {
             contentType: 'text/plain; charset=utf-8',
             content: text,
             encoding: 'utf8',
-            text: `Ваши данные файлом. ${personalDataSummary(data)}`,
+            text: t('data.file', { сводка: personalDataSummary(data) }),
           })
           .catch(() => undefined)
       : undefined;
@@ -1039,7 +1091,7 @@ const mydata: Button = async (kit, typed, [what]) => {
   // остаётся сводка и приложение, где эти же данные видны разделами.
   if (!sent) {
     await typed.reply(
-      `${personalDataSummary(data)}\nФайл отправить не получилось. Те же данные видны в приложении.`,
+      `${personalDataSummary(data)}\n${t('data.file_failed')}`,
       kit.openApp(sectionParam('profile'), typed),
     );
   }
@@ -1050,6 +1102,7 @@ const rate: Button = async (kit, typed, [requestId, stars]) => {
   if (!requestId || stars === undefined) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const rating = Number(stars);
 
   try {
@@ -1061,8 +1114,9 @@ const rate: Button = async (kit, typed, [requestId, stars]) => {
     });
 
     await typed.reply(
-      `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}${rating > 0 ? `, ваша оценка ${rating}` : ''}.`,
-      menuButton(typed),
+      t('request.state', { номер: updated.number, состояние: STATUS_TITLES[updated.status] }) +
+        `${rating > 0 ? t('request.rating', { оценка: rating }) : ''}.`,
+      menuButton(typed, t),
     );
   } catch (error) {
     await explain(typed, error);
@@ -1074,13 +1128,14 @@ const meter: Button = async (kit, typed, [meterId]) => {
   if (!meterId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const state = (await metersFor(kit.deps, resident)).find((item) => item.meter.id === meterId);
 
   if (!state) return stale(typed, kit);
 
   expect(typed, { kind: 'reading', meterId });
 
-  await typed.reply(readingPrompt(state), readingKeyboard(meterId, false));
+  await typed.reply(readingPrompt(state, t), readingKeyboard(meterId, false, t));
 };
 
 /** Прибор пропускают: бот переходит к следующему, за который ещё не подали. */
@@ -1088,6 +1143,7 @@ const meterSkip: Button = async (kit, typed, [meterId]) => {
   if (!meterId) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   try {
     const meters = await metersFor(kit.deps, resident);
@@ -1104,13 +1160,13 @@ const meterSkip: Button = async (kit, typed, [meterId]) => {
     if (!next) {
       forget(typed);
 
-      await typed.reply('Других приборов без показаний нет.', kit.menuKeyboard(resident));
+      await typed.reply(t('meters.no_others'), kit.menuKeyboard(resident));
       return;
     }
 
     expect(typed, { kind: 'reading', meterId: next.meter.id });
 
-    await typed.reply(readingPrompt(next), readingKeyboard(next.meter.id, pending.length > 1));
+    await typed.reply(readingPrompt(next, t), readingKeyboard(next.meter.id, pending.length > 1, t));
   } catch (error) {
     await explain(typed, error);
   }
@@ -1120,10 +1176,12 @@ const meterSkip: Button = async (kit, typed, [meterId]) => {
 const ask: Button = async (kit, typed, [requestId, to]) => {
   if (!requestId || !to) return stale(typed, kit);
 
+  const t = speak(await kit.residentOf(typed));
+
   typed.session ??= {};
   expect(typed, { kind: 'comment', requestId, to });
 
-  await typed.reply(COMMENT_PROMPTS[to] ?? 'Опишите причину одним сообщением.', cancelKeyboard());
+  await typed.reply(t(COMMENT_PROMPTS[to] ?? 'comment.other'), cancelKeyboard(t));
 };
 
 /** Перевод заявки в другое состояние прямо из сообщения. */
@@ -1136,16 +1194,16 @@ const doIt: Button = async (kit, typed, [token, requestId]) => {
   if (!token || !requestId) return stale(typed, kit);
 
   const said = typed.session?.doing;
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   // Предложение одноразовое: второе нажатие по той же кнопке дело не повторяет,
   // а слова из нового предложения в старую заявку не уходят.
   if (!said || said.token !== token) {
-    await typed.reply('Это дело уже сделано или отменено.', menuButton(typed));
+    await typed.reply(t('doing.gone'), menuButton(typed, t));
 
     return;
   }
-
-  const resident = await kit.residentOf(typed);
 
   delete typed.session?.doing;
 
@@ -1158,9 +1216,15 @@ const doIt: Button = async (kit, typed, [token, requestId]) => {
     });
 
     await typed.reply(
-      `Заявка ${strong(updated.number)}: ${STATUS_TITLES[updated.status]}.` +
-        (said.comment ? `\nЗаписал: ${plain(said.comment)}` : ''),
-      actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), assignable(updated, resident.role)),
+      `${t('request.state', { номер: strong(updated.number), состояние: STATUS_TITLES[updated.status] })}.` +
+        (said.comment ? `\n${t('doing.written', { что: plain(said.comment) })}` : ''),
+      actionKeyboard(
+        actionsFor(updated, resident),
+        replyIfOpen(updated),
+        assignable(updated, resident.role),
+        undefined,
+        t,
+      ),
     );
   } catch (error) {
     if (error instanceof DomainError && error.code === 'assignee_required') {
@@ -1176,11 +1240,12 @@ const move: Button = async (kit, typed, [requestId, to, step]) => {
   if (!requestId || !to) return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
 
   // Работу принимают с оценкой: спросить её здесь дешевле, чем потом
   // собирать по жильцам, а смене видно, чем закончился наряд.
   if (to === 'confirmed' && resident.role === 'resident') {
-    await typed.reply('Как приняли работу?', rateKeyboard(requestId));
+    await typed.reply(t('request.rate_ask'), rateKeyboard(requestId, t));
     return;
   }
 
@@ -1189,9 +1254,8 @@ const move: Button = async (kit, typed, [requestId, to, step]) => {
     const request = await getRequestFor(kit.deps, resident, requestId).catch(() => undefined);
 
     await typed.reply(
-      `Отозвать заявку${request ? ` ${request.number}` : ''}? Мастер по ней не придёт, ` +
-        'вернуть её будет нельзя, придётся оформить новую.',
-      confirmKeyboard('✖️ Да, отозвать', `req:${requestId}:withdrawn:yes`),
+      t('request.withdraw_ask', { номер: request ? ` ${request.number}` : '' }),
+      confirmKeyboard(t('button.withdraw_yes'), `req:${requestId}:withdrawn:yes`, t),
     );
 
     return;
@@ -1201,8 +1265,14 @@ const move: Button = async (kit, typed, [requestId, to, step]) => {
     const updated = await transitionRequest(kit.deps, { resident, requestId, to: to as never });
 
     await typed.reply(
-      `Заявка ${updated.number}: ${STATUS_TITLES[updated.status]}`,
-      actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), assignable(updated, resident.role)),
+      t('request.state', { номер: updated.number, состояние: STATUS_TITLES[updated.status] }),
+      actionKeyboard(
+        actionsFor(updated, resident),
+        replyIfOpen(updated),
+        assignable(updated, resident.role),
+        undefined,
+        t,
+      ),
     );
   } catch (error) {
     // Наряд в работу уходит с мастером: вместо отказа сразу спрашиваем, кому поручить.
@@ -1229,6 +1299,7 @@ export const BUTTONS: Record<string, Button> = {
   mydata,
   rate,
   legal,
+  lang: language,
   menu,
   group,
   cast,

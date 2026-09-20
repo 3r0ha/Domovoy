@@ -12,6 +12,7 @@ import {
 } from '@domovoy/domain';
 
 import { periodTitle } from './debt.js';
+import { speakDefault } from './language.js';
 
 import { choiceTitle } from './voting.js';
 import type { Building, Resident } from './repository.js';
@@ -196,7 +197,7 @@ export const formatPersonalData = (data: PersonalData, timeZone: string): string
     lines.push('', `Голоса (${data.votes.length})`);
 
     for (const vote of data.votes) {
-      lines.push(`  ${vote.poll} · ${choiceTitle(vote.choice)} · ${date(vote.at, timeZone)}`);
+      lines.push(`  ${vote.poll} · ${choiceTitle(speakDefault(), vote.choice)} · ${date(vote.at, timeZone)}`);
     }
   }
 

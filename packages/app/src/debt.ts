@@ -5,16 +5,18 @@ import {
   chargesFor,
   overdueDays,
   penaltyFor,
-  plural,
   roundMoney,
   type Apartment,
   type Meter,
   type Reading,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { paying, periodOf, type Receipt } from './billing.js';
 import { endOfPeriod, periodConsumption } from './consumption.js';
 import { commonNeedsShare, knownForCommon, type KnownForCommon } from './house-meters.js';
+import { counted, speak, speakDefault } from './language.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import { tariffsAt } from './tariffs.js';
 import { apartmentsOf } from './apartments.js';
@@ -175,60 +177,44 @@ export const dueAt = (period: string): Date => {
   return new Date(Date.UTC(year!, month ?? 1, PAYMENT_DUE_DAY));
 };
 
-const MONTHS = [
-  'январь',
-  'февраль',
-  'март',
-  'апрель',
-  'май',
-  'июнь',
-  'июль',
-  'август',
-  'сентябрь',
-  'октябрь',
-  'ноябрь',
-  'декабрь',
-];
+/** Месяц расчётного периода, 1…12. Непонятный период даёт ноль: его покажут как есть. */
+const monthIn = (period: string): number => {
+  const month = Number(period.split('-')[1]);
 
-export const periodTitle = (period: string): string => {
-  const [year, month] = period.split('-').map(Number);
-
-  return `${MONTHS[(month ?? 1) - 1] ?? period} ${year}`;
+  return Number.isInteger(month) && month >= 1 && month <= 12 ? month : 0;
 };
 
-const MONTHS_OF = [
-  'января',
-  'февраля',
-  'марта',
-  'апреля',
-  'мая',
-  'июня',
-  'июля',
-  'августа',
-  'сентября',
-  'октября',
-  'ноября',
-  'декабря',
-];
+/** «июль 2026». Без перевода месяц называется по-русски. */
+export const periodTitle = (period: string, t: Translate = speakDefault()): string => {
+  const month = monthIn(period);
 
-const monthOf = (period: string, withYear: boolean): string => {
-  const [year, month] = period.split('-').map(Number);
+  return month === 0 ? period : t('app.debt.period', { месяц: t(`app.month.${month}`), год: period.slice(0, 4) });
+};
 
-  return `${MONTHS_OF[(month ?? 1) - 1] ?? period}${withYear ? ` ${year}` : ''}`;
+/** Месяц в родительном падеже: «с июня по июль 2026». */
+const monthOf = (period: string, withYear: boolean, t: Translate): string => {
+  const month = monthIn(period);
+
+  if (month === 0) return period;
+
+  return `${t(`app.monthOf.${month}`)}${withYear ? ` ${period.slice(0, 4)}` : ''}`;
 };
 
 /** Месяцы одной строкой, с общим годом в конце. */
-export const debtRange = (debt: Debt): string | undefined => {
+export const debtRange = (debt: Debt, t: Translate = speakDefault()): string | undefined => {
   const first = debt.periods[0];
   const last = debt.periods.at(-1);
 
   if (!first || !last) return undefined;
 
-  if (first.period === last.period) return periodTitle(first.period);
+  if (first.period === last.period) return periodTitle(first.period, t);
 
   const sameYear = first.period.slice(0, 4) === last.period.slice(0, 4);
 
-  return `с ${monthOf(first.period, !sameYear)} по ${periodTitle(last.period)}`;
+  return t('app.debt.range', {
+    от: monthOf(first.period, !sameYear, t),
+    до: periodTitle(last.period, t),
+  });
 };
 
 /** Долг без одного месяца: он уже показан отдельной суммой к оплате. */
@@ -241,34 +227,39 @@ export const withoutPeriod = (debt: Debt, period: string): Debt => {
 };
 
 
-export const formatDebt = (debt: Debt): string | undefined => {
+export const formatDebt = (debt: Debt, t: Translate = speakDefault()): string | undefined => {
   if (debt.total <= 0) return undefined;
 
-  const lines = debt.periods.map(
-    (item) =>
-      `  ${periodTitle(item.period)}: ${formatMoney(item.left)}` +
-      (item.penalty > 0 ? ` и пени ${formatMoney(item.penalty)}` : ''),
+  const lines = debt.periods.map((item) =>
+    t(item.penalty > 0 ? 'app.debt.linePenalty' : 'app.debt.line', {
+      период: periodTitle(item.period, t),
+      сумма: formatMoney(item.left),
+      пени: formatMoney(item.penalty),
+    }),
   );
 
   // «Пени» и «погашение» знают не все: в переписке это штраф и общая сумма.
   const tail =
     debt.penalty > 0
-      ? `\n\nШтраф за просрочку: ${formatMoney(debt.penalty)}` +
-        `\nИтого заплатить: ${formatMoney(roundMoney(debt.total + debt.penalty))}`
+      ? t('app.debt.penalty', {
+          пени: formatMoney(debt.penalty),
+          итого: formatMoney(roundMoney(debt.total + debt.penalty)),
+        })
       : '';
 
-  return `Не оплачено ${formatMoney(debt.total)}:\n${lines.join('\n')}${tail}`;
+  return t('app.debt.total', { сумма: formatMoney(debt.total), строки: lines.join('\n') }) + tail;
 };
 
 /** Долг одной строкой: столько же смысла, сколько в разборе по месяцам. */
-export const formatDebtShort = (debt: Debt): string | undefined => {
+export const formatDebtShort = (debt: Debt, t: Translate = speakDefault()): string | undefined => {
   if (debt.total <= 0) return undefined;
 
-  const months = plural(debt.periods.length, 'месяц', 'месяца', 'месяцев');
   // «Пени» знают не все: для человека это штраф за просрочку.
-  const penalty = debt.penalty > 0 ? `, штраф за просрочку ${formatMoney(debt.penalty)}` : '';
-
-  return `Старый долг за ${months}: ${formatMoney(debt.total)}${penalty}`;
+  return t(debt.penalty > 0 ? 'app.debt.shortPenalty' : 'app.debt.short', {
+    месяцы: counted(t, 'months', debt.periods.length),
+    сумма: formatMoney(debt.total),
+    пени: formatMoney(debt.penalty),
+  });
 };
 
 /** Оплата долга: каждый месяц закрывается своим платежом. @throws {DomainError} */
@@ -311,7 +302,8 @@ export const remindAboutDebt = async (deps: AppDeps, buildingId: string): Promis
   const hintOf = houseHintFor(deps, buildingId, known.apartments);
 
   for (const resident of residents) {
-    const text = formatDebt(await arrearsFor(deps, resident, DEBT_MONTHS, known));
+    const t = speak(resident);
+    const text = formatDebt(await arrearsFor(deps, resident, DEBT_MONTHS, known), t);
 
     if (!text) continue;
 
@@ -320,7 +312,7 @@ export const remindAboutDebt = async (deps: AppDeps, buildingId: string): Promis
     await notifyResident(
       notifier,
       resident,
-      `${house ? `${house}\n` : ''}${text}\n\nОплатить можно кнопкой ниже.`,
+      `${house ? `${house}\n` : ''}${t('app.notice.debt', { долг: text })}`,
       [],
       { section: 'bill' },
     );

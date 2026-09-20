@@ -44,6 +44,8 @@ export {
   LEGAL_VERSION,
   formatLegal,
   legalDocument,
+  legalDocuments,
+  legalUpdated,
   type LegalDocument,
 } from './legal.js';
 export {
@@ -138,6 +140,19 @@ export {
   type MeetingSchedule,
   type MeetingScheduleInput,
 } from './meeting.js';
+export {
+  categoryKey,
+  categoryShortKey,
+  chargeDetailKey,
+  chargeKey,
+  consumptionBasisKey,
+  meterKindKey,
+  meterUnitKey,
+  noticeKindKey,
+  pollRuleKey,
+  statusKey,
+  voteChoiceKey,
+} from './keys.js';
 export { houseMood, type HouseMood } from './mood.js';
 export { isWearDue, wearOf, type Wear } from './wear.js';
 export {
@@ -338,6 +353,7 @@ export {
   type Apartment,
   type ErrorCode,
   type Attachment,
+  type OriginalText,
   type Priority,
   type RequestCategory,
   type RequestEvent,

@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Reasoner } from '@domovoy/app';
+import type { Reasoner, TextTranslator } from '@domovoy/app';
 
-import { createHttpReasoner } from './reasoner.js';
+import { createChat, reasonerOver, type HttpReasonerOptions } from './reasoner.js';
+import { translatorOver } from './translator.js';
 
 /**
  * GigaChat: российская модель с бесплатным режимом. Ключ живёт полчаса и
@@ -118,28 +119,41 @@ export const sharedTokenSource = (options: GigaChatOptions): TokenSource => {
   return found;
 };
 
+const chatOptions = (options: GigaChatOptions): HttpReasonerOptions => ({
+  endpoint: options.endpoint ?? ENDPOINT,
+  model: options.model ?? MODEL,
+  authorization: sharedTokenSource(options),
+  // Бесплатный режим для физического лица держит один поток.
+  serial: true,
+  ...(options.fetch ? { fetch: options.fetch } : {}),
+  ...(options.onError ? { onError: options.onError } : {}),
+});
+
+/**
+ * Разбор обращений, помощник и перевод на GigaChat. Канал у них один: ключ,
+ * очередь и память об ответах общие, иначе разбор и перевод одного обращения
+ * ушли бы в модель двумя параллельными запросами.
+ */
+export const createGigaChat = (options: GigaChatOptions): { reasoner: Reasoner; translate: TextTranslator } => {
+  const ask = createChat(chatOptions(options));
+
+  return { reasoner: reasonerOver(ask), translate: translatorOver(ask) };
+};
+
 /** Разбор обращений и помощник на GigaChat. */
 export const createGigaChatReasoner = (options: GigaChatOptions): Reasoner =>
-  createHttpReasoner({
-    endpoint: options.endpoint ?? ENDPOINT,
-    model: options.model ?? MODEL,
-    authorization: sharedTokenSource(options),
-    // Бесплатный режим для физического лица держит один поток.
-    serial: true,
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-    ...(options.onError ? { onError: options.onError } : {}),
-  });
+  reasonerOver(createChat(chatOptions(options)));
 
 /** Модель из настроек окружения: сначала GigaChat, потом любая совместимая с OpenAI. */
 export const gigaChatFromEnv = (
   env: Record<string, string | undefined>,
   onError?: (error: unknown) => void,
-): Reasoner | undefined => {
+): { reasoner: Reasoner; translate: TextTranslator } | undefined => {
   const authKey = env['GIGACHAT_AUTH_KEY']?.trim();
 
   if (!authKey) return undefined;
 
-  return createGigaChatReasoner({
+  return createGigaChat({
     authKey,
     ...(env['GIGACHAT_SCOPE']?.trim() ? { scope: env['GIGACHAT_SCOPE'].trim() } : {}),
     ...(env['GIGACHAT_MODEL']?.trim() ? { model: env['GIGACHAT_MODEL'].trim() } : {}),

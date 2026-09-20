@@ -4,6 +4,7 @@ import {
   DEFAULT_TIME_ZONE,
   DomainError,
   type Attachment,
+  type OriginalText,
   type Priority,
   type RequestCategory,
   type RequestTarget,
@@ -28,6 +29,8 @@ export interface CreateRequestInput {
   attachments?: Attachment[];
   /** Часовой пояс дома: по нему в номере заявки считаются год и месяц. */
   timeZone?: string;
+  /** Исходный текст обращения, если `description` это перевод на русский. */
+  original?: OriginalText;
 }
 
 /** Докуда обращение читается человеком: дальше это документ, а не заявка. */
@@ -134,6 +137,7 @@ export const createRequest = (input: CreateRequestInput): ServiceRequest => {
     target: input.target,
     title: title ? shorten(title) : summarizeDescription(description),
     description,
+    ...(input.original ? { original: input.original } : {}),
     status: 'new',
     createdAt: input.createdAt,
     reactionDueAt,

@@ -2,7 +2,10 @@ import { CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import type { ReactNode } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { formatDay, formatTime, type DomovoyApi, type HouseEventView } from '../api.js';
+import { useT } from '../i18n.js';
 import { Group } from './Group.js';
 import { IconNews, IconPolls, IconRequests } from './icons.js';
 
@@ -23,21 +26,23 @@ const ICON: Record<HouseEventView['kind'], () => ReactNode> = {
 };
 
 /** Что именно случится в этот момент: у работ конец, у собрания срок. */
-const WHEN: Record<HouseEventView['kind'], string> = {
-  works: 'работы до',
-  poll: 'голосование до',
-  inspection: 'обход до',
-};
+const whenKind = (t: Translate, kind: HouseEventView['kind']): string =>
+  ({
+    works: t('home.ahead.works'),
+    poll: t('home.ahead.poll'),
+    inspection: t('home.ahead.inspection'),
+  })[kind];
 
-const when = (event: HouseEventView, now: Date): string => {
+const when = (t: Translate, event: HouseEventView, now: Date): string => {
   const at = new Date(event.at);
   const sameDay = at.toDateString() === now.toDateString();
 
-  return `${WHEN[event.kind]} ${sameDay ? formatTime(event.at) : formatDay(event.at, now)}`;
+  return `${whenKind(t, event.kind)} ${sameDay ? formatTime(event.at) : formatDay(event.at, now)}`;
 };
 
 /** Что в доме будет на неделе: работы, собрания и обходы одной лентой. */
 export const HouseAhead = ({ api }: HouseAheadProps) => {
+  const t = useT();
   const ahead = useBridgeRequest((alive) => api.until(alive).houseAhead(), [api]);
   const events = Array.isArray(ahead.data) ? ahead.data : [];
 
@@ -46,7 +51,7 @@ export const HouseAhead = ({ api }: HouseAheadProps) => {
   const now = new Date();
 
   return (
-    <Group title="Скоро в доме">
+    <Group title={t('home.ahead')}>
       {events.map((event, index) => {
         const Icon = ICON[event.kind];
 
@@ -59,7 +64,7 @@ export const HouseAhead = ({ api }: HouseAheadProps) => {
               </span>
             }
             title={event.title}
-            subtitle={`${event.where} · ${when(event, now)}`}
+            subtitle={`${event.where} · ${when(t, event, now)}`}
             separator={index > 0}
           />
         );

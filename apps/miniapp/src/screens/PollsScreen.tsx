@@ -2,6 +2,8 @@ import { Button, Input, Textarea } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import {
   ApiError,
   formatDay,
@@ -12,6 +14,7 @@ import {
   type PollView,
   type VoteChoiceView,
 } from '../api.js';
+import { useT } from '../i18n.js';
 import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -29,15 +32,17 @@ export interface PollsScreenProps {
   onBind?: () => void;
 }
 
-const CHOICES: { value: VoteChoiceView; title: string }[] = [
-  { value: 'for', title: 'За' },
-  { value: 'against', title: 'Против' },
-  { value: 'abstain', title: 'Воздержусь' },
+const choices = (t: Translate): { value: VoteChoiceView; title: string }[] => [
+  { value: 'for', title: t('polls.choice.for') },
+  { value: 'against', title: t('polls.choice.against') },
+  { value: 'abstain', title: t('polls.choice.abstain') },
 ];
 
 /** Голос словами: он же стоит в подтверждении замены. */
-const choiceTitle = (choice?: VoteChoiceView): string =>
-  CHOICES.find((item) => item.value === choice)?.title.toLowerCase() ?? 'не подан';
+const choiceTitle = (t: Translate, choice?: VoteChoiceView): string =>
+  choices(t)
+    .find((item) => item.value === choice)
+    ?.title.toLowerCase() ?? t('polls.choice.none');
 
 /** Доля в процентах. Прочерк вместо «NaN%», если сервер долю не прислал. */
 const percent = (share: number): string => (Number.isFinite(share) ? `${Math.round(share * 100)}%` : '0%');
@@ -57,6 +62,7 @@ const PollCard = ({
   onVoted: () => void;
   onDocument: (title: string, text: string) => void;
 }) => {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<VoteChoiceView | null>(null);
@@ -66,9 +72,9 @@ const PollCard = ({
     setError(null);
 
     try {
-      onDocument(`Протокол: ${poll.title}`, await api.pollProtocol(poll.id));
+      onDocument(t('polls.protocol.title', { тема: poll.title }), await api.pollProtocol(poll.id));
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Протокол недоступен');
+      setError(reason instanceof ApiError ? reason.message : t('polls.protocol.failed'));
     } finally {
       setBusy(false);
     }
@@ -82,7 +88,7 @@ const PollCard = ({
       await api.vote(poll.id, choice);
       onVoted();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Голос не принят');
+      setError(reason instanceof ApiError ? reason.message : t('polls.vote.failed'));
     } finally {
       setBusy(false);
     }
@@ -95,20 +101,26 @@ const PollCard = ({
         <span className="row-state">
           <span className={poll.open || !poll.closedAt ? 'dot' : poll.passed ? 'dot dot-good' : 'dot dot-muted'} />
 
-          {poll.open ? 'идёт' : !poll.closedAt ? 'считаем' : poll.passed ? 'принято' : 'не принято'}
+          {poll.open
+            ? t('polls.state.open')
+            : !poll.closedAt
+              ? t('polls.state.counting')
+              : poll.passed
+                ? t('polls.state.passed')
+                : t('polls.state.failed')}
         </span>
       </header>
 
       {/* Опрос и собрание решают разное: это видно сразу, а не в протоколе. */}
-      {poll.mode === 'survey' ? <p className="hint">Опрос: мнение, не решение</p> : null}
+      {poll.mode === 'survey' ? <p className="hint">{t('polls.survey.note')}</p> : null}
 
       {/* Силу заочному голосованию даёт государственная система: номер оттуда
           стоит рядом, чтобы человек мог найти собрание и там. */}
-      {poll.noticeId ? <p className="hint aside">Собрание в системе: {poll.noticeId}</p> : null}
-      {poll.protocolId ? <p className="hint aside">Протокол в системе: {poll.protocolId}</p> : null}
+      {poll.noticeId ? <p className="hint aside">{t('polls.notice', { номер: poll.noticeId })}</p> : null}
+      {poll.protocolId ? <p className="hint aside">{t('polls.protocol.number', { номер: poll.protocolId })}</p> : null}
 
       {poll.mode !== 'survey' && !poll.open && !poll.closedAt && new Date(poll.opensAt) > new Date() ? (
-        <p className="hint">Голосование откроется {formatDay(poll.opensAt)}</p>
+        <p className="hint">{t('polls.opens', { дата: formatDay(poll.opensAt) })}</p>
       ) : null}
 
       <p className="description">{poll.question}</p>
@@ -119,7 +131,7 @@ const PollCard = ({
           <div
             className="quorum-bar"
             role="progressbar"
-            aria-label="Участие в опросе"
+            aria-label={t('polls.turnout.survey')}
             aria-valuenow={Math.round(poll.turnout * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -128,8 +140,11 @@ const PollCard = ({
           </div>
 
           <p className="quorum-meta">
-            Ответили {percent(poll.turnout)} площади · за {percent(poll.shares.for)}, против{' '}
-            {percent(poll.shares.against)}
+            {t('polls.survey.meta', {
+              доля: percent(poll.turnout),
+              за: percent(poll.shares.for),
+              против: percent(poll.shares.against),
+            })}
           </p>
         </div>
       ) : (
@@ -137,7 +152,7 @@ const PollCard = ({
           <div
             className="quorum-bar"
             role="progressbar"
-            aria-label="Участие в собрании"
+            aria-label={t('polls.turnout.meeting')}
             aria-valuenow={Math.round(poll.turnout * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -146,19 +161,22 @@ const PollCard = ({
 
             {poll.quorumShare === undefined ? null : (
               <span className="quorum-mark" style={{ left: percent(poll.quorumShare) }}>
-                <span className="quorum-mark-label">кворум</span>
+                <span className="quorum-mark-label">{t('polls.quorum.mark')}</span>
               </span>
             )}
           </div>
 
           <p className="quorum-meta">
             {poll.quorum ? (
-              <strong className="quorum-ok">Кворум есть</strong>
+              <strong className="quorum-ok">{t('polls.quorum.ok')}</strong>
             ) : (
-              <>Не хватает {area(poll.areaToQuorum)} м² до кворума</>
+              <>{t('polls.quorum.left', { площадь: area(poll.areaToQuorum) })}</>
             )}
-            {' · за '}
-            {percent(poll.shares.for)} площади, против {percent(poll.shares.against)}
+            {' · '}
+            {t('polls.meeting.meta', {
+              за: percent(poll.shares.for),
+              против: percent(poll.shares.against),
+            })}
           </p>
 
           {/* Порог задан законом, а не продуктом: основание стоит рядом с полосой. */}
@@ -172,12 +190,12 @@ const PollCard = ({
               чужой голос молча нельзя. */}
           {poll.votedBy ? (
             <p className="hint">
-              Голос квартиры подал {poll.votedBy}: {choiceTitle(poll.myChoice)}. Ваш голос заменит его.
+              {t('polls.voted.by', { кто: poll.votedBy, голос: choiceTitle(t, poll.myChoice) })}
             </p>
           ) : null}
 
-          <div className="segments" role="group" aria-label="Ваш голос">
-            {CHOICES.map((choice) => (
+          <div className="segments" role="group" aria-label={t('polls.vote.group')}>
+            {choices(t).map((choice) => (
               <button
                 key={choice.value}
                 type="button"
@@ -195,11 +213,11 @@ const PollCard = ({
 
       {replacing ? (
         <Confirm
-          title="Заменить голос квартиры?"
-          text={`Сейчас записан голос: ${choiceTitle(poll.myChoice)}, его подал ${poll.votedBy}. У квартиры один голос, считается последний.`}
-          confirmLabel={`Голосовать «${choiceTitle(replacing)}»`}
+          title={t('polls.replace.title')}
+          text={t('polls.replace.text', { голос: choiceTitle(t, poll.myChoice), кто: poll.votedBy ?? '' })}
+          confirmLabel={t('polls.replace.confirm', { голос: choiceTitle(t, replacing) })}
           busy={busy}
-          busyLabel="Записываем…"
+          busyLabel={t('polls.replace.busy')}
           onConfirm={() => {
             const choice = replacing;
 
@@ -212,7 +230,7 @@ const PollCard = ({
 
       {poll.closedAt ? (
         <button type="button" className="link" disabled={busy} onClick={() => void showProtocol()}>
-          {busy ? 'Открываем…' : 'Протокол'}
+          {busy ? t('polls.protocol.opening') : t('polls.protocol.open')}
         </button>
       ) : null}
 
@@ -236,6 +254,7 @@ const InitiativeCard = ({
   canStart?: boolean;
   onChanged: () => void;
 }) => {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [calling, setCalling] = useState(false);
   const [kind, setKind] = useState<'simple' | 'qualified'>(initiative.kind);
@@ -264,7 +283,7 @@ const InitiativeCard = ({
         <strong className="poll-title">{initiative.title}</strong>
         <span className="row-state">
           <span className={initiative.enough ? 'dot dot-good' : 'dot'} />
-          {initiative.enough ? 'подписей хватает' : 'собираем подписи'}
+          {initiative.enough ? t('polls.initiative.enough') : t('polls.initiative.collecting')}
         </span>
       </header>
 
@@ -274,7 +293,7 @@ const InitiativeCard = ({
         <div
           className="quorum-bar"
           role="progressbar"
-          aria-label="Подписи соседей"
+          aria-label={t('polls.initiative.bar')}
           aria-valuenow={Math.round((initiative.share / target) * 100)}
           aria-valuemin={0}
           aria-valuemax={100}
@@ -287,12 +306,12 @@ const InitiativeCard = ({
         </div>
         <p className="quorum-meta">
           {initiative.enough ? (
-            <strong className="quorum-ok">Дом вправе требовать собрания</strong>
+            <strong className="quorum-ok">{t('polls.initiative.demand')}</strong>
           ) : (
-            <>Не хватает {area(initiative.areaToDemand ?? 0)} м²</>
+            <>{t('polls.initiative.left', { площадь: area(initiative.areaToDemand ?? 0) })}</>
           )}
-          {' · подписей '}
-          {initiative.signatures}
+          {' · '}
+          {t('polls.initiative.count', { число: initiative.signatures })}
         </p>
 
         {initiative.basis ? <p className="hint aside">{initiative.basis}</p> : null}
@@ -303,9 +322,9 @@ const InitiativeCard = ({
           type="button"
           stretched
           disabled={busy}
-          onClick={() => void run(() => api.supportInitiative(initiative.id), 'Подпись не принята')}
+          onClick={() => void run(() => api.supportInitiative(initiative.id), t('polls.initiative.failed'))}
         >
-          Поддержать
+          {t('polls.initiative.support')}
         </Button>
       )}
 
@@ -368,6 +387,7 @@ const InitiativeCard = ({
 
 /** Предложение соседям: собрание объявляет управляющая компания, вопрос ставит дом. */
 const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => void }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [question, setQuestion] = useState('');
@@ -376,7 +396,7 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
 
   const start = async (): Promise<void> => {
     if (title.trim().length === 0 || question.trim().length === 0) {
-      setError('Заполните тему и предложение');
+      setError(t('polls.new.empty'));
       return;
     }
 
@@ -390,7 +410,7 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
       setOpen(false);
       onStarted();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось завести предложение');
+      setError(reason instanceof ApiError ? reason.message : t('polls.new.failed'));
     } finally {
       setBusy(false);
     }
@@ -399,16 +419,16 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
   if (!open) {
     return (
       <Button type="button" className="publish" size="large" stretched onClick={() => setOpen(true)}>
-        Предложить соседям
+        {t('polls.new.open')}
       </Button>
     );
   }
 
   return (
     <section className="card">
-      <h2>Предложение соседям</h2>
+      <h2>{t('polls.new.title')}</h2>
 
-      <label htmlFor="initiative-title">Тема</label>
+      <label htmlFor="initiative-title">{t('polls.new.subject')}</label>
       <Input
         className="field"
         id="initiative-title"
@@ -418,7 +438,7 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
         onChange={(event) => setTitle(event.target.value)}
       />
 
-      <label htmlFor="initiative-question">Что предлагаете</label>
+      <label htmlFor="initiative-question">{t('polls.new.question')}</label>
       <Textarea
         mode="secondary"
         id="initiative-question"
@@ -431,10 +451,10 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
       {error ? <ErrorText>{error}</ErrorText> : null}
 
       <Button type="button" stretched disabled={busy} onClick={() => void start()}>
-        {busy ? 'Отправляем…' : 'Предложить'}
+        {busy ? t('polls.new.sending') : t('polls.new.submit')}
       </Button>
       <button type="button" className="link" onClick={() => setOpen(false)}>
-        Отмена
+        {t('polls.new.cancel')}
       </button>
     </section>
   );
@@ -562,6 +582,7 @@ const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => vo
 
 /** Собрания собственников. */
 export const PollsScreen = ({ api, canStart, onDocument, onBind }: PollsScreenProps) => {
+  const t = useT();
   const polls = useBridgeRequest((alive) => api.until(alive).polls(), [api]);
   const initiatives = useBridgeRequest((alive) => api.until(alive).initiatives(), [api]);
 
@@ -569,10 +590,10 @@ export const PollsScreen = ({ api, canStart, onDocument, onBind }: PollsScreenPr
 
   if (polls.error) {
     return (
-      <Failure title="Собрания недоступны" error={polls.error} onRetry={polls.reload}>
+      <Failure title={t('polls.failed')} error={polls.error} onRetry={polls.reload}>
         {onBind && needsApartment(polls.error) ? (
           <Button type="button" onClick={onBind}>
-            Привязать квартиру
+            {t('polls.bind')}
           </Button>
         ) : null}
       </Failure>
@@ -603,8 +624,8 @@ export const PollsScreen = ({ api, canStart, onDocument, onBind }: PollsScreenPr
       {polls.data?.length === 0 && collecting.length === 0 ? (
         <Empty
           icon={<IconPolls />}
-          title="Собраний нет"
-          hint="Здесь будут голосования собственников"
+          title={t('polls.empty')}
+          hint={t('polls.empty.hint')}
         />
       ) : null}
 

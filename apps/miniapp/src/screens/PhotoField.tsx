@@ -1,6 +1,7 @@
 import { Button } from '@maxhub/max-ui';
 import { useId, type ChangeEvent } from 'react';
 
+import { useT } from '../i18n.js';
 import { ErrorText } from './ErrorText.js';
 import { IconCamera } from './icons.js';
 
@@ -21,6 +22,7 @@ export interface PhotoFieldProps {
 /** Снимок к сообщению: значок камеры, внутри системное поле файла. */
 export const PhotoField = ({ label, count, uploading, error, withLabel, size, onPick }: PhotoFieldProps) => {
   const id = useId();
+  const t = useT();
 
   return (
     <div className="photo-field">
@@ -48,7 +50,7 @@ export const PhotoField = ({ label, count, uploading, error, withLabel, size, on
           }}
         >
           <IconCamera />
-          {withLabel ? <span>{uploading ? 'Отправляем…' : label}</span> : null}
+          {withLabel ? <span>{uploading ? t('photo.sending') : label}</span> : null}
           {count > 0 && !withLabel ? <span className="photo-count">{count}</span> : null}
         </label>
       </Button>

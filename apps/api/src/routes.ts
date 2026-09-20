@@ -17,7 +17,8 @@ import { capitalRoutes } from './routes/capital.js';
 import { complaintRoutes } from './routes/complaint.js';
 import { handoverRoutes } from './routes/handover.js';
 import { houseRoutes } from './routes/house.js';
-import { LEGAL_DOCUMENTS, LEGAL_VERSION, formatLegal } from '@domovoy/domain';
+import { LEGAL_VERSION, formatLegal, legalDocuments } from '@domovoy/domain';
+import { legalLanguage, type Language } from '@domovoy/i18n';
 
 import { meRoutes } from './routes/me.js';
 import { meterRoutes } from './routes/meters.js';
@@ -96,19 +97,44 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
   );
 
   /**
-   * Документы продукта: политика обработки персональных данных открывается
-   * без входа, этого требует ч. 2 ст. 18.1 152-ФЗ.
+   * Язык пришедшего на открытый маршрут. Токена может не быть, и тогда язык
+   * неизвестен; недействительный токен здесь тот же случай, а не отказ.
    */
-  fastify.get('/api/legal', { config: { open: true } }, async () => ({
-    version: LEGAL_VERSION,
-    documents: LEGAL_DOCUMENTS.map((document) => ({
-      slug: document.slug,
-      title: document.title,
-      short: document.short,
-      about: document.about,
-      text: formatLegal(document),
-    })),
-  }));
+  const languageOfRequest = async (request: FastifyRequest): Promise<Language | undefined> => {
+    const [scheme, token] = request.headers.authorization?.split(' ') ?? [];
+
+    if (!token || scheme?.toLowerCase() !== 'bearer') return undefined;
+
+    try {
+      const session = await auth.verify(token);
+      const resident = await deps.repository.findResidentByMaxUserId(session.userId);
+
+      return resident?.language;
+    } catch {
+      return undefined;
+    }
+  };
+
+  /**
+   * Документы продукта: политика обработки персональных данных открывается
+   * без входа, этого требует ч. 2 ст. 18.1 152-ФЗ. Сессия здесь не обязательна,
+   * но если она есть, документы приходят на языке жильца.
+   */
+  fastify.get('/api/legal', { config: { open: true } }, async (request) => {
+    const language = legalLanguage(await languageOfRequest(request));
+
+    return {
+      version: LEGAL_VERSION,
+      language,
+      documents: legalDocuments(language).map((document) => ({
+        slug: document.slug,
+        title: document.title,
+        short: document.short,
+        about: document.about,
+        text: formatLegal(document, language),
+      })),
+    };
+  });
 
   /** События от домофонии. */
   if (options.hubSecret) {

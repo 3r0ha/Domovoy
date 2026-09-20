@@ -2,7 +2,9 @@ import type { FastifyReply } from 'fastify';
 
 import type { RoutesDeps } from './context.js';
 import { ServiceError } from './errors.js';
+import type { Translate } from '@domovoy/i18n';
 import {
+  speakDefault,
   announcementAudience,
   lastMonth,
   zoneOf,
@@ -36,6 +38,8 @@ import {
   type Inspection,
   INITIATIVE_SHARE,
   METER_RULES,
+  meterKindKey,
+  meterUnitKey,
   POLL_RULES,
   AUTO_CONFIRM_AFTER_HOURS,
   describeAudience,
@@ -51,6 +55,7 @@ import {
   statusTitle,
   verificationState,
   type MeterKind,
+  type OriginalText,
   type RequestCategory,
   type RequestStatus,
   type ServiceRequest,
@@ -111,6 +116,17 @@ export const serializeInspection = (inspection: Inspection, now = new Date(), eq
   })),
 });
 
+/** Исходный текст для клиента: показать его или перевод, решает сам клиент. */
+const originalOf = (original: OriginalText | undefined): { original?: { text: string; language: string } } =>
+  original ? { original: { text: original.text, language: original.language } } : {};
+
+/** Что человек написал своими словами, когда текст перевели на русский. */
+export const originalSchema = {
+  type: 'object',
+  required: ['text', 'language'],
+  properties: { text: { type: 'string' }, language: { type: 'string' } },
+} as const;
+
 /** Заявка на плане дома: одной строкой, без адреса, он и есть место на схеме. */
 export const alertSchema = {
   type: 'object',
@@ -156,6 +172,9 @@ export const serializeRequest = (
   statusTitle: statusTitle(request.status, viewedByStaff(viewer)),
   title: request.title,
   description: request.description,
+  // Оба текста: смена работает по русскому, автор видит свой. Что показать,
+  // решает клиент, который знает, кто смотрит.
+  ...originalOf(request.original),
   target: asTitle(describeTarget(request.target)),
   createdAt: request.createdAt.toISOString(),
   reactionDueAt: request.reactionDueAt.toISOString(),
@@ -202,6 +221,7 @@ export const serializeRequest = (
     ...(speakerOf(event, request, viewer) ? { speaker: speakerOf(event, request, viewer) } : {}),
     ...(event.kind ? { kind: event.kind } : {}),
     ...(event.comment ? { comment: event.comment } : {}),
+    ...originalOf(event.original),
     ...(event.attachments?.length
       ? {
           attachments: event.attachments.map((attachment) => ({
@@ -254,6 +274,7 @@ export const serializeTicket = (card: TicketCard, viewerId: string, staff = fals
       own: message.authorId === viewerId,
       ...(message.authorName ? { authorName: message.authorName } : {}),
       text: message.text,
+      ...originalOf(message.original),
       ...(message.attachments?.length
         ? {
             attachments: message.attachments.map((attachment) => ({
@@ -296,6 +317,7 @@ export const ticketSchema = {
           own: { type: 'boolean' },
           authorName: { type: 'string' },
           text: { type: 'string' },
+          original: originalSchema,
           attachments: {
             type: 'array',
             items: {
@@ -643,6 +665,7 @@ export const requestSchema = {
     statusTitle: { type: 'string' },
     title: { type: 'string' },
     description: { type: 'string' },
+    original: originalSchema,
     target: { type: 'string' },
     createdAt: { type: 'string' },
     reactionDueAt: { type: 'string' },
@@ -702,6 +725,7 @@ export const requestSchema = {
           speaker: { type: 'string' },
           kind: { type: 'string' },
           comment: { type: 'string' },
+          original: originalSchema,
           onSite: { type: 'boolean' },
           attachments: {
             type: 'array',
@@ -1012,12 +1036,12 @@ export const emptyResult = {
 };
 
 /** Счётчик для клиента: с подписью, единицей и прошлым показанием. */
-export const serializeMeter = (state: MeterState, now: Date) => ({
+export const serializeMeter = (state: MeterState, now: Date, t: Translate = speakDefault()) => ({
   verification: verificationState(state.meter, now),
   id: state.meter.id,
   kind: state.meter.kind,
-  title: METER_RULES[state.meter.kind].title,
-  unit: METER_RULES[state.meter.kind].unit,
+  title: t(meterKindKey(state.meter.kind)),
+  unit: t(meterUnitKey(state.meter.kind)),
   decimals: METER_RULES[state.meter.kind].decimals,
   serial: state.meter.serial,
   submittedThisMonth: state.submittedThisMonth,

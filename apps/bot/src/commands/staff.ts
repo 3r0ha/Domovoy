@@ -13,6 +13,7 @@ import {
 import { BASIS, DomainError, isCompanyStaff, isHandoffOverdue } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { speak } from '../i18n.js';
 import { boundHere, pinNote } from '../chat-binding.js';
 import { afterError, appRow, errorText, keyboardOf, menuButton, oneKeyboard } from '../keyboards.js';
 import { showDebtors } from '../pages.js';
@@ -37,11 +38,13 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
     // Очередь дома ведёт смена. Подрядчику и жильцу отвечаем про их дела, а не
     // отказом про сводку: они спрашивали не о ней.
     if (!isCompanyStaff(resident.role)) {
+      const t = speak(resident);
+
       await typed.reply(
         resident.role === 'contractor'
           ? 'Очередь дома ведёт управляющая компания. Ваши наряды в разделе «Наряды».'
-          : 'Очередь дома ведёт управляющая компания. Ваши заявки в разделе «Мои обращения».',
-        oneKeyboard(resident.role === 'contractor' ? '📋 Наряды' : '📋 Мои обращения', 'menu:my'),
+          : t('queue.resident'),
+        oneKeyboard(t(resident.role === 'contractor' ? 'menu.contractor.my' : 'menu.my'), 'menu:my'),
       );
 
       return;

@@ -4,6 +4,7 @@ import {
   bindApartment,
   legalAccepted,
   listOwnApartments,
+  setLanguage,
   useApartment,
   describeContext,
   forgetContact,
@@ -30,6 +31,7 @@ import {
   type NoticeKind,
   type Role,
 } from '@domovoy/domain';
+import { DEFAULT_LANGUAGE, LANGUAGES } from '@domovoy/i18n';
 import { verifyContact } from '@maxkit/server';
 import type { FastifyPluginAsync } from 'fastify';
 import {
@@ -107,6 +109,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
         doors: Boolean(deps.hub),
         // Модельные подключения: человек должен видеть, что за ними нет обмена.
         model: modelIntegrations(deps),
+        // Язык человека. Пусто: язык ещё не выбран, и продукт сначала спросит о нём.
+        language: resident.language ?? null,
         // Согласие с документами: без него продукт сначала показывает их.
         legal: { version: LEGAL_VERSION, accepted: legalAccepted(resident) },
       };
@@ -131,6 +135,59 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
         const saved = await acceptLegal(deps, resident);
 
         return { version: LEGAL_VERSION, accepted: legalAccepted(saved) };
+      },
+    );
+
+    /** Языки продукта и выбор своего: до выбора продукт говорит по-русски. */
+    scope.get(
+      '/api/languages',
+      {
+        schema: {
+          response: {
+            200: {
+              type: 'object',
+              required: ['languages'],
+              properties: {
+                languages: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    required: ['code', 'title'],
+                    properties: { code: { type: 'string' }, title: { type: 'string' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      () => ({ languages: LANGUAGES.map((language) => ({ code: language.code, title: language.title })) }),
+    );
+
+    scope.post<{ Body: { language: string } }>(
+      '/api/me/language',
+      {
+        schema: {
+          body: {
+            type: 'object',
+            required: ['language'],
+            additionalProperties: false,
+            properties: { language: { type: 'string', minLength: 2, maxLength: 8 } },
+          },
+          response: {
+            200: {
+              type: 'object',
+              required: ['language'],
+              properties: { language: { type: 'string' } },
+            },
+          },
+        },
+      },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const saved = await setLanguage(deps, resident, request.body.language);
+
+        return { language: saved.language ?? DEFAULT_LANGUAGE };
       },
     );
 
@@ -194,6 +251,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
                 screen: { type: 'string' },
                 title: { type: 'string' },
                 command: { type: 'string' },
+                offerLanguage: { type: 'string' },
+                offerTitle: { type: 'string' },
                 offTopic: { type: 'boolean' },
                 by: { type: 'string', enum: ['model', 'keywords'] },
               },

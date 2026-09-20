@@ -1,3 +1,4 @@
+import { RU } from './i18n.js';
 import { midOf, type BotContext } from './max.js';
 import type { BotKit } from './kit.js';
 
@@ -10,7 +11,11 @@ const SILENCE_MS = 1200;
  * появляется только если ответ и правда задержался, и убирается вместе с ним.
  * Для разбора записи и снимка слово своё: «Расшифровываю…», «Смотрю на снимок…».
  */
-export const thinking = (kit: BotKit, typed: BotContext, note = 'Думаю…'): (() => Promise<void>) => {
+export const thinking = (
+  kit: BotKit,
+  typed: BotContext,
+  note = RU('thinking.default'),
+): (() => Promise<void>) => {
   const chatId = typed.chatId;
   let mid: string | undefined;
   let done = false;

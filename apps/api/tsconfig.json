@@ -19,6 +19,9 @@
     },
     {
       "path": "../../packages/server"
+    },
+    {
+      "path": "../../packages/i18n"
     }
   ]
 }

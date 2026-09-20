@@ -9,6 +9,7 @@ import {
   createServiceRequest,
   formatStatusChange,
   publishAnnouncement,
+  speakDefault,
   transitionRequest,
   type AppDeps,
   type Resident,
@@ -134,7 +135,7 @@ describe('уведомления о заявке', () => {
       startParam: 'eqp_b1_lift-2',
     });
 
-    const text = formatStatusChange(request);
+    const text = formatStatusChange(speakDefault(), request);
 
     assert.match(text, /Заявка Д15-2609-0001/);
     assert.match(text, /Лифт, оборудование lift-2/);

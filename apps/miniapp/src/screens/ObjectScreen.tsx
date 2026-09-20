@@ -3,6 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useEffect } from 'react';
 
 import { formatDay, monthName, monthShort, plural, type DomovoyApi } from '../api.js';
+import { useT } from '../i18n.js';
 import { DoorRow } from './DoorRow.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
@@ -60,14 +61,15 @@ const columnMonth = (index: number, now: Date): string => monthName(columnIndex(
 
 /** Год объекта: поломки по месяцам. Столбик и его подпись стоят одной колонкой. */
 const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
+  const t = useT();
   const now = new Date();
   const months = failuresByMonth(history, now);
 
   return (
     <>
-      <p className="hint year-title">Поломки по месяцам</p>
+      <p className="hint year-title">{t('object.year')}</p>
 
-      <div className="year" aria-label="Поломки по месяцам за год">
+      <div className="year" aria-label={t('object.year.label')}>
         {months.map((count, index) => (
           <span
             key={index}
@@ -87,6 +89,7 @@ const Year = ({ history }: { history: readonly { createdAt: string }[] }) => {
 
 /** Объект с наклейки: его оборудование, открытые заявки и история. */
 export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest }: ObjectScreenProps) => {
+  const t = useT();
   const passport = useBridgeRequest((alive) => api.until(alive).objectPassport(startParam), [api, startParam]);
   const target = passport.data?.target;
 
@@ -100,9 +103,9 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
 
   if (passport.error || !passport.data) {
     return (
-      <Failure title="Объект не найден" error={passport.error} onRetry={passport.reload}>
+      <Failure title={t('object.failure')} error={passport.error} onRetry={passport.reload}>
         <Button type="button" variant="secondary" onClick={onReport}>
-          Оставить заявку
+          {t('object.request')}
         </Button>
       </Failure>
     );
@@ -120,7 +123,7 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
       ) : null}
 
       {object.open.length > 0 ? (
-        <Group title="Об этом уже сообщили">
+        <Group title={t('object.open')}>
           {object.open.map((request, index) => (
             <RequestRow
               key={request.id}
@@ -139,7 +142,7 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
               <IconRequests />
             </span>
           }
-          title="Сообщить о поломке"
+          title={t('object.report')}
           showChevron
           onClick={onReport}
         />

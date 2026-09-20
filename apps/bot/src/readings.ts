@@ -1,12 +1,13 @@
 import { metersFor, submitReading, visionFailed } from '@domovoy/app';
 import {
   DomainError,
-  METER_RULES,
+  meterUnitKey,
   READING_WINDOW,
   numberFromWords,
   verificationState,
 } from '@domovoy/domain';
 
+import { speak } from './i18n.js';
 import {
   afterError,
   confirmKeyboard,
@@ -15,7 +16,7 @@ import {
   readingKeyboard,
   readingPrompt,
 } from './keyboards.js';
-import { expect, forget, strong, type BotContext } from './max.js';
+import { expect, forget, speaking, strong, type BotContext } from './max.js';
 import { thinking } from './thinking.js';
 import type { BotKit } from './kit.js';
 
@@ -49,6 +50,7 @@ export const takeReading = async (
   byVoice = false,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const digits = Number(text.replace(',', '.').replace(/\s/g, ''));
 
   if (byVoice || !Number.isFinite(digits)) {
@@ -57,10 +59,7 @@ export const takeReading = async (
     const heard = Number.isFinite(digits) ? digits : numberIn(text);
 
     if (heard === undefined) {
-      await typed.reply(
-        'Не похоже на число. Отправьте показание цифрами, например 123,456',
-        readingKeyboard(meterId, false),
-      );
+      await typed.reply(t('meters.not_number'), readingKeyboard(meterId, false, t));
 
       return;
     }
@@ -68,8 +67,8 @@ export const takeReading = async (
     expect(typed, { kind: 'reading', meterId });
 
     await typed.reply(
-      `Услышал показание ${strong(decimal(heard))}. Подать его?\nЕсли не так, пришлите число цифрами.`,
-      confirmKeyboard('✅ Да, подать', `meter-read:${meterId}:${heard}`),
+      t('meters.heard', { значение: strong(decimal(heard)) }),
+      confirmKeyboard(t('button.submit_reading'), `meter-read:${meterId}:${heard}`, t),
     );
 
     return;
@@ -85,12 +84,14 @@ export const takeReading = async (
 
     const meters = await metersFor(kit.deps, resident);
     const meter = meters.find((state) => state.meter.id === meterId);
-    const rule = meter ? METER_RULES[meter.meter.kind] : undefined;
+    const unit = meter ? ` ${t(meterUnitKey(meter.meter.kind))}` : '';
 
     await typed.reply(
-      `Принято: ${strong(`${decimal(result.reading.value)}${rule ? ` ${rule.unit}` : ''}`)}.` +
+      t('meters.accepted', {
+        значение: strong(`${decimal(result.reading.value)}${unit}`),
+      }) +
         (result.consumption > 0
-          ? ` Расход за период: ${decimal(result.consumption)}${rule ? ` ${rule.unit}` : ''}.`
+          ? ` ${t('meters.consumption', { расход: `${decimal(result.consumption)}${unit}` })}`
           : '') +
         // Предупреждение о расходе идёт этим же сообщением: отдельным оно
         // приходило раньше чека и читалось как отказ.
@@ -107,7 +108,7 @@ export const takeReading = async (
       );
 
       expect(typed, { kind: 'reading', meterId: next.meter.id });
-      await typed.reply(readingPrompt(next), readingKeyboard(next.meter.id, left.length > 1));
+      await typed.reply(readingPrompt(next, t), readingKeyboard(next.meter.id, left.length > 1, t));
     }
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
@@ -118,8 +119,8 @@ export const takeReading = async (
       expect(typed, { kind: 'reading', meterId });
 
       await typed.reply(
-        `Показание не принято: ${commas(errorText(error))}\nПришлите число ещё раз.`,
-        readingKeyboard(meterId, false),
+        `${t('meters.refused', { причина: commas(errorText(error)) })}\n${t('meters.retry')}`,
+        readingKeyboard(meterId, false, t),
       );
 
       return;
@@ -128,11 +129,12 @@ export const takeReading = async (
     // Расчётный период идёт от начала окна подачи, а не от первого числа:
     // без этой строки «уже подано» выглядит ошибкой продукта.
     const next =
-      error.code === 'reading_duplicate'
-        ? `\nСледующее показание примем с ${READING_WINDOW.fromDay} числа.`
-        : '';
+      error.code === 'reading_duplicate' ? `\n${t('meters.next_window', { день: READING_WINDOW.fromDay })}` : '';
 
-    await typed.reply(`Показание не принято: ${commas(errorText(error))}.${next}`, afterError(error, typed));
+    await typed.reply(
+      `${t('meters.refused', { причина: `${commas(errorText(error))}.` })}${next}`,
+      afterError(error, typed, t),
+    );
   }
 };
 
@@ -147,17 +149,16 @@ export const readFromPhoto = async (
   meterId: string,
   photoUrl: string | undefined,
 ): Promise<void> => {
+  const t = speaking(typed);
+
   if (!photoUrl || !kit.vision?.readUrl) {
-    await typed.reply(
-      'Показание с фотографии здесь не читается. Отправьте его числом, например 123,456',
-      readingKeyboard(meterId, false),
-    );
+    await typed.reply(t('meters.no_vision'), readingKeyboard(meterId, false, t));
 
     return;
   }
 
   // Разбор снимка идёт секунды: на это время в переписке видно, что он идёт.
-  const looking = thinking(kit, typed, 'Смотрю на снимок…');
+  const looking = thinking(kit, typed, t('thinking.photo'));
   let value: number | undefined;
 
   try {
@@ -170,10 +171,8 @@ export const readFromPhoto = async (
 
     await typed.reply(
       `${errorText(failed)} ` +
-        (failed.code === 'meter_not_in_photo'
-          ? 'Сфотографируйте табло с цифрами или отправьте показание числом, например 123,456'
-          : 'Отправьте показание числом, например 123,456'),
-      readingKeyboard(meterId, false),
+        (failed.code === 'meter_not_in_photo' ? t('meters.photo_aim') : t('meters.photo_number')),
+      readingKeyboard(meterId, false, t),
     );
 
     return;
@@ -182,11 +181,7 @@ export const readFromPhoto = async (
   await looking();
 
   if (value === undefined) {
-    await typed.reply(
-      'Цифры на снимке не разобрать. Снимите табло ближе, без бликов и наклона, ' +
-        'или отправьте показание числом, например 123,456',
-      readingKeyboard(meterId, false),
-    );
+    await typed.reply(t('meters.photo_unreadable'), readingKeyboard(meterId, false, t));
 
     return;
   }
@@ -195,8 +190,7 @@ export const readFromPhoto = async (
   expect(typed, { kind: 'reading', meterId });
 
   await typed.reply(
-    `С фотографии вижу ${strong(decimal(value))}. Подать это показание?\n` +
-      'Если на табло другое число, пришлите его сообщением.',
-    confirmKeyboard('✅ Да, подать', `meter-read:${meterId}:${value}`),
+    t('meters.from_photo', { значение: strong(decimal(value)) }),
+    confirmKeyboard(t('button.submit_reading'), `meter-read:${meterId}:${value}`, t),
   );
 };

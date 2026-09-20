@@ -35,6 +35,9 @@ import {
   PERSONAL,
 } from './keyboards.js';
 import { needsFlat } from './apartment.js';
+import type { Translate } from '@domovoy/i18n';
+
+import { RU, speak, speakLanguage } from './i18n.js';
 import { BUTTONS } from './buttons.js';
 import { registerComments, speakInChat } from './chat.js';
 import { registerChatEvents } from './events.js';
@@ -47,6 +50,7 @@ import { broadcastCommands } from './commands/broadcast.js';
 import { houseCommands } from './commands/house.js';
 import { moneyCommands } from './commands/money.js';
 import { staffCommands } from './commands/staff.js';
+import { languageCommands } from './language.js';
 import { legalCommands, needsLegal } from './commands/legal.js';
 import { stickerCommands } from './commands/stickers.js';
 import { visitCommands } from './commands/visits.js';
@@ -62,6 +66,7 @@ import {
   QUIET_COMMANDS,
   nameOf,
   shown,
+  speaking,
   toast,
   toAttachments,
   screenKeeper,
@@ -71,13 +76,13 @@ import {
 } from './max.js';
 
 /** Кнопки, которые ничего не меняют: их нажимают и до согласия с документами. */
-const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more', 'app']);
+const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more', 'app', 'lang']);
 
 /**
  * Кнопки, доступные жильцу без квартиры: пункт меню, привязка, документы,
  * свои данные и примерка роли. Пункт меню проверяет сама команда.
  */
-const WITHOUT_FLAT_BUTTONS = new Set(['legal', 'menu', 'demo', 'bind', 'flat', 'mydata', 'forget']);
+const WITHOUT_FLAT_BUTTONS = new Set(['legal', 'menu', 'demo', 'bind', 'flat', 'mydata', 'forget', 'lang']);
 
 /**
  * Хождение по меню: такие нажатия переписывают сообщение, под которым стояла
@@ -85,7 +90,7 @@ const WITHOUT_FLAT_BUTTONS = new Set(['legal', 'menu', 'demo', 'bind', 'flat', '
  * Возврата тут нет намеренно: он стоит и под чеком заявки, и под кодом гостя,
  * а их правкой стирать нельзя.
  */
-const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'more', 'demo', 'door', 'guest', 'app']);
+const NAVIGATION_BUTTONS = new Set(['menu', 'group', 'more', 'demo', 'door', 'guest', 'app', 'lang']);
 
 /** Нажатие кнопки: обработчик по приставке payload, остальное после двоеточий. */
 const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
@@ -114,14 +119,13 @@ const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
   // Кнопка из старого сообщения после обновления продукта: молчать нельзя,
   // человек не отличит это от зависания. Всплывающее живёт пару секунд,
   // поэтому следом остаётся сообщение с меню.
-  await toast(typed, 'Эта кнопка уже не работает');
+  await toast(typed, speaking(typed)('button.stale'));
 
   if (inChat(typed)) return;
 
-  await typed.reply(
-    'Эта кнопка из старого сообщения. Вот с чего можно начать.',
-    kit.menuKeyboard(await kit.residentOf(typed)),
-  );
+  const resident = await kit.residentOf(typed);
+
+  await typed.reply(speak(resident)('button.stale_more'), kit.menuKeyboard(resident));
 };
 
 /**
@@ -136,22 +140,22 @@ const inviteToDialog = async (typed: BotContext, openApp: () => Extra | undefine
 };
 
 /** Что бот делает и без согласия: приветствие, справка и документы. */
-const WITHOUT_LEGAL = new Set(['start', 'help', 'legal']);
+const WITHOUT_LEGAL = new Set(['start', 'help', 'legal', 'lang']);
 
 /**
  * Что жилец делает и без квартиры: привязывает её, читает документы и справку,
  * смотрит свои данные и примеряет роль на проверке.
  */
-const WITHOUT_FLAT = new Set(['start', 'help', 'legal', 'flat', 'mydata', 'demo']);
+const WITHOUT_FLAT = new Set(['start', 'help', 'legal', 'flat', 'mydata', 'demo', 'lang']);
 
 /** Куда ведёт кнопка под уведомлением: подпись под раздел приложения. */
 const SECTION_TITLES: Record<string, string> = {
-  news: 'В приложении',
-  meters: 'В приложении',
-  polls: 'Собрание в приложении',
-  inspections: 'Осмотры в приложении',
-  list: 'В приложении',
-  queue: 'Очередь в приложении',
+  news: 'button.in_app_short',
+  meters: 'button.in_app_short',
+  polls: 'button.polls_in_app',
+  inspections: 'button.in_app_short',
+  list: 'button.requests_in_app',
+  queue: 'button.requests_in_app',
 };
 
 /**
@@ -159,25 +163,25 @@ const SECTION_TITLES: Record<string, string> = {
  * текста человеку не нужно, для этого под сообщением стоит кнопка.
  */
 const SECTION_IN_CHAT: Record<string, { title: string; command: string }> = {
-  new: { title: '✍️ Новая заявка', command: 'new' },
-  bill: { title: '🧾 Сколько платить', command: 'bill' },
-  flat: { title: '🏢 Квартира', command: 'flat' },
-  visits: { title: '🗓 Приём в офисе', command: 'visit' },
-  news: { title: '📣 Объявления', command: 'news' },
-  meters: { title: '💧 Передать показания', command: 'meters' },
-  polls: { title: '🗳 Собрания', command: 'vote' },
-  list: { title: '📋 Заявки', command: 'my' },
-  queue: { title: '🗂 Очередь дома', command: 'queue' },
-  debtors: { title: '💰 Долги дома', command: 'debts' },
-  support: { title: '💬 Вопросы жильцов', command: 'support' },
-  report: { title: '📊 Сводка за месяц', command: 'report' },
+  new: { title: 'menu.home.new', command: 'new' },
+  bill: { title: 'menu.bill', command: 'bill' },
+  flat: { title: 'menu.flat', command: 'flat' },
+  visits: { title: 'menu.visit', command: 'visit' },
+  news: { title: 'menu.news', command: 'news' },
+  meters: { title: 'button.send_meters', command: 'meters' },
+  polls: { title: 'menu.vote', command: 'vote' },
+  list: { title: 'topic.request', command: 'my' },
+  queue: { title: 'menu.staff.queue', command: 'queue' },
+  debtors: { title: 'menu.staff.debts', command: 'debts' },
+  support: { title: 'menu.staff.support', command: 'support' },
+  report: { title: 'menu.staff.report', command: 'report' },
 };
 
 /** Ряд с тем же разделом в переписке. Пусто, если в боте такого раздела нет. */
-const inChatRow = (section: string | undefined) => {
+const inChatRow = (section: string | undefined, t: Translate = RU) => {
   const to = section ? SECTION_IN_CHAT[section] : undefined;
 
-  return to ? [[Keyboard.button.callback(to.title, `menu:${to.command}`)]] : [];
+  return to ? [[Keyboard.button.callback(t(to.title), `menu:${to.command}`)]] : [];
 };
 
 /**
@@ -196,6 +200,9 @@ export const BOT_COMMANDS = [
   { name: 'support', description: 'Написать в управляющую компанию' },
   { name: 'contacts', description: 'К кому обращаться по дому' },
   { name: 'help', description: 'Спросить о доме словами' },
+  // Список команд один на всех и не переводится: язык выбирают до того,
+  // как продукт узнаёт человека, поэтому строка идёт на двух языках.
+  { name: 'lang', description: 'Язык / Language' },
 ];
 
 /** Команда проверки: её добавляют к меню только в режиме DEMO_ROLES. */
@@ -237,6 +244,7 @@ export const createBotNotifier = (
   async send({
     maxUserId,
     text,
+    language,
     actions,
     replyTo,
     askAbout,
@@ -248,30 +256,31 @@ export const createBotNotifier = (
     voteAbout,
   }) {
     try {
+      const t = speakLanguage(language);
+      const inApp = section ? (SECTION_TITLES[section] ?? 'button.open_app') : 'button.open_app';
+
       const keyboard = askAbout
-        ? alertKeyboard(askAbout)
+        ? alertKeyboard(askAbout, t)
         : signAbout
-          ? initiativeKeyboard(signAbout)
+          ? initiativeKeyboard(signAbout, t)
           : answerAbout
-            ? supportKeyboard(answerAbout)
+            ? supportKeyboard(answerAbout, t)
             : section || complaintFor || voteAbout
               ? keyboardOf([
                   // Бюллетень первым рядом: голосуют, не открывая приложение.
-                  ...(voteAbout ? [pollRow(voteAbout)] : []),
+                  ...(voteAbout ? [pollRow(voteAbout, t)] : []),
                   ...(complaintFor
-                    ? [[Keyboard.button.callback('📄 Пожаловаться в инспекцию', `gzhi:${complaintFor}`)]]
+                    ? [[Keyboard.button.callback(t('button.gzhi'), `gzhi:${complaintFor}`)]]
                     : []),
-                  ...inChatRow(section),
-                  ...(section
-                    ? appRow(miniAppUrl, SECTION_TITLES[section] ?? 'Открыть приложение', section)
-                    : []),
-                  ...(mutable ? [[Keyboard.button.callback('🔕 Уведомления', `mute:${mutable}`)]] : []),
-                ], PERSONAL)
-              : actionKeyboard(actions, replyTo);
+                  ...inChatRow(section, t),
+                  ...(section ? appRow(miniAppUrl, t(inApp), section) : []),
+                  ...(mutable ? [[Keyboard.button.callback(t('button.mute'), `mute:${mutable}`)]] : []),
+                ], PERSONAL, t)
+              : actionKeyboard(actions, replyTo, undefined, undefined, t);
 
       // Уведомление без единой кнопки это тупик: текст зовёт оформить заявку
       // или посмотреть счёт, а нажать нечего, и человек идёт набирать команду.
-      const ready = shown(text, keyboard ?? menuButton(PERSONAL));
+      const ready = shown(text, keyboard ?? menuButton(PERSONAL, t));
 
       await bot.api.sendMessageToUser(maxUserId, ready.text, ready.extra);
     } catch (error) {
@@ -325,6 +334,17 @@ export const createBotNotifier = (
   },
 });
 
+/**
+ * Язык человека запоминается в сессии: выходы с экрана дописываются вне
+ * обработчика, и там его уже не спросить.
+ */
+const rememberLanguage = (context: BotContext, resident: Resident): void => {
+  if (resident.language === undefined) return;
+
+  context.session ??= {};
+  context.session.lang = resident.language;
+};
+
 /** В чате отвечают только тому, кто обратился: команда или обращение по имени. */
 const answerable = (typed: BotContext): boolean =>
   !inChat(typed) || addressed(typed) || (typed.message?.body?.text?.trimStart().startsWith('/') ?? false);
@@ -341,9 +361,11 @@ const apologize = async (typed: BotContext, text: string): Promise<void> => {
   try {
     // После нажатия остаётся и сообщение: всплывающее гаснет за пару секунд,
     // и читающий медленно решает, что кнопка не сработала.
-    if (typed.callback?.callback_id) await toast(typed, 'Не получилось. Попробуйте ещё раз');
+    const t = speaking(typed);
 
-    if (answerable(typed)) await typed.reply(text, menuButton(typed));
+    if (typed.callback?.callback_id) await toast(typed, t('error.toast'));
+
+    if (answerable(typed)) await typed.reply(text, menuButton(typed, t));
   } catch {
     // Ответить не вышло: апдейт мог прийти без чата, и писать некуда.
   }
@@ -361,7 +383,7 @@ const guarded =
     } catch (error) {
       // После нажатия остаётся и сообщение: всплывающее гаснет за пару секунд,
       // и читающий медленно решает, что кнопка не сработала.
-      await apologize(typed, 'Не получилось выполнить. Нажмите ещё раз или выберите в меню.');
+      await apologize(typed, speaking(typed)('error.retry'));
 
       throw error;
     }
@@ -441,7 +463,7 @@ export const createDomovoyBot = (
     try {
       await next();
     } catch (error) {
-      await apologize(typed, 'Не получилось обработать сообщение. Попробуйте ещё раз или выберите в меню.');
+      await apologize(typed, speaking(typed)('error.message'));
 
       throw error;
     }
@@ -466,15 +488,19 @@ export const createDomovoyBot = (
     const house = buildingId ?? (inChat(context) ? (await houseOf(context))?.id : undefined);
     const known = await ensureResident(deps, { maxUserId, displayName: nameOf(user), ...(house ? { buildingId: house } : {}) });
 
+    rememberLanguage(context, known);
+
     return house && !known.buildingId ? { ...known, buildingId: house } : known;
   };
 
   /** Без адреса мини-приложения сообщение остаётся с кнопкой меню, а не голым. */
   const openAppKeyboard = (startParam?: string, context?: BotContext) => {
-    if (!options.miniAppUrl) return context ? menuButton(context) : undefined;
+    const t = context ? speaking(context) : speaking({});
+
+    if (!options.miniAppUrl) return context ? menuButton(context, t) : undefined;
 
     const url = appLink(options.miniAppUrl, startParam);
-    return { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.openApp('📱 Открыть приложение', url)]])] };
+    return { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.openApp(t('button.open_app'), url)]])] };
   };
 
   bot.on('bot_started', (context) =>
@@ -513,6 +539,9 @@ export const createDomovoyBot = (
     bot.command(name, (context) => dispatch(context as never));
   };
 
+  /** Что в этой установке подключено: чего нет, того нет и в меню. */
+  const offer = { doors: Boolean(deps.hub), demo: Boolean(options.demo) };
+
   const kit: BotKit = {
     bot,
     deps,
@@ -525,8 +554,7 @@ export const createDomovoyBot = (
     residentOf,
     houseOf,
     chatHelp,
-    menuKeyboard: (resident) =>
-      menuKeyboard(resident, options.miniAppUrl, { doors: Boolean(deps.hub), demo: Boolean(options.demo) }),
+    menuKeyboard: (resident) => menuKeyboard(resident, options.miniAppUrl, offer, speak(resident)),
     answered: (typed, resident, description, startParam) =>
       answerQuestion(kit, typed, resident, description, startParam),
     announce: (typed, result, description, startParam, unheard) =>
@@ -544,6 +572,7 @@ export const createDomovoyBot = (
 
   // Команды разложены по областям продукта, регистрируются одинаково.
   const areas = [
+    languageCommands,
     legalCommands,
     basicCommands,
     moneyCommands,
@@ -577,10 +606,9 @@ export const createDomovoyBot = (
 
     if ((await needsLegal(kit, typed)) || (await needsFlat(kit, typed))) return;
 
-    await typed.reply(
-      'Такой команды у меня нет. Можно написать словами, что нужно, я разберу.',
-      kit.menuKeyboard(await residentOf(typed)),
-    );
+    const resident = await residentOf(typed);
+
+    await typed.reply(speak(resident)('command.unknown'), kit.menuKeyboard(resident));
   };
 
   bot.on(

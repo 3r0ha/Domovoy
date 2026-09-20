@@ -11,7 +11,6 @@ import {
   isFinal,
   isSharedInfrastructure,
   OPEN_STATUSES,
-  plural,
   provesPresence,
   reporterIds,
   selectAudience,
@@ -20,6 +19,7 @@ import {
   suggestPriority,
   type Apartment,
   type Attachment,
+  type OriginalText,
   type Priority,
   type RequestCategory,
   type RequestStatus,
@@ -27,10 +27,13 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { locateTarget } from '../apartments.js';
 import { recordAction } from '../audit.js';
 import { announceResolved } from '../broadcast.js';
 import { assertApartment } from '../buildings.js';
+import { counted, speak, speakDefault } from '../language.js';
 import {
   actionsFor,
   formatAssignment,
@@ -42,6 +45,7 @@ import {
   notifyResident,
 } from '../notifier.js';
 import { type Resident } from '../repository.js';
+import { intoLanguage, intoRussian, withOriginal, type Translated } from '../translation.js';
 import { houseZone } from '../zone.js';
 import { assertMayTargetApartment, assertStaffServes, canActNow, canView, entranceOf } from './access.js';
 import { type AppDeps, type RequestPage } from './deps.js';
@@ -49,6 +53,8 @@ import { type AppDeps, type RequestPage } from './deps.js';
 export interface CreateRequestCommand {
   resident: Resident;
   description: string;
+  /** Что человек написал сам, если `description` это перевод на русский. */
+  original?: OriginalText;
   /** Короткая суть. Если не задана, делается из описания. */
   title?: string;
   category?: RequestCategory;
@@ -146,6 +152,7 @@ export const createServiceRequest = async (deps: AppDeps, command: CreateRequest
     priority,
     target: located,
     description,
+    ...(command.original ? { original: command.original } : {}),
     ...(command.title?.trim() ? { title: command.title.trim() } : {}),
     createdAt,
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
@@ -305,7 +312,6 @@ const tellAboutTransition = async (
 ): Promise<void> => {
   if (command.quiet) return;
 
-  const text = formatStatusChange(saved);
   const notifier = deps.notifier ?? noopNotifier;
   const entrance = entranceOf(saved.target);
   const elder =
@@ -321,7 +327,7 @@ const tellAboutTransition = async (
     await notifyResident(
       notifier,
       person,
-      text,
+      formatStatusChange(speak(person), saved),
       person ? actionsFor(saved, person) : [],
       OPEN_STATUSES.includes(saved.status) ? saved.id : undefined,
     );
@@ -335,7 +341,7 @@ const tellAboutTransition = async (
     await notifyResident(
       notifier,
       worker,
-      text,
+      formatStatusChange(speak(worker), saved),
       worker ? actionsFor(saved, worker) : [],
       OPEN_STATUSES.includes(saved.status) ? saved.id : undefined,
     );
@@ -380,44 +386,60 @@ export const commentRequest = async (deps: AppDeps, command: CommentCommand): Pr
 
   await assertStaffServes(deps, command.resident, found);
 
+  // Смена работает по-русски: сообщение на другом языке переводится, а то,
+  // что человек написал сам, остаётся в переписке рядом с переводом.
+  const told = await intoRussian(deps, command.resident.language, command.text);
+
   const saved = await deps.repository.saveRequest(
     addMessage(found, {
       role: command.resident.role,
       actorId: command.resident.id,
       at: deps.now(),
-      text: command.text,
+      text: told.text,
       ...(command.attachments?.length ? { attachments: command.attachments } : {}),
+      ...(told.original ? { original: told.original } : {}),
     }),
   );
 
-  await notifyAboutMessage(deps, saved, command);
+  await notifyAboutMessage(deps, saved, command, told);
 
   return saved;
 };
 
 /** Кому уходит сообщение по заявке. */
-const notifyAboutMessage = async (deps: AppDeps, request: ServiceRequest, command: CommentCommand): Promise<void> => {
+const notifyAboutMessage = async (
+  deps: AppDeps,
+  request: ServiceRequest,
+  command: CommentCommand,
+  told: Translated,
+): Promise<void> => {
   const notifier = deps.notifier ?? noopNotifier;
   const reporters = reporterIds(request);
   const files = command.attachments?.length ?? 0;
+  const written = told.text.trim();
 
   // Снимок без подписи уходил пустой строкой: получатель видел «пишет:» и ничего.
-  const text =
-    command.text.trim() ||
-    (files > 0 ? `прислал ${plural(files, 'вложение', 'вложения', 'вложений')}` : '');
+  const said = (t: Translate): string =>
+    written || (files > 0 ? counted(t, 'notice.attachments', files) : '');
 
-  const send = async (ids: readonly string[], author: string): Promise<void> => {
+  // Смене идёт русский текст с пометкой о переводе, жильцу, текст на его языке.
+  const forStaff = withOriginal(said(speakDefault()), told.original);
+
+  const send = async (ids: readonly string[], authorKey: string, toStaff = false): Promise<void> => {
     for (const id of new Set(ids)) {
       if (id === command.resident.id) continue;
 
       const to = await deps.repository.findResident(id);
+      const t = toStaff ? speakDefault() : speak(to);
+      // Слова человека переводит служба перевода, строку продукта, словарь.
+      const text = toStaff ? forStaff : written ? await intoLanguage(deps, to, written) : said(t);
 
-      await notifyResident(notifier, to, formatMessage(request, author, text), [], request.id);
+      await notifyResident(notifier, to, formatMessage(t, request, t(authorKey), text), [], request.id);
     }
   };
 
   if (command.resident.role !== 'resident' && !hasReported(request, command.resident.id)) {
-    await send(reporters, 'Управляющая компания');
+    await send(reporters, 'app.notice.author.company');
     return;
   }
 
@@ -431,10 +453,11 @@ const notifyAboutMessage = async (deps: AppDeps, request: ServiceRequest, comman
 
   await send(
     staff.length > 0 ? staff : (await deps.repository.listStaff(request.buildingId)).map((person) => person.id),
-    'Жилец',
+    'app.notice.author.resident',
+    true,
   );
 
-  if (reporters.length > 1) await send(reporters, 'Сосед');
+  if (reporters.length > 1) await send(reporters, 'app.notice.author.neighbour');
 };
 
 /** Кого спросить и о чём предупредить, когда аварию приняли в работу. */
@@ -449,10 +472,14 @@ const askNeighbours = async (deps: AppDeps, request: ServiceRequest): Promise<vo
   const affected = selectAudience(apartments, audience).map((apartment) => apartment.id);
   const residents = await deps.repository.listResidentsByApartments(affected);
   const known = new Set(reporterIds(request));
-  const text = shared ? formatNeighbourAlert(request, request.resolutionDueAt) : formatNeighbourQuestion(request);
 
   for (const resident of residents) {
     if (known.has(resident.id)) continue;
+
+    const t = speak(resident);
+    const text = shared
+      ? formatNeighbourAlert(t, request, request.resolutionDueAt)
+      : formatNeighbourQuestion(t, request);
 
     await notifyResident(deps.notifier ?? noopNotifier, resident, text, [], { askAbout: request.id });
   }

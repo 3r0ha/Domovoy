@@ -3,6 +3,7 @@ import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
 import { ApiError, formatDay, formatPhone, initial, type DomovoyApi, type NoticeView } from '../api.js';
+import { useT } from '../i18n.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
@@ -46,6 +47,7 @@ export const ProfileScreen = ({
   onUnbound,
   onPhone,
 }: ProfileScreenProps) => {
+  const t = useT();
   const bridge = useBridge();
   const canShareContact = useSupports('requestContact');
   const notices = useBridgeRequest((alive) => api.until(alive).notices(), [api]);
@@ -73,7 +75,7 @@ export const ProfileScreen = ({
     try {
       await what();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не получилось');
+      setError(reason instanceof ApiError ? reason.message : t('profile.failed'));
     } finally {
       setWorking(false);
     }
@@ -135,7 +137,7 @@ export const ProfileScreen = ({
     });
 
   const showData = (): Promise<void> =>
-    run(async () => onDocument('Мои данные', await api.personalData()));
+    run(async () => onDocument(t('profile.data'), await api.personalData()));
 
   /** Документ продукта: открывается своим экраном, без браузера. Список уже прочитан. */
   const showLegal = (slug: string): Promise<void> =>
@@ -167,13 +169,13 @@ export const ProfileScreen = ({
             </Avatar.Container>
           }
           title={displayName}
-          subtitle={where ?? (bound ? 'Квартира привязана' : 'Квартира не привязана')}
+          subtitle={where ?? (bound ? t('profile.bound') : t('profile.unbound'))}
         />
 
         {elder ? (
           <CellSimple
-            title={`Старший по подъезду ${elder.entrance}`}
-            subtitle={`Полномочия до ${formatDay(elder.until)}`}
+            title={t('profile.elder', { подъезд: elder.entrance })}
+            subtitle={t('profile.elder.until', { дата: formatDay(elder.until) })}
             separator
             height="compact"
           />
@@ -194,8 +196,8 @@ export const ProfileScreen = ({
       <CellList mode="island">
         {canShareContact ? (
           <CellSimple
-            title="Телефон"
-            subtitle={number ? formatPhone(number) : 'Не указан'}
+            title={t('profile.phone')}
+            subtitle={number ? formatPhone(number) : t('profile.phone.empty')}
             showChevron={!number}
             {...(number ? {} : { onClick: () => void share() })}
           />
@@ -203,8 +205,8 @@ export const ProfileScreen = ({
 
         <CellSimple
           className="row-split"
-          title="Мои данные"
-          subtitle="Заявки, показания и голоса"
+          title={t('profile.data')}
+          subtitle={t('profile.data.hint')}
           separator={canShareContact}
           showChevron
           onClick={() => void showData()}
@@ -224,7 +226,7 @@ export const ProfileScreen = ({
 
       {list.length > 0 ? (
         <>
-          <Group title="Что присылать">
+          <Group title={t('profile.notices')}>
             {list.map((notice, index) => (
               <CellSimple
                 key={notice.kind}
@@ -236,17 +238,17 @@ export const ProfileScreen = ({
             ))}
           </Group>
 
-          <p className="hint aside">Об авариях и своих заявках сообщаем всегда</p>
+          <p className="hint aside">{t('profile.notices.always')}</p>
         </>
       ) : null}
 
-      {notices.error ? <ErrorText>Настройки уведомлений не загрузились</ErrorText> : null}
+      {notices.error ? <ErrorText>{t('profile.notices.failed')}</ErrorText> : null}
 
       {flat ? (
         <CellList mode="island">
           <CellSimple
             className="row-split"
-            title="Отвязать квартиру"
+            title={t('profile.unbind')}
             showChevron
             onClick={() => setLeaving(true)}
           />
@@ -255,10 +257,10 @@ export const ProfileScreen = ({
 
       {flat && leaving ? (
         <Confirm
-          title={`Отвязать ${flat.title.toLowerCase()}?`}
-          text="Заявки и показания останутся у дома, привязать снова можно кодом из квитанции."
-          confirmLabel="Отвязать"
-          busyLabel="Отвязываем…"
+          title={t('profile.unbind.confirm', { квартира: flat.title.toLowerCase() })}
+          text={t('profile.unbind.text')}
+          confirmLabel={t('profile.unbind.do')}
+          busyLabel={t('profile.unbind.busy')}
           busy={working}
           danger
           onConfirm={() => void unbind()}
@@ -269,21 +271,21 @@ export const ProfileScreen = ({
       {number ? (
         <CellList mode="island">
           <CellAction mode="secondary" onClick={() => void forgetPhone()}>
-            Убрать телефон
+            {t('profile.phone.forget')}
           </CellAction>
         </CellList>
       ) : null}
 
       <button type="button" className="link danger-link" onClick={() => setConfirming(true)}>
-        Удалить профиль
+        {t('profile.forget')}
       </button>
 
       {confirming ? (
         <Confirm
-          title="Удалить профиль?"
-          text={`${bound ? 'Квартира отвяжется. ' : ''}Заявки и показания останутся у дома.`}
-          confirmLabel="Удалить"
-          busyLabel="Удаляем…"
+          title={t('profile.forget.confirm')}
+          text={bound ? t('profile.forget.text.bound') : t('profile.forget.text')}
+          confirmLabel={t('profile.forget.do')}
+          busyLabel={t('profile.forget.busy')}
           busy={busy}
           danger
           onConfirm={() => void forget()}

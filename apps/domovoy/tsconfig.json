@@ -37,6 +37,9 @@
     },
     {
       "path": "../../packages/stickers"
+    },
+    {
+      "path": "../../packages/i18n"
     }
   ]
 }

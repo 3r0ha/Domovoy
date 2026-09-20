@@ -21,9 +21,12 @@ import {
   formatWorksFinished,
   formatWorksSoon,
   formatWorksStarted,
+  speakDefault,
 } from '../dist/index.js';
 
 const NOW = new Date('2026-09-07T06:00:00Z');
+
+const ru = speakDefault();
 
 const request = (overrides: Partial<ServiceRequest> = {}): ServiceRequest => ({
   id: 'req-1',
@@ -69,7 +72,7 @@ const inspection: Inspection = {
 
 describe('тексты уведомлений', () => {
   it('смена статуса называет заявку, её суть, категорию и адрес', () => {
-    const text = formatStatusChange(request({ status: 'in_progress' }));
+    const text = formatStatusChange(ru, request({ status: 'in_progress' }));
 
     assert.equal(
       text,
@@ -79,6 +82,7 @@ describe('тексты уведомлений', () => {
 
   it('причина отказа договаривается до жильца, а не теряется в статусе', () => {
     const text = formatStatusChange(
+      ru,
       request({
         status: 'rejected',
         history: [
@@ -125,35 +129,35 @@ describe('тексты уведомлений', () => {
   });
 
   it('соседа спрашивают, а не пугают', () => {
-    const text = formatNeighbourQuestion(request());
+    const text = formatNeighbourQuestion(ru, request());
 
     assert.match(text, /^Сосед по стояку сообщает: нет горячей воды\./);
     assert.match(text, /У вас то же самое\?$/);
   });
 
   it('предупреждение соседям называет срок словами', () => {
-    const text = formatNeighbourAlert(request(), request().resolutionDueAt);
+    const text = formatNeighbourAlert(ru, request(), request().resolutionDueAt);
 
     assert.match(text, /срок до 8 сентября в 09:00/);
     assert.doesNotMatch(text, /\d{2}\.\d{2}\.\d{4}/);
   });
 
   it('о просрочке жильцу говорят прямо, а путь в инспекцию открывают не всегда', () => {
-    assert.match(formatOverdue(request(), 'reaction', false), /заявку до сих пор не приняли в работу/);
-    assert.doesNotMatch(formatOverdue(request(), 'reaction', false), /жилинспекц/);
-    assert.match(formatOverdue(request(), 'resolution', true), /Есть основание обратиться в жилищную инспекцию/);
+    assert.match(formatOverdue(ru, request(), 'reaction', false), /заявку до сих пор не приняли в работу/);
+    assert.doesNotMatch(formatOverdue(ru, request(), 'reaction', false), /жилинспекц/);
+    assert.match(formatOverdue(ru, request(), 'resolution', true), /Есть основание обратиться в жилищную инспекцию/);
   });
 
   it('напоминание о приёмке объясняет, что будет, если промолчать', () => {
-    const text = formatAcceptanceReminder(request({ status: 'done' }), 24);
+    const text = formatAcceptanceReminder(ru, request({ status: 'done' }), 24);
 
     assert.match(text, /через 24 часа заявка закроется сама/);
     assert.match(text, /верните её в работу/);
   });
 
   it('автозакрытие не выглядит отказом: старая заявка остаётся в истории', () => {
-    assert.match(formatAutoConfirmed(request(), 48), /за 48 часов возражений не поступило/);
-    assert.match(formatAutoConfirmed(request(), 48), /останется в истории объекта/);
+    assert.match(formatAutoConfirmed(ru, request(), 48), /за 48 часов возражений не поступило/);
+    assert.match(formatAutoConfirmed(ru, request(), 48), /останется в истории объекта/);
   });
 
   it('горящий срок называет остаток минутами, пока их меньше часа', () => {
@@ -176,10 +180,10 @@ describe('тексты уведомлений', () => {
   });
 
   it('работы объявляются одинаково: что, кому и до какого часа', () => {
-    assert.match(formatWorksSoon(work, NOW), /^Завтра плановые работы: водоснабжение и канализация\./);
-    assert.match(formatWorksStarted(work, NOW), /Закончить планируем до 14:00\./);
-    assert.match(formatWorksFinished(work), /Плановые работы завершены по графику/);
-    assert.match(formatWorksFinished(work), /напишите, и оформлю заявку/);
+    assert.match(formatWorksSoon(ru, work, NOW), /^Завтра плановые работы: водоснабжение и канализация\./);
+    assert.match(formatWorksStarted(ru, work, NOW), /Закончить планируем до 14:00\./);
+    assert.match(formatWorksFinished(ru, work), /Плановые работы завершены по графику/);
+    assert.match(formatWorksFinished(ru, work), /напишите, и оформлю заявку/);
   });
 
   it('обход мастеру называет срок и место', () => {
@@ -194,12 +198,15 @@ describe('тексты уведомлений', () => {
   });
 
   it('вход гостя отмечается часом, а не полной датой', () => {
-    assert.equal(formatGuestEntry('Домофон, подъезд 1', NOW), 'Гостевой код сработал: Домофон, подъезд 1, 09:00');
+    assert.equal(
+      formatGuestEntry(ru, 'Домофон, подъезд 1', NOW),
+      'Гостевой код сработал: Домофон, подъезд 1, 09:00',
+    );
   });
 
   it('сообщение по заявке подписано автором', () => {
     assert.equal(
-      formatMessage(request(), 'Управляющая компания', 'Мастер подъедет после обеда'),
+      formatMessage(ru, request(), 'Управляющая компания', 'Мастер подъедет после обеда'),
       'Заявка Д15-2609-0001. Управляющая компания пишет:\nМастер подъедет после обеда',
     );
   });

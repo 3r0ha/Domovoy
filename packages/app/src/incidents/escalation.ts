@@ -14,6 +14,7 @@ import {
 import { apartmentIn } from '../apartments.js';
 import { servedBy } from '../buildings.js';
 import { MANUAL_CHANNEL } from '../handoff.js';
+import { speak } from '../language.js';
 import { noopNotifier, notifyResident } from '../notifier.js';
 import { rememberResidents } from '../people.js';
 import { type Resident } from '../repository.js';
@@ -175,12 +176,15 @@ export const sendComplaint = async (
 
   const notifier = deps.notifier ?? noopNotifier;
 
+  const t = speak(resident);
+
   await notifyResident(
     notifier,
     resident,
-    `Обращение отправлено: ${handoff.organization}.` +
-      `${handoff.externalId ? `\nНомер ${handoff.externalId}.` : ''}` +
-      '\nОтвет приходит в течение 30 дней.',
+    t('app.notice.complaintSent', {
+      организация: handoff.organization,
+      номер: handoff.externalId ? t('app.notice.complaintNumber', { номер: handoff.externalId }) : '',
+    }),
   );
 
   return { handoff, complaint: offer.complaint };

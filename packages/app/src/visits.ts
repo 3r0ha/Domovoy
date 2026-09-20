@@ -18,6 +18,7 @@ import {
 } from '@domovoy/domain';
 
 import { assertServes, homeBuildingOf, housed, publicHouseOf } from './buildings.js';
+import { speak } from './language.js';
 import { recordAction } from './audit.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
@@ -268,7 +269,7 @@ export const recordVisit = async (deps: AppDeps, command: RecordVisitCommand): P
     await notifyResident(
       deps.notifier ?? noopNotifier,
       visitor,
-      `Управляющая организация записала вас на приём: ${when}.\n${saved.topic}`,
+      speak(visitor)('app.visit.booked', { когда: when, тема: saved.topic }),
     );
   }
 
@@ -306,7 +307,10 @@ export const dropVisit = async (deps: AppDeps, resident: Resident, visitId: stri
     await notifyResident(
       notifier,
       author,
-      `Приём ${formatDay(visit.at, zone)} в ${formatClock(visit.at, zone)} отменён управляющей организацией.`,
+      speak(author)('app.visit.cancelled', {
+        день: formatDay(visit.at, zone),
+        время: formatClock(visit.at, zone),
+      }),
     );
   }
 

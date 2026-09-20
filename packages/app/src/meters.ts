@@ -1,7 +1,8 @@
 import {
   DomainError,
-  METER_RULES,
   READING_WINDOW,
+  meterKindKey,
+  meterUnitKey,
   acceptReading,
   consumption,
   daysLeftInWindow,
@@ -18,8 +19,11 @@ import {
   type Reading,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { apartmentsOf } from './apartments.js';
 import { houseHint, servedBy } from './buildings.js';
+import { counted, speak } from './language.js';
 import { recordAction } from './audit.js';
 import { wanting } from './notices.js';
 import { noopNotifier, notifyAbout } from './notifier.js';
@@ -285,12 +289,14 @@ export const submitReading = async (deps: AppDeps, command: SubmitReadingCommand
   // Расход прошлого периода этой же квартиры: он уже прочитан вместе с историей.
   const before = previous ? consumption(rest[1], previous) : 0;
 
+  const t = speak(command.resident);
+
   const advice = spike
-    ? spikeAdvice(meter, spent)
+    ? spikeAdvice(t, meter, spent)
     : // Сравнение с соседями стоит трёх запросов по всему дому, поэтому его делаем,
       // только когда расход вырос: о неизменившемся жильцу уже говорили в прошлый раз.
       spent > before
-      ? await neighbourAdvice(deps, meter, spent, flat?.buildingId)
+      ? await neighbourAdvice(deps, t, meter, spent, flat?.buildingId)
       : undefined;
 
   return { reading: saved, consumption: spent, spike, ...(advice ? { advice } : {}) };
@@ -299,13 +305,13 @@ export const submitReading = async (deps: AppDeps, command: SubmitReadingCommand
 /** Расход заметно выше соседского. Дом берётся у квартиры прибора, а не у подавшего. */
 const neighbourAdvice = async (
   deps: AppDeps,
+  t: Translate,
   meter: Meter,
   spent: number,
   buildingId: string | undefined,
 ): Promise<string | undefined> => {
   if (spent <= 0 || !buildingId) return undefined;
 
-  const rule = METER_RULES[meter.kind];
   const apartments = await deps.repository.listApartments(buildingId);
   const meters = await deps.repository.listMetersByApartments(apartments.map((apartment) => apartment.id));
   const same = meters.filter((item) => item.kind === meter.kind && item.id !== meter.id);
@@ -324,24 +330,21 @@ const neighbourAdvice = async (
 
   if (!compared.unusual) return undefined;
 
-  return (
-    `Расход по счётчику ${meter.serial} выше, чем у соседей: ` +
-    `${formatMeterValue(spent)} ${rule.unit} против ${formatMeterValue(compared.median)} ${rule.unit} ` +
-    'у похожих квартир.\n' +
-    'Стоит проверить: чаще всего это подтекающий бачок или смеситель.'
-  );
+  return t('app.meters.aboveNeighbours', {
+    номер: meter.serial,
+    расход: formatMeterValue(spent),
+    единица: t(meterUnitKey(meter.kind)),
+    соседи: formatMeterValue(compared.median),
+  });
 };
 
 /** Резкий скачок расхода: повод предупредить. */
-const spikeAdvice = (meter: Meter, spent: number): string => {
-  const rule = METER_RULES[meter.kind];
-
-  return (
-    `Расход по счётчику «${rule.title}» за период: ${formatMeterValue(spent)} ${rule.unit}, ` +
-    'это заметно больше обычного.\n' +
-    'Если вы не расходовали больше обычного, проверьте краны и бачок.'
-  );
-};
+const spikeAdvice = (t: Translate, meter: Meter, spent: number): string =>
+  t('app.meters.spike', {
+    прибор: t(meterKindKey(meter.kind)),
+    расход: formatMeterValue(spent),
+    единица: t(meterUnitKey(meter.kind)),
+  });
 
 /** Кому напомнить о показаниях. */
 export interface ReadingProgress {
@@ -417,7 +420,8 @@ export const remindAboutReadings = async (deps: AppDeps, buildingId: string): Pr
   const meters = await deps.repository.listMetersByApartments(apartments.map((apartment) => apartment.id));
   const readings = await deps.repository.listReadingsFor(meters.map((meter) => meter.id));
 
-  const name = (meter: Meter): string => `${METER_RULES[meter.kind].title} (${meter.serial})`;
+  const name = (t: Translate, meter: Meter): string =>
+    t('app.meters.name', { прибор: t(meterKindKey(meter.kind)), номер: meter.serial });
 
   for (const resident of wanting(residents, 'meters')) {
     const mine = new Set(apartmentsOf(resident).filter((id) => apartments.some((item) => item.id === id)));
@@ -429,16 +433,17 @@ export const remindAboutReadings = async (deps: AppDeps, buildingId: string): Pr
     if (pending.length === 0 && expired.length === 0) continue;
 
     const left = daysLeftInWindow(now, READING_WINDOW, zone);
+    const t = speak(resident);
     const ask =
       pending.length > 0
-        ? `Пора подать показания счётчиков, ${daysLeftPhrase(left)}:\n` +
-          `${pending.map((state) => `  ${name(state.meter)}`).join('\n')}\n` +
-          'Нажмите кнопку ниже и отправьте цифры со счётчика.'
+        ? t('app.meters.remind', {
+            осталось: counted(t, 'days.left', left),
+            приборы: pending.map((state) => `  ${name(t, state.meter)}`).join('\n'),
+          })
         : '';
     const verify =
       expired.length > 0
-        ? `Истекла поверка: ${expired.map((state) => name(state.meter)).join(', ')}.\n` +
-          'До новой поверки начисляют по нормативу.'
+        ? t('app.meters.expired', { приборы: expired.map((state) => name(t, state.meter)).join(', ') })
         : '';
 
     const house = await houseHint(deps, resident, buildingId);

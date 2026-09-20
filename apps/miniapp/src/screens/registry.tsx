@@ -2,6 +2,7 @@ import { Button } from '@maxhub/max-ui';
 import { lazy, Suspense, type ReactNode } from 'react';
 
 import { type DomovoyApi, type DeviceView, type Profile } from '../api.js';
+import { say } from '../i18n.js';
 import { type Screen } from '../navigation.js';
 import type { Waiting } from '../App.js';
 import { type Section } from '../sections.js';
@@ -15,6 +16,7 @@ import { Empty } from './Empty.js';
 import { GuestScreen } from './GuestScreen.js';
 import { HomeScreen } from './HomeScreen.js';
 import { JournalScreen } from './JournalScreen.js';
+import { LanguageScreen } from './LanguageScreen.js';
 import { MetersScreen } from './MetersScreen.js';
 import { MoreScreen } from './TabBar.js';
 import { NewRequestScreen } from './NewRequestScreen.js';
@@ -102,9 +104,9 @@ const isExecutor = (profile: Profile): boolean =>
 
 // Ссылка на чужой раздел открывается пояснением, а не пустой страницей и не отказом сервера.
 const elsewhere: Body = (context) => (
-  <Empty mood="sleeping" title="Раздел недоступен">
+  <Empty mood="sleeping" title={say('chrome.section.denied')}>
     <Button type="button" onClick={() => context.open('more')}>
-      В меню
+      {say('chrome.section.menu')}
     </Button>
   </Empty>
 );
@@ -138,6 +140,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
           ? { onSupport: () => context.open('support') }
           : {
               onProfile: () => context.goDeeper('profile'),
+              onLanguage: () => context.goDeeper('language'),
               ...(context.profile.demo === true ? { onDemo: () => context.goDeeper('demo') } : {}),
             })}
         onBound={() => {
@@ -266,6 +269,14 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
 
   demo: (context) =>
     context.profile.demo === true ? <DemoScreen api={context.api} onSwitched={context.refreshSession} /> : null,
+
+  language: (context) => (
+    <LanguageScreen
+      api={context.api}
+      {...(context.profile.language ? { current: context.profile.language } : {})}
+      onPicked={(language) => context.patchProfile((profile) => ({ ...profile, language }))}
+    />
+  ),
 
   polls: (context) => (
     <PollsScreen

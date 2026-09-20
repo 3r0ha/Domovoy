@@ -1,8 +1,15 @@
 import type { Attachment } from '@domovoy/domain';
+import type { Language, Translate } from '@domovoy/i18n';
+
+import { speakLanguage } from './i18n.js';
 
 /** Состояние диалога: чего бот ждёт от следующего сообщения. */
 export interface DialogSession {
   awaiting?: Awaiting;
+  /** Язык разговора: выходы дописываются вне обработчика, где человека уже нет. */
+  lang?: Language;
+  /** Код из ссылки, отложенный до выбора языка: разговор продолжится с него. */
+  afterLang?: string;
   /** Обращение, на которое ответили плановыми работами. */
   plannedDescription?: string;
   plannedTarget?: string;
@@ -37,6 +44,10 @@ export type Awaiting =
   | { kind: 'handoff'; handoffId: string }
   | { kind: 'code' }
   | { kind: 'assistant' };
+
+/** Язык разговора по запомненному в сессии: человека здесь уже нет. */
+export const speaking = (context: { session?: DialogSession }): Translate =>
+  speakLanguage(context.session?.lang);
 
 /** Новое ожидание вытесняет прежнее. */
 export const expect = (context: { session?: DialogSession }, awaiting: Awaiting): void => {
@@ -139,8 +150,8 @@ export const toast = async (context: BotContext, text?: string): Promise<void> =
  * ряду и в таком порядке. Одного «Назад» мало: из «Мои данные» человек хочет
  * и в «Ещё», и в меню.
  */
-const MENU_BUTTON = { type: 'callback', text: '🏠 Меню', payload: 'group:back' };
-const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'cancel' };
+const menuButtonOf = (t: Translate) => ({ type: 'callback', text: t('button.menu'), payload: 'group:back' });
+const backButtonOf = (t: Translate) => ({ type: 'callback', text: t('button.back'), payload: 'cancel' });
 
 /**
  * Первый экран меню: возвращаться с него некуда, и у подрядчика, у которого
@@ -296,10 +307,16 @@ const exits = (rows: { payload?: string }[][]): { back: boolean; menu: boolean }
 export const withBack = (extra: Record<string, unknown> | undefined, context: BotContext): typeof extra => {
   if (inChat(context) || (extra && ROOT_MENUS.has(extra))) return extra;
 
+  const t = speaking(context);
+
   // Ответ вообще без кнопок это самый частый тупик: человеку нечего нажать,
   // и он уходит набирать команду заново.
   if (!extra) {
-    return { attachments: [{ type: 'inline_keyboard', payload: { buttons: [[MENU_BUTTON, BACK_BUTTON]] } }] };
+    return {
+      attachments: [
+        { type: 'inline_keyboard', payload: { buttons: [[menuButtonOf(t), backButtonOf(t)]] } },
+      ],
+    };
   }
 
   const attachments = extra['attachments'];
@@ -320,7 +337,7 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
   // Где человек уже может выйти отменой, второй выход только мешает.
   if (has.back) return extra;
 
-  const added = [...(has.menu ? [] : [MENU_BUTTON]), BACK_BUTTON];
+  const added = [...(has.menu ? [] : [menuButtonOf(t)]), backButtonOf(t)];
 
   return {
     ...extra,
@@ -478,6 +495,7 @@ export const PRIVATE_COMMANDS = new Set([
   'report',
   'queue',
   'legal',
+  'lang',
 ]);
 
 /** Команды с продолжением: бот спрашивает, человек отвечает. Из чата уводятся в переписку. */

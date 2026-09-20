@@ -2,6 +2,8 @@ import { Button, MaxUI, useSystemColorScheme } from '@maxhub/max-ui';
 import { useBackButton, useBridgeRequest, useLaunchParams } from '@maxkit/react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import type { Language } from '@domovoy/i18n';
+
 import { DomovoyApi, browserCache, type DeviceView, type Profile, type RoleView } from './api.js';
 import { useHaptics } from './haptics.js';
 import {
@@ -14,6 +16,8 @@ import {
   type Screen,
   type Screens,
 } from './navigation.js';
+import { CapabilitiesProvider } from './capabilities.js';
+import { I18nProvider, useT } from './i18n.js';
 import { HOME_SCREENS, layoutSections, offeredScreen, type Offer, type Section } from './sections.js';
 import { Toasts } from './toast.js';
 import { Viewer } from './viewer.js';
@@ -22,6 +26,7 @@ import { useSession } from './session.js';
 import { Empty } from './screens/Empty.js';
 import { Assistant } from './screens/Assistant.js';
 import { Consent } from './screens/Consent.js';
+import { LanguageSheet } from './screens/LanguageScreen.js';
 import { useTour } from './use-tour.js';
 import { Tour, type TourStep } from './screens/Tour.js';
 import { IconHome } from './screens/icons.js';
@@ -167,32 +172,70 @@ const offerOf = (profile: Profile): Offer => ({
 /** Согласие с документами: до него продукт ничего о человеке не сохраняет. */
 const accepted = (profile: Profile): boolean => profile.legal?.accepted !== false;
 
+/** Язык спрашивают только у жильца: смена работает по-русски. */
+const asksLanguage = (profile: Profile): boolean =>
+  profile.role === 'resident' && (profile.language ?? null) === null;
+
 /**
- * Первый заход: сначала документы, потом короткий тур по разделам. Пока
- * согласия нет, тур не показывается: объяснять продукт до согласия рано.
+ * Первый заход: сначала язык, потом документы, потом короткий тур по разделам.
+ * Язык идёт первым: документы человек читает уже на своём. Пока согласия нет,
+ * тур не показывается: объяснять продукт до согласия рано.
  */
 const FirstRun = ({
   api,
   agreed,
+  asksLanguage,
   reading,
   tour,
   onDocument,
+  onLanguage,
   onAgreed,
   onTourDone,
 }: {
   api: DomovoyApi;
   agreed: boolean;
+  /** Язык ещё не выбран, и спросить о нём есть у кого: сотрудник работает по-русски. */
+  asksLanguage: boolean;
   /** Открыт документ: окно согласия уходит, чтобы текст было видно, и возвращается по «Назад». */
   reading: boolean;
   tour: TourStep[];
   onDocument: (title: string, text: string) => void;
+  onLanguage: (language: Language) => void;
   onAgreed: () => void;
   onTourDone: () => void;
 }) => {
-  if (!agreed) return reading ? null : <Consent api={api} onDocument={onDocument} onAccepted={onAgreed} />;
+  if (!agreed) {
+    if (reading) return null;
+
+    return asksLanguage ? (
+      <LanguageSheet api={api} onPicked={onLanguage} />
+    ) : (
+      <Consent api={api} onDocument={onDocument} onAccepted={onAgreed} />
+    );
+  }
 
   return tour.length > 0 ? <Tour steps={tour} onDone={onTourDone} /> : null;
 };
+
+/** Накладки поверх рабочей области: первый заход и разговор с помощником. */
+const Sheets = ({
+  tip,
+  onCloseTip,
+  onGo,
+  ...first
+}: Parameters<typeof FirstRun>[0] & {
+  tip: boolean;
+  onCloseTip: () => void;
+  onGo: (screen: string) => void;
+}) => (
+  <>
+    {tip ? (
+      <Assistant api={first.api} onLanguage={first.onLanguage} onClose={onCloseTip} onGo={onGo} />
+    ) : null}
+
+    <FirstRun {...first} />
+  </>
+);
 
 /**
  * Стопка при запуске и жизнь отсканированного объекта. Ссылка на стартовый
@@ -355,6 +398,7 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
    */
   const api = useMemo(() => session.reread(), [session, building.version, refreshed]);
 
+  const t = useT();
   const offer = offerOf(profile);
   const bound = profile.apartmentId !== null;
   const isStaff = profile.role !== 'resident';
@@ -365,9 +409,9 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
 
   // Раскладка разделов держится за одну ссылку: на неё смотрит подсветка тура.
   const layout = useMemo(
-    () => layoutSections(profile.role, bound, offer),
-    // Состав установки за время сессии не меняется, поэтому в ключе только его признаки.
-    [profile.role, bound, offer.doors, offer.reception, offer.files, offer.demo],
+    () => layoutSections(profile.role, bound, offer, t),
+    // Состав установки за время сессии не меняется, поэтому в ключе только его признаки и язык.
+    [profile.role, bound, offer.doors, offer.reception, offer.files, offer.demo, t],
   );
 
   // Тур ждёт квартиру: без неё вкладки пустые, а первый шаг повторял бы заголовок экрана.
@@ -418,8 +462,8 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
 
   const title = screenTitle(screen, { objectTitle, device, document, sections: everything });
   const backTitle = screens.under
-    ? screenTitle(screens.under, { objectTitle, device, document, sections: everything }) || 'Назад'
-    : 'Назад';
+    ? screenTitle(screens.under, { objectTitle, device, document, sections: everything }) || t('app.back')
+    : t('app.back');
 
   const context = screenContext({
     api,
@@ -490,27 +534,50 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
         <TabBar sections={tabs} current={screen} waiting={waiting} hidden={hidden} onPick={openTab} />
       ) : null}
 
-      {tip ? (
-        <Assistant
-          api={api}
-          onClose={() => setTip(false)}
-          // Тур не раздел: помощник его запускает, а не открывает.
-          onGo={(target) =>
-            target === 'tour' ? startTour() : target === 'new' ? goDeeper('new') : openTab(target as Screen)
-          }
-        />
-      ) : null}
-
-      <FirstRun
+      <Sheets
         api={api}
+        tip={tip}
         agreed={agreed}
+        asksLanguage={asksLanguage(profile)}
         reading={screen === 'document'}
         tour={tour}
         onDocument={openDocument}
+        onLanguage={(language) => patchProfile((current) => ({ ...current, language }))}
         onAgreed={() => setAgreed(true)}
         onTourDone={endTour}
+        onCloseTip={() => setTip(false)}
+        // Тур не раздел: помощник его запускает, а не открывает.
+        onGo={(target) =>
+          target === 'tour' ? startTour() : target === 'new' ? goDeeper('new') : openTab(target as Screen)
+        }
       />
     </Shell>
+  );
+};
+
+/** Вход идёт молча: человек видит, что приложение не замерло. */
+const Entering = () => {
+  const t = useT();
+
+  return (
+    <main>
+      <Loading>{t('app.entering')}</Loading>
+    </main>
+  );
+};
+
+/** Войти не вышло: причина и повтор. */
+const EnterFailed = ({ message, onRetry }: { message: string; onRetry: () => void }) => {
+  const t = useT();
+
+  return (
+    <main>
+      <Empty icon={<IconHome />} title={t('app.enter.failed')} hint={message}>
+        <Button type="button" onClick={onRetry}>
+          {t('app.retry')}
+        </Button>
+      </Empty>
+    </main>
   );
 };
 
@@ -540,36 +607,36 @@ export const App = ({ baseUrl, fetch }: AppProps) => {
 
   if (session.status === 'loading') {
     return (
-      <Shell>
-        <main>
-          <Loading>Входим…</Loading>
-        </main>
-      </Shell>
+      <I18nProvider>
+        <Shell>
+          <Entering />
+        </Shell>
+      </I18nProvider>
     );
   }
 
   if (session.status === 'error') {
     return (
-      <Shell>
-        <main>
-          <Empty icon={<IconHome />} title="Не получилось войти" hint={session.message}>
-            <Button type="button" onClick={session.retry}>
-              Попробовать снова
-            </Button>
-          </Empty>
-        </main>
-      </Shell>
+      <I18nProvider>
+        <Shell>
+          <EnterFailed message={session.message} onRetry={session.retry} />
+        </Shell>
+      </I18nProvider>
     );
   }
 
   return (
-    <Workspace
-      api={api}
-      profile={session.profile}
-      refreshSession={refresh}
-      patchProfile={session.patch}
-      launched={relaunch ? (launch.initDataUnsafe.start_param ?? startParamFromUrl()) : undefined}
-      offline={offline}
-    />
+    <I18nProvider {...(session.profile.language ? { language: session.profile.language } : {})}>
+      <CapabilitiesProvider voice={session.profile.voice}>
+        <Workspace
+          api={api}
+          profile={session.profile}
+          refreshSession={refresh}
+          patchProfile={session.patch}
+          launched={relaunch ? (launch.initDataUnsafe.start_param ?? startParamFromUrl()) : undefined}
+          offline={offline}
+        />
+      </CapabilitiesProvider>
+    </I18nProvider>
   );
 };

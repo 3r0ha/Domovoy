@@ -1,0 +1,459 @@
+import type { Dictionary } from '../../translate.js';
+
+/** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
+export const bot: Dictionary = {
+  'greeting.hello': 'Assalomu alaykum!',
+  'greeting.resident':
+    'Uy boʻyicha yordam beraman: nima buzilganini aytish, hisoblagich raqamlarini yuborish,\n' +
+    'hisobni koʻrish, podyezd eshigini ochish.\n\n' +
+    'Shunchaki soʻz bilan yozsangiz ham boʻladi: «joʻmrak oqyapti», «eshikni och», «podyezdni qachon tozalashadi».',
+  'start.code_unknown': 'Havoladagi kod toʻgʻri kelmadi: uyda bunday obyekt yoʻq.',
+
+  'lang.chosen': 'Til: {язык}.',
+
+  'legal.ask':
+    'Domovoy shaxsiy maʼlumotlarni uy boshqaruv tashkilotining topshirigʻi bilan qayta ishlaydi.\n' +
+    'Qayta ishlash siyosati va foydalanuvchi shartnomasi quyidagi tugmalarda.\n' +
+    'Siz «Qabul qilaman»ni bosib, ularga rozilik bildirasiz. Roziliksiz men arizani qabul qila olmayman ' +
+    'va koʻrsatkichni saqlay olmayman.',
+  'legal.accepted': 'Siz amaldagi tahrirga rozilik bildirdingiz.\nToʻliq matnlar tugmalar orqali ochiladi.',
+  'legal.thanks': 'Rahmat. Nimada yordam beray?',
+
+  'flat.ask': 'Kvitansiyadagi kvartira kodini yuboring: manzil yonidagi 8 ta belgi.',
+  'flat.unknown':
+    'Qaysi kvartirada ekaningizni hali bilmayman.\n' +
+    'Kvitansiyada manzil yonida 8 ta belgidan iborat kod bosilgan. Uni xabar qilib yuboring.',
+  'flat.bound':
+    'Tayyor. Endi bilaman: siz {номер} kvartirada yashaysiz.\n' +
+    'Hisoblagich raqamlarini yuborish, hisobni koʻrish va uy yigʻilishlarida ovoz berish mumkin.',
+  'flat.already': 'Siz {номер} kvartiraga bogʻlangansiz.',
+  'flat.already_yours': '{номер} kvartira allaqachon sizniki.',
+  'flat.other_code': 'Kvartirangiz allaqachon bogʻlangan. Bu kod {номер} kvartirani bogʻlaydi. Bogʻlansinmi?',
+  'flat.title': '{номер} kvartira',
+  'flat.title_address': '{номер} kvartira, {адрес}',
+  'flat.short': '{номер}-kv.',
+  'flat.yours': 'Sizniki: {квартира}.',
+  'flat.chosen': '{квартира} tanlandi: koʻrsatkich va kvitansiya shu boʻyicha boradi.',
+  'flat.used': 'Koʻrsatkich va kvitansiya: {квартира}',
+  'flat.used_plain': 'Kvartira tanlandi',
+  'flat.not_bound': 'Kvartira baribir bogʻlanmagan',
+  'flat.unbind_ask':
+    'Kvartira uzilsinmi? Arizalar va koʻrsatkichlar uyda qoladi, kvitansiyadagi kod bilan yana bogʻlash mumkin.',
+  'flat.unbound': 'Kvartira uzildi. Kvitansiyadagi kod bilan yana bogʻlash mumkin.',
+  'flat.unbound_toast': 'Kvartira uzildi',
+
+  'code.bad_letter':
+    'Kodda unda uchramaydigan harf bor. Raqamga oʻxshash harflar kodga tushmaydi, ' +
+    'uni kvitansiyadan yana bir marta koʻring.',
+  'code.bad_length':
+    'Kod toʻgʻri kelmadi: unda {надо} ta belgi boʻlishi kerak, siz {прислали} ta yubordingiz. Qaytadan tering.',
+
+  'sticker.other_house': 'Stikerdagi kod boshqa uydan: u boʻyicha ariza ocholmayman.',
+  'object.ask': '{имя}, siz shu obyekt boʻyicha murojaat qildingiz: {объект}.',
+  'object.known': 'Bu haqda allaqachon xabar berilgan: ariza {номер}, {состояние}.',
+  'object.reporters': 'Murojaatlar: {сколько}.',
+  'object.same': 'Muammo oʻsha boʻlsa, uni tasvirlang, men sizni shu arizaga qoʻshaman.',
+  'object.repaired': 'Oxirgi taʼmir: {дата}',
+  'object.describe': 'Nima boʻlganini bitta xabarda yozing, arizani oʻzim rasmiylashtiraman.',
+
+  'request.new_ask':
+    'Nima boʻlganini yozing. Masalan: 2-podyezdda lampochka yonmayapti.\n' +
+    'Surat yuborish mumkin.',
+  'request.accepted': 'Ariza {номер} qabul qilindi.',
+  'request.what': 'Nima: {что}, {где}.',
+  'request.react': '{срок} gacha javob beramiz.',
+  'request.fix': '{срок} gacha tuzatishadi.',
+  'request.same': 'Bu oʻsha ariza {номер}, yangisini ochmayman.',
+  'request.joined': 'Bunday muammo haqida allaqachon xabar berilgan: ariza {номер}, {состояние}.',
+  'request.joined_you': 'Bu haqda yozgan {который}-kishi sizsiz. {срок} gacha tuzatishadi.',
+  'request.notify': 'Oʻzgarishlar haqida xabar beraman.',
+  'request.planned': 'Gap shu ishlarda boʻlsa, ariza kerak emas.',
+  'request.optional': 'Javob bermasangiz ham boʻladi, ariza qabul qilingan.',
+  'request.none': 'Hozircha ariza yoʻq.',
+  'queue.resident':
+    'Uy navbatini boshqaruv kompaniyasi yuritadi. Sizning arizalaringiz «Mening murojaatlarim» boʻlimida.',
+  'request.mine_count': 'Ishdagi arizalaringiz: {сколько}',
+  'request.late': ', muddati oʻtgani {сколько}',
+  'request.rest': 'Yana ariza bor: {сколько}. Roʻyxat ilovada.',
+  'request.all_open': 'Ishda shuncha ariza bor. Yopilgan arizalar ilovada turadi.',
+  'request.not_found': 'Sizda {номер} ariza yoʻq. Nima boʻlganini yozing, yangisini rasmiylashtiraman.',
+  'request.due': 'Muddati: {срок} gacha',
+  'request.worker': 'Ishni {кто} olib boradi',
+  'request.answers': 'Javob beradi: {кто}',
+  'request.state': 'Ariza {номер}: {состояние}',
+  'request.rating': ', sizning bahoyingiz {оценка}',
+  'request.rate_ask': 'Ishni qanday qabul qildingiz?',
+  'request.comment_sent': '{номер} ariza boʻyicha yetkazdim.',
+  'request.answer_sent': '{номер} ariza boʻyicha yetkazdim: usta javobingizni koʻradi.',
+  'request.reply_ask': 'Javobni bitta xabarda yozing, shu ariza boʻyicha yetkazaman.',
+  'request.back_to_work': 'Ariza {номер} yana ishda: soʻzlaringizni ustaga yetkazdim.',
+  'request.withdraw_ask':
+    'Ariza{номер} qaytarib olinsinmi? Usta u boʻyicha kelmaydi, uni tiklab boʻlmaydi, yangisini rasmiylashtirishga toʻgʻri keladi.',
+  'request.where_unknown':
+    '{причина}. Podyezddagi kodni skanerlang yoki ilovani oching, u yerda manzilni tanlash mumkin.',
+  'request.where_skipped': 'Yaxshi, manzilni usta joyida aniqlaydi. Ariza navbatchi xodimlarda.',
+  'request.where_set': 'Yozib oldim: {где}. Ariza {номер} navbatchi xodimlarda.',
+  'request.where_refused': 'Manzil aniqlanmadi',
+  'request.same_here': 'Yozib oldim: sizda ham shunday. Ariza {номер}, oʻzgarishlar haqida xabar beraman.',
+  'request.same_counted':
+    'Yozib oldim: sizda ham shunday. Ariza {номер}, {сообщили}, oʻzgarishlar haqida xabar beraman.',
+  'request.answered_already': 'Siz {номер} ariza boʻyicha javob bergansiz.',
+  'request.fine': 'Rahmat, yozib oldim: sabab umumiy quvurda emas, qoʻshnining kvartirasida.',
+  'request.closed_already': 'Rahmat. Bu ariza boʻyicha ishlar tugagan.',
+
+  'meters.prompt': '{прибор}, hisoblagich {номер}.',
+  'meters.previous': 'Oʻtgan koʻrsatkich: {значение}, {дата}',
+  'meters.send_number': 'Koʻrsatkichni son bilan yuboring.',
+  'meters.none':
+    'Kvartirangizga hisoblagich yozilmagan. Agar ular boʻlsa, boshqaruv kompaniyasiga ayting.',
+  'meters.expired':
+    'Hisoblagich tekshiruvi muddati tugadi: {приборы}.\n' +
+    'U tekshirilmaguncha koʻrsatkichni qabul qila olmayman, bu xizmat oʻrtacha meʼyor boʻyicha hisoblanadi.\n' +
+    'Tekshiruvga boshqaruv kompaniyasiga buyurtma beriladi.',
+  'meters.done': 'Bu oy uchun koʻrsatkichlar yuborilgan. Rahmat.',
+  'meters.progress': 'Bu oy uchun koʻrsatkichlar: {всего} tadan {подано} tasi yuborildi. Hisoblagichni tanlang.',
+  'meters.accepted': 'Qabul qilindi: {значение}.',
+  'meters.consumption': 'Davr sarfi: {расход}.',
+  'meters.refused': 'Koʻrsatkich qabul qilinmadi: {причина}',
+  'meters.retry': 'Sonni yana yuboring.',
+  'meters.next_window': 'Keyingi koʻrsatkichni {день}-sanadan qabul qilamiz.',
+  'meters.not_number': 'Songa oʻxshamaydi. Koʻrsatkichni raqam bilan yuboring, masalan 123,456',
+  'meters.not_reading': 'Bu koʻrsatkichga oʻxshamaydi. Tablodagi sonni yuboring yoki «Bekor qilish»ni bosing.',
+  'meters.heard': '{значение} koʻrsatkichini eshitdim. Yuborilsinmi?\nNotoʻgʻri boʻlsa, sonni raqam bilan yuboring.',
+  'meters.from_photo':
+    'Suratdan {значение} koʻrinyapti. Shu koʻrsatkich yuborilsinmi?\n' +
+    'Tabloda boshqa son boʻlsa, uni xabar qilib yuboring.',
+  'meters.no_vision': 'Bu yerda koʻrsatkich suratdan oʻqilmaydi. Uni son bilan yuboring, masalan 123,456',
+  'meters.photo_aim':
+    'Raqamlari bilan tabloni suratga oling yoki koʻrsatkichni son bilan yuboring, masalan 123,456',
+  'meters.photo_number': 'Koʻrsatkichni son bilan yuboring, masalan 123,456',
+  'meters.photo_unreadable':
+    'Suratdagi raqamlar oʻqilmayapti. Tabloni yaqinroqdan, yaltirashsiz va qiyshaytirmay oling, ' +
+    'yoki koʻrsatkichni son bilan yuboring, masalan 123,456',
+  'meters.no_others': 'Koʻrsatkichi yuborilmagan boshqa asbob yoʻq.',
+  'meters.exact':
+    'Koʻrsatkich aniq boʻlishi kerak: «taxminan» va «chamasi» hisobga yaramaydi. ' +
+    'Tabloga qarang, hisoblagichni tanlang va sonni toʻliq yuboring, masalan 123,456',
+  'meters.no_such':
+    'Kvartirangizga bunday turdagi hisoblagich yozilmagan. Asboblar roʻyxati quyidagi tugma bilan ochiladi.',
+  'meters.need_flat': 'Koʻrsatkichlar kvartira boʻyicha qabul qilinadi: avval uni kvitansiyadagi kod bilan bogʻlang.',
+  'meters.which': 'Koʻrsatkich {значение}: sizda bunday turdagi hisoblagich bir nechta. Qaysi biriniki ekanini tanlang.',
+  'meters.which_value': '{значение} koʻrsatkichiga oʻxshaydi. Bu qaysi hisoblagichniki?',
+
+  'bill.empty': 'Bu oy uchun hisob hali yoʻq.',
+  'bill.total': '{срок} gacha {сумма} toʻlang',
+  'bill.paid': '{сумма} hisoblandi, bu oy uchun hammasi toʻlangan',
+  'bill.where': 'Nimalardan tashkil topgani va nima uchun ekanini ilovada koʻring.',
+  'pay.month_ask': 'Oy uchun {сумма} toʻlansinmi?',
+  'pay.month_done': '{сумма} toʻlandi. Kvitansiya ilovaga keladi.',
+  'pay.debt_ask': 'Oʻtgan oylar uchun {сумма} qarz yopilsinmi?',
+  'pay.debt_done': 'Qarz yopildi: {месяцы} uchun {сумма}.',
+
+  'door.none': 'Domofon uyga ulanmagan. Boshqaruv kompaniyasi uni ilovada qoʻshadi.',
+  'door.what': 'Nima ochilsin?',
+  'door.what_cameras': 'Nima ochilsin yoki koʻrilsin?',
+  'door.opened': '{дверь}: ochildi.',
+  'door.snapshot': '{камера}: kadr yuborildi',
+  'door.no_snapshot': 'Kadr kelmadi',
+  'door.guest_code':
+    'Mehmon uchun kod: {код}\n' +
+    'U kodni podyezd oldidagi domofonda tersin. Kod bugun {время} gacha ishlaydi.',
+
+  'news.title': 'Boshqaruv kompaniyasining eʼlonlari:',
+  'news.empty':
+    'Hozircha eʼlon yoʻq.\n' +
+    'Bu yerda boshqaruv kompaniyasining xabarlari chiqadi: suvni oʻchirish, tozalash, taʼmir.',
+  'news.all': 'Eʼlonlar shuncha.',
+  'news.underway': 'hozir ketyapti',
+  'news.rest_in_app': 'Davomini ilovada oʻqing.',
+
+  'neighbours.title': 'Qoʻshnilarning arizalari',
+  'neighbours.empty':
+    'Qoʻshnilar hozircha hech narsa haqida xabar bermadi.\n' +
+    'Bu yerda qoʻshnilar yozgan podyezd va hovlidagi nosozliklar chiqadi: ularni tasdiqlash mumkin.',
+  'neighbours.about':
+    'Qoʻshnilar {сколько} haqida xabar berdi. ' +
+    'Ilovada nima va qayerda ekani koʻrinadi, sizda ham shundayligini tasdiqlash mumkin.',
+
+  'vote.title': 'Mulkdorlar yigʻilishi',
+  'vote.none':
+    'Hozir ochiq yigʻilish yoʻq.\n' +
+    'Bu yerda mulkdorlar yigʻilishi chiqadi: qaror kvartiralar maydoni boʻyicha hisoblanadi.',
+  'vote.open': 'Ochiq yigʻilishlar: {сколько}',
+  'vote.initiatives': 'qoʻshnilarning takliflari: {сколько}',
+  'vote.protocol_in_app': 'Bayonnoma toʻligʻicha ilovada.',
+  'vote.abstain': 'Hal qilmoqchi emasman',
+  'vote.counted': '«{собрание}» yigʻilishi. Kvartira ovozi: {ответ}.',
+  'vote.refused': 'Ovoz qabul qilinmadi',
+  'sign.refused': 'Imzo qabul qilinmadi',
+
+  'support.ask': 'Savolni bitta xabarda yozing, boshqaruv kompaniyasiga yetkazaman.',
+  'support.ask_more': 'Yangi savolni bitta xabarda yozing, avvalgisiga esa tugma bilan javob bering.',
+  'support.taken': 'Savol qabul qilindi: «{тема}». Javob shu yerga keladi.',
+  'support.sent': 'Boshqaruv tashkilotiga yetkazdim. Javob shu yerga keladi.',
+  'support.reply_ask': 'Shu murojaat boʻyicha xabar yozing.',
+  'support.all': 'Murojaatlar shuncha.',
+  'support.more': 'Yana murojaatlar quyida.',
+  'contacts.tail': 'Qolgan kontaktlar ilovada.',
+
+  'gzhi.none': 'Arizalaringiz boʻyicha buzilgan muddat yoʻq, murojaat qilishga sabab yoʻq.',
+  'gzhi.reason': '{номер} ariza boʻyicha murojaat qilishga asos bor: {основание}.\nMurojaat matni:',
+  'gzhi.reason_short': 'Asos: {основание}.\nMurojaat matni:',
+  'gzhi.sent_already': '{номер} ariza boʻyicha murojaat yuborilgan: {организация}.',
+  'gzhi.sent_before': 'Bu ariza boʻyicha murojaat allaqachon yuborilgan: {организация}.',
+  'gzhi.number': 'Raqami {номер}.',
+  'gzhi.number_full': 'Murojaat raqami {номер}.',
+  'gzhi.confirm': 'Bu murojaat uy-joy inspeksiyasiga yuborilsinmi? Uni qaytarib olib boʻlmaydi.',
+  'gzhi.sent': 'Murojaat yuborildi: {организация}.',
+  'gzhi.answer_days': 'Javob shu yerga keladi, unga 30 kun bor.',
+  'gzhi.no_ground': 'Bu ariza boʻyicha murojaat qilishga asos yoʻq.',
+
+  'visit.in_chat': 'Qabulga men bilan shaxsiy yozishmada yozilish mumkin.',
+  'visit.mine': 'Siz qabulga yozilgansiz: {когда}',
+  'visit.booked': 'Qabulga yozdim, {когда}',
+  'visit.not_booked': 'Yozolmadim: {причина}',
+  'visit.cancelled': 'Qabulga navbat bekor qilindi.',
+  'visit.not_cancelled': 'Navbat bekor boʻlmadi',
+  'visit.not_opened': 'Navbat ochilmadi',
+  'visit.no_reception':
+    'Navbat boʻyicha qabul yoʻq. Boshqaruv kompaniyasiga yozing, navbatchi xodimlar javob beradi.',
+  'visit.no_slots': 'Yaqin ikki haftada boʻsh soat yoʻq.',
+  'visit.title': 'Navbat boʻyicha qabul',
+  'visit.title_office': 'Qabul: {офис}',
+  'visit.free': 'Boʻsh soatlar: {сколько}. Vaqt ilovada tanlanadi.',
+  'visit.topic_ask': 'Nima bilan kelasiz? Bir qatorda yozing.',
+  'visit.taken': 'Bu soatni band qilishdi. Boshqasini tanlang.',
+  'visit.taken_none': 'Bu soatni band qilishdi, hozircha boʻsh soat yoʻq.',
+
+  'data.about': '{кто}.\nMen siz haqingizda saqlayman: {что}.',
+  'data.file': 'Maʼlumotlaringiz fayl bilan. {сводка}',
+  'data.file_failed': 'Faylni yuborib boʻlmadi. Oʻsha maʼlumotlar ilovada koʻrinadi.',
+  'forget.ask':
+    'Profil oʻchirilsinmi? Ism oʻchadi, kvartira uziladi, bildirishnomalar kelmay qoʻyadi. ' +
+    'Arizalar, koʻrsatkichlar va ovozlar uyda nomsiz qoladi.',
+  'forget.done': 'Profil oʻchirildi. Yana kerak boʻlsam, menga yozing: yangisini ochaman.',
+  'notice.on': 'Yana yuboraman: {что}.',
+  'notice.off': 'Boshqa yubormayman: {что}. Avariya va oʻz arizalaringiz haqida baribir xabar beraman.',
+  'notice.such': 'bunday bildirishnomalar',
+
+  'talk.start':
+    'Uy haqida va nimani qanday qilish haqida soʻrang. Javob beraman va kerakli boʻlimni ochaman.\n' +
+    'Ketma-ket soʻrash mumkin, suhbat tugma bilan tugaydi.',
+  'talk.more': 'Yana soʻrang, javob beraman. Yoki suhbatni tugating.',
+  'help.bind':
+    'Boshlash uchun kvitansiyadagi kvartira kodini yuboring: manzil yonidagi 8 ta belgi.\n' +
+    'Bogʻlangandan keyin bu yerda arizalar, koʻrsatkichlar, kvitansiya va podyezd eshiklari boʻladi.',
+
+  'dialog.describe': 'Nima boʻlganini soʻz bilan tasvirlang. Surat va fayl ham boʻladi.',
+  'dialog.photo_ask': 'Suratda nima? Soʻz bilan yozing.',
+  'dialog.one_line': 'Nima boʻlganini bir qatorda yozing.',
+  'dialog.unknown_attachment':
+    'Bunday ilovani men tushunmayman. Soʻz bilan yozing yoki surat yoxud fayl yuboring.',
+  'dialog.need_text': 'Bu yerda matn kerak: javobni xabar qilib yozing.',
+  'dialog.forgot': 'Murojaat nima haqida ekanini eslay olmadim. Nima boʻlganini yana yozing.',
+  'dialog.cancelled': 'Bekor qildim. Nima qilish kerak?',
+  'dialog.cancelled_toast': 'Bekor qildim',
+
+  'voice.not_heard':
+    'Ovozli xabarni tushunmadim: jimlik, shovqin yoki notanish til. Yana bir marta ayting yoki soʻz bilan yozing.',
+  'voice.failed': 'Ovozni matnga oʻgiradigan xizmat hozir javob bermayapti. Soʻz bilan yozing.',
+  'voice.unheard': 'Ovozli xabarni tushunmadim. Nima boʻlganini bir qatorda yozing.',
+  'thinking.default': 'Oʻylayapman…',
+  'thinking.voice': 'Ovozni oʻgiryapman…',
+  'thinking.photo': 'Suratga qarayapman…',
+
+  'emergency.call': 'Bu avariya boʻlsa, kunu tun qoʻngʻiroq qiling: {телефон}.',
+  'app.install': 'MAXda «Domovoy» mini-ilovasini oching.',
+
+  'error.retry': 'Bajarib boʻlmadi. Yana bosing yoki menyudan tanlang.',
+  'error.message': 'Xabarni qayta ishlab boʻlmadi. Yana urinib koʻring yoki menyudan tanlang.',
+  'error.toast': 'Boʻlmadi. Yana urinib koʻring',
+  'error.failed': 'Boʻlmadi: {причина}',
+  'error.failed_short': 'Boʻlmadi',
+  'command.unknown': 'Menda bunday buyruq yoʻq. Nima kerakligini soʻz bilan yozsangiz, tushunaman.',
+
+  'menu.title': 'Domovoy',
+  'menu.words': 'Soʻz bilan yozish mumkin: «eshikni och», «qancha toʻlash kerak», «joʻmrak oqyapti».',
+  'menu.in_chat': 'Menyu men bilan yozishmada ochiladi.',
+  'menu.new': '✍️ Nima buzildi',
+  'menu.my': '📋 Mening murojaatlarim',
+  'menu.door': '🚪 Eshik va kameralar',
+  'menu.bill': '🧾 Qancha toʻlash kerak',
+  'menu.meters': '💧 Hisoblagichlar',
+  'menu.news': '📣 Eʼlonlar',
+  'menu.vote': '🗳 Yigʻilishlar',
+  'menu.vote.about': 'Har bir masala boʻyicha ovoz, maydon ulushi boʻyicha hisob va yakuniy bayonnoma.',
+  'menu.neighbours': '👥 Qoʻshnilar arizasi',
+  'menu.neighbours.about': 'Qoʻshnilar nima haqda xabar bergani: sizda ham shundayligini tasdiqlash mumkin.',
+  'menu.house': '📊 Kompaniya ishi',
+  'menu.capital': '🏗 Kapital taʼmir',
+  'menu.capital.about': 'Badal, uy jamgʻargani va mintaqaviy dastur boʻyicha ish yillari.',
+  'menu.support': '✉️ Kompaniyaga savol',
+  'menu.visit': '🗓 Ofisda qabul',
+  'menu.visit.about': 'Ikki hafta oldinga boʻsh soatlar, oʻz navbatingiz va uni bekor qilish.',
+  'menu.contacts': '☎️ Kontaktlar',
+  'menu.flat': '🏢 Kvartira',
+  'menu.mydata': '🗂 Mening maʼlumotlarim',
+  'menu.notices': '🔔 Bildirishnomalar',
+  'menu.notices.about':
+    'Nimani yuborish va nima haqida jim turish. Oʻsha yerda telefon va maʼlumotlarni yuklab olish.',
+  'menu.lang': '🌐 Til',
+  'menu.group.money': '💳 Pul va hisoblagichlar',
+  'menu.group.money.about': 'Bu oyda qancha toʻlash va hisoblagich raqamlarini qayerga yuborish.',
+  'menu.group.house': '📣 Uy yangiliklari',
+  'menu.group.house.about': 'Boshqaruv kompaniyasi eʼlonlari, qoʻshnilar yigʻilishi va uy boʻyicha ishlar.',
+  'menu.group.me': '☎️ Aloqa va profil',
+  'menu.group.me.about': 'Boshqaruv kompaniyasi bilan qanday bogʻlanish va mahsulot siz haqingizda nima bilishi.',
+  'menu.demo': '👥 Rol',
+
+  'menu.group.home': '🏡 Mening kvartiram',
+  'menu.group.home.about': 'Oʻz kvartirangiz boʻyicha hisoblar, hisoblagichlar va arizalar.',
+  'menu.group.bind.about': 'Shu uyda yashasangiz, kvitansiyadagi kod bilan kvartirani bogʻlang.',
+  'menu.home.new': '✍️ Yangi ariza',
+  'menu.home.meters': '💧 Koʻrsatkichlar',
+  'menu.home.bill': '🧾 Kvitansiya',
+  'menu.home.flat': '🏢 Mening kvartiram',
+  'menu.home.visit.about': 'Boʻsh soatlar, oʻz navbatingiz va uni bekor qilish.',
+
+  'menu.contractor.my': '📋 Topshiriqlar',
+  'menu.group.works': '🏢 Uy ishlari',
+  'menu.group.contractor.about': 'Boshqaruv kompaniyasi bilan aloqa, eʼlonlar va podyezd eshiklari.',
+  'menu.group.works.about': 'Uy muddatlarni qanday bajarayotgani, qarzlar, yigʻilishlar va podyezd eshiklari.',
+
+  'menu.staff.queue': '🗂 Uy navbati',
+  'menu.staff.my': '📋 Mening topshiriqlarim',
+  'menu.staff.duty': '🌙 Navbatchilik',
+  'menu.staff.support': '💬 Yashovchilar savoli',
+  'menu.staff.visit': '🗓 Yashovchilar qabuli',
+  'menu.staff.visit.about':
+    'Qabul soatlari, yashovchilar navbati, qabul belgisi va navbatsiz kelganni yozib qoʻyish.',
+  'menu.staff.broadcast': '✉️ Tarqatma xabar',
+  'menu.staff.report': '📊 Oylik hisobot',
+  'menu.staff.debts': '💰 Uy qarzlari',
+  'menu.staff.vote.about': 'Yigʻilish eʼlon qilish, kvorumni kuzatish va yakunda bayonnoma yigʻish.',
+  'menu.staff.inspections': '🔍 Koʻriklar',
+  'menu.staff.inspections.about':
+    'Roʻyxat boʻyicha aylanib chiqish: bandlar joyida belgilanadi, topilgani darhol arizaga aylanadi.',
+  'menu.staff.plan': '🗺 Uy rejasi',
+  'menu.staff.plan.about': 'Podyezdlar va umumiy quvurlar, muammo haqida xabar berilgan joylar belgisi bilan.',
+  'menu.staff.equipment': '🛗 Jihozlar',
+  'menu.staff.equipment.about': 'Nima koʻproq ishdan chiqadi va nima yaqinda taʼmir talab qiladi.',
+  'menu.staff.house_meters': '💧 Hisob tuguni',
+  'menu.staff.house_meters.about': 'Uy boʻyicha oylik umumiy sarf, koʻrsatkichlar ham shu yerga kiritiladi.',
+  'menu.staff.residents': '👥 Uy odamlari',
+  'menu.staff.residents.about': 'Kim smenada, kim navbatchi, kimda qanday rol, yashovchiga kvartirani bogʻlash.',
+  'menu.staff.stickers': '🏷 Stikerlar',
+  'menu.staff.tariffs': '💵 Tariflar',
+  'menu.staff.tariffs.about': 'Uy kvitansiyasi shakllanadigan stavkalar.',
+  'menu.staff.card': '🏠 Uy kartochkasi',
+  'menu.staff.card.about': 'Kontaktlar, qabul soatlari, kvartiralar va uy jihozlari.',
+  'menu.staff.buildings': '🏘 Kompaniya uylari',
+  'menu.staff.buildings.about': 'Kompaniyaning barcha manzillari: almashtirish yoki yangisini ochish.',
+  'menu.staff.audit': '📜 Harakatlar jurnali',
+  'menu.staff.audit.about': 'Uy boʻyicha kim nima qilgani: arizalar, rollar, koʻrsatkichlar, tarqatmalar.',
+  'menu.group.people': '💬 Yashovchilar',
+  'menu.group.people.about': 'Yashovchilar savollari, navbat boʻyicha qabul va uyga xabarlar.',
+  'menu.group.staff_me.about':
+    'Oʻz kvartirangiz, maʼlumotlar, bildirishnomalar va yashovchi sifatida boshqaruv kompaniyasi bilan aloqa.',
+  'menu.group.app': '📱 Ilovada',
+  'menu.group.app.about': 'Yozishmada oʻqilmaydigan ekranlar: koʻriklar, uy rejasi, asboblar.',
+  'menu.group.manage': '🗄 Uyni boshqarish',
+  'menu.group.manage.about': 'Tariflar, uy kartochkasi, kompaniya manzillari va harakatlar jurnali.',
+
+  'topic.bill': '🧾 Oylik kvitansiya',
+  'topic.request': '📋 Arizalar',
+  'topic.news': '📣 Eʼlonlar',
+
+  'action.accepted': '✅ Olish',
+  'action.in_progress': '🔧 Ishga',
+  'action.needs_info': '❓ Aniqlashtirish',
+  'action.done': '🏁 Ishni topshirish',
+  'action.confirmed': '✅ Hammasi bajarildi, rahmat',
+  'action.rejected': '⛔ Rad etish',
+  'action.withdrawn': '✖️ Arizani qaytarish',
+  'action.return': '↩️ Bajarilmadi, qaytarish',
+  'action.close': '✅ Arizani yopish',
+  'action.answer': '💬 Javob berish',
+
+  'comment.in_progress': 'Aynan nima bajarilmadi? Bitta xabarda yozing, ustaga yetkazaman.',
+  'comment.needs_info': 'Yashovchidan nimani aniqlash kerak? Savolni bitta xabarda yozing.',
+  'comment.rejected': 'Ariza nega rad etilyapti? Sababni yashovchi koʻradi.',
+  'comment.done': 'Nima qilindi? Qisqa yozing, belgini yashovchi koʻradi.',
+  'comment.confirmed': 'Ishni kim qabul qildi? Bitta xabarda yozing, ariza tarixiga yozib qoʻyaman.',
+  'comment.other': 'Sababni bitta xabarda yozing.',
+
+  'doing.understood': 'Tushundim: {что}',
+  'doing.which': 'Qaysi ariza boʻyicha?',
+  'doing.confirm': 'Bajarilsinmi?',
+  'doing.write_as': '«{что}» deb yozilsinmi?',
+  'doing.written': 'Yozib oldim: {что}',
+  'doing.gone': 'Bu ish allaqachon bajarilgan yoki bekor qilingan.',
+  'doing.assign': 'topshiriqni biriktirish',
+  'doing.accepted': 'arizani ishga qabul qilish',
+  'doing.in_progress': 'topshiriqni ishga olish',
+  'doing.return': 'ishni ustaga qaytarish',
+  'doing.needs_info': 'yashovchidan aniqlashtirish soʻrash',
+  'doing.done': 'ishni topshirish',
+  'doing.confirmed': 'ishni qabul qilish',
+  'doing.rejected': 'arizani rad etish',
+  'doing.withdrawn': 'arizani olib tashlash',
+  'doing.change': 'arizani oʻzgartirish',
+
+  'button.menu': '🏠 Menyu',
+  'button.back': '⬅️ Orqaga',
+  'button.cancel': '✖️ Bekor qilish',
+  'button.open_app': '📱 Ilovani ochish',
+  'button.in_app': 'Ilovada ochish',
+  'button.in_app_short': 'Ilovada',
+  'button.show': 'Koʻrish',
+  'button.more': '⬇️ Yana',
+  'button.more_news': '⬇️ Yana eʼlonlar',
+  'button.new_request': '✍️ Ariza berish',
+  'button.also_me': '🙋 Menda ham',
+  'button.works': '👌 Hammasi ishlayapti',
+  'button.accept_legal': '✅ Qabul qilaman',
+  'button.legal_in_app': 'Hujjatlar ilovada',
+  'button.flat': '🏢 Kvartira',
+  'button.meters': '💧 Hisoblagichlar',
+  'button.support': '✉️ Kompaniyaga savol',
+  'button.write_company': '✉️ Kompaniyaga yozish',
+  'button.bill_in_app': 'Kvitansiya ilovada',
+  'button.requests_in_app': 'Arizalar ilovada',
+  'button.polls_in_app': 'Yigʻilishlar ilovada',
+  'button.quality_in_app': 'Uy ishi ilovada',
+  'button.vote': 'Ovoz berish',
+  'button.visit_choose': 'Vaqtni tanlash',
+  'button.other_days': 'Boshqa kunlar ilovada',
+  'button.cancel_visit': '✖️ Navbatni bekor qilish',
+  'button.pay_month': '💳 Oy uchun {сумма}',
+  'button.pay_month_yes': '💳 Ha, {сумма} toʻlayman',
+  'button.pay_debt': '💰 Eski qarz {сумма}',
+  'button.pay_debt_yes': '💰 Ha, {сумма} yopaman',
+  'button.guest_code': '🔑 Mehmonga kod',
+  'button.copy_code': 'Kodni nusxalash',
+  'button.reply_request': '💬 Ariza boʻyicha yozish',
+  'button.answer_ticket': '💬 Murojaatga javob',
+  'button.unbind': '🏢 Kvartirani uzish',
+  'button.unbind_yes': '🚪 Ha, uzilsin',
+  'button.bind_yes': '🏢 Ha, bogʻlansin',
+  'button.export': '📄 Fayl bilan yuborish',
+  'button.notices': '🔔 Bildirishnomalar',
+  'button.mute': '🔕 Bildirishnomalar',
+  'button.forget': '🗑 Meni oʻchirish',
+  'button.forget_yes': '🗑 Ha, oʻchirilsin',
+  'button.submit_reading': '✅ Ha, yuborilsin',
+  'button.skip_meter': '⏭ Oʻtkazib yuborish',
+  'button.to_meters': '💧 Hisoblagichlar roʻyxatiga',
+  'button.rate_none': 'Bahosiz qabul qilish',
+  'button.end_talk': '✖️ Suhbatni tugatish',
+  'button.where_unknown': '🤷 Qayerdaligini bilmayman',
+  'button.withdraw_yes': '✖️ Ha, qaytarib olaman',
+  'button.complaint': '📨 Inspeksiyaga yuborish',
+  'button.gzhi': '📄 Inspeksiyaga shikoyat qilish',
+  'button.send_meters': '💧 Koʻrsatkichlarni yuborish',
+  'button.complaint_yes': '📨 Ha, yuborilsin',
+  'button.sign': '🙋 Qoʻllab-quvvatlash',
+  'button.none_of': '✖️ Hech qaysi boʻyicha',
+  'button.stale': 'Bu tugma endi ishlamaydi',
+  'button.stale_more': 'Bu tugma eski xabardan. Mana, nimadan boshlash mumkin.',
+};

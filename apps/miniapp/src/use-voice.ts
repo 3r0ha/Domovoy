@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { ApiError, type DomovoyApi } from './api.js';
 import { asBase64 } from './base64.js';
+import { useT } from './i18n.js';
 
 /** Дольше говорить незачем: запись обрывается сама и уходит на расшифровку. */
 const MAX_SECONDS = 60;
@@ -61,16 +64,14 @@ export const voiceType = (declared: string): string => {
 };
 
 /** Почему микрофон не включился. Отказ без слов выглядит как несработавшее нажатие. */
-const refusal = (reason: unknown): string => {
+const refusal = (t: Translate, reason: unknown): string => {
   const name = reason instanceof Error ? reason.name : '';
 
-  if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'Нет доступа к микрофону. Разрешите запись в настройках или запишите системной записью ниже';
-  }
+  if (name === 'NotAllowedError' || name === 'SecurityError') return t('voice.refused');
 
-  if (name === 'NotFoundError') return 'Микрофон не найден. Запишите системной записью ниже';
+  if (name === 'NotFoundError') return t('voice.missing');
 
-  return 'Не получилось включить запись. Запишите системной записью ниже';
+  return t('voice.failed.start');
 };
 
 /** Запись голоса и её расшифровка: продукт слушает вместо того, чтобы заставлять печатать. */
@@ -80,6 +81,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(() => recorderClass() !== undefined && microphone() !== undefined);
   const [leaving] = useState(() => new AbortController());
+  const t = useT();
 
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -105,13 +107,13 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
 
     if (sound.size === 0) {
       setState('failed');
-      setError('Запись пустая. Скажите ещё раз');
+      setError(t('voice.empty'));
       return;
     }
 
     if (sound.size > MAX_BYTES) {
       setState('failed');
-      setError('Запись слишком длинная. Скажите короче');
+      setError(t('voice.long'));
       return;
     }
 
@@ -121,7 +123,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
 
       if (said.length === 0) {
         setState('failed');
-        setError('Ничего не расслышал. Скажите ещё раз');
+        setError(t('voice.silent'));
         return;
       }
 
@@ -132,7 +134,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
       if (leaving.signal.aborted) return;
 
       setState('failed');
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось разобрать запись');
+      setError(reason instanceof ApiError ? reason.message : t('voice.failed.decode'));
     }
   };
 
@@ -174,7 +176,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
       // Отказ в доступе не оставляет человека ни с чем: остаётся системная запись.
       setLive(false);
       setState('failed');
-      setError(refusal(reason));
+      setError(refusal(t, reason));
     }
   };
 

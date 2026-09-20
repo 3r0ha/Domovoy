@@ -100,7 +100,9 @@ export {
   STAFF_KNOWLEDGE,
   askAssistant,
   capabilitiesFor,
+  capabilityAbout,
   capabilityFor,
+  capabilityTitle,
   findCapability,
   knowledgeFor,
   offTopicFor,
@@ -132,6 +134,9 @@ export { answerAboutHouse, describeHouseNow, type HouseAnswer } from './answers.
 export { summariseReport } from './digest-text.js';
 export {
   PAYMENTS_LIMIT,
+  chargeBasisTitle,
+  chargeLineDetail,
+  chargeLineTitle,
   chargesForResident,
   payCharges,
   paymentHistory,
@@ -270,6 +275,25 @@ export {
 } from './buildings.js';
 export { handOverBuilding, type HandOverCommand, type HandOverResult } from './handover.js';
 export { acceptLegal, legalAccepted } from './legal.js';
+export {
+  counted,
+  languageChosen,
+  languageOf,
+  languageOfText,
+  setLanguage,
+  speak,
+  speakDefault,
+} from './language.js';
+export { errorKey, errorTextFor } from './errors.js';
+export {
+  intoLanguage,
+  intoRussian,
+  isRussianText,
+  translationNote,
+  withOriginal,
+  type TextTranslator,
+  type Translated,
+} from './translation.js';
 export { dossierFor, queueLine } from './dossier.js';
 export { assertSaid, saysSomething } from './said.js';
 export { portfolio, type BuildingLine } from './portfolio.js';

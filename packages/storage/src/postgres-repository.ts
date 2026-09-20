@@ -45,6 +45,7 @@ import {
   toApartment,
   toBuilding,
   toHandoff,
+  toOriginal,
   toRequest,
   toResident,
   toVisit,
@@ -241,8 +242,8 @@ export class PostgresRepository implements Repository {
       const { rows } = await this.sql.query<ResidentRow>(
         `insert into resident
            (id, max_user_id, display_name, role, building_id, apartment_id, apartment_ids, on_duty, forgotten_at,
-            mutes, phone, serves_building_ids, legal_version, legal_at)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            mutes, phone, serves_building_ids, legal_version, legal_at, language)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
          on conflict (id) do update set
            max_user_id = excluded.max_user_id,
            display_name = excluded.display_name,
@@ -256,7 +257,8 @@ export class PostgresRepository implements Repository {
            phone = excluded.phone,
            serves_building_ids = excluded.serves_building_ids,
            legal_version = excluded.legal_version,
-           legal_at = excluded.legal_at
+           legal_at = excluded.legal_at,
+           language = excluded.language
          returning *`,
         [
           resident.id,
@@ -273,6 +275,7 @@ export class PostgresRepository implements Repository {
           resident.servesBuildingIds ?? [],
           resident.legalVersion ?? null,
           resident.legalAt ?? null,
+          resident.language ?? null,
         ],
       );
 
@@ -434,8 +437,10 @@ export class PostgresRepository implements Repository {
         `insert into service_request (
            id, number, building_id, author_id, category, priority, status, description,
            target_kind, apartment_id, apartment_number, entrance, riser, equipment_code, equipment_title,
-           created_at, reaction_due_at, resolution_due_at, reopen_count, title
-         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+           created_at, reaction_due_at, resolution_due_at, reopen_count, title,
+           original_text, original_language
+         ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+                   $21, $22)`,
         [
           request.id,
           request.number,
@@ -457,6 +462,8 @@ export class PostgresRepository implements Repository {
           request.resolutionDueAt,
           request.reopenCount,
           request.title,
+          request.original?.text ?? null,
+          request.original?.language ?? null,
         ],
       );
 
@@ -492,7 +499,8 @@ export class PostgresRepository implements Repository {
              resolution_due_at = $6, reopen_count = $7,
              target_kind = $8, apartment_id = $9, apartment_number = $10,
              entrance = $11, riser = $12, equipment_code = $13, equipment_title = $14,
-             rating = $15, knocked_at = $17, category = $18, reaction_due_at = $19
+             rating = $15, knocked_at = $17, category = $18, reaction_due_at = $19,
+             original_text = $20, original_language = $21
          where id = $1`,
         [
           request.id,
@@ -514,6 +522,8 @@ export class PostgresRepository implements Repository {
           request.knockedAt ?? null,
           request.category,
           request.reactionDueAt,
+          request.original?.text ?? null,
+          request.original?.language ?? null,
         ],
       );
 
@@ -1287,13 +1297,17 @@ export class PostgresRepository implements Repository {
       if (replies.length === 0) return;
 
       await sql.query(
-        `insert into support_message (id, ticket_id, at, author_side, author_id, author_name, text)
-         select id, $1, at, author_side, author_id, author_name, text
-         from unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::text[], $7::text[])
-           as reply (id, at, author_side, author_id, author_name, text)
+        `insert into support_message (id, ticket_id, at, author_side, author_id, author_name, text,
+                                      original_text, original_language)
+         select id, $1, at, author_side, author_id, author_name, text, original_text, original_language
+         from unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[], $6::text[], $7::text[],
+                     $8::text[], $9::text[])
+           as reply (id, at, author_side, author_id, author_name, text, original_text, original_language)
          on conflict (id) do update set
            author_name = excluded.author_name,
-           text = excluded.text`,
+           text = excluded.text,
+           original_text = excluded.original_text,
+           original_language = excluded.original_language`,
         [
           ticket.id,
           replies.map((reply) => reply.id),
@@ -1302,6 +1316,8 @@ export class PostgresRepository implements Repository {
           replies.map((reply) => reply.message.authorId),
           replies.map((reply) => reply.message.authorName ?? null),
           replies.map((reply) => reply.message.text),
+          replies.map((reply) => reply.message.original?.text ?? null),
+          replies.map((reply) => reply.message.original?.language ?? null),
         ],
       );
 
@@ -1410,6 +1426,7 @@ export class PostgresRepository implements Repository {
           authorId: message.author_id,
           ...(message.author_name === null ? {} : { authorName: message.author_name }),
           text: message.text,
+          ...toOriginal(message.original_text, message.original_language),
           ...(files.length > 0 ? { attachments: files } : {}),
         },
       ]);
@@ -1619,6 +1636,7 @@ export class PostgresRepository implements Repository {
         actorId: row.actor_id,
         ...(row.is_message ? { kind: 'message' as const } : {}),
         ...(row.comment ? { comment: row.comment } : {}),
+        ...toOriginal(row.original_text, row.original_language),
         ...(row.assignee_id ? { assigneeId: row.assignee_id } : {}),
         ...(attached ? { attachments: attached } : {}),
         ...(row.on_site ? { onSite: true } : {}),
@@ -1706,11 +1724,14 @@ const appendHistory = async (sql: SqlClient, request: ServiceRequest): Promise<v
     is_message: boolean;
     comment: string | null;
   }>(
-    `insert into request_event (request_id, actor_id, status, role, comment, at, assignee_id, is_message, on_site)
-     select $1, actor_id, status, role, comment, at, assignee_id, is_message, on_site
+    `insert into request_event (request_id, actor_id, status, role, comment, at, assignee_id, is_message, on_site,
+                                original_text, original_language)
+     select $1, actor_id, status, role, comment, at, assignee_id, is_message, on_site,
+            original_text, original_language
      from unnest($2::text[], $3::request_status[], $4::role[], $5::text[], $6::timestamptz[],
-                 $7::text[], $8::boolean[], $9::boolean[])
-       as event (actor_id, status, role, comment, at, assignee_id, is_message, on_site)
+                 $7::text[], $8::boolean[], $9::boolean[], $10::text[], $11::text[])
+       as event (actor_id, status, role, comment, at, assignee_id, is_message, on_site,
+                 original_text, original_language)
      on conflict do nothing
      returning id, at, actor_id, status, is_message, comment`,
     [
@@ -1723,6 +1744,8 @@ const appendHistory = async (sql: SqlClient, request: ServiceRequest): Promise<v
       request.history.map((event) => event.assigneeId ?? null),
       request.history.map((event) => event.kind === 'message'),
       request.history.map((event) => event.onSite ?? false),
+      request.history.map((event) => event.original?.text ?? null),
+      request.history.map((event) => event.original?.language ?? null),
     ],
   );
 
@@ -1940,6 +1963,8 @@ interface TicketMessageRow {
   author_id: string;
   author_name: string | null;
   text: string;
+  original_text: string | null;
+  original_language: string | null;
 }
 
 interface AuditRow {

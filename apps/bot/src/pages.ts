@@ -31,8 +31,10 @@ import {
   reportersCount,
   statusTitle,
 } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { speak } from './i18n.js';
 import {
   actionKeyboard,
   afterError,
@@ -67,16 +69,16 @@ const NEWS_PAGE = 2;
 const BODY_LIMIT = 400;
 
 /** Длинный текст в переписке обрезается: целиком он открывается в приложении. */
-const briefly = (text: string): string =>
-  text.length <= BODY_LIMIT ? text : `${text.slice(0, BODY_LIMIT).trimEnd()}…\nДальше читайте в приложении.`;
+const briefly = (text: string, t: Translate): string =>
+  text.length <= BODY_LIMIT ? text : `${text.slice(0, BODY_LIMIT).trimEnd()}…\n${t('news.rest_in_app')}`;
 
 /** Кто ведёт работу: имя исполнителя видно и жильцу, и смене. */
-const workedBy = async (kit: BotKit, assigneeId?: string): Promise<string> => {
+const workedBy = async (kit: BotKit, t: Translate, assigneeId?: string): Promise<string> => {
   if (!assigneeId) return '';
 
   const master = await kit.deps.repository.findResident(assigneeId);
 
-  return master ? `\nРаботу ведёт ${master.displayName}` : '';
+  return master ? `\n${t('request.worker', { кто: master.displayName })}` : '';
 };
 
 /** Карточка заявки: суть, состояние, адрес, номер, срок и исполнитель. */
@@ -85,27 +87,29 @@ const requestCard = async (
   request: Awaited<ReturnType<typeof listRequestsFor>>[number],
   forStaff: boolean,
   zone: string,
+  t: Translate,
 ): Promise<string> => {
   const due = CLOSED_STATUSES.includes(request.status)
     ? ''
-    : `\nСрок: до ${formatMoment(request.resolutionDueAt, zone)}`;
+    : `\n${t('request.due', { срок: formatMoment(request.resolutionDueAt, zone) })}`;
 
   return (
     `${request.title}\n` +
     `${statusTitle(request.status, forStaff)} · ${describePlace(request)}\n` +
-    `${request.number}${due}${await workedBy(kit, request.assigneeId)}`
+    `${request.number}${due}${await workedBy(kit, t, request.assigneeId)}`
   );
 };
 
 /** Заявки и наряды человека. Закрытые читаются отдельным списком в приложении. */
 export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const requests = await listRequestsFor(kit.deps, resident, 'mine');
 
   if (requests.length === 0) {
     const empty =
       resident.role === 'resident'
-        ? { text: 'Заявок пока нет.', keyboard: oneKeyboard('✍️ Новая заявка', 'menu:new') }
+        ? { text: t('request.none'), keyboard: oneKeyboard(t('button.new_request'), 'menu:new') }
         : resident.role === 'contractor'
           ? { text: 'На вас ничего не назначено.', keyboard: menuButton(typed) }
           : { text: 'На вас ничего не назначено.', keyboard: oneKeyboard('📊 Сводка', 'menu:report') };
@@ -123,18 +127,19 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
     const late = requests.filter((request) => request.resolutionDueAt < kit.deps.now()).length;
 
     await typed.reply(
-      (forStaff ? `Нарядов на вас: ${requests.length}` : `Ваших заявок в работе: ${requests.length}`) +
-        (late > 0 ? `, просрочено ${late}` : '') +
+      (forStaff ? `Нарядов на вас: ${requests.length}` : t('request.mine_count', { сколько: requests.length })) +
+        (late > 0 ? t('request.late', { сколько: late }) : '') +
         '.',
       keyboardOf(
         [
           ...appRow(
             kit.miniAppUrl,
-            forStaff ? 'Очередь в приложении' : 'Заявки в приложении',
+            forStaff ? 'Очередь в приложении' : t('button.requests_in_app'),
             forStaff ? 'queue' : 'list',
           ),
         ],
         typed,
+        t,
       ),
     );
 
@@ -155,12 +160,13 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
         .catch(() => false));
 
     await typed.reply(
-      await requestCard(kit, request, forStaff, zone),
+      await requestCard(kit, request, forStaff, zone, t),
       actionKeyboard(
         actionsFor(request, resident),
         replyIfOpen(request),
         assignable(request, resident.role),
         passable ? request.id : undefined,
+        t,
       ),
     );
   }
@@ -169,10 +175,19 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
 
   if (rest > 0) {
     await typed.reply(
-      forStaff ? `Ещё нарядов: ${rest}. Очередь целиком в приложении.` : `Ещё заявок: ${rest}. Список в приложении.`,
+      forStaff
+        ? `Ещё нарядов: ${rest}. Очередь целиком в приложении.`
+        : t('request.rest', { сколько: rest }),
       keyboardOf(
-        [...appRow(kit.miniAppUrl, forStaff ? 'Очередь в приложении' : 'Заявки в приложении', forStaff ? 'queue' : 'list')],
+        [
+          ...appRow(
+            kit.miniAppUrl,
+            forStaff ? 'Очередь в приложении' : t('button.requests_in_app'),
+            forStaff ? 'queue' : 'list',
+          ),
+        ],
         typed,
+        t,
       ),
     );
 
@@ -185,8 +200,8 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
   if (closed.length === 0) return;
 
   await typed.reply(
-    'Это всё, что в работе. Закрытые заявки лежат в приложении.',
-    keyboardOf([...appRow(kit.miniAppUrl, 'Заявки в приложении', 'list')], typed),
+    t('request.all_open'),
+    keyboardOf([...appRow(kit.miniAppUrl, t('button.requests_in_app'), 'list')], typed, t),
   );
 };
 
@@ -196,6 +211,7 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
  */
 export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number: string): Promise<boolean> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const scopes: RequestScope[] = isCompanyStaff(resident.role) ? ['mine', 'queue', 'closed'] : ['mine', 'closed'];
   const seen = new Map<string, Awaited<ReturnType<typeof listRequestsFor>>[number]>();
 
@@ -220,17 +236,18 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
   // Норма закона нужна жильцу: ею объясняется, почему отвечает не управляющая
   // организация. Смена читает эти карточки десятками, и ссылка ей только мешает.
   const zones = view
-    ? `\n\nОтвечает: ${view.responsibility.title}${forStaff ? '' : `\n${view.responsibility.basis}`}`
+    ? `\n\n${t('request.answers', { кто: view.responsibility.title })}${forStaff ? '' : `\n${view.responsibility.basis}`}`
     : '';
   const passed = handoffs.map((handoff) => `\n\n${formatHandoff(handoff, now)}`).join('');
 
   await typed.reply(
-    `${await requestCard(kit, found, forStaff, zone)}${zones}${passed}`,
+    `${await requestCard(kit, found, forStaff, zone, t)}${zones}${passed}`,
     actionKeyboard(
       actionsFor(found, resident),
       replyIfOpen(found),
       assignable(found, resident.role),
       isCompanyStaff(resident.role) && (view?.targets.length ?? 0) > 0 ? found.id : undefined,
+      t,
     ),
   );
 
@@ -240,14 +257,11 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
 /** Объявления дома страницами. */
 export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const announcements = await listAnnouncementsFor(kit.deps, resident);
 
   if (announcements.length === 0) {
-    await typed.reply(
-      'Объявлений пока нет.\n' +
-        'Здесь появятся сообщения управляющей компании: отключения воды, уборка, ремонт.',
-      menuButton(typed),
-    );
+    await typed.reply(t('news.empty'), menuButton(typed, t));
     return;
   }
 
@@ -255,31 +269,31 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
   const shown = announcements.slice(offset, offset + NEWS_PAGE);
 
   if (shown.length === 0) {
-    await typed.reply('Это все объявления.', menuButton(typed));
+    await typed.reply(t('news.all'), menuButton(typed, t));
     return;
   }
 
   const lines = shown.map((announcement) => {
     const work = plannedWork(announcement);
-    const state = work && isUnderway(work, now) ? 'идут сейчас, ' : '';
+    const state = work && isUnderway(work, now) ? `${t('news.underway')}, ` : '';
     const until = work ? `\n${CATEGORY_RULES[work.category].title}: ${state}${describeUntil(work, now)}` : '';
 
     return (
       `${announcement.title}, ${describeAudience(announcementAudience(announcement))}\n` +
-      `${formatMoment(announcement.createdAt)}\n${briefly(announcement.body)}${until}`
+      `${formatMoment(announcement.createdAt)}\n${briefly(announcement.body, t)}${until}`
     );
   });
 
   const rest = announcements.length - (offset + shown.length);
 
   await typed.reply(
-    `Объявления управляющей компании:\n\n${lines.join('\n\n')}`,
+    `${t('news.title')}\n\n${lines.join('\n\n')}`,
     rest > 0
-      ? moreKeyboard('news', offset + NEWS_PAGE, '⬇️ Ещё объявления')
+      ? moreKeyboard('news', offset + NEWS_PAGE, t('button.more_news'))
       : keyboardOf([
-          ...(inChat(typed) ? [] : [[Keyboard.button.callback('🏠 Меню', 'group:back')]]),
-          ...appRow(kit.miniAppUrl, 'В приложении', 'news'),
-        ], typed),
+          ...(inChat(typed) ? [] : [[Keyboard.button.callback(t('button.menu'), 'group:back')]]),
+          ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'news'),
+        ], typed, t),
   );
 };
 
@@ -290,14 +304,11 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
  */
 export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<void> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   const requests = await supportableFor(kit.deps, resident);
 
   if (requests.length === 0) {
-    await typed.reply(
-      'Соседи пока ни о чём не сообщали.\n' +
-        'Здесь появятся поломки в подъезде и во дворе, о которых написали соседи: их можно подтвердить.',
-      menuButton(typed),
-    );
+    await typed.reply(t('neighbours.empty'), menuButton(typed, t));
     return;
   }
 
@@ -308,7 +319,7 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
       `${first!.title}\n` +
         `${describeTarget(first!.target)} · ${plural(reportersCount(first!), 'сосед сообщил', 'соседа сообщили', 'соседей сообщили')}\n` +
         `${first!.number}`,
-      alsoKeyboard(first!.id),
+      alsoKeyboard(first!.id, t),
     );
 
     return;
@@ -317,17 +328,20 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
   await inApp(
     kit,
     typed,
-    `${strong('Заявки соседей')}\n` +
-      `Соседи сообщили о ${plural(requests.length, 'проблеме', 'проблемах', 'проблемах')}. ` +
-      'В приложении видно, о чём и где, и можно подтвердить, что у вас то же самое.',
+    `${strong(t('neighbours.title'))}\n` +
+      t('neighbours.about', {
+        сколько: plural(requests.length, 'проблеме', 'проблемах', 'проблемах'),
+      }),
     'list',
-    'Смотреть',
+    t('button.show'),
+    t,
   );
 };
 
 /** Вопросы жильцов страницами: ждущие ответа стоят первыми. Возвращает число показанных. */
 export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): Promise<number> => {
   const resident = await kit.residentOf(typed);
+  const t = speak(resident);
   // На одну сверх страницы: по ней видно, что список не кончился.
   const tickets = await listSupportFor(kit.deps, resident, offset + PAGE + 1);
   const cards = await describeTickets(kit.deps, tickets.slice(offset, offset + PAGE));
@@ -350,22 +364,22 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
   for (const card of cards) {
     await typed.reply(
       formatTicket(card, { zone, viewerId: resident.id, now }),
-      card.ticket.status === 'closed' ? undefined : supportKeyboard(card.ticket.id),
+      card.ticket.status === 'closed' ? undefined : supportKeyboard(card.ticket.id, t),
     );
   }
 
   if (cards.length === 0 && offset > 0) {
-    await typed.reply('Это все обращения.', menuButton(typed));
+    await typed.reply(t('support.all'), menuButton(typed, t));
     return 0;
   }
 
   if (tickets.length > offset + cards.length) {
     await typed.reply(
-      'Ещё обращения ниже.',
+      t('support.more'),
       keyboardOf([
-        [Keyboard.button.callback('⬇️ Ещё', `more:support:${offset + PAGE}`)],
-        ...appRow(kit.miniAppUrl, 'В приложении', 'support'),
-      ], typed),
+        [Keyboard.button.callback(t('button.more'), `more:support:${offset + PAGE}`)],
+        ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'support'),
+      ], typed, t),
     );
 
     return cards.length;

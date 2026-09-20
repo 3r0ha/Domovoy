@@ -2,6 +2,7 @@ import { Button, CellAction, CellList } from '@maxhub/max-ui';
 import { useState } from 'react';
 
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { ErrorText } from './ErrorText.js';
 
 export interface DocumentScreenProps {
@@ -42,6 +43,7 @@ const legacyCopy = (text: string): boolean => {
  * Длинный текст отдельным экраном: с него копируют целиком.
  */
 export const DocumentScreen = ({ text, onBack }: DocumentScreenProps) => {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
   const haptics = useHaptics();
@@ -65,23 +67,23 @@ export const DocumentScreen = ({ text, onBack }: DocumentScreenProps) => {
 
       <div className="actions">
         <Button type="button" stretched size="large" onClick={() => void copy()}>
-          {copied ? 'Скопировано' : 'Скопировать'}
+          {copied ? t('document.copied') : t('document.copy')}
         </Button>
       </div>
 
       <CellList className="actions-more" mode="island">
         <CellAction mode="secondary" onClick={onBack}>
-          Назад
+          {t('app.back')}
         </CellAction>
       </CellList>
 
       {copied ? (
         <p className="hint aside" role="status">
-          Скопировано
+          {t('document.copied')}
         </p>
       ) : null}
 
-      {failed ? <ErrorText className="aside">Буфер обмена недоступен, выделите текст вручную</ErrorText> : null}
+      {failed ? <ErrorText className="aside">{t('document.clipboard.failed')}</ErrorText> : null}
     </div>
   );
 };

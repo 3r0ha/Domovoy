@@ -14,6 +14,7 @@ import { apartmentsOf } from '../apartments.js';
 import { recordAction } from '../audit.js';
 import { actingHouse, assertServes, houseHintFor } from '../buildings.js';
 import { houseDebt } from '../collection.js';
+import { speak } from '../language.js';
 import { pendingReadings } from '../meters.js';
 import { wanting } from '../notices.js';
 import { formatBroadcast, noopNotifier, notifyAbout } from '../notifier.js';
@@ -235,7 +236,7 @@ export const sendBroadcast = async (deps: AppDeps, command: BroadcastCommand): P
   for (const resident of recipients) {
     const hint = await hintOf(resident);
 
-    await notifyAbout(notifier, resident, formatBroadcast(text, hint), {
+    await notifyAbout(notifier, resident, formatBroadcast(speak(resident), text, hint), {
       section: 'news',
       ...(notice ? { mutable: notice } : {}),
     });

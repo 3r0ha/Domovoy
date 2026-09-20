@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 
+import { say } from './i18n.js';
 import type { Profile } from './views.js';
 
 export type Screen =
@@ -37,6 +38,7 @@ export type Screen =
   | 'inspections'
   | 'visits'
   | 'demo'
+  | 'language'
   | 'request';
 
 export interface Screens {
@@ -92,14 +94,14 @@ export const titleFor = (
   named: { object: string | null; device: string | null; document: string | null; section: string | undefined },
 ): string => {
   const own: Partial<Record<Screen, string | null>> = {
-    new: 'Новая заявка',
-    more: 'Ещё',
-    request: 'Заявка',
+    new: say('screen.new'),
+    more: say('screen.more'),
+    request: say('screen.request'),
     journal: 'Журнал',
-    object: named.object ?? 'Объект',
+    object: named.object ?? say('screen.object'),
     camera: named.device ?? '',
     guest: named.device ?? '',
-    document: named.document ?? 'Документ',
+    document: named.document ?? say('screen.document'),
   };
 
   return own[screen] ?? named.section ?? '';

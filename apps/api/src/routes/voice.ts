@@ -64,7 +64,7 @@ export const voiceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
     },
     async (request) => {
-      await currentResident(request.max.userId);
+      const resident = await currentResident(request.max.userId);
 
       const { data } = request.body;
       const contentType = mediaType(request.body.contentType);
@@ -87,7 +87,7 @@ export const voiceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       };
 
       // Отказ по самой записи (длина, формат) уходит как есть, молчание службы одним кодом.
-      const recognized = await deps.transcriber.transcribe(voice).catch((error: unknown) => {
+      const recognized = await deps.transcriber.transcribe(voice, resident.language).catch((error: unknown) => {
         if (error instanceof DomainError) throw error;
 
         throw new ServiceError('speech_unavailable', 'Расшифровка не ответила. Попробуйте ещё раз или напишите');

@@ -14,6 +14,7 @@ import {
 } from '@domovoy/app';
 import { DomainError, isCompanyStaff, sectionParam } from '@domovoy/domain';
 
+import { speak } from '../i18n.js';
 import {
   afterError,
   appRow,
@@ -37,6 +38,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
   /** Открытие домофона из переписки. */
   door: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     try {
       const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
@@ -45,23 +47,24 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       const cameras = devices.filter((device) => device.kind === 'camera');
 
       if (openable.length === 0 && cameras.length === 0) {
-        await typed.reply('Домофон к дому не подключён. Управляющая компания добавит его в приложении.', menuButton(typed));
+        await typed.reply(t('door.none'), menuButton(typed, t));
         return;
       }
 
       await typed.reply(
-        cameras.length > 0 ? 'Что открыть или посмотреть?' : 'Что открыть?',
-        doorKeyboard(openable, cameras),
+        cameras.length > 0 ? t('door.what_cameras') : t('door.what'),
+        doorKeyboard(openable, cameras, undefined, t),
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed, t));
     }
   },
 
   /** Собрания собственников. */
   vote: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
     const polls = await listPollsFor(deps, resident);
     const open = polls.filter((view) => view.open);
     const collecting = (await listInitiativesFor(deps, resident)).filter((view) => !view.initiative.pollId);
@@ -70,17 +73,13 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       const [last] = polls.filter((view) => view.poll.closedAt);
 
       if (!last) {
-        await typed.reply(
-          'Открытых собраний сейчас нет.\n' +
-            'Здесь появятся собрания собственников: решение считают по площади квартир.',
-          menuButton(typed),
-        );
+        await typed.reply(t('vote.none'), menuButton(typed, t));
         return;
       }
 
       await typed.reply(
-        shorten(await pollProtocol(deps, resident, last.poll.id), 'Протокол целиком в приложении.'),
-        keyboardOf([...appRow(kit.miniAppUrl, 'Собрания в приложении', 'polls')], typed),
+        shorten(await pollProtocol(deps, resident, last.poll.id), t('vote.protocol_in_app')),
+        keyboardOf([...appRow(kit.miniAppUrl, t('button.polls_in_app'), 'polls')], typed, t),
       );
       return;
     }
@@ -88,13 +87,13 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     // Собрание это бюллетень с вопросами, долями и кворумом: в переписке его
     // не читают. В боте остаётся строка о том, что идёт, а голосуют на экране.
     const said = [
-      open.length > 0 ? `Открытых собраний: ${open.length}` : '',
-      collecting.length > 0 ? `предложений соседей: ${collecting.length}` : '',
+      open.length > 0 ? t('vote.open', { сколько: open.length }) : '',
+      collecting.length > 0 ? t('vote.initiatives', { сколько: collecting.length }) : '',
     ]
       .filter(Boolean)
       .join(', ');
 
-    await inApp(kit, typed, `${strong('Собрания собственников')}\n${said}.`, 'polls', 'Голосовать');
+    await inApp(kit, typed, `${strong(t('vote.title'))}\n${said}.`, 'polls', t('button.vote'), t);
   },
 
   news: (typed) => showNews(kit, typed),
@@ -108,20 +107,22 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
    */
   house: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     try {
-      const short = formatQualityShort(await houseQuality(deps, resident));
+      const short = formatQualityShort(await houseQuality(deps, resident), t);
 
-      await inApp(kit, typed, short, 'quality', 'Работа дома в приложении');
+      await inApp(kit, typed, short, 'quality', t('button.quality_in_app'), t);
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed, t));
     }
   },
 
   /** К кому обращаться по дому. */
   contacts: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     try {
       const card = formatContacts(await contactsFor(deps, resident));
@@ -129,19 +130,20 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       // В чате дома нужен только аварийный телефон: полная карточка там читается
       // плохо и уходит вверх после пары сообщений соседей.
       const said = inChat(typed)
-        ? `${card.split('\n')[0]!}\nОстальные контакты в приложении.`
-        : shorten(card, 'Остальные контакты в приложении.');
+        ? `${card.split('\n')[0]!}\n${t('contacts.tail')}`
+        : shorten(card, t('contacts.tail'));
 
       await typed.reply(said, openApp(sectionParam('support'), typed));
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
-      await typed.reply(errorText(error), afterError(error, typed));
+      await typed.reply(errorText(error), afterError(error, typed, t));
     }
   },
 
   /** Поддержка: вопрос жильца и переписка с управляющей компанией. */
   support: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     const shown = await showSupport(kit, typed);
 
@@ -158,17 +160,13 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     typed.session ??= {};
     expect(typed, { kind: 'support' });
 
-    await typed.reply(
-      shown === 0
-        ? 'Напишите вопрос одним сообщением, передам управляющей компании.'
-        : 'Новый вопрос напишите одним сообщением, а к прежнему ответьте кнопкой.',
-      cancelKeyboard(),
-    );
+    await typed.reply(shown === 0 ? t('support.ask') : t('support.ask_more'), cancelKeyboard(t));
   },
 
   /** Обращение в жилинспекцию по последней просроченной заявке. */
   gzhi: async (typed) => {
     const resident = await residentOf(typed);
+    const t = speak(resident);
 
     // Наряды подрядчика чужие: обращаться по ним в инспекцию ему не с чем.
     if (resident.role === 'contractor') {
@@ -197,21 +195,19 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
 
       if (offer.sent) {
         await typed.reply(
-          `Обращение по заявке ${request.number} уже отправлено: ${offer.sent.organization}.` +
-            `${offer.sent.externalId ? ` Номер ${offer.sent.externalId}.` : ''}`,
-          menuButton(typed),
+          t('gzhi.sent_already', { номер: request.number, организация: offer.sent.organization }) +
+            `${offer.sent.externalId ? ` ${t('gzhi.number', { номер: offer.sent.externalId })}` : ''}`,
+          menuButton(typed, t),
         );
         return;
       }
 
-      await typed.reply(
-        `По заявке ${request.number} есть основание для обращения: ${offer.reason}.\nТекст обращения:`,
-      );
-      await typed.reply(offer.complaint, oneKeyboard('📨 Отправить в инспекцию', `gzhi:${request.id}:send`));
+      await typed.reply(t('gzhi.reason', { номер: request.number, основание: offer.reason }));
+      await typed.reply(offer.complaint, oneKeyboard(t('button.complaint'), `gzhi:${request.id}:send`));
       return;
     }
 
-    await typed.reply('Нарушенных сроков по вашим заявкам нет, обращаться не с чем.', menuButton(typed));
+    await typed.reply(t('gzhi.none'), menuButton(typed, t));
     },
   };
 };

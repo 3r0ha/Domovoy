@@ -1,9 +1,11 @@
+import type { Language } from '@domovoy/i18n';
 import { useBridgeRequest } from '@maxkit/react';
 import { useEffect, useRef, useState } from 'react';
 
 import { describeFailure, type DomovoyApi } from '../api.js';
 import { useTrapped } from '../focus.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { useFit } from './Composer.js';
 import { Domovoy } from './Domovoy.js';
 import { ErrorText } from './ErrorText.js';
@@ -14,6 +16,8 @@ export interface AssistantProps {
   api: DomovoyApi;
   /** Куда уводить по кнопке из ответа. */
   onGo: (screen: string) => void;
+  /** Человек спросил на другом языке и выбрал перейти на него. */
+  onLanguage: (language: Language) => void;
   onClose: () => void;
 }
 
@@ -26,6 +30,10 @@ interface Line {
   screen?: string;
   /** Название раздела для подписи кнопки. */
   title?: string;
+  /** Язык вопроса: на него предлагается перейти. */
+  language?: Language;
+  /** Подпись кнопки перехода, на том же языке. */
+  languageTitle?: string;
 }
 
 /** Сколько прошлых реплик уходит модели: дальше разговор уходит в сторону. */
@@ -51,19 +59,24 @@ const pairs = (lines: readonly Line[]): { asked: string; said: string }[] => {
  * Кнопка помощника: она в шапке любого экрана и подписана словом. Значок без
  * подписи человек, который редко берёт телефон в руки, просто не замечает.
  */
-export const AssistantButton = ({ onOpen }: { onOpen: () => void }) => (
-  <button type="button" className="ask" data-guide="assistant" aria-label="Спросить помощника" onClick={onOpen}>
-    <IconHelp />
-    <span className="ask-word">Спросить</span>
-  </button>
-);
+export const AssistantButton = ({ onOpen }: { onOpen: () => void }) => {
+  const t = useT();
+
+  return (
+    <button type="button" className="ask" data-guide="assistant" aria-label={t('assistant.ask')} onClick={onOpen}>
+      <IconHelp />
+      <span className="ask-word">{t('assistant.button')}</span>
+    </button>
+  );
+};
 
 /**
  * Помощник по приложению: разговор, в котором можно спрашивать дальше.
  * Ответ приходит с готовым переходом в раздел, а пока помощник думает,
  * это видно. Без модели отвечает подбором по разделам, поэтому есть всегда.
  */
-export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
+export const Assistant = ({ api, onGo, onLanguage, onClose }: AssistantProps) => {
+  const t = useT();
   const [question, setQuestion] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
@@ -99,6 +112,18 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
     return () => globalThis.removeEventListener('keydown', shut);
   }, [onClose]);
 
+  /** Переход на язык вопроса: ответ остаётся на месте, меняется весь интерфейс. */
+  const switchTo = async (language: Language): Promise<void> => {
+    try {
+      await api.setLanguage(language);
+      onLanguage(language);
+      haptics.done();
+    } catch (error: unknown) {
+      setFailed(describeFailure(error));
+      haptics.failed();
+    }
+  };
+
   const ask = async (asked: string): Promise<void> => {
     const text = asked.trim();
 
@@ -119,6 +144,8 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
           text: answer.answer,
           ...(answer.screen ? { screen: answer.screen } : {}),
           ...(answer.title ? { title: answer.title } : {}),
+          ...(answer.offerLanguage ? { language: answer.offerLanguage } : {}),
+          ...(answer.offerTitle ? { languageTitle: answer.offerTitle } : {}),
         },
       ]);
       haptics.done();
@@ -131,19 +158,19 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
   };
 
   return (
-    <div className="guide" role="dialog" aria-modal="true" aria-label="Помощник">
-      <button type="button" className="guide-veil" aria-label="Закрыть помощника" onClick={onClose} />
+    <div className="guide" role="dialog" aria-modal="true" aria-label={t('assistant.title')}>
+      <button type="button" className="guide-veil" aria-label={t('assistant.close.veil')} onClick={onClose} />
 
       <section className="guide-sheet assistant" ref={sheet}>
         <header className="assistant-head">
           <Domovoy mood="walking" />
 
           <div>
-            <h2>Чем помочь?</h2>
-            <p className="hint">Отвечу и открою нужный раздел</p>
+            <h2>{t('assistant.lead')}</h2>
+            <p className="hint">{t('assistant.hint')}</p>
           </div>
 
-          <button type="button" className="assistant-close" aria-label="Закрыть" onClick={onClose}>
+          <button type="button" className="assistant-close" aria-label={t('assistant.close')} onClick={onClose}>
             ×
           </button>
         </header>
@@ -162,7 +189,21 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
                     onGo(line.screen as string);
                   }}
                 >
-                  {line.screen === 'tour' ? 'Показать тур' : line.title ? `Открыть: ${line.title}` : 'Открыть раздел'}
+                  {line.screen === 'tour'
+                    ? t('assistant.tour')
+                    : line.title
+                      ? t('assistant.open.titled', { раздел: line.title })
+                      : t('assistant.open')}
+                </button>
+              ) : null}
+
+              {line.language && line.languageTitle ? (
+                <button
+                  type="button"
+                  className="inline-btn"
+                  onClick={() => void switchTo(line.language as Language)}
+                >
+                  {line.languageTitle}
                 </button>
               ) : null}
             </div>
@@ -170,7 +211,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
 
           {busy ? (
             <div className="turn turn-bot">
-              <p className="said said-bot thinking">Думаю…</p>
+              <p className="said said-bot thinking">{t('assistant.thinking')}</p>
             </div>
           ) : null}
 
@@ -195,7 +236,7 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
           <VoiceButton
             api={api}
             compact
-            label="Вопрос помощнику"
+            label={t('assistant.question')}
             onText={(said) =>
               setQuestion((current) => (current.trim().length === 0 ? said : `${current.trimEnd()} ${said}`))
             }
@@ -204,11 +245,11 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
           <textarea
             ref={field}
             className="composer-field"
-            aria-label="Вопрос помощнику"
+            aria-label={t('assistant.question')}
             rows={1}
             maxLength={500}
             value={question}
-            placeholder="Спросите словами"
+            placeholder={t('assistant.placeholder')}
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey) return;
@@ -221,8 +262,8 @@ export const Assistant = ({ api, onGo, onClose }: AssistantProps) => {
           <button
             type="button"
             className="composer-send"
-            aria-label="Отправить"
-            title="Отправить"
+            aria-label={t('assistant.send')}
+            title={t('assistant.send')}
             disabled={busy || question.trim().length === 0}
             onClick={() => void ask(question)}
           >

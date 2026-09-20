@@ -62,6 +62,8 @@ import type {
   VisitView,
   VoteChoiceView,
 } from './views.js';
+import type { Language } from '@domovoy/i18n';
+import { say } from './i18n.js';
 
 export type * from './views.js';
 export * from './format.js';
@@ -87,7 +89,7 @@ export class ApiError extends Error {
 export const describeFailure = (error: unknown): string => {
   if (error instanceof ApiError) return error.message;
 
-  return 'Нет связи с сервером';
+  return say('failure.offline');
 };
 
 /** Отказ из-за непривязанной квартиры: помогает не повтор, а привязка по коду. */
@@ -366,6 +368,14 @@ export class DomovoyApi {
   /** Согласие с действующей редакцией документов. */
   acceptLegal(): Promise<{ version: string; accepted: boolean }> {
     return this.send<{ version: string; accepted: boolean }>('/api/me/legal', { method: 'POST' });
+  }
+
+  /** Язык человека: на нём продукт говорит и в приложении, и в переписке. */
+  setLanguage(language: Language): Promise<{ language: Language }> {
+    return this.send<{ language: Language }>('/api/me/language', {
+      method: 'POST',
+      body: JSON.stringify({ language }),
+    });
   }
 
   /** С чего начать разговор с помощником: подсказки зависят от роли. */

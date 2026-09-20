@@ -1,6 +1,7 @@
 import { Button } from '@maxhub/max-ui';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { say } from '../i18n.js';
 import { Empty } from './Empty.js';
 import { IconHome } from './icons.js';
 
@@ -33,15 +34,15 @@ export class ScreenGuard extends Component<ScreenGuardProps, { message: string |
     if (message === null) return this.props.children;
 
     return (
-      <Empty icon={<IconHome />} title="Раздел не открылся" hint={message}>
+      <Empty icon={<IconHome />} title={say('chrome.screen.failed')} hint={message}>
         <div className="confirm-keys">
           {this.props.onBack ? (
             <Button type="button" variant="secondary" onClick={this.props.onBack}>
-              Назад
+              {say('chrome.back')}
             </Button>
           ) : null}
           <Button type="button" onClick={this.props.onHome}>
-            На главную
+            {say('chrome.home')}
           </Button>
         </div>
       </Empty>

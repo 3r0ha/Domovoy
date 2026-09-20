@@ -10,6 +10,7 @@ import {
   type VisitView,
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
 import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
@@ -409,6 +410,7 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
 
 /** Свободные часы и своя запись: их выбирает жилец. */
 const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) => {
+  const t = useT();
   const reception = useBridgeRequest((alive) => api.until(alive).reception(), [api]);
   const toast = useToast();
   const haptics = useHaptics();
@@ -421,7 +423,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
   if (reception.loading && !reception.data) return <Skeleton count={3} />;
 
   if (reception.error || !reception.data) {
-    return <Failure title="Приём не загрузился" error={reception.error} onRetry={reception.reload} />;
+    return <Failure title={t('visits.failed')} error={reception.error} onRetry={reception.reload} />;
   }
 
   const view: ReceptionView = reception.data;
@@ -434,7 +436,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
     try {
       await api.bookVisit(chosen, topic.trim());
       haptics.done();
-      toast('Записали на приём');
+      toast(t('visits.booked'));
       setChosen(null);
       setTopic('');
       reception.reload();
@@ -454,7 +456,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
     try {
       await api.cancelVisit(view.mine.id);
       setCancelling(false);
-      toast('Запись отменена');
+      toast(t('visits.cancelled'));
       reception.reload();
     } catch (reason) {
       toast(describeFailure(reason), 'error');
@@ -466,7 +468,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
   if (view.mine) {
     return (
       <section className="list">
-        <Group title="Вы записаны">
+        <Group title={t('visits.mine')}>
           <CellSimple
             before={
               <span className="tile tile-green">
@@ -476,18 +478,20 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
             title={`${view.mine.day}, ${view.mine.clock}`}
             subtitle={view.mine.topic}
           />
-          {view.office ? <CellSimple title="Адрес" subtitle={view.office} height="compact" separator /> : null}
+          {view.office ? (
+            <CellSimple title={t('visits.office')} subtitle={view.office} height="compact" separator />
+          ) : null}
           <CellAction mode="destructive" disabled={busy} onClick={() => setCancelling(true)}>
-            Отменить запись
+            {t('visits.cancel')}
           </CellAction>
         </Group>
 
         {cancelling ? (
           <Confirm
-            title="Отменить запись?"
+            title={t('visits.cancel.title')}
             text={`${view.mine.day}, ${view.mine.clock}.`}
-            confirmLabel="Отменить запись"
-            busyLabel="Отменяем…"
+            confirmLabel={t('visits.cancel')}
+            busyLabel={t('visits.cancel.busy')}
             busy={busy}
             danger
             onConfirm={() => void cancel()}
@@ -502,12 +506,12 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
     return (
       <Empty
         icon={<IconCalendar />}
-        title={view.hours ? 'Свободных часов нет' : 'Приём по записи не ведётся'}
-        hint={view.hours ? 'Загляните через несколько дней' : undefined}
+        title={view.hours ? t('visits.none') : t('visits.off')}
+        hint={view.hours ? t('visits.none.hint') : undefined}
       >
         {view.hours || !onSupport ? null : (
           <Button type="button" onClick={onSupport}>
-            Задать вопрос
+            {t('visits.ask')}
           </Button>
         )}
       </Empty>
@@ -519,7 +523,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
 
   // Форма стоит под выбранным днём, а не в конце списка: выбранный час виден рядом с ней.
   const form = picked ? (
-    <Group title="С чем придёте">
+    <Group title={t('visits.topic')}>
       <CellSimple
         before={
           <span className="tile tile-green">
@@ -527,19 +531,19 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
           </span>
         }
         title={`${picked.day}, ${picked.clock}`}
-        subtitle="Выбранное время"
+        subtitle={t('visits.picked')}
         height="compact"
       />
       <CellInput
         className="field-row"
         id="visit-topic"
-        aria-label="С чем придёте"
-        placeholder="Перерасчёт за горячую воду"
+        aria-label={t('visits.topic')}
+        placeholder={t('visits.topic.example')}
         value={topic}
         onChange={(event) => setTopic(event.target.value)}
       />
       <CellAction mode="primary" disabled={busy || topic.trim().length === 0} onClick={() => void book()}>
-        {busy ? 'Записываем…' : 'Записаться'}
+        {busy ? t('visits.booking') : t('visits.book')}
       </CellAction>
     </Group>
   ) : null;
@@ -552,7 +556,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
         </p>
       ) : null}
 
-      <p className="hint aside">Выберите час</p>
+      <p className="hint aside">{t('visits.pick')}</p>
 
       {days.map((day) => (
         <div key={day} className="list">

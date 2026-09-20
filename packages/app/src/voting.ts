@@ -12,6 +12,8 @@ import {
   formatDay,
   isOpen,
   needsClosing,
+  pollRuleKey,
+  voteChoiceKey,
   type Apartment,
   type Poll,
   type PollKind,
@@ -20,9 +22,12 @@ import {
   type VoteChoice,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import { recordAction } from './audit.js';
 import { assertServes, houseHintFor, housesOf, type HouseHint } from './buildings.js';
+import { speak, speakDefault } from './language.js';
 import { wanting } from './notices.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import { zoneOf } from './zone.js';
@@ -118,13 +123,20 @@ export const startPoll = async (deps: AppDeps, command: StartPollCommand): Promi
   const opens = formatDay(poll.opensAt, zone);
 
   for (const resident of wanting(residents, 'polls')) {
+    const t = speak(resident);
+
     await notifyAbout(
       notifier,
       resident,
-      `${mode === 'meeting' ? 'Собрание собственников' : 'Опрос жильцов'}: ${poll.title}\n\n${poll.question}\n\n` +
-        (mode === 'meeting'
-          ? `${POLL_RULES[poll.kind].title}. Голосование идёт с ${opens} по ${closes}.`
-          : `Ответить можно до ${closes}. Опрос не заменяет собрание собственников.`),
+      t('app.poll.started', {
+        вид: t(mode === 'meeting' ? 'app.poll.meeting' : 'app.poll.survey'),
+        название: poll.title,
+        вопрос: poll.question,
+        порядок:
+          mode === 'meeting'
+            ? t('app.poll.orderMeeting', { правило: t(pollRuleKey(poll.kind)), от: opens, до: closes })
+            : t('app.poll.orderSurvey', { до: closes }),
+      }),
       // Бюллетень стоит под самим уведомлением: голосовать можно, не открывая приложение.
       { section: 'polls', mutable: 'polls', voteAbout: poll.id },
     );
@@ -222,16 +234,20 @@ export const remindAboutPolls = async (deps: AppDeps, buildingId: string): Promi
 
     for (const resident of people) {
       const house = await hintOf(resident);
+      const t = speak(resident);
 
       await notifyAbout(
         notifier,
         resident,
-        `${house ? `${house}\n` : ''}Собрание «${poll.title}» закрывается ${closes}.\n` +
-          (result.areasMissing > 0
-            ? 'Проголосовали не все: пока голосов мало, решение не примут.'
-            : `Проголосовали собственники не всей площади: не хватает ${formatArea(
-                areaToQuorum(poll, result),
-              )} м². Пока голосов мало, решение не примут.`),
+        (house ? `${house}\n` : '') +
+          t('app.poll.remind', {
+            название: poll.title,
+            до: closes,
+            нехватка:
+              result.areasMissing > 0
+                ? t('app.poll.remindFew')
+                : t('app.poll.remindArea', { площадь: formatArea(areaToQuorum(poll, result)) }),
+          }),
         { section: 'polls', mutable: 'polls' },
       );
 
@@ -312,22 +328,26 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
 
   if (before && before.residentId !== command.resident.id) {
     const notifier = deps.notifier ?? noopNotifier;
+    const replaced = await deps.repository.findResident(before.residentId);
+    const t = speak(replaced);
 
     await notifyResident(
       notifier,
-      await deps.repository.findResident(before.residentId),
-      `Голос квартиры ${apartment.number} по собранию «${poll.title}» изменил ${command.resident.displayName}: ` +
-        `${CHOICES[command.choice]}.\nУ помещения один голос, считается последний.`,
+      replaced,
+      t('app.poll.voteReplaced', {
+        квартира: apartment.number,
+        название: poll.title,
+        кто: command.resident.displayName,
+        ответ: t(`app.poll.choice.${command.choice}`),
+      }),
     );
   }
 
   return describePoll(deps, poll, command.resident);
 };
 
-const CHOICES: Record<VoteChoice, string> = { for: 'за', against: 'против', abstain: 'воздержался' };
-
-/** Те же ответы в протоколе, множественным числом. */
-const TALLY: Record<VoteChoice, string> = { for: 'За', against: 'Против', abstain: 'Воздержались' };
+/** Порядок ответов один и в итогах, и в протоколе. */
+const CHOICES: readonly VoteChoice[] = ['for', 'against', 'abstain'];
 
 const percent = (share: number): string => `${Math.round(share * 100)}%`;
 
@@ -338,61 +358,68 @@ export const formatArea = (area: number): string => String(Math.round(area * 10)
 export interface PollTextOptions {
   /** Показывать ли собственный голос: в общем чате его видели бы соседи. */
   personal?: boolean;
+  /** Язык читающего. Общий чат дома читают все соседи, там итоги остаются русскими. */
+  t?: Translate;
 }
 
 /** Сколько «за» нужно по правилу вопроса и сколько уже есть. */
-const needed = (kind: PollKind, support: number): string => {
+const needed = (t: Translate, kind: PollKind, support: number): string => {
   const rule = POLL_RULES[kind];
-  const base = rule.base === 'participants' ? 'от проголосовавших' : 'от всех собственников';
-  const bar = `${rule.strict ? 'больше ' : ''}${percent(rule.threshold)}`;
+  const порог = t(rule.strict ? 'app.poll.threshold.strict' : 'app.poll.threshold.plain', {
+    доля: percent(rule.threshold),
+  });
 
-  return `Нужно ${bar} ${base}, набрано ${percent(support)}.`;
+  return t('app.poll.result.needed', {
+    порог,
+    база: t(`app.poll.base.${rule.base}`),
+    набрано: percent(support),
+  });
 };
+
+/** Доли ответов столбиком: «За: 60%». */
+const shareLines = (t: Translate, result: PollResult): string[] =>
+  CHOICES.map((choice) =>
+    t('app.poll.result.share', { ответ: t(`app.poll.tally.${choice}`), доля: percent(result.shares[choice]) }),
+  );
 
 export const formatPollResult = (view: PollView, options: PollTextOptions = {}): string => {
   const { poll, result } = view;
   const survey = poll.mode === 'survey';
+  const t = options.t ?? speakDefault();
 
   const lines = [
     `${poll.title}`,
     poll.question,
     '',
     survey
-      ? `Опрос жильцов, решением собрания не является. Ответили: ${percent(result.turnout)} площади дома.`
-      : `${POLL_RULES[poll.kind].title}. Участие: ${percent(result.turnout)} площади дома.`,
+      ? t('app.poll.result.survey', { участие: percent(result.turnout) })
+      : t('app.poll.result.meeting', { правило: t(pollRuleKey(poll.kind)), участие: percent(result.turnout) }),
   ];
 
   if (!result.quorum && !survey) {
     // «Кворум» знают не все: то же самое говорится обычными словами.
+    lines.push(t('app.poll.result.quorum', { площадь: formatArea(view.areaToQuorum) }));
+  }
+
+  lines.push('', ...shareLines(t, result), needed(t, poll.kind, result.support));
+
+  if (view.myChoice && options.personal !== false) {
+    const ответ = t(voteChoiceKey(view.myChoice));
+
     lines.push(
-      `Проголосовали пока не все: чтобы решение состоялось, нужны голоса собственников ещё ${formatArea(
-        view.areaToQuorum,
-      )} м² квартир.`,
+      '',
+      view.votedBy ? t('app.poll.result.mineBy', { ответ, кто: view.votedBy }) : t('app.poll.result.mine', { ответ }),
     );
   }
 
-  lines.push(
-    '',
-    `За: ${percent(result.shares.for)}`,
-    `Против: ${percent(result.shares.against)}`,
-    `Воздержались: ${percent(result.shares.abstain)}`,
-    needed(poll.kind, result.support),
-  );
-
-  if (view.myChoice && options.personal !== false) {
-    const whose = view.votedBy ? ` (подал ${view.votedBy}, у квартиры один голос)` : '';
-
-    lines.push('', `Голос квартиры: ${CHOICES[view.myChoice]}${whose}.`);
-  }
-
   if (!view.open) {
-    lines.push('', result.passed ? 'Решение принято.' : 'Решение не принято.');
+    lines.push('', t(result.passed ? 'app.poll.passed' : 'app.poll.failed'));
   }
 
   return lines.join('\n');
 };
 
-export const choiceTitle = (choice: VoteChoice): string => CHOICES[choice];
+export const choiceTitle = (t: Translate, choice: VoteChoice): string => t(voteChoiceKey(choice));
 
 export interface ClosedPoll {
   poll: Poll;
@@ -408,12 +435,7 @@ const applyElderResult = async (deps: AppDeps, poll: Poll, result: PollResult): 
   const elder = await deps.repository.findResident(poll.elder.residentId);
   const notifier = deps.notifier ?? noopNotifier;
 
-  await notifyResident(
-    notifier,
-    elder,
-    `Соседи выбрали вас старшим по подъезду ${eldership.entrance}.\n` +
-      'Заявки по общему имуществу подъезда теперь ваши: их видно вам, и работу по ним принимаете вы.',
-  );
+  await notifyResident(notifier, elder, speak(elder)('app.poll.elder', { подъезд: eldership.entrance }));
 
   for (const person of await deps.repository.listStaff(poll.buildingId)) {
     await notifyResident(
@@ -456,19 +478,20 @@ export const closePoll = async (deps: AppDeps, poll: Poll): Promise<ClosedPoll> 
 
   await applyElderResult(deps, closed, result);
 
-  const outcome = !result.quorum
-    ? 'Кворума нет, собрание не состоялось.'
-    : result.passed
-      ? 'Решение принято.'
-      : 'Решение не принято.';
+  const outcomeKey = !result.quorum ? 'app.poll.noQuorum' : result.passed ? 'app.poll.passed' : 'app.poll.failed';
 
   for (const resident of wanting(residents, 'polls')) {
+    const t = speak(resident);
+
     await notifyAbout(
       notifier,
       resident,
-      `Собрание завершено: ${poll.title}\n${outcome}\nУчастие: ${percent(result.turnout)}, за: ${percent(
-        result.shares.for,
-      )} площади дома.`,
+      t('app.poll.closed', {
+        название: poll.title,
+        итог: t(outcomeKey),
+        участие: percent(result.turnout),
+        за: percent(result.shares.for),
+      }),
       { section: 'polls', mutable: 'polls' },
     );
   }
@@ -503,79 +526,87 @@ export const pollProtocol = async (deps: AppDeps, viewer: Resident, pollId: stri
   const apartments = await deps.repository.listApartments(poll.buildingId);
   const votes = await deps.repository.listVotes(poll.id);
 
-  return formatProtocol(deps, poll, countVotes(poll, apartments, votes));
+  return formatProtocol(deps, poll, countVotes(poll, apartments, votes), speak(viewer));
 };
 
 /** Шапка протокола: чей документ, по какому дому и кто его вёл. */
-const head = (poll: Poll, survey: boolean, building?: Building, initiator?: string): string[] => [
-  survey ? 'Итоги опроса жильцов' : 'Протокол общего собрания собственников',
-  ...(poll.protocolId ? [`№ ${poll.protocolId}`] : []),
+const head = (t: Translate, poll: Poll, survey: boolean, building?: Building, initiator?: string): string[] => [
+  t(survey ? 'app.protocol.surveyTitle' : 'app.protocol.title'),
+  ...(poll.protocolId ? [t('app.protocol.number', { номер: poll.protocolId })] : []),
   ...(building?.address ? [building.address] : []),
-  ...(building?.managementCompany ? [`Управляющая компания: ${building.managementCompany}`] : []),
-  survey
-    ? 'Опрос управляющей организации: решением общего собрания не является'
-    : 'Форма: заочное голосование с использованием системы',
-  ...(poll.noticeId ? [`Сообщение о собрании: ${poll.noticeId}`] : []),
-  ...(initiator ? [`${survey ? 'Провёл' : 'Инициатор'}: ${initiator}`] : []),
-  ...(survey || !initiator ? [] : [`Администратор собрания: ${initiator}`]),
+  ...(building?.managementCompany
+    ? [t('app.protocol.company', { название: building.managementCompany })]
+    : []),
+  t(survey ? 'app.protocol.surveyForm' : 'app.protocol.form'),
+  ...(poll.noticeId ? [t('app.protocol.notice', { номер: poll.noticeId })] : []),
+  ...(initiator ? [t(survey ? 'app.protocol.surveyBy' : 'app.protocol.initiator', { кто: initiator })] : []),
+  ...(survey || !initiator ? [] : [t('app.protocol.administrator', { кто: initiator })]),
 ];
 
-/** Протокол общего собрания. */
-export const formatProtocol = async (deps: AppDeps, poll: Poll, result: PollResult): Promise<string> => {
+/** Строка о кворуме: есть, нет или не считается без площадей. */
+const quorumLine = (t: Translate, poll: Poll, result: PollResult): string => {
+  if (result.quorum) return t('app.protocol.quorumYes', { порог: percent(POLL_RULES[poll.kind].quorum) });
+
+  return result.areasMissing > 0
+    ? t('app.protocol.quorumUnknown', { сколько: result.areasMissing })
+    : t('app.protocol.quorumNo', { площадь: formatArea(areaToQuorum(poll, result)) });
+};
+
+/**
+ * Протокол общего собрания. Без языка протокол остаётся русским: таким он
+ * уходит в систему и в надзор, а жилец читает его на своём.
+ */
+export const formatProtocol = async (
+  deps: AppDeps,
+  poll: Poll,
+  result: PollResult,
+  t: Translate = speakDefault(),
+): Promise<string> => {
   const timeZone = await zoneOf(deps, poll.buildingId);
   const building = await deps.repository.findBuilding(poll.buildingId);
   const initiator = poll.startedBy ? await deps.repository.findResident(poll.startedBy) : undefined;
   const rule = POLL_RULES[poll.kind];
-  const area = (share: number): string => formatArea(share * result.totalArea);
-  const line = (choice: VoteChoice): string =>
-    `${TALLY[choice]}: ${area(result.shares[choice])} м² (${percent(result.shares[choice])})`;
-
   const survey = poll.mode === 'survey';
 
+  const line = (choice: VoteChoice): string =>
+    t('app.protocol.line', {
+      ответ: t(`app.poll.tally.${choice}`),
+      площадь: formatArea(result.shares[choice] * result.totalArea),
+      доля: percent(result.shares[choice]),
+    });
+
   const lines = [
-    ...head(poll, survey, building, initiator?.displayName),
-    `Голосование: с ${formatDate(poll.opensAt, timeZone)} по ${formatDate(poll.closesAt, timeZone)}`,
+    ...head(t, poll, survey, building, initiator?.displayName),
+    t('app.protocol.voting', { от: formatDate(poll.opensAt, timeZone), до: formatDate(poll.closesAt, timeZone) }),
     '',
-    'Вопрос повестки дня',
+    t('app.protocol.agenda'),
     poll.title,
     poll.question,
     '',
-    'Подсчёт голосов',
-    `Общая площадь помещений: ${formatArea(result.totalArea)} м²`,
-    `Приняли участие: ${formatArea(result.votedArea)} м² (${percent(result.turnout)})`,
-    result.quorum
-      ? `Кворум: есть, требуется более ${percent(rule.quorum)}`
-      : result.areasMissing > 0
-        ? `Кворум: не подтверждается, у ${result.areasMissing} помещений не внесена площадь`
-        : `Кворум: нет, не хватает ${formatArea(areaToQuorum(poll, result))} м²`,
+    t('app.protocol.counting'),
+    t('app.protocol.totalArea', { площадь: formatArea(result.totalArea) }),
+    t('app.protocol.turnout', { площадь: formatArea(result.votedArea), доля: percent(result.turnout) }),
+    quorumLine(t, poll, result),
     '',
-    line('for'),
-    line('against'),
-    line('abstain'),
+    ...CHOICES.map(line),
     '',
-    'Решение',
-    `${rule.title}: ${percent(result.support)} ${
-      rule.base === 'participants' ? 'от проголосовавших' : 'от всех собственников'
-    } при пороге ${rule.strict ? 'более' : 'не менее'} ${percent(rule.threshold)}.`,
-    result.quorum
-      ? result.passed
-        ? 'Решение принято.'
-        : 'Решение не принято.'
-      : 'Собрание не состоялось: кворума нет.',
+    t('app.protocol.decision'),
+    t('app.protocol.rule', {
+      правило: t(pollRuleKey(poll.kind)),
+      набрано: percent(result.support),
+      база: t(`app.poll.base.${rule.base}`),
+      порог: t(rule.strict ? 'app.protocol.moreThan' : 'app.protocol.atLeast', { доля: percent(rule.threshold) }),
+    }),
+    result.quorum ? t(result.passed ? 'app.poll.passed' : 'app.poll.failed') : t('app.protocol.noQuorum'),
   ];
 
   if (poll.closedAt) {
-    lines.push('', `${survey ? 'Итоги подведены' : 'Протокол сформирован'} ${formatDate(poll.closedAt, timeZone)}`);
+    const дата = formatDate(poll.closedAt, timeZone);
+
+    lines.push('', t(survey ? 'app.protocol.surveyFormed' : 'app.protocol.formed', { дата }));
   }
 
-  if (!survey) {
-    lines.push(
-      '',
-      'Приложения: реестр собственников, решения собственников, сообщение о проведении собрания.',
-      'Подлинники решений и протокола передаются в управляющую организацию и далее в орган ' +
-        'государственного жилищного надзора.',
-    );
-  }
+  if (!survey) lines.push('', t('app.protocol.attachments'), t('app.protocol.originals'));
 
   return lines.join('\n');
 };

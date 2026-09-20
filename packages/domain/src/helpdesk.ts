@@ -1,6 +1,6 @@
 import { partsIn } from './reception.js';
 import { MESSAGE_MAX_LENGTH } from './status.js';
-import { DEFAULT_TIME_ZONE, DomainError, type Attachment } from './types.js';
+import { DEFAULT_TIME_ZONE, DomainError, type Attachment, type OriginalText } from './types.js';
 
 /** Состояние обращения в поддержку. */
 export type TicketStatus = 'open' | 'answered' | 'closed';
@@ -21,6 +21,8 @@ export interface TicketMessage {
   authorName?: string;
   text: string;
   attachments?: Attachment[];
+  /** Исходный текст, если `text` это перевод на русский. */
+  original?: OriginalText;
 }
 
 /** Вопрос жильца управляющей компании и вся переписка по нему. */
@@ -54,6 +56,8 @@ export interface OpenTicketInput {
   text: string;
   attachments?: Attachment[];
   at: Date;
+  /** Исходный текст, если `text` это перевод на русский. */
+  original?: OriginalText;
 }
 
 /** Новое обращение с первым сообщением. @throws {DomainError} */
@@ -81,6 +85,7 @@ export const openTicket = (input: OpenTicketInput): SupportTicket => {
         ...(input.authorName ? { authorName: input.authorName } : {}),
         text,
         ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+        ...(input.original ? { original: input.original } : {}),
       },
     ],
   };
@@ -93,6 +98,8 @@ export interface TicketReply {
   text: string;
   attachments?: Attachment[];
   at: Date;
+  /** Исходный текст, если `text` это перевод на русский. */
+  original?: OriginalText;
 }
 
 /** Слова, из которых состоит благодарность за ответ. */
@@ -170,6 +177,7 @@ export const replyToTicket = (ticket: SupportTicket, reply: TicketReply): Suppor
         ...(reply.authorName ? { authorName: reply.authorName } : {}),
         text,
         ...(reply.attachments?.length ? { attachments: reply.attachments } : {}),
+        ...(reply.original ? { original: reply.original } : {}),
       },
     ],
   };

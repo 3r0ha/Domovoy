@@ -1,8 +1,10 @@
 import { type Attachment } from '@domovoy/domain';
+import type { Language } from '@domovoy/i18n';
 
 /** Порт распознавания речи: в тестах заменяется заглушкой. */
 export interface Transcriber {
-  transcribe(attachment: Attachment): Promise<string | undefined>;
+  /** Язык говорящего: без него расшифровка ждёт русскую речь. */
+  transcribe(attachment: Attachment, language?: Language): Promise<string | undefined>;
 }
 
 /** Описание заявки из того, что прислал жилец. */
@@ -10,13 +12,14 @@ export const describeFromAttachments = async (
   text: string | undefined,
   attachments: readonly Attachment[],
   transcriber?: Transcriber,
+  language?: Language,
 ): Promise<{ description: string; attachments: Attachment[] }> => {
   const enriched: Attachment[] = [];
   let transcript: string | undefined;
 
   for (const attachment of attachments) {
     if (attachment.kind === 'voice' && transcriber && !attachment.transcript) {
-      const recognized = await transcriber.transcribe(attachment).catch(() => undefined);
+      const recognized = await transcriber.transcribe(attachment, language).catch(() => undefined);
 
       transcript ??= recognized;
       enriched.push(recognized ? { ...attachment, transcript: recognized } : attachment);

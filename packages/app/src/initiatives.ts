@@ -10,8 +10,11 @@ import {
   type PollKind,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { apartmentIn, apartmentsOf } from './apartments.js';
 import { assertServes, homeBuildingOf, housesOf } from './buildings.js';
+import { speak } from './language.js';
 import { wanting } from './notices.js';
 import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
@@ -93,7 +96,7 @@ const announce = async (deps: AppDeps, initiative: Initiative): Promise<void> =>
     await notifyResident(
       notifier,
       resident,
-      `Сосед предлагает: ${initiative.title}\n\n${initiative.question}`,
+      speak(resident)('app.initiative.proposed', { название: initiative.title, описание: initiative.question }),
       [],
       { signAbout: initiative.id },
     );
@@ -233,7 +236,7 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
   await notifyAbout(
     deps.notifier ?? noopNotifier,
     author,
-    `Собрание по вашему предложению объявлено: ${poll.title}.\nГолос подают кнопкой ниже.`,
+    speak(author)('app.initiative.meetingCalled', { название: poll.title }),
     { section: 'polls' },
   );
 
@@ -241,7 +244,7 @@ export const callMeeting = async (deps: AppDeps, command: CallMeetingCommand): P
 };
 
 /** Сколько площади не хватает, словами для чата. */
-export const formatDemand = (view: InitiativeView): string =>
+export const formatDemand = (t: Translate, view: InitiativeView): string =>
   view.standing.enough
-    ? 'Подписей достаточно, чтобы потребовать собрание'
-    : `Чтобы собрание назначили, нужны подписи собственников ещё ${formatArea(view.standing.areaToDemand)} м²`;
+    ? t('app.initiative.enough')
+    : t('app.initiative.need', { площадь: formatArea(view.standing.areaToDemand) });

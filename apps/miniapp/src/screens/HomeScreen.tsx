@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { describeFailure, formatPublished, formatTime, type DeviceView, type DomovoyApi } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { DoorRow } from './DoorRow.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -26,15 +27,20 @@ export interface HomeScreenProps {
 }
 
 /** Дверь жильца: открытие и выдача гостевого кода. */
-const Door = ({ api, device, onGuest }: { api: DomovoyApi; device: DeviceView; onGuest: () => void }) => (
-  <CellList mode="island">
-    <DoorRow api={api} device={device} separator={false} />
-    <CellSimple className="row-under" title="Код гостю" showChevron separator onClick={onGuest} />
-  </CellList>
-);
+const Door = ({ api, device, onGuest }: { api: DomovoyApi; device: DeviceView; onGuest: () => void }) => {
+  const t = useT();
+
+  return (
+    <CellList mode="island">
+      <DoorRow api={api} device={device} separator={false} />
+      <CellSimple className="row-under" title={t('home.guest.code')} showChevron separator onClick={onGuest} />
+    </CellList>
+  );
+};
 
 /** Наклейка на оборудовании: строка списка, как и всё остальное на этом экране. */
 const ScanRow = ({ onScanned }: { onScanned: (startParam: string) => void }) => {
+  const t = useT();
   const scanner = useCodeScanner(onScanned);
 
   if (!scanner.supported) return null;
@@ -47,7 +53,7 @@ const ScanRow = ({ onScanned }: { onScanned: (startParam: string) => void }) => 
             <IconScan />
           </span>
         }
-        title="Сканировать код"
+        title={t('scan.action')}
         showChevron
         onClick={scanner.scan}
       />
@@ -58,6 +64,7 @@ const ScanRow = ({ onScanned }: { onScanned: (startParam: string) => void }) => 
 
 /** Выданные коды: их видно и после выдачи, отозвать можно в любой момент. */
 const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly DeviceView[] }) => {
+  const t = useT();
   const codes = useBridgeRequest((alive) => api.until(alive).guestCodes(), [api]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +73,7 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
   const list = codes.data ?? [];
 
   // Молча пропадать нельзя: человек выдавал код и ищет его здесь.
-  if (codes.error) return <ErrorText>Гостевые коды не загрузились</ErrorText>;
+  if (codes.error) return <ErrorText>{t('home.codes.failure')}</ErrorText>;
   if (list.length === 0) return null;
 
   const revoke = async (code: string): Promise<void> => {
@@ -86,7 +93,7 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
   };
 
   return (
-    <Group title="Гостевые коды">
+    <Group title={t('home.codes')}>
       {list.map((code, index) => (
         <CellSimple
           key={code.code}
@@ -96,7 +103,10 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
             </span>
           }
           title={code.code}
-          subtitle={`${devices.find((device) => device.id === code.deviceId)?.title ?? 'Дверь'} · до ${formatTime(code.expiresAt)}`}
+          subtitle={t('home.codes.until', {
+            дверь: devices.find((device) => device.id === code.deviceId)?.title ?? t('home.door'),
+            время: formatTime(code.expiresAt),
+          })}
           separator={index > 0}
           after={
             <Button
@@ -106,7 +116,7 @@ const GuestCodes = ({ api, devices }: { api: DomovoyApi; devices: readonly Devic
               disabled={busy === code.code}
               onClick={() => void revoke(code.code)}
             >
-              {busy === code.code ? 'Отзываем…' : 'Отозвать'}
+              {busy === code.code ? t('home.codes.revoking') : t('home.codes.revoke')}
             </Button>
           }
         />
@@ -152,12 +162,13 @@ const Sensors = ({ api }: { api: DomovoyApi }) => {
 
 /** Дом: двери, камеры и журнал открытий. */
 export const HomeScreen = ({ api, staff, model, onCamera, onGuest, onJournal, onScan }: HomeScreenProps) => {
+  const t = useT();
   const devices = useBridgeRequest((alive) => api.until(alive).devices(), [api]);
 
   if (devices.loading && !devices.data) return <Skeleton count={2} />;
 
   if (devices.error) {
-    return <Failure title="Оборудование недоступно" error={devices.error} onRetry={devices.reload} />;
+    return <Failure title={t('home.devices.failure')} error={devices.error} onRetry={devices.reload} />;
   }
 
   const all = devices.data ?? [];
@@ -165,18 +176,12 @@ export const HomeScreen = ({ api, staff, model, onCamera, onGuest, onJournal, on
   const cameras = all.filter((device) => device.kind === 'camera');
 
   if (all.length === 0) {
-    return (
-      <Empty
-        icon={<IconKey />}
-        title="Домофон не подключён"
-        hint="Когда управляющая компания подключит домофон и камеры, дверь будет открываться отсюда."
-      />
-    );
+    return <Empty icon={<IconKey />} title={t('home.empty')} hint={t('home.empty.hint')} />;
   }
 
   return (
     <div className="list">
-      {model ? <p className="hint aside">Домофон показан для примера: дверь по-настоящему не откроется</p> : null}
+      {model ? <p className="hint aside">{t('home.model')}</p> : null}
 
       {staff ? (
         <Group>

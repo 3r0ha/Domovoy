@@ -28,8 +28,15 @@ describe('коды отказов и ответы HTTP', () => {
       for (const rule of RULES) {
         if (!rule.match.test(code)) continue;
         // «квартира не привязана» это состояние человека, а не отсутствие объекта,
-        // а «вид уведомления неизвестен» это значение поля запроса.
-        if (code === 'apartment_not_bound' || code === 'resident_not_found' || code === 'notice_unknown') continue;
+        // а «вид уведомления» и «язык» это значения поля запроса.
+        if (
+          code === 'apartment_not_bound' ||
+          code === 'resident_not_found' ||
+          code === 'notice_unknown' ||
+          code === 'language_unknown'
+        ) {
+          continue;
+        }
 
         if (status !== rule.status) wrong.push(`${code}: ${status}, ожидался ${rule.status} (${rule.about})`);
       }

@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent } from 'react';
 
 import { ApiError, type AttachmentView, type DomovoyApi } from './api.js';
+import { useT } from './i18n.js';
 import { preparePhoto } from './photo-input.js';
 
 export interface PhotoUpload {
@@ -19,6 +20,7 @@ export const usePhotos = (api: DomovoyApi): PhotoUpload => {
   const [photos, setPhotos] = useState<AttachmentView[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const t = useT();
 
   const upload = async (file: File): Promise<void> => {
     setUploading(true);
@@ -30,7 +32,7 @@ export const usePhotos = (api: DomovoyApi): PhotoUpload => {
 
       setPhotos((current) => [...current, attachment]);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Не удалось приложить фото');
+      setError(reason instanceof ApiError ? reason.message : t('photo.failed.upload'));
     } finally {
       setUploading(false);
     }

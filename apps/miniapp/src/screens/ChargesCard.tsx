@@ -13,6 +13,7 @@ import {
   type PaymentView,
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
+import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
@@ -44,12 +45,13 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
   const [paid, setPaid] = useState(0);
   const haptics = useHaptics();
   const say = useToast();
+  const t = useT();
 
   const bill = charges.data;
 
   // Пустой счёт и несостоявшийся запрос выглядят одинаково, если про отказ молчать.
   if (!bill && charges.error) {
-    return <Retry title="Счёт не загрузился" error={charges.error} onRetry={charges.reload} />;
+    return <Retry title={t('charges.failure')} error={charges.error} onRetry={charges.reload} />;
   }
 
   if (!Array.isArray(bill?.lines) || bill.lines.length === 0) return null;
@@ -68,7 +70,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
       setPaid((count) => count + 1);
     } catch (reason) {
       haptics.failed();
-      setError(reason instanceof ApiError ? reason.message : 'Оплата не прошла');
+      setError(reason instanceof ApiError ? reason.message : t('charges.pay.failed'));
     } finally {
       setPaying(false);
       setAsked(null);
@@ -79,14 +81,14 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
     run(async () => {
       const receipt = await api.payCharges();
 
-      say(`Оплачено ${rubles(receipt.amount)}`);
+      say(t('charges.paid', { сумма: rubles(receipt.amount) }));
     });
 
   const payDebt = (): Promise<void> =>
     run(async () => {
       const result = await api.payDebt();
 
-      say(`Долг погашен: ${rubles(result.paid)}`);
+      say(t('charges.debt.paid', { сумма: rubles(result.paid) }));
     });
 
   return (
@@ -100,13 +102,15 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
               <span className="currency">₽</span>
             </>
           ) : (
-            'Оплачено'
+            t('charges.settled')
           )}
         </p>
 
         {/* Долг называет своя строка ниже: в подписи к сумме месяца он только путает. */}
         <p className="hint">
-          {left > 0 ? `за ${period(bill.period)}, до ${bill.dueDay} числа` : `за ${period(bill.period)}`}
+          {left > 0
+            ? t('charges.due', { месяц: period(bill.period), день: bill.dueDay })
+            : t('charges.period', { месяц: period(bill.period) })}
         </p>
 
         {left > 0 && payable ? (
@@ -117,13 +121,11 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
             disabled={paying}
             onClick={() => setAsked({ kind: 'month', amount: left })}
           >
-            {paying ? 'Платим…' : 'Оплатить'}
+            {paying ? t('charges.paying') : t('charges.pay')}
           </Button>
         ) : null}
 
-        {payable && model ? (
-          <p className="hint aside">Оплата показана для примера: деньги со счёта не спишутся</p>
-        ) : null}
+        {payable && model ? <p className="hint aside">{t('charges.model')}</p> : null}
 
         {(bill.bases ?? []).map((basis) => (
           <p key={basis} className="hint aside">
@@ -138,7 +140,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
         <CellList mode="island">
           <CellSimple
             className="row-split"
-            title="Долг за прошлые месяцы"
+            title={t('charges.debt')}
             {...(bill.debtFor ? { subtitle: bill.debtFor } : {})}
             after={<span className="report-value">{rubles(bill.debt)}</span>}
             separator={false}
@@ -147,7 +149,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
           {bill.penalty ? (
             <CellSimple
               className="row-split"
-              title="Пени за просрочку"
+              title={t('charges.penalty')}
               after={<span className="report-value overdue">{rubles(bill.penalty)}</span>}
               separator
               height="compact"
@@ -161,7 +163,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
               disabled={paying}
               onClick={() => setAsked({ kind: 'debt', amount: debt })}
             >
-              {paying ? 'Платим…' : `Погасить ${rubles(debt)}`}
+              {paying ? t('charges.paying') : t('charges.debt.pay', { сумма: rubles(debt) })}
             </CellAction>
           ) : null}
         </CellList>
@@ -170,7 +172,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
       <CellList mode="island">
         <CellSimple
           className={open ? 'row-open' : ''}
-          title="Из чего сложилось"
+          title={t('charges.lines')}
           showChevron
           onClick={() => setOpen(!open)}
           height="compact"
@@ -194,15 +196,15 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
       {/* Деньги уходят со счёта необратимо: сумму человек видит до касания, а не после. */}
       {asked ? (
         <Confirm
-          title={`Оплатить ${rubles(asked.amount)}?`}
+          title={t('charges.confirm', { сумма: rubles(asked.amount) })}
           text={
             asked.kind === 'debt'
-              ? 'Спишем долг за прошлые месяцы вместе с пенями.'
-              : `Спишем начисление за ${period(bill.period)}.`
+              ? t('charges.confirm.debt')
+              : t('charges.confirm.month', { месяц: period(bill.period) })
           }
-          confirmLabel="Оплатить"
+          confirmLabel={t('charges.pay')}
           busy={paying}
-          busyLabel="Платим…"
+          busyLabel={t('charges.paying')}
           onConfirm={() => void (asked.kind === 'debt' ? payDebt() : pay())}
           onCancel={() => setAsked(null)}
         />
@@ -213,13 +215,14 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
 
 /** История платежей по квартире. */
 const Payments = ({ api, version }: { api: DomovoyApi; version: number }) => {
+  const t = useT();
   const paid = useBridgeRequest((alive): Promise<PaymentView[]> => api.until(alive).payments(), [api, version]);
   const [open, setOpen] = useState(false);
 
   const list = Array.isArray(paid.data) ? paid.data : [];
 
   if (list.length === 0 && paid.error) {
-    return <Retry title="Платежи не загрузились" error={paid.error} onRetry={paid.reload} />;
+    return <Retry title={t('charges.payments.failure')} error={paid.error} onRetry={paid.reload} />;
   }
 
   if (list.length === 0) return null;
@@ -228,7 +231,7 @@ const Payments = ({ api, version }: { api: DomovoyApi; version: number }) => {
     <CellList mode="island">
       <CellSimple
         className={open ? 'row-open' : ''}
-        title="Что уже заплачено"
+        title={t('charges.payments')}
         showChevron
         onClick={() => setOpen(!open)}
         height="compact"

@@ -3,6 +3,7 @@ import { DomainError, isApartmentCode, isCompanyStaff, normalizeApartmentCode, t
 import { apartmentsOf, useApartment, withApartment, withoutApartment } from './apartments.js';
 import { recordAction } from './audit.js';
 import { atBuilding, homeOf, servesBuilding } from './buildings.js';
+import { speak } from './language.js';
 import { noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -63,8 +64,7 @@ export const bindApartment = async (deps: AppDeps, resident: Resident, code: str
     await notifyResident(
       notifier,
       person,
-      `К вашей квартире ${apartment.number} привязался ещё один житель: ${saved.displayName}.\n` +
-        'Если это не ваш сосед, сообщите в управляющую компанию.',
+      speak(person)('app.binding.neighbour', { квартира: apartment.number, кто: saved.displayName }),
     );
   }
 
@@ -119,8 +119,7 @@ export const bindApartmentByStaff = async (
   await notifyResident(
     deps.notifier ?? noopNotifier,
     saved,
-    `Управляющая компания привязала вас к квартире ${apartment.number}.\n` +
-      'Теперь доступны показания счётчиков и голосование на собраниях.',
+    speak(saved)('app.binding.bound', { квартира: apartment.number }),
   );
 
   return { resident: saved, apartment, alreadyBound };
@@ -162,11 +161,12 @@ export const unbindApartment = async (
   });
 
   if (!own) {
+    const t = speak(saved);
+
     await notifyResident(
       deps.notifier ?? noopNotifier,
       saved,
-      `Управляющая компания отвязала вас от квартиры${apartment ? ` ${apartment.number}` : ''}.\n` +
-        'Если это ошибка, привяжитесь заново по коду из квитанции.',
+      apartment ? t('app.binding.unbound', { квартира: apartment.number }) : t('app.binding.unboundPlain'),
     );
   }
 

@@ -375,6 +375,24 @@ describe('итоги собрания', () => {
     assert.match(protocol, /орган государственного жилищного надзора\.$/);
   });
 
+  it('жильцу протокол читается на его языке, а в систему уходит русский подлинник', async () => {
+    const deps = setup();
+    const poll = await announce(deps);
+
+    await vote(deps, { resident: maria, pollId: poll.id, choice: 'for' });
+    await vote(deps, { resident: ivan, pollId: poll.id, choice: 'against' });
+    await vote(deps, { resident: anna, pollId: poll.id, choice: 'for' });
+    deps.advance(15 * DAY);
+
+    const [closed] = await closeDuePolls(deps);
+    const uzbek = await deps.repository.saveResident({ ...maria, language: 'uz' });
+    const own = await pollProtocol(deps, uzbek, poll.id);
+
+    assert.match(own, /Mulkdorlar umumiy yigʻilishi bayonnomasi/);
+    assert.match(own, /Xonalarning umumiy maydoni: 150 m²/);
+    assert.match(closed?.protocol ?? '', /Протокол общего собрания собственников/);
+  });
+
   it('без кворума собрание не состоялось, а не «решение не принято»', async () => {
     const deps = setup();
     const poll = await announce(deps);

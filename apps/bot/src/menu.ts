@@ -1,10 +1,13 @@
 import { apartmentsOf, needsApartment, type Resident } from '@domovoy/app';
+import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { RU } from './i18n.js';
 import type { Extra } from './kit.js';
 import { ROOT_MENUS, SCREENS } from './max.js';
 
 export interface MenuItem {
+  /** Подпись пункта: ключ перевода, а не готовая строка. */
   title: string;
   command: string;
   /**
@@ -34,18 +37,18 @@ interface RoleMenu {
 /** Дела своей квартиры: они есть и у сотрудника, если он живёт в обслуживаемом доме. */
 const HOME_GROUP: MenuGroup = {
   key: 'home',
-  title: '🏡 Моя квартира',
-  about: 'Ваши счета, счётчики и заявки по своей квартире.',
+  title: 'menu.group.home',
+  about: 'menu.group.home.about',
   items: [
-    { title: '✍️ Новая заявка', command: 'new' },
-    { title: '💧 Показания', command: 'meters' },
-    { title: '🧾 Квитанция', command: 'bill' },
-    { title: '🏢 Квартира', command: 'flat' },
-    { title: '✉️ Вопрос компании', command: 'support' },
+    { title: 'menu.home.new', command: 'new' },
+    { title: 'menu.home.meters', command: 'meters' },
+    { title: 'menu.home.bill', command: 'bill' },
+    { title: 'menu.flat', command: 'flat' },
+    { title: 'menu.support', command: 'support' },
     {
-      title: '🗓 Приём в офисе',
+      title: 'menu.visit',
       command: 'visit',
-      app: { screen: 'visits', about: 'Свободные часы, своя запись и её отмена.' },
+      app: { screen: 'visits', about: 'menu.home.visit.about' },
     },
   ],
 };
@@ -56,87 +59,73 @@ const HOME_GROUP: MenuGroup = {
  */
 const BIND_GROUP: MenuGroup = {
   key: 'home',
-  title: '🏡 Моя квартира',
-  about: 'Если вы живёте в этом доме, привяжите квартиру по коду из квитанции.',
-  items: [{ title: '🏢 Моя квартира', command: 'flat' }],
+  title: 'menu.group.home',
+  about: 'menu.group.bind.about',
+  items: [{ title: 'menu.home.flat', command: 'flat' }],
 };
 
 const RESIDENT: RoleMenu = {
   top: [
-    { title: '✍️ Что сломалось', command: 'new' },
-    { title: '📋 Мои обращения', command: 'my' },
+    { title: 'menu.new', command: 'new' },
+    { title: 'menu.my', command: 'my' },
     // Двери открывают на ходу, стоя у подъезда: прятать их в группу значит
     // заставить человека нажимать дважды, пока за ним закрывается домофон.
-    { title: '🚪 Двери и камеры', command: 'door' },
+    { title: 'menu.door', command: 'door' },
   ],
   groups: [
     {
       key: 'money',
-      title: '💳 Деньги и счётчики',
-      about: 'Сколько платить в этом месяце и куда отправить цифры со счётчиков.',
+      title: 'menu.group.money',
+      about: 'menu.group.money.about',
       items: [
-        { title: '🧾 Сколько платить', command: 'bill' },
-        { title: '💧 Счётчики', command: 'meters' },
+        { title: 'menu.bill', command: 'bill' },
+        { title: 'menu.meters', command: 'meters' },
       ],
     },
     {
       key: 'house',
-      title: '📣 Новости дома',
-      about: 'Объявления управляющей компании, собрания соседей и работа по дому.',
+      title: 'menu.group.house',
+      about: 'menu.group.house.about',
       items: [
-        { title: '📣 Объявления', command: 'news' },
+        { title: 'menu.news', command: 'news' },
         {
-          title: '🗳 Собрания',
+          title: 'menu.vote',
           command: 'vote',
-          app: {
-            screen: 'polls',
-            about: 'Голос по каждому вопросу, счёт по долям площади и протокол по итогам.',
-          },
+          app: { screen: 'polls', about: 'menu.vote.about' },
         },
         {
-          title: '👥 Заявки соседей',
+          title: 'menu.neighbours',
           command: 'neighbours',
-          app: {
-            screen: 'list',
-            about: 'О чём уже сообщили соседи: можно подтвердить, что у вас то же самое.',
-          },
+          app: { screen: 'list', about: 'menu.neighbours.about' },
         },
-        { title: '📊 Работа компании', command: 'house' },
+        { title: 'menu.house', command: 'house' },
         {
-          title: '🏗 Капитальный ремонт',
+          title: 'menu.capital',
           command: 'capital',
-          app: {
-            screen: 'capital',
-            about: 'Взнос, накопленное домом и годы работ по региональной программе.',
-          },
+          app: { screen: 'capital', about: 'menu.capital.about' },
         },
       ],
     },
     {
       key: 'me',
-      title: '☎️ Связь и профиль',
-      about: 'Как связаться с управляющей компанией и что продукт о вас знает.',
+      title: 'menu.group.me',
+      about: 'menu.group.me.about',
       items: [
-        { title: '✉️ Вопрос компании', command: 'support' },
+        { title: 'menu.support', command: 'support' },
         {
-          title: '🗓 Приём в офисе',
+          title: 'menu.visit',
           command: 'visit',
-          app: {
-            screen: 'visits',
-            about: 'Свободные часы на две недели вперёд, своя запись и её отмена.',
-          },
+          app: { screen: 'visits', about: 'menu.visit.about' },
         },
-        { title: '☎️ Контакты', command: 'contacts' },
-        { title: '🏢 Квартира', command: 'flat' },
-        { title: '🗂 Мои данные', command: 'mydata' },
+        { title: 'menu.contacts', command: 'contacts' },
+        { title: 'menu.flat', command: 'flat' },
+        { title: 'menu.mydata', command: 'mydata' },
         {
-          title: '🔔 Уведомления',
+          title: 'menu.notices',
           command: 'notices',
-          app: {
-            screen: 'profile',
-            about: 'Что присылать и о чём молчать. Там же телефон и выгрузка своих данных.',
-          },
+          app: { screen: 'profile', about: 'menu.notices.about' },
         },
+        { title: 'menu.lang', command: 'lang' },
       ],
     },
   ],
@@ -144,23 +133,23 @@ const RESIDENT: RoleMenu = {
 
 const CONTRACTOR: RoleMenu = {
   top: [
-    { title: '📋 Наряды', command: 'my' },
-    { title: '🗂 Мои данные', command: 'mydata' },
+    { title: 'menu.contractor.my', command: 'my' },
+    { title: 'menu.mydata', command: 'mydata' },
   ],
   groups: [
     {
       // Подрядчик приходит в дом со стороны, но дела дома ему тоже доступны:
       // спросить управляющую компанию, посмотреть объявления, открыть дверь.
       key: 'house',
-      title: '🏢 Дела дома',
-      about: 'Связь с управляющей компанией, объявления и двери подъездов.',
+      title: 'menu.group.works',
+      about: 'menu.group.contractor.about',
       items: [
-        { title: '✉️ Вопрос компании', command: 'support' },
-        { title: '☎️ Контакты', command: 'contacts' },
-        { title: '📣 Объявления', command: 'news' },
-        { title: '🚪 Двери и камеры', command: 'door' },
-        { title: '🧾 Сколько платить', command: 'bill' },
-        { title: '💧 Счётчики', command: 'meters' },
+        { title: 'menu.support', command: 'support' },
+        { title: 'menu.contacts', command: 'contacts' },
+        { title: 'menu.news', command: 'news' },
+        { title: 'menu.door', command: 'door' },
+        { title: 'menu.bill', command: 'bill' },
+        { title: 'menu.meters', command: 'meters' },
       ],
     },
   ],
@@ -168,137 +157,125 @@ const CONTRACTOR: RoleMenu = {
 
 const STAFF: RoleMenu = {
   top: [
-    { title: '🗂 Очередь дома', command: 'queue' },
-    { title: '📋 Мои наряды', command: 'my' },
+    { title: 'menu.staff.queue', command: 'queue' },
+    { title: 'menu.staff.my', command: 'my' },
     // Дежурство назначают диспетчер и управляющий, и управляющий тоже берёт
     // ночь на себя. Мастеру пункт не показывается: кнопка вела бы в отказ.
-    { title: '🌙 Дежурство', command: 'duty', roles: ['dispatcher', 'manager'] },
+    { title: 'menu.staff.duty', command: 'duty', roles: ['dispatcher', 'manager'] },
   ],
   groups: [
     {
       key: 'people',
-      title: '💬 Жильцы',
-      about: 'Вопросы жильцов, приём по записи и сообщения дому.',
+      title: 'menu.group.people',
+      about: 'menu.group.people.about',
       items: [
-        { title: '💬 Вопросы жильцов', command: 'support' },
+        { title: 'menu.staff.support', command: 'support' },
         {
-          title: '🗓 Приём жильцов',
+          title: 'menu.staff.visit',
           command: 'visit',
-          app: {
-            screen: 'visits',
-            about: 'Часы приёма, записи жильцов, отметка о приёме и запись пришедшего без записи.',
-          },
+          app: { screen: 'visits', about: 'menu.staff.visit.about' },
         },
-        { title: '✉️ Рассылка', command: 'broadcast' },
-        { title: '📣 Объявления', command: 'news' },
+        { title: 'menu.staff.broadcast', command: 'broadcast' },
+        { title: 'menu.news', command: 'news' },
       ],
     },
     {
       key: 'house',
-      title: '🏢 Дела дома',
-      about: 'Как дом закрывает сроки, долги, собрания и двери подъездов.',
+      title: 'menu.group.works',
+      about: 'menu.group.works.about',
       items: [
-        { title: '📊 Сводка за месяц', command: 'report' },
+        { title: 'menu.staff.report', command: 'report' },
         // Рассылку должникам делают диспетчер и управляющий: мастеру суммы дома
         // в работе не нужны, а писать он по ним всё равно не может.
-        { title: '💰 Долги дома', command: 'debts', roles: ['dispatcher', 'manager'] },
+        { title: 'menu.staff.debts', command: 'debts', roles: ['dispatcher', 'manager'] },
         {
-          title: '🗳 Собрания',
+          title: 'menu.vote',
           command: 'vote',
-          app: {
-            screen: 'polls',
-            about: 'Объявить собрание, следить за кворумом и собрать протокол по итогам.',
-          },
+          app: { screen: 'polls', about: 'menu.staff.vote.about' },
         },
-        { title: '🚪 Двери и камеры', command: 'door' },
+        { title: 'menu.door', command: 'door' },
       ],
     },
     {
       // Сотрудник тоже живёт в квартире и сам пишет в управляющую компанию:
       // без этих пунктов ему пришлось бы вспоминать команды.
       key: 'me',
-      title: '☎️ Связь и профиль',
-      about: 'Своя квартира, данные, уведомления и связь с управляющей компанией как жильца.',
+      title: 'menu.group.me',
+      about: 'menu.group.staff_me.about',
       items: [
         // Сотрудник платит за свою квартиру так же, как жилец: без этих пунктов
         // помощник называл ему раздел, в который нечем перейти.
-        { title: '🧾 Сколько платить', command: 'bill' },
-        { title: '💧 Счётчики', command: 'meters' },
-        { title: '🗂 Мои данные', command: 'mydata' },
-        { title: '☎️ Контакты', command: 'contacts' },
+        { title: 'menu.bill', command: 'bill' },
+        { title: 'menu.meters', command: 'meters' },
+        { title: 'menu.mydata', command: 'mydata' },
+        { title: 'menu.contacts', command: 'contacts' },
         {
-          title: '🔔 Уведомления',
+          title: 'menu.notices',
           command: 'notices',
-          app: {
-            screen: 'profile',
-            about: 'Что присылать и о чём молчать. Там же телефон и выгрузка своих данных.',
-          },
+          app: { screen: 'profile', about: 'menu.notices.about' },
         },
       ],
     },
     {
       key: 'app',
-      title: '📱 В приложении',
-      about: 'Экраны, которые в переписке не читаются: обходы, план дома, приборы.',
+      title: 'menu.group.app',
+      about: 'menu.group.app.about',
       items: [
         {
-          title: '🔍 Осмотры',
+          title: 'menu.staff.inspections',
           command: 'inspections',
-          app: {
-            screen: 'inspections',
-            about: 'Обход по чек-листу: пункты отмечаются на месте, найденное сразу становится заявкой.',
-          },
+          app: { screen: 'inspections', about: 'menu.staff.inspections.about' },
         },
         {
-          title: '🗺 План дома',
+          title: 'menu.staff.plan',
           command: 'plan',
-          app: { screen: 'plan', about: 'Подъезды и стояки с отметками, где сообщили о проблеме.' },
+          app: { screen: 'plan', about: 'menu.staff.plan.about' },
         },
         {
-          title: '🛗 Оборудование',
+          title: 'menu.staff.equipment',
           command: 'equipment',
-          app: { screen: 'equipment', about: 'Что отказывает чаще и что скоро потребует ремонта.' },
+          app: { screen: 'equipment', about: 'menu.staff.equipment.about' },
         },
         {
-          title: '💧 Узел учёта',
+          title: 'menu.staff.house_meters',
           command: 'house-meters',
-          app: { screen: 'house-meters', about: 'Общедомовой расход по месяцам, туда же вводят показания.' },
+          app: { screen: 'house-meters', about: 'menu.staff.house_meters.about' },
         },
         {
-          title: '👥 Люди дома',
+          title: 'menu.staff.residents',
           command: 'residents',
-          app: { screen: 'residents', about: 'Кто в смене, кто дежурит, кому какая роль, привязка квартиры жильцу.' },
+          app: { screen: 'residents', about: 'menu.staff.residents.about' },
         },
-        { title: '🏷 Наклейки', command: 'stickers' },
+        { title: 'menu.staff.stickers', command: 'stickers' },
       ],
     },
     {
       key: 'manage',
-      title: '🗄 Управление домом',
-      about: 'Тарифы, карточка дома, адреса компании и журнал действий.',
+      title: 'menu.group.manage',
+      about: 'menu.group.manage.about',
       items: [
         {
-          title: '💵 Тарифы',
+          title: 'menu.staff.tariffs',
           command: 'tariffs',
-          app: { screen: 'tariffs', about: 'Ставки, из которых складывается квитанция дома.' },
+          app: { screen: 'tariffs', about: 'menu.staff.tariffs.about' },
           roles: ['manager'],
         },
         {
-          title: '🏠 Карточка дома',
+          title: 'menu.staff.card',
           command: 'card',
-          app: { screen: 'import', about: 'Контакты, приёмные часы, квартиры и оборудование дома.' },
+          app: { screen: 'import', about: 'menu.staff.card.about' },
           roles: ['manager'],
         },
         {
-          title: '🏘 Дома компании',
+          title: 'menu.staff.buildings',
           command: 'buildings',
-          app: { screen: 'buildings', about: 'Все адреса компании: переключиться или завести новый.' },
+          app: { screen: 'buildings', about: 'menu.staff.buildings.about' },
           roles: ['manager'],
         },
         {
-          title: '📜 Журнал действий',
+          title: 'menu.staff.audit',
           command: 'audit',
-          app: { screen: 'audit', about: 'Кто и что сделал по дому: заявки, роли, показания, рассылки.' },
+          app: { screen: 'audit', about: 'menu.staff.audit.about' },
           roles: ['manager'],
         },
       ],
@@ -321,10 +298,13 @@ export interface MenuOffer {
 }
 
 /** Примерка роли: пункт стоит первым экраном, чтобы до него был один клик. */
-const DEMO_ITEM: MenuItem = { title: '👥 Роль', command: 'demo' };
+const DEMO_ITEM: MenuItem = { title: 'menu.demo', command: 'demo' };
 
 /** Жильцу без квартиры остаётся одно дело: привязать её. */
-const BIND_ITEM: MenuItem = { title: '🏢 Квартира', command: 'flat' };
+const BIND_ITEM: MenuItem = { title: 'menu.flat', command: 'flat' };
+
+/** Язык меняется и до привязки: с ним человек хотя бы прочтёт просьбу о коде. */
+const LANG_ITEM: MenuItem = { title: 'menu.lang', command: 'lang' };
 
 /** Какому пункту нужен поставщик, без которого он только выдаёт ошибку. */
 const REQUIRES: Readonly<Record<string, keyof MenuOffer>> = { door: 'doors' };
@@ -340,7 +320,9 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
   const role = resident.role;
 
   if (needsApartment(resident)) {
-    return { top: offer.demo === true ? [BIND_ITEM, DEMO_ITEM] : [BIND_ITEM], groups: [] };
+    const bind = [BIND_ITEM, LANG_ITEM];
+
+    return { top: offer.demo === true ? [...bind, DEMO_ITEM] : bind, groups: [] };
   }
 
   const own = roleMenu(role);
@@ -373,11 +355,11 @@ export const groupFor = (resident: Resident, key: string, offer: MenuOffer = {})
 /** Пункт, который живёт в приложении, нажимается иначе: он о нём и рассказывает. */
 const payloadOf = (item: MenuItem): string => (item.app ? `app:${item.command}` : `menu:${item.command}`);
 
-const rows = (items: readonly MenuItem[]): ReturnType<typeof Keyboard.button.callback>[][] => {
+const rows = (items: readonly MenuItem[], t: Translate): ReturnType<typeof Keyboard.button.callback>[][] => {
   const built: ReturnType<typeof Keyboard.button.callback>[][] = [];
 
   for (let at = 0; at < items.length; at += 2) {
-    built.push(items.slice(at, at + 2).map((item) => Keyboard.button.callback(item.title, payloadOf(item))));
+    built.push(items.slice(at, at + 2).map((item) => Keyboard.button.callback(t(item.title), payloadOf(item))));
   }
 
   return built;
@@ -401,20 +383,25 @@ export const itemFor = (resident: Resident, command: string, offer: MenuOffer = 
  * Первый экран меню: частые дела кнопками, остальное группами. Так в чате
  * лежит шесть кнопок, а не полтора десятка.
  */
-export const menuKeyboard = (resident: Resident, miniAppUrl?: string, offer: MenuOffer = {}): Extra => {
+export const menuKeyboard = (
+  resident: Resident,
+  miniAppUrl?: string,
+  offer: MenuOffer = {},
+  t: Translate = RU,
+): Extra => {
   const menu = menuFor(resident, offer);
 
-  const groups = menu.groups.map((group) => Keyboard.button.callback(group.title, `group:${group.key}`));
+  const groups = menu.groups.map((group) => Keyboard.button.callback(t(group.title), `group:${group.key}`));
   const grouped: ReturnType<typeof Keyboard.button.callback>[][] = [];
 
   for (let at = 0; at < groups.length; at += 2) grouped.push(groups.slice(at, at + 2));
 
-  const app = miniAppUrl ? [[Keyboard.button.openApp('📱 Открыть приложение', miniAppUrl)]] : [];
+  const app = miniAppUrl ? [[Keyboard.button.openApp(t('button.open_app'), miniAppUrl)]] : [];
 
   const built = {
     attachments: [
       Keyboard.inlineKeyboard([
-        ...rows(menu.top),
+        ...rows(menu.top, t),
         ...grouped,
         ...app,
       ]),
@@ -436,8 +423,8 @@ const screenOf = (extra: Extra): Extra => {
 };
 
 /** Второй экран меню: пункты группы и возврат к первому. */
-export const groupKeyboard = (group: MenuGroup): Extra => screenOf({
+export const groupKeyboard = (group: MenuGroup, t: Translate = RU): Extra => screenOf({
   attachments: [
-    Keyboard.inlineKeyboard([...rows(group.items), [Keyboard.button.callback('🏠 Меню', 'group:back')]]),
+    Keyboard.inlineKeyboard([...rows(group.items, t), [Keyboard.button.callback(t('button.menu'), 'group:back')]]),
   ],
 });

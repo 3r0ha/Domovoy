@@ -3,6 +3,7 @@ import { useBridge, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
 import { describeFailure, formatTime, type DeviceView, type DomovoyApi, type GuestCodeView } from '../api.js';
+import { useT } from '../i18n.js';
 import { ErrorText } from './ErrorText.js';
 
 export interface GuestScreenProps {
@@ -12,6 +13,7 @@ export interface GuestScreenProps {
 
 /** Код для гостя. */
 export const GuestScreen = ({ api, device }: GuestScreenProps) => {
+  const t = useT();
   const bridge = useBridge();
   const toMax = useSupports('shareToMax');
   const native = useSupports('shareNative');
@@ -50,10 +52,10 @@ export const GuestScreen = ({ api, device }: GuestScreenProps) => {
   if (!code) {
     return (
       <section className="block guest">
-        <p className="hint">Код на 15 минут, на один вход</p>
+        <p className="hint">{t('guest.hint')}</p>
 
         <Button type="button" stretched size="large" disabled={busy} onClick={() => void issue()}>
-          {busy ? 'Выдаём…' : 'Выдать код'}
+          {busy ? t('guest.issuing') : t('guest.issue')}
         </Button>
 
         {error ? <ErrorText>{error}</ErrorText> : null}
@@ -65,10 +67,10 @@ export const GuestScreen = ({ api, device }: GuestScreenProps) => {
     return (
       <section className="block guest">
         <p className="guest-code guest-code-off">{code.code}</p>
-        <p className="hint">код отозван</p>
+        <p className="hint">{t('guest.revoked')}</p>
 
         <Button type="button" stretched disabled={busy} onClick={() => void issue()}>
-          Выдать новый
+          {t('guest.again')}
         </Button>
 
         {error ? <ErrorText>{error}</ErrorText> : null}
@@ -76,7 +78,11 @@ export const GuestScreen = ({ api, device }: GuestScreenProps) => {
     );
   }
 
-  const text = `Код от двери «${device.title}»: ${code.code}. Действует до ${formatTime(code.expiresAt)}.`;
+  const text = t('guest.share', {
+    дверь: device.title,
+    код: code.code,
+    время: formatTime(code.expiresAt),
+  });
 
   const share = async (): Promise<void> => {
     try {
@@ -89,16 +95,16 @@ export const GuestScreen = ({ api, device }: GuestScreenProps) => {
   return (
     <section className="block guest">
       <p className="guest-code">{code.code}</p>
-      <p className="hint">Действует до {formatTime(code.expiresAt)}, один раз</p>
+      <p className="hint">{t('guest.until', { время: formatTime(code.expiresAt) })}</p>
 
       {toMax || native ? (
         <Button type="button" stretched size="large" onClick={() => void share()}>
-          Отправить
+          {t('guest.send')}
         </Button>
       ) : null}
 
       <Button type="button" stretched variant="secondary" disabled={busy} onClick={() => void revoke()}>
-        {busy ? 'Отзываем…' : 'Отозвать'}
+        {busy ? t('guest.revoking') : t('guest.revoke')}
       </Button>
 
       {error ? <ErrorText>{error}</ErrorText> : null}

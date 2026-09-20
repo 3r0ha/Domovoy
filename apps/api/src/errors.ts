@@ -47,6 +47,7 @@ export const STATUS_BY_CODE = {
   wrong_object: 400,
   // Неизвестный вид уведомления это значение поля, а не пропавший объект.
   notice_unknown: 400,
+  language_unknown: 400,
   // сессия есть, а профиля за ней уже нет
   resident_not_found: 401,
   // нет прав

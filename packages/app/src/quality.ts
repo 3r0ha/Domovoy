@@ -1,6 +1,8 @@
 import { DomainError, lastDays, previousPeriod, summarize, summarizePeriod } from '@domovoy/domain';
+import type { Translate } from '@domovoy/i18n';
 
 import { homeBuildingOf } from './buildings.js';
+import { counted, speakDefault } from './language.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -84,39 +86,57 @@ export const houseQuality = async (
  * Работа дома одной строкой. Столбик цифр читают на экране, в переписке от него
  * остаётся главное: сколько сейчас открыто и как компания держит сроки.
  */
-export const formatQualityShort = (quality: HouseQuality): string => {
+export const formatQualityShort = (quality: HouseQuality, t: Translate = speakDefault()): string => {
   const rate =
-    quality.inTimeRate === undefined ? '' : `, в срок ${Math.round(quality.inTimeRate * 100)}% за ${quality.days} дней`;
+    quality.inTimeRate === undefined
+      ? ''
+      : t('app.quality.rateShort', {
+          доля: `${Math.round(quality.inTimeRate * 100)}%`,
+          дни: counted(t, 'days', quality.days),
+        });
 
-  const overdue = quality.overdue > 0 ? `, просрочено ${quality.overdue}` : '';
+  const overdue = quality.overdue > 0 ? t('app.quality.overdueShort', { сколько: quality.overdue }) : '';
 
-  return `Сейчас открыто заявок: ${quality.open}${overdue}${rate}.`;
+  return t('app.quality.short', { открыто: quality.open, просрочено: overdue, срок: rate });
 };
 
 /** Работа дома словами. */
-export const formatQuality = (quality: HouseQuality): string => {
-  const where = quality.address ? `, ${quality.address}` : '';
-  const lines = [`Как работает управляющая компания за ${quality.days} дней${where}:`, ''];
-
-  lines.push(`  Подано заявок: ${quality.created}`);
-  lines.push(`  Закрыто: ${quality.closed}`);
+export const formatQuality = (quality: HouseQuality, t: Translate = speakDefault()): string => {
+  const дни = counted(t, 'days', quality.days);
+  const lines = [
+    quality.address
+      ? t('app.quality.titleAt', { дни, адрес: quality.address })
+      : t('app.quality.title', { дни }),
+    '',
+    t('app.quality.created', { сколько: quality.created }),
+    t('app.quality.closed', { сколько: quality.closed }),
+  ];
 
   if (quality.inTimeRate !== undefined) {
-    lines.push(`  В срок: ${Math.round(quality.inTimeRate * 100)}%`);
+    lines.push(t('app.quality.inTime', { доля: `${Math.round(quality.inTimeRate * 100)}%` }));
   }
 
   if (quality.averageHours !== undefined) {
     const earlier = quality.before?.averageHours;
-    const was = earlier === undefined ? '' : `, месяцем раньше ${Math.round(earlier)} ч`;
+    const часы = Math.round(quality.averageHours);
 
-    lines.push(`  Среднее время работы: ${Math.round(quality.averageHours)} ч${was}`);
+    lines.push(
+      earlier === undefined
+        ? t('app.quality.hours', { часы })
+        : t('app.quality.hoursBefore', { часы, раньше: Math.round(earlier) }),
+    );
   }
 
   if (quality.averageRating !== undefined) {
-    lines.push(`  Оценка жильцов: ${quality.averageRating} из 5 (оценили ${quality.rated})`);
+    lines.push(t('app.quality.rating', { оценка: quality.averageRating, сколько: quality.rated }));
   }
 
-  lines.push('', `Сейчас открыто заявок: ${quality.open}${quality.overdue > 0 ? `, просрочено ${quality.overdue}` : ''}`);
+  lines.push(
+    '',
+    quality.overdue > 0
+      ? t('app.quality.openOverdue', { сколько: quality.open, просрочено: quality.overdue })
+      : t('app.quality.open', { сколько: quality.open }),
+  );
 
   return lines.join('\n');
 };
