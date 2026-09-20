@@ -12,6 +12,8 @@ import {
   meterKindsIn,
   meterNamedIn,
   metersFor,
+  findCapability,
+  forRouting,
   offTopicFor,
   readingInWords,
   sectionFor,
@@ -101,7 +103,12 @@ const spoken = (said: Said): boolean =>
  * Жилец отвечает на уточняющий вопрос по своей заявке. Раньше такой ответ
  * становился новой заявкой, а мастер его не видел.
  */
-const answeredClarification = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+const answeredClarification = async (
+  kit: BotKit,
+  typed: BotContext,
+  text: string,
+  said = text,
+): Promise<boolean> => {
   if (suggestCategory(text) !== 'other') return false;
 
   const resident = await kit.residentOf(typed);
@@ -117,7 +124,9 @@ const answeredClarification = async (kit: BotKit, typed: BotContext, text: strin
   const request = waiting[0]!;
   const t = speak(resident);
 
-  await commentRequest(kit.deps, { resident, requestId: request.id, text });
+  // В переписку по заявке уходит то, что человек написал сам: перевод для
+  // разбора здесь не нужен, смене его сделает служба перевода.
+  await commentRequest(kit.deps, { resident, requestId: request.id, text: said });
   await typed.reply(
     t('request.answer_sent', { номер: strong(request.number) }),
     actionKeyboard(actionsFor(request, resident), replyIfOpen(request), undefined, undefined, t),
@@ -377,6 +386,8 @@ const describeProblem = async (
   typed: BotContext,
   startParam: string | undefined,
   said: Said,
+  /** То же самое по-русски: по нему продукт понимает, о чём просят. */
+  asked?: string,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
@@ -404,8 +415,10 @@ const describeProblem = async (
     // Сказанное словами, набрано оно или надиктовано, разбирается одинаково:
     // вопрос, дело по заявке, просьба. Снимок и файл идут только в заявку.
     const byWords = spoken({ text: description, attachments });
+    // Разбирается русский текст, а в заявку идёт то, что человек написал сам.
+    const routed = asked ?? description;
 
-    if (byWords && (await kit.answered(typed, resident, description, startParam))) {
+    if (byWords && (await kit.answered(typed, resident, routed, startParam))) {
       forget(typed);
 
       return;
@@ -414,7 +427,7 @@ const describeProblem = async (
     // Дело по уже открытой заявке: «починил трубу», «работу принял», «отзываю
     // заявку». Продукт показывает, что понял, и ждёт нажатия: закрывать заявку
     // по одной фразе нельзя, а переспрашивать обо всём подряд мучительно.
-    if (byWords && (await offerDoing(kit, typed, description))) {
+    if (byWords && (await offerDoing(kit, typed, routed))) {
       forget(typed);
 
       return;
@@ -422,7 +435,7 @@ const describeProblem = async (
 
     // Просьба сделать дело, а не рассказ о поломке: «открыть дверь», «оплатить
     // счёт». Продукт выполняет её, а не заводит по ней заявку и не отказывает.
-    if (byWords && (await doneByWords(kit, typed, resident, description))) return;
+    if (byWords && (await doneByWords(kit, typed, resident, routed))) return;
 
     const result = await submitProblem(kit.deps, {
       resident,
@@ -699,15 +712,21 @@ const notAboutHouse = async (kit: BotKit, typed: BotContext, text: string): Prom
   if (!reasoner?.onTopic || suggestCategory(text) !== 'other') return false;
 
   const resident = await kit.residentOf(typed);
+
+  // Слова продукта перевешивают отказ модели: «сменить язык» и «открыть дверь»
+  // это дела продукта, чем бы модель их ни посчитала.
+  if (findCapability(text, resident.role)) return false;
+
   const about = await reasoner.onTopic(text, isCompanyStaff(resident.role)).catch(() => undefined);
 
   if (about !== false) return false;
 
+  const staff = isCompanyStaff(resident.role);
   const t = speak(resident);
 
   await typed.reply(
-    offTopicFor(resident.role),
-    isCompanyStaff(resident.role) ? menuButton(typed, t) : oneKeyboard(t('button.support'), 'menu:support'),
+    staff ? offTopicFor(resident.role) : t('app.assistant.offTopic'),
+    staff ? menuButton(typed, t) : oneKeyboard(t('button.support'), 'menu:support'),
   );
 
   return true;
@@ -733,15 +752,19 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   // трижды. Отметка появляется здесь, иначе первые секунды переписка молчит.
   const waiting = words ? thinking(kit, typed, speaking(typed)('thinking.default')) : undefined;
 
+  // Дела продукта названы по-русски: «открыть дверь», «сменить язык». Сказанное
+  // на другом языке сначала переводится, иначе просьба станет заявкой о поломке.
+  const asked = words ? await forRouting(kit.deps, await kit.residentOf(typed), words) : undefined;
+
   try {
-    if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
-    if (words && (await notAboutHouse(kit, typed, words))) return;
-    if (words && (await answeredClarification(kit, typed, words))) return;
+    if (asked && (await doneBySaying(kit, typed, asked, byVoice(said)))) return;
+    if (asked && (await notAboutHouse(kit, typed, asked))) return;
+    if (asked && words && (await answeredClarification(kit, typed, asked, words))) return;
   } finally {
     await waiting?.();
   }
 
-  return describeProblem(kit, typed, undefined, said);
+  return describeProblem(kit, typed, undefined, said, asked);
 };
 
 /** Ответ смежной организации записан словами: он уходит и жильцу. */

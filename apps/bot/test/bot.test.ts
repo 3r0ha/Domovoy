@@ -1674,6 +1674,28 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('просьба на другом языке доходит до дела, а не до отказа', async () => {
+    const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }], {
+      // Служба перевода: продукт приводит сказанное к русскому до разбора.
+      machine: {
+        translate: (texts: readonly string[]) =>
+          Promise.resolve(texts.map((text) => (/open the door/iu.test(text) ? 'открыть дверь' : undefined))),
+      },
+      reasoner: { onTopic: () => Promise.resolve(false) },
+      devices: [
+        { id: 'dev-1', buildingId: BUILDING_ID, kind: 'intercom', title: 'Домофон, подъезд 1', entrance: 1 },
+      ],
+    });
+
+    platform.userSends('I want to open the door', { userId: 3003, chatId: 3003 });
+
+    const said = await waitForMessage(3003, /open|view/iu);
+
+    assert.doesNotMatch(said, /помогаю только с домом/u, 'просьбу приняли за постороннюю');
+
+    await bot.stop();
+  });
+
   it('без модели категория подписана ключевыми словами, а не моделью', async () => {
     const bot = await start([RESIDENT_WITH_FLAT]);
 

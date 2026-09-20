@@ -31,6 +31,7 @@ export {
   type MachineTranslator,
   type Translations,
 } from './machine-translation.js';
+export { forRouting } from './routing-language.js';
 export {
   DESCRIPTION_IN_NOTICE,
   actionsFor,
