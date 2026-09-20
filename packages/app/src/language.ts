@@ -78,7 +78,11 @@ export const languageOfText = (text: string): Language | undefined => {
   for (const sign of LETTERS) if (sign.letters.test(said)) return sign.language;
   for (const sign of WORDS) if (sign.words.test(said)) return sign.language;
 
-  return undefined;
+  // Особых букв и частых слов не нашлось: «хочу заплатить за счета» написано
+  // кириллицей без единой приметы. У кириллицы это русский: у остальных наших
+  // языков с этой письменностью есть свои буквы, и они проверены выше.
+  // Латиницу так не угадывают: за ней стоит слишком много чужих языков.
+  return /\p{Script=Cyrillic}/u.test(said) ? 'ru' : undefined;
 };
 
 /** Выбран ли язык: до выбора продукт сначала спрашивает о нём. Смену не спрашивают. */

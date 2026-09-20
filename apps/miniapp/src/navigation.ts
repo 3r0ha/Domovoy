@@ -157,5 +157,16 @@ export const screenFromStartParam = (param?: string): Screen | undefined => {
 export const startParamFromUrl = (): string | undefined => {
   if (typeof globalThis.location === 'undefined') return undefined;
 
-  return new URLSearchParams(globalThis.location.search).get('startapp') ?? undefined;
+  // Клиент передаёт параметр запуска по-разному: в адресе, в его хвосте после
+  // решётки и под разными именами. Берётся первое, что нашлось.
+  const search = new URLSearchParams(globalThis.location.search);
+  const hash = new URLSearchParams(globalThis.location.hash.replace(/^#/u, ''));
+
+  for (const name of ['startapp', 'start_param', 'startParam', 'tgWebAppStartParam']) {
+    const found = search.get(name) ?? hash.get(name);
+
+    if (found) return found;
+  }
+
+  return undefined;
 };
