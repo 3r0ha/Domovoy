@@ -1355,12 +1355,14 @@ main > * > .loading:only-child {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0 18px;
-  /* Сфотографировать счётчик нечем, если промахиваться по кнопке ниже 44. */
+  /* Снимок не сделать, если промахиваться по кнопке ниже 44. */
   min-height: 44px;
   border-radius: 12px;
   line-height: 1;
+  /* Подпись короткая и в одну строку: перенос разводил значок и слово по строкам. */
+  white-space: nowrap;
   cursor: pointer;
 }
 

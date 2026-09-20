@@ -389,7 +389,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': 'Readings for {месяц} · by the {день}th',
   'meters.photo.failed': 'The photo could not be made out',
   'meters.photo.reading': 'Reading the display…',
-  'meters.photo.take': 'Photograph the meter',
+  'meters.photo.take': 'Photo',
   'meters.photo.unreadable':
     'The digits in the photo cannot be made out. Take it closer and without glare or type the digits',
   'meters.result.accepted': 'Accepted',

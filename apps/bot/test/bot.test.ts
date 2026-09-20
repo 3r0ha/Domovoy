@@ -1002,7 +1002,7 @@ describe('чат-бот управляющей компании', () => {
     const buttons = JSON.stringify(menu?.attachments ?? []);
 
     assert.match(buttons, /За месяц /, 'на кнопке видно, за что платят');
-    assert.match(buttons, /Квитанция в приложении/);
+    assert.match(buttons, /Открыть приложение/);
 
     platform.userPressesButton('pay', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /Оплатить за месяц/);
@@ -3825,7 +3825,7 @@ describe('чат-бот управляющей компании', () => {
 
     const last = platform.outgoing.findLast((message) => message.chatId === 3003);
 
-    assert.match(JSON.stringify(last?.attachments ?? []), /Заявки в приложении/);
+    assert.match(JSON.stringify(last?.attachments ?? []), /Открыть приложение/);
     assert.doesNotMatch(JSON.stringify(last?.attachments ?? []), /more:my/, 'список всё ещё листается кнопкой');
 
     await bot.stop();
@@ -4690,7 +4690,7 @@ describe('чат-бот управляющей компании', () => {
       const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
       assert.match(said, /придёт сюда файлом/);
-      assert.match(buttons, /Наклейки в приложении/);
+      assert.match(buttons, /Открыть приложение/);
       assert.doesNotMatch(buttons, /sticker:/, 'выбор объекта остался в переписке');
 
       await bot.stop();
@@ -4714,7 +4714,7 @@ describe('чат-бот управляющей компании', () => {
       await waitForMessage(5005, /Рассылка собирается в приложении/);
       const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
-      assert.match(buttons, /Рассылка в приложении/);
+      assert.match(buttons, /Открыть приложение/);
       assert.doesNotMatch(buttons, /cast:/, 'выбор адресата остался в переписке');
 
       await bot.stop();

@@ -79,7 +79,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
 
       await typed.reply(
         shorten(await pollProtocol(deps, resident, last.poll.id), t('vote.protocol_in_app')),
-        keyboardOf([...appRow(kit.miniAppUrl, t('button.polls_in_app'), 'polls')], typed, t),
+        keyboardOf([...appRow(kit.miniAppUrl, t('button.polls_in_app'), 'polls', t)], typed, t),
       );
       return;
     }

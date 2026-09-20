@@ -386,7 +386,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': 'Показания за {месяц} · до {день} числа',
   'meters.photo.failed': 'Не удалось разобрать фотографию',
   'meters.photo.reading': 'Читаю табло…',
-  'meters.photo.take': 'Сфотографировать счётчик',
+  'meters.photo.take': 'Фото',
   'meters.photo.unreadable': 'Цифры на снимке не разобрать. Снимите ближе и без бликов или введите цифрами',
   'meters.result.accepted': 'Принято',
   'meters.result.consumption': ' · расход {расход} {единица}',

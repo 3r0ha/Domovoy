@@ -86,7 +86,7 @@ export const legalCommands = (kit: BotKit): Record<string, Handler> => ({
     await typed.reply(
       t('legal.accepted'),
       keyboardOf(
-        [...documentRows(kit, resident), ...appRow(kit.miniAppUrl, t('button.legal_in_app'), 'profile')],
+        [...documentRows(kit, resident), ...appRow(kit.miniAppUrl, t('button.legal_in_app'), 'profile', t)],
         typed,
         t,
       ),

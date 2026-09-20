@@ -202,7 +202,7 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
 
   await typed.reply(
     t('request.all_open'),
-    keyboardOf([...appRow(kit.miniAppUrl, t('button.requests_in_app'), 'list')], typed, t),
+    keyboardOf([...appRow(kit.miniAppUrl, t('button.requests_in_app'), 'list', t)], typed, t),
   );
 };
 
@@ -307,7 +307,7 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
       ? moreKeyboard('news', offset + NEWS_PAGE, t('button.more_news'))
       : keyboardOf([
           ...(inChat(typed) ? [] : [[Keyboard.button.callback(t('button.menu'), 'group:back')]]),
-          ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'news'),
+          ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'news', t),
         ], typed, t),
   );
 };
@@ -393,7 +393,7 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
       t('support.more'),
       keyboardOf([
         [Keyboard.button.callback(t('button.more'), `more:support:${offset + PAGE}`)],
-        ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'support'),
+        ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'support', t),
       ], typed, t),
     );
 

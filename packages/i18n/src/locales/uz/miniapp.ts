@@ -385,7 +385,7 @@ export const miniapp: Dictionary = {
   'meters.period.due': '{месяц} uchun koʻrsatkichlar · {день}-sanagacha',
   'meters.photo.failed': 'Suratni tushunib boʻlmadi',
   'meters.photo.reading': 'Tabloni oʻqiyapman…',
-  'meters.photo.take': 'Hisoblagichni suratga olish',
+  'meters.photo.take': 'Surat',
   'meters.photo.unreadable': 'Suratdagi raqamlar oʻqilmayapti. Yaqinroqdan va yaltirashsiz oling yoki raqam bilan kiriting',
   'meters.result.accepted': 'Qabul qilindi',
   'meters.result.consumption': ' · sarf {расход} {единица}',

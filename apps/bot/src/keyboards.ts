@@ -151,17 +151,30 @@ export const keyboardOf = (rows: ButtonRows, where?: Parameters<typeof menuButto
 };
 
 /**
- * Ряд с кнопкой приложения. С разделом она открывает приложение сразу на нём,
- * без него, на стартовом экране.
+ * Ряд с кнопкой приложения. Раздел уходит в ссылку параметром запуска, но
+ * подпись его не обещает: клиент MAX открывает приложение на стартовом экране,
+ * и подпись «Квитанция в приложении» оказывалась неправдой. Сам раздел назван
+ * в сообщении над кнопкой.
  */
-export const appRow = (miniAppUrl: string | undefined, title: string, screen?: string): ButtonRows =>
-  miniAppUrl
+export const appRow = (
+  miniAppUrl: string | undefined,
+  title: string,
+  screen?: string,
+  t: Translate = RU,
+): ButtonRows => {
+  void title;
+
+  return miniAppUrl
     ? [
         [
-          Keyboard.button.openApp(`📱 ${title}`, appLink(miniAppUrl, screen ? sectionParam(screen) : undefined)),
+          Keyboard.button.openApp(
+            t('button.open_app'),
+            appLink(miniAppUrl, screen ? sectionParam(screen) : undefined),
+          ),
         ],
       ]
     : [];
+};
 
 /** Кнопки в два столбца: так экран остаётся коротким. */
 const pairs = (

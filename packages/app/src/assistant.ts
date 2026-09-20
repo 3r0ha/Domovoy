@@ -197,7 +197,7 @@ export const CAPABILITIES: readonly Capability[] = [
     // Одно слово «язык» на любом из наших языков это тоже просьба о разделе:
     // тот, кому он нужен, длинную фразу по-русски составить не может.
     words:
-      /(?<![а-яё])(язык|тел|тіл|тил|забон)(?![а-яё])|(?<![a-z])(language|til|dil|limba)(?![a-z])|լեզու|ენა|ენის|语言|сменить язык|поменять язык|выбрать язык|другой язык|язык продукта|change language|switch language|choose language|tilni oʻzgartirish|tilni ozgartirish|tilni tanlash|тілді ауыстыру|тілді таңдау|тилди өзгөртүү|тилди тандоо|телне үзгәртү|тағйири забон|интихоби забон|dili dəyişmək|dili seçmək|dili üýtgetmek|schimbă limba|schimba limba|լեզուն փոխել|ენის შეცვლა|更改语言|切换语言/i,
+      /^\s*(ru|en|tt|uz|tg|ky|kk|az|hy|tk|ka|ro|zh)\s*$|(?<![а-яё])(язык|тел|тіл|тил|забон)(?![а-яё])|(?<![a-z])(language|til|dil|limba)(?![a-z])|լեզու|ენა|ენის|语言|сменить язык|поменять язык|выбрать язык|другой язык|язык продукта|change language|switch language|choose language|tilni oʻzgartirish|tilni ozgartirish|tilni tanlash|тілді ауыстыру|тілді таңдау|тилди өзгөртүү|тилди тандоо|телне үзгәртү|тағйири забон|интихоби забон|dili dəyişmək|dili seçmək|dili üýtgetmek|schimbă limba|schimba limba|լեզուն փոխել|ენის შეცვლა|更改语言|切换语言/i,
   },
   {
     screen: 'profile',
