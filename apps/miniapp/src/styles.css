@@ -1472,6 +1472,21 @@ button.link.quiet {
   overflow-wrap: anywhere;
 }
 
+@media (prefers-color-scheme: dark) {
+  .guard {
+    color: #f2f3f5;
+    background: #0f1014;
+  }
+
+  .guard a {
+    color: #7aa7ff;
+  }
+
+  .guard-why {
+    color: #9aa0a6;
+  }
+}
+
 .empty h2 {
   margin: 8px 0 0;
   font-size: var(--font-item);

@@ -28,7 +28,7 @@ export class Guard extends Component<{ children: ReactNode }, GuardState> {
     return (
       <div className="guard">
         <h1>Приложение не запустилось</h1>
-        <p>Закройте его и откройте снова. Если не поможет, напишите боту словами: он работает отдельно.</p>
+        <p>Закройте его и откройте снова. Если не поможет, напишите боту словами.</p>
         <button type="button" onClick={() => globalThis.location.reload()}>
           Перезапустить
         </button>
