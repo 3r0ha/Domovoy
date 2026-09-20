@@ -7,6 +7,7 @@ import { formatDeadline, formatDue, type DomovoyApi, type HouseNowView } from '.
 import { useT } from '../i18n.js';
 import { Domovoy } from './Domovoy.js';
 import { Group } from './Group.js';
+import { noted } from './MachineNote.js';
 import { IconNews, IconWarning } from './icons.js';
 
 export interface HouseNowProps {
@@ -62,7 +63,7 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
                 </span>
               }
               title={item.title}
-              subtitle={`${item.target} · ${formatDeadline(item.resolutionDueAt)}`}
+              subtitle={`${item.target} · ${formatDeadline(item.resolutionDueAt)}${noted(t, item.machineTranslated)}`}
               showChevron
               separator={index > 0}
               onClick={() => onOpen(item.id)}
@@ -78,7 +79,10 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
                 </span>
               }
               title={item.title}
-              subtitle={t('home.works.until', { кому: item.audience, срок: formatDue(item.until) })}
+              subtitle={
+                t('home.works.until', { кому: item.audience, срок: formatDue(item.until) }) +
+                noted(t, item.machineTranslated)
+              }
               separator={index > 0 || incidents.length > 0}
             />
           ))}

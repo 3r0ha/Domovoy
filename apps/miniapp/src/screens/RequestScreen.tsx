@@ -28,6 +28,7 @@ import { usePhotos } from '../use-photos.js';
 import { Failure } from './Failure.js';
 import { ErrorText } from './ErrorText.js';
 import { Attachments } from './Attachments.js';
+import { MachineNote } from './MachineNote.js';
 import { Original } from './Original.js';
 import { Composer } from './Composer.js';
 import { RequestActions } from './RequestActions.js';
@@ -786,6 +787,8 @@ export const RequestScreen = ({
         {due ? <p className="hint aside">{due}</p> : null}
 
         {view.description === view.title ? null : <p className="description">{view.description}</p>}
+
+        <MachineNote shown={view.machineTranslated} />
 
         <Original {...(view.original ? { original: view.original } : {})} staff={staff} />
 

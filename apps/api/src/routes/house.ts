@@ -12,6 +12,7 @@ import {
   sendRequestsExport,
   requestsTable,
   speak,
+  translateForReading,
   waitingHandoffs,
 } from '@domovoy/app';
 import {
@@ -338,6 +339,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
                     properties: {
                       id: { type: 'string' },
                       title: { type: 'string' },
+                      machineTranslated: { type: 'boolean' },
                       target: { type: 'string' },
                       status: { type: 'string' },
                       resolutionDueAt: { type: 'string' },
@@ -351,6 +353,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
                     type: 'object',
                     properties: {
                       title: { type: 'string' },
+                      machineTranslated: { type: 'boolean' },
                       audience: { type: 'string' },
                       until: { type: 'string' },
                     },
@@ -365,19 +368,27 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const state = await houseNow(deps, resident);
         const t = speak(resident);
+        // Авария и работы в ленте дома написаны соседом или компанией: жилец
+        // с другим языком читает их в переводе.
+        const machine = await translateForReading(deps, resident, [
+          ...state.incidents.map((item) => item.title),
+          ...state.works.map((item) => item.title),
+        ]);
 
         return {
           mood: state.mood,
           incidents: state.incidents.map((item) => ({
             id: item.id,
-            title: item.title,
+            title: machine.of(item.title),
+            ...(machine.machine(item.title) ? { machineTranslated: true } : {}),
             target: asTitle(describeTarget(item.target, undefined, t)),
             status: item.status,
             resolutionDueAt: item.resolutionDueAt.toISOString(),
             reporters: reportersCount(item),
           })),
           works: state.works.map((item) => ({
-            title: item.title,
+            title: machine.of(item.title),
+            ...(machine.machine(item.title) ? { machineTranslated: true } : {}),
             audience: describeAudience(announcementAudience(item), t),
             until: item.works!.until.toISOString(),
           })),
@@ -401,6 +412,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
                   kind: { type: 'string', enum: ['works', 'poll', 'inspection'] },
                   at: { type: 'string' },
                   title: { type: 'string' },
+                  machineTranslated: { type: 'boolean' },
                   where: { type: 'string' },
                 },
               },
@@ -411,7 +423,18 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       async (request) => {
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
-        return (await houseAhead(deps, resident)).map((event) => ({ ...event, at: event.at.toISOString() }));
+        const events = await houseAhead(deps, resident);
+        // Название обхода взято из словаря и уже на языке жильца, а работы
+        // и собрания названы словами человека.
+        const written = events.filter((event) => event.kind !== 'inspection').map((event) => event.title);
+        const machine = await translateForReading(deps, resident, written);
+
+        return events.map((event) => ({
+          ...event,
+          title: event.kind === 'inspection' ? event.title : machine.of(event.title),
+          ...(event.kind !== 'inspection' && machine.machine(event.title) ? { machineTranslated: true } : {}),
+          at: event.at.toISOString(),
+        }));
       },
     );
 

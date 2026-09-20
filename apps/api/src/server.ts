@@ -12,6 +12,7 @@ import type {
   CapitalRepairDirectory,
   CityFeed,
   HandoffGateway,
+  MachineTranslator,
   MeetingRegistry,
   MeterVision,
   Notifier,
@@ -54,6 +55,8 @@ export interface ServerOptions {
   reasoner?: Reasoner;
   /** Перевод написанного своими словами. Без него продукт остаётся одноязычным. */
   translate?: TextTranslator;
+  /** Машинный перевод того, что читают многие: объявления, работы, собрания. */
+  machine?: MachineTranslator;
   /** Платёжный шлюз. Без него квитанция показывается, но оплатить нельзя. */
   payments?: PaymentGateway;
   /** Имя бота: из него собираются ссылки наклеек. */
@@ -257,6 +260,7 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     ...(options.transcriber ? { transcriber: options.transcriber } : {}),
     ...(options.reasoner ? { reasoner: options.reasoner } : {}),
     ...(options.translate ? { translate: options.translate } : {}),
+    ...(options.machine ? { machine: options.machine } : {}),
     ...(options.payments ? { payments: options.payments } : {}),
     ...(options.botName ? { botName: options.botName } : {}),
     ...(options.stickers ? { stickers: options.stickers } : {}),

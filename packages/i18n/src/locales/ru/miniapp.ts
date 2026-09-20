@@ -206,6 +206,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': 'Пропустить подсказку',
   'tour.step': '{номер} из {всего}',
 
+  'translation.machine': 'Машинный перевод',
+
   'viewer.close': 'Закрыть снимок',
   'viewer.title': 'Снимок',
 

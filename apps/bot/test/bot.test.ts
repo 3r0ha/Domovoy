@@ -233,6 +233,8 @@ describe('чат-бот управляющей компании', () => {
       demo?: boolean;
       /** Разбор обращения моделью: без него категорию подсказывают ключевые слова. */
       reasoner?: AppDeps['reasoner'];
+      /** Машинный перевод того, что читает весь дом. */
+      machine?: AppDeps['machine'];
       /** Состояние диалога: в проверках подменяется, чтобы увидеть отказ хранилища. */
       sessionMiddleware?: (context: never, next: () => Promise<void>) => Promise<void>;
     } = {},
@@ -282,6 +284,7 @@ describe('чат-бот управляющей компании', () => {
       payments,
       botName: 'uk_bot',
       ...(extra.reasoner ? { reasoner: extra.reasoner } : {}),
+      ...(extra.machine ? { machine: extra.machine } : {}),
       /** Настоящий рисунок проверяется отдельно: здесь важно, что и кому ушло. */
       stickers: {
         svg: (plan, look) => `<svg>${plan.payload}${look?.note ?? ''}</svg>`,
@@ -289,10 +292,11 @@ describe('чат-бот управляющей компании', () => {
       },
     };
 
-    const { now, devices, reasoner, ...botOptions } = extra;
+    const { now, devices, reasoner, machine, ...botOptions } = extra;
     void now;
     void devices;
     void reasoner;
+    void machine;
 
     // Адрес мини-приложения задан, как в бою: часть дел бот только открывает в нём.
     const created = createDomovoyBot({
@@ -828,6 +832,42 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(listing, /Собрание, весь дом/);
     assert.equal(/Отключение воды/.test(listing), false, 'чужой стояк жильцу не показывается');
+
+    await bot.stop();
+  });
+
+  it('жилец с другим языком читает объявления в переводе, а пометка одна на сообщение', async () => {
+    const manager: Resident = {
+      id: 'mgr-machine',
+      maxUserId: 7012,
+      displayName: 'Управляющий',
+      role: 'manager',
+      buildingId: BUILDING_ID,
+    };
+
+    const batches: string[][] = [];
+
+    const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }, manager], {
+      machine: {
+        async translate(texts) {
+          batches.push([...texts]);
+
+          return texts.map((text) => `EN: ${text}`);
+        },
+      },
+    });
+
+    await publishAnnouncement(bot.deps, { resident: manager, title: 'Собрание', body: 'В четверг во дворе' });
+    await publishAnnouncement(bot.deps, { resident: manager, title: 'Уборка', body: 'В пятницу с утра' });
+
+    platform.userSends('/news', { userId: 3003, chatId: 3003 });
+
+    const listing = await waitForMessage(3003, /EN: /);
+
+    assert.match(listing, /EN: Собрание/);
+    assert.match(listing, /EN: Уборка/);
+    assert.equal(listing.match(/Machine translation/gu)?.length, 1, 'пометка идёт один раз на всё сообщение');
+    assert.equal(batches.length, 1, 'вся страница переводится одной пачкой');
 
     await bot.stop();
   });
@@ -1375,6 +1415,19 @@ describe('чат-бот управляющей компании', () => {
 
     assert.match(keyboard, /menu:meters/, 'в раздел нечем перейти');
     assert.match(keyboard, /talk:stop/, 'из разговора нечем выйти');
+
+    await bot.stop();
+  });
+
+  it('ответ данными дома на чужом языке тоже предлагает перейти на него', async () => {
+    const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }]);
+
+    platform.userSends('Что с моей заявкой', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /request/iu);
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /lang:ru/u, 'перейти на язык вопроса нечем');
 
     await bot.stop();
   });

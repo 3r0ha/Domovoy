@@ -15,6 +15,7 @@ import {
   formatHouseDebtShort,
   responsibilityOf,
   supportableFor,
+  translateForReading,
   zoneOf,
 } from '@domovoy/app';
 import {
@@ -273,6 +274,15 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
     return;
   }
 
+  // Объявление пишет компания, а читает весь дом. Пометка о машинном переводе
+  // идёт одной строкой в конце: у каждого из двадцати объявлений она затопила бы
+  // сообщение, а сказать о переводе нужно один раз.
+  const machine = await translateForReading(
+    kit.deps,
+    resident,
+    shown.flatMap((announcement) => [announcement.title, announcement.body]),
+  );
+
   const lines = shown.map((announcement) => {
     const work = plannedWork(announcement);
     const state = work && isUnderway(work, now) ? `${t('news.underway')}, ` : '';
@@ -281,15 +291,18 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
       : '';
 
     return (
-      `${announcement.title}, ${describeAudience(announcementAudience(announcement), t)}\n` +
-      `${formatMoment(announcement.createdAt, undefined, t)}\n${briefly(announcement.body, t)}${until}`
+      `${machine.of(announcement.title)}, ${describeAudience(announcementAudience(announcement), t)}\n` +
+      `${formatMoment(announcement.createdAt, undefined, t)}\n${briefly(machine.of(announcement.body), t)}${until}`
     );
   });
 
   const rest = announcements.length - (offset + shown.length);
+  const translated = shown.some((announcement) => machine.machine(announcement.title, announcement.body))
+    ? `\n\n${t('miniapp.translation.machine')}`
+    : '';
 
   await typed.reply(
-    `${t('news.title')}\n\n${lines.join('\n\n')}`,
+    `${t('news.title')}\n\n${lines.join('\n\n')}${translated}`,
     rest > 0
       ? moreKeyboard('news', offset + NEWS_PAGE, t('button.more_news'))
       : keyboardOf([

@@ -12,6 +12,7 @@ import {
   listServedBuildings,
   publishAnnouncement,
   speak,
+  translateForReading,
   type BuildingCard,
 } from '@domovoy/app';
 import {
@@ -90,8 +91,15 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
         });
 
         const t = speak(resident);
+        // Объявление пишет компания, а читает весь дом: жильцу с другим языком
+        // оно переводится службой.
+        const machine = await translateForReading(
+          deps,
+          resident,
+          found.flatMap((announcement) => [announcement.title, announcement.body]),
+        );
 
-        return found.map((announcement) => serializeAnnouncement(announcement, t));
+        return found.map((announcement) => serializeAnnouncement(announcement, t, machine));
       },
     );
 

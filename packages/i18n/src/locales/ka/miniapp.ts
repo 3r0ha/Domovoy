@@ -206,6 +206,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': 'მინიშნების გამოტოვება',
   'tour.step': '{номер} {всего}-დან',
 
+  'translation.machine': 'მანქანური თარგმანი',
+
   'viewer.close': 'სურათის დახურვა',
   'viewer.title': 'სურათი',
 

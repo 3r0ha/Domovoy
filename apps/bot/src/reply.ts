@@ -1,6 +1,14 @@
-import { answerAboutHouse, clarifyTarget, zoneOf, type Resident, type SubmitResult } from '@domovoy/app';
+import {
+  answerAboutHouse,
+  clarifyTarget,
+  languageOf,
+  languageOfText,
+  zoneOf,
+  type Resident,
+  type SubmitResult,
+} from '@domovoy/app';
 import { categoryKey, describeTarget, emergencyHint, formatMoment, statusTitle } from '@domovoy/domain';
-import type { Translate } from '@domovoy/i18n';
+import { languageTitle, translatorFor, type Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { speak } from './i18n.js';
@@ -91,12 +99,34 @@ export const answerQuestion = async (
     attachments: [
       Keyboard.inlineKeyboard([
         ...(to ? [[Keyboard.button.callback(t(to.title), `menu:${to.command}`)]] : []),
+        ...languageRow(resident, description),
         anywayRow(t),
       ]),
     ],
   });
 
   return true;
+};
+
+/**
+ * Вопрос задан на другом языке: под ответом стоит переход на него. Ответ
+ * человеку нужен сразу, а язык он выберет заодно, не ища раздел руками.
+ */
+const languageRow = (resident: Resident, said: string) => {
+  const heard = languageOfText(said);
+
+  if (!heard || heard === languageOf(resident)) return [];
+
+  const voice = translatorFor(heard);
+
+  return [
+    [
+      Keyboard.button.callback(
+        voice('app.assistant.languageButton', { язык: languageTitle(heard) }),
+        `lang:${heard}`,
+      ),
+    ],
+  ];
 };
 
 /**

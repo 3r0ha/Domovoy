@@ -2416,6 +2416,27 @@ describe('объявления', () => {
     await screen.unmount();
   });
 
+  it('машинный перевод отмечен пометкой, а перевода нет, нет и пометки', async () => {
+    const { bridge } = createMockBridge();
+
+    const translated = apiWith({
+      '/api/announcements': [{ ...ANNOUNCEMENT, machineTranslated: true }],
+    });
+
+    const marked = await render(createElement(AnnouncementsScreen as never, { api: translated.api } as never), bridge);
+
+    assert.match(marked.text, /Машинный перевод/);
+
+    await marked.unmount();
+
+    const plain = apiWith({ '/api/announcements': [ANNOUNCEMENT] });
+    const screen = await render(createElement(AnnouncementsScreen as never, { api: plain.api } as never), bridge);
+
+    assert.equal(/Машинный перевод/.test(screen.text), false);
+
+    await screen.unmount();
+  });
+
   it('сотрудник публикует объявление и сразу видит охват', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({

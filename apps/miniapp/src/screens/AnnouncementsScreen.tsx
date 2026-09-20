@@ -10,6 +10,7 @@ import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
+import { MachineNote } from './MachineNote.js';
 import { More } from './More.js';
 import { IconNews, IconShare } from './icons.js';
 import { Skeleton } from './Skeleton.js';
@@ -312,6 +313,8 @@ const AnnouncementCard = ({ announcement, showReach }: { announcement: Announcem
       <p className="description announcement-body">{announcement.body}</p>
 
       {announcement.works ? <Works works={announcement.works} /> : null}
+
+      <MachineNote shown={announcement.machineTranslated} />
 
       <footer>
         <span className="where">

@@ -17,8 +17,10 @@ import {
   submitProblem,
   surveyOf,
   transitionRequest,
+  translateForReading,
   CLOSED_PAGE,
   MAX_FILE_BYTES,
+  NO_TRANSLATION,
   type RequestScope,
 } from '@domovoy/app';
 import {
@@ -264,8 +266,15 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         if (!passport) throw new DomainError('code_not_found', 'Объект не найден');
 
         const moment = deps.now();
+        // Паспорт объекта читает весь дом: заявки в нём заведены разными людьми.
+        const machine = await translateForReading(
+          deps,
+          resident,
+          [...passport.open, ...passport.history].flatMap((item) => [item.title, item.description]),
+        );
+
         const seen = (item: ServiceRequest) => ({
-          ...serializeRequest(item, moment, undefined, resident),
+          ...serializeRequest(item, moment, undefined, resident, machine),
           mine: hasReported(item, resident.id),
         });
 
@@ -296,9 +305,15 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         if (!found) throw requestNotFound();
 
         const survey = resident.role === 'resident' ? [] : await surveyOf(deps, found);
+        // Своё обращение человек написал сам, и переводить его ему незачем.
+        // Переписка по заявке личная: её переводит модель, а не служба.
+        const machine =
+          found.authorId === resident.id
+            ? NO_TRANSLATION
+            : await translateForReading(deps, resident, [found.title, found.description]);
 
         return reply.send({
-          ...serializeRequest(found, deps.now(), await staffNames(deps, [found]), resident),
+          ...serializeRequest(found, deps.now(), await staffNames(deps, [found]), resident, machine),
           ...(survey.length > 0 ? { survey } : {}),
           ...((await canKnockUpstairs(deps, found)) ? { canKnock: true } : {}),
           mine: canAct(resident, found),
@@ -430,8 +445,15 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         const found = await supportableFor(deps, resident);
         const names = await staffNames(deps, found);
         const now = deps.now();
+        // Заявку завёл сосед, а лента дома её показывает всем: жилец с другим
+        // языком читает суть и описание в переводе.
+        const machine = await translateForReading(
+          deps,
+          resident,
+          found.flatMap((item) => [item.title, item.description]),
+        );
 
-        return found.map((item) => serializeRequest(item, now, names, resident));
+        return found.map((item) => serializeRequest(item, now, names, resident, machine));
       },
     );
 

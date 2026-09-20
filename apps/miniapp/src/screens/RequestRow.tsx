@@ -110,6 +110,10 @@ export const RequestRow = ({
             <span className="row-target">{tight(request.target)}</span>
             {staff ? <span className="row-number">{`\u{a0}· ${request.number}`}</span> : null}
 
+            {request.machineTranslated ? (
+              <span className="row-machine">{`\u{a0}· ${t('translation.machine')}`}</span>
+            ) : null}
+
             {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы
                 на полуслове, а в карточке заявки он виден целиком. */}
             {action || CLOSED.includes(request.status) || request.status === 'done' ? null : (

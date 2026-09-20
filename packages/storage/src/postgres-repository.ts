@@ -10,10 +10,12 @@ import type {
   RequestFilter,
   Resident,
   StoredFile,
+  StoredTranslation,
   SupportFilter,
   TariffRecord,
   VisitFilter,
 } from '@domovoy/app';
+import type { Language } from '@domovoy/i18n';
 import {
   COMPANY_ROLES,
   createRequest,
@@ -1467,6 +1469,33 @@ export class PostgresRepository implements Repository {
     }));
   }
 
+  async listTranslations(fingerprints: readonly string[], language: Language): Promise<StoredTranslation[]> {
+    if (fingerprints.length === 0) return [];
+
+    const { rows } = await this.sql.query<TranslationRow>(
+      'select * from translation where language = $1 and fingerprint = any($2)',
+      [language, [...fingerprints]],
+    );
+
+    return rows.map((row) => ({
+      fingerprint: row.fingerprint,
+      language: row.language,
+      ...(row.text ? { text: row.text } : {}),
+      at: row.at,
+    }));
+  }
+
+  async saveTranslations(records: readonly StoredTranslation[]): Promise<void> {
+    for (const record of records) {
+      await this.sql.query(
+        `insert into translation (fingerprint, language, text, at)
+         values ($1, $2, $3, $4)
+         on conflict (fingerprint, language) do update set text = excluded.text, at = excluded.at`,
+        [record.fingerprint, record.language, record.text ?? null, record.at],
+      );
+    }
+  }
+
   async saveAudit(entry: AuditEntry): Promise<void> {
     await this.sql.query(
       `insert into audit_entry (id, at, actor_id, actor_name, action, building_id, subject, details)
@@ -1965,6 +1994,13 @@ interface TicketMessageRow {
   text: string;
   original_text: string | null;
   original_language: string | null;
+}
+
+interface TranslationRow {
+  fingerprint: string;
+  language: Language;
+  text: string | null;
+  at: Date;
 }
 
 interface AuditRow {

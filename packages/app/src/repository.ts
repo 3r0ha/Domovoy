@@ -230,6 +230,16 @@ export interface SupportFilter {
   statuses?: TicketStatus[];
 }
 
+/** Машинный перевод одного текста на один язык. */
+export interface StoredTranslation {
+  /** Отпечаток исходного текста. */
+  fingerprint: string;
+  language: Language;
+  /** Перевод. Пусто: служба не перевела, и какое-то время её не спрашивают снова. */
+  text?: string;
+  at: Date;
+}
+
 /** Доступ к данным. */
 export interface Repository {
   findResidentByMaxUserId(maxUserId: number): Promise<Resident | undefined>;
@@ -342,6 +352,11 @@ export interface Repository {
   saveTariff(record: TariffRecord): Promise<void>;
   /** Тарифы дома со всей историей: квитанция за июнь считается по июньским. */
   listTariffs(buildingId: string): Promise<TariffRecord[]>;
+
+  /** Готовые машинные переводы: один и тот же текст переводится один раз. */
+  listTranslations(fingerprints: readonly string[], language: Language): Promise<StoredTranslation[]>;
+  /** Записать переводы пачкой. Запись без перевода означает, что служба не ответила. */
+  saveTranslations(records: readonly StoredTranslation[]): Promise<void>;
 
   saveAudit(entry: AuditEntry): Promise<void>;
   /** Журнал действий по дому, свежие первыми. */

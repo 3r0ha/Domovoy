@@ -1617,6 +1617,9 @@
                       "description": {
                         "type": "string"
                       },
+                      "machineTranslated": {
+                        "type": "boolean"
+                      },
                       "original": {
                         "type": "object",
                         "required": [
@@ -1999,6 +2002,9 @@
                         "description": {
                           "type": "string"
                         },
+                        "machineTranslated": {
+                          "type": "boolean"
+                        },
                         "original": {
                           "type": "object",
                           "required": [
@@ -2282,6 +2288,9 @@
                         },
                         "description": {
                           "type": "string"
+                        },
+                        "machineTranslated": {
+                          "type": "boolean"
                         },
                         "original": {
                           "type": "object",
@@ -2606,6 +2615,9 @@
                           "description": {
                             "type": "string"
                           },
+                          "machineTranslated": {
+                            "type": "boolean"
+                          },
                           "original": {
                             "type": "object",
                             "required": [
@@ -2851,6 +2863,9 @@
                           },
                           "description": {
                             "type": "string"
+                          },
+                          "machineTranslated": {
+                            "type": "boolean"
                           },
                           "original": {
                             "type": "object",
@@ -3186,6 +3201,9 @@
                     },
                     "description": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "original": {
                       "type": "object",
@@ -3560,6 +3578,9 @@
                     "description": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "original": {
                       "type": "object",
                       "required": [
@@ -3908,6 +3929,9 @@
                     "description": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "original": {
                       "type": "object",
                       "required": [
@@ -4227,6 +4251,9 @@
                     "description": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "original": {
                       "type": "object",
                       "required": [
@@ -4527,6 +4554,9 @@
                       },
                       "description": {
                         "type": "string"
+                      },
+                      "machineTranslated": {
+                        "type": "boolean"
                       },
                       "original": {
                         "type": "object",
@@ -4829,6 +4859,9 @@
                     "description": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "original": {
                       "type": "object",
                       "required": [
@@ -5128,6 +5161,9 @@
                     },
                     "description": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "original": {
                       "type": "object",
@@ -7192,6 +7228,9 @@
                       "question": {
                         "type": "string"
                       },
+                      "machineTranslated": {
+                        "type": "boolean"
+                      },
                       "opensAt": {
                         "type": "string"
                       },
@@ -7397,6 +7436,9 @@
                     "question": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "opensAt": {
                       "type": "string"
                     },
@@ -7582,6 +7624,9 @@
                     "question": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "opensAt": {
                       "type": "string"
                     },
@@ -7739,6 +7784,9 @@
                       "question": {
                         "type": "string"
                       },
+                      "machineTranslated": {
+                        "type": "boolean"
+                      },
                       "createdAt": {
                         "type": "string"
                       },
@@ -7889,6 +7937,9 @@
                     "question": {
                       "type": "string"
                     },
+                    "machineTranslated": {
+                      "type": "boolean"
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -8006,6 +8057,9 @@
                     },
                     "question": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "createdAt": {
                       "type": "string"
@@ -8155,6 +8209,9 @@
                     },
                     "question": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "opensAt": {
                       "type": "string"
@@ -8338,6 +8395,9 @@
                     },
                     "question": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "opensAt": {
                       "type": "string"
@@ -9876,6 +9936,9 @@
                       },
                       "body": {
                         "type": "string"
+                      },
+                      "machineTranslated": {
+                        "type": "boolean"
                       },
                       "createdAt": {
                         "type": "string"
@@ -12975,6 +13038,9 @@
                           "title": {
                             "type": "string"
                           },
+                          "machineTranslated": {
+                            "type": "boolean"
+                          },
                           "target": {
                             "type": "string"
                           },
@@ -12997,6 +13063,9 @@
                         "properties": {
                           "title": {
                             "type": "string"
+                          },
+                          "machineTranslated": {
+                            "type": "boolean"
                           },
                           "audience": {
                             "type": "string"
@@ -13089,6 +13158,9 @@
                       },
                       "title": {
                         "type": "string"
+                      },
+                      "machineTranslated": {
+                        "type": "boolean"
                       },
                       "where": {
                         "type": "string"
@@ -16760,6 +16832,9 @@
                     },
                     "description": {
                       "type": "string"
+                    },
+                    "machineTranslated": {
+                      "type": "boolean"
                     },
                     "original": {
                       "type": "object",

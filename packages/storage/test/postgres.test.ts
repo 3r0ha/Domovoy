@@ -96,8 +96,9 @@ const setup = async (): Promise<AppDeps> => {
   if (!pool) throw new Error('база недоступна');
 
   await pool.query(
-    'truncate audit_entry, poll_vote, poll, meter_reading, meter, announcement_recipient, announcement, ' +
-      'attachment_file, request_event, service_request, resident, equipment, apartment, building cascade',
+    'truncate translation, audit_entry, poll_vote, poll, meter_reading, meter, announcement_recipient, ' +
+      'announcement, attachment_file, request_event, service_request, resident, equipment, apartment, ' +
+      'building cascade',
   );
 
   await pool.query('insert into building (id, code, address) values ($1, $2, $3)', [
@@ -1865,6 +1866,39 @@ describe('хранилище в Postgres', { skip: pool ? false : 'база не
 
     assert.equal(loaded?.category, 'heating');
     assert.equal(loaded?.reactionDueAt.getTime(), reactionDueAt.getTime());
+  });
+
+  it('машинный перевод сохраняется по паре текста и языка', async () => {
+    const at = new Date('2026-09-20T10:00:00Z');
+
+    await deps.repository.saveTranslations([
+      { fingerprint: 'f1', language: 'en', text: 'Hot water shutdown', at },
+      // Отказ службы: запись без перевода, по ней видно, что спрашивать рано.
+      { fingerprint: 'f2', language: 'en', at },
+      { fingerprint: 'f1', language: 'uz', text: 'Issiq suv oʻchirilishi', at },
+    ]);
+
+    const found = await deps.repository.listTranslations(['f1', 'f2', 'f3'], 'en');
+    const byKey = new Map(found.map((record) => [record.fingerprint, record]));
+
+    assert.equal(found.length, 2, 'чужой язык и незнакомый отпечаток не приходят');
+    assert.equal(byKey.get('f1')?.text, 'Hot water shutdown');
+    assert.equal(byKey.get('f1')?.at.getTime(), at.getTime());
+    assert.equal(byKey.get('f2')?.text, undefined);
+  });
+
+  it('повторный перевод того же текста заменяет прежний', async () => {
+    const at = new Date('2026-09-20T10:00:00Z');
+    const later = new Date('2026-09-20T12:00:00Z');
+
+    await deps.repository.saveTranslations([{ fingerprint: 'f1', language: 'en', at }]);
+    await deps.repository.saveTranslations([{ fingerprint: 'f1', language: 'en', text: 'Lift is broken', at: later }]);
+
+    const found = await deps.repository.listTranslations(['f1'], 'en');
+
+    assert.equal(found.length, 1);
+    assert.equal(found[0]?.text, 'Lift is broken');
+    assert.equal(found[0]?.at.getTime(), later.getTime());
   });
 
   it('повторный прогон миграций ничего не ломает', async () => {

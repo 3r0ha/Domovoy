@@ -4,6 +4,7 @@ import type { RoutesDeps } from './context.js';
 import { ServiceError } from './errors.js';
 import type { Translate } from '@domovoy/i18n';
 import {
+  NO_TRANSLATION,
   speak,
   speakDefault,
   announcementAudience,
@@ -18,6 +19,7 @@ import {
   type PollView,
   type Resident,
   type TicketCard,
+  type Translations,
 } from '@domovoy/app';
 import {
   BASIS,
@@ -159,24 +161,33 @@ export const speakerOf = (
 /** Смотрит смена: состояние называется её словами. */
 const viewedByStaff = (viewer?: Resident): boolean => viewer !== undefined && viewer.role !== 'resident';
 
+/** Суть и описание словами получателя. Перевод службы отмечается: он машинный. */
+const saidIn = (request: ServiceRequest, machine: Translations) => ({
+  title: machine.of(request.title),
+  description: machine.of(request.description),
+  ...(machine.machine(request.title, request.description) ? { machineTranslated: true } : {}),
+});
+
 export const serializeRequest = (
   request: ServiceRequest,
   now: Date,
   names?: ReadonlyMap<string, string>,
   viewer?: Resident,
+  machine: Translations = NO_TRANSLATION,
 ) => {
   // Слова получателя: у жильца его язык, у смены и без получателя русский.
   const t = speak(viewer);
 
-  return serializedRequest(request, now, t, names, viewer);
+  return serializedRequest(request, now, t, names, viewer, machine);
 };
 
 const serializedRequest = (
   request: ServiceRequest,
   now: Date,
   t: Translate,
-  names?: ReadonlyMap<string, string>,
-  viewer?: Resident,
+  names: ReadonlyMap<string, string> | undefined,
+  viewer: Resident | undefined,
+  machine: Translations,
 ) => ({
   id: request.id,
   number: request.number,
@@ -187,8 +198,7 @@ const serializedRequest = (
   status: request.status,
   // Состояние словами отдаёт сервер: те же слова стоят в выгрузке данных и у бота.
   statusTitle: statusTitle(request.status, viewedByStaff(viewer), t),
-  title: request.title,
-  description: request.description,
+  ...saidIn(request, machine),
   // Оба текста: смена работает по русскому, автор видит свой. Что показать,
   // решает клиент, который знает, кто смотрит.
   ...originalOf(request.original),
@@ -682,6 +692,7 @@ export const requestSchema = {
     statusTitle: { type: 'string' },
     title: { type: 'string' },
     description: { type: 'string' },
+    machineTranslated: { type: 'boolean' },
     original: originalSchema,
     target: { type: 'string' },
     createdAt: { type: 'string' },
@@ -778,10 +789,15 @@ export const staffNames = async (deps: AppDeps, requests: readonly ServiceReques
 };
 
 /** Объявление для клиента: адресат приходит словами. */
-export const serializeAnnouncement = (announcement: Announcement, t: Translate = speakDefault()) => ({
+export const serializeAnnouncement = (
+  announcement: Announcement,
+  t: Translate = speakDefault(),
+  machine: Translations = NO_TRANSLATION,
+) => ({
   id: announcement.id,
-  title: announcement.title,
-  body: announcement.body,
+  title: machine.of(announcement.title),
+  body: machine.of(announcement.body),
+  ...(machine.machine(announcement.title, announcement.body) ? { machineTranslated: true } : {}),
   createdAt: announcement.createdAt.toISOString(),
   audience: describeAudience(announcementAudience(announcement), t),
   recipients: announcement.recipientIds.length,
@@ -803,6 +819,7 @@ export const announcementSchema = {
     id: { type: 'string' },
     title: { type: 'string' },
     body: { type: 'string' },
+    machineTranslated: { type: 'boolean' },
     createdAt: { type: 'string' },
     audience: { type: 'string' },
     recipients: { type: 'integer' },
@@ -933,15 +950,20 @@ export const reportSchema = {
 } as const;
 
 /** Собрание для клиента: доли уже посчитаны, клиенту считать нечего. */
-export const serializePoll = (view: PollView, t: Translate = speakDefault()) => ({
+export const serializePoll = (
+  view: PollView,
+  t: Translate = speakDefault(),
+  machine: Translations = NO_TRANSLATION,
+) => ({
   id: view.poll.id,
   kind: view.poll.kind,
   mode: view.poll.mode ?? 'meeting',
   ...(view.poll.noticeId ? { noticeId: view.poll.noticeId } : {}),
   ...(view.poll.protocolId ? { protocolId: view.poll.protocolId } : {}),
   kindTitle: t(pollRuleKey(view.poll.kind)),
-  title: view.poll.title,
-  question: view.poll.question,
+  title: machine.of(view.poll.title),
+  question: machine.of(view.poll.question),
+  ...(machine.machine(view.poll.title, view.poll.question) ? { machineTranslated: true } : {}),
   opensAt: view.poll.opensAt.toISOString(),
   closesAt: view.poll.closesAt.toISOString(),
   open: view.open,
@@ -962,12 +984,17 @@ export const serializePoll = (view: PollView, t: Translate = speakDefault()) => 
   ...(view.votedBy ? { votedBy: view.votedBy } : {}),
 });
 
-export const serializeInitiative = (view: InitiativeView, t: Translate = speakDefault()) => ({
+export const serializeInitiative = (
+  view: InitiativeView,
+  t: Translate = speakDefault(),
+  machine: Translations = NO_TRANSLATION,
+) => ({
   id: view.initiative.id,
   kind: view.initiative.kind,
   kindTitle: t(pollRuleKey(view.initiative.kind)),
-  title: view.initiative.title,
-  question: view.initiative.question,
+  title: machine.of(view.initiative.title),
+  question: machine.of(view.initiative.question),
+  ...(machine.machine(view.initiative.title, view.initiative.question) ? { machineTranslated: true } : {}),
   createdAt: view.initiative.createdAt.toISOString(),
   signatures: view.signatures,
   share: view.standing.share,
@@ -989,6 +1016,7 @@ export const initiativeSchema = {
     kindTitle: { type: 'string' },
     title: { type: 'string' },
     question: { type: 'string' },
+    machineTranslated: { type: 'boolean' },
     createdAt: { type: 'string' },
     signatures: { type: 'integer' },
     share: { type: 'number' },
@@ -1011,6 +1039,7 @@ export const pollSchema = {
     kindTitle: { type: 'string' },
     title: { type: 'string' },
     question: { type: 'string' },
+    machineTranslated: { type: 'boolean' },
     opensAt: { type: 'string' },
     closesAt: { type: 'string' },
     closedAt: { type: 'string' },

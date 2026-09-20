@@ -20,6 +20,7 @@ import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { IconPolls } from './icons.js';
+import { MachineNote } from './MachineNote.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface PollsScreenProps {
@@ -124,6 +125,8 @@ const PollCard = ({
       ) : null}
 
       <p className="description">{poll.question}</p>
+
+      <MachineNote shown={poll.machineTranslated} />
 
       {/* У опроса нет ни кворума, ни порога решения: считаются только голоса. */}
       {poll.mode === 'survey' ? (
@@ -288,6 +291,8 @@ const InitiativeCard = ({
       </header>
 
       <p className="description">{initiative.question}</p>
+
+      <MachineNote shown={initiative.machineTranslated} />
 
       <div className="quorum">
         <div

@@ -203,6 +203,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': '跳过提示',
   'tour.step': '第{номер}步，共{всего}步',
 
+  'translation.machine': '机器翻译',
+
   'viewer.close': '关闭图片',
   'viewer.title': '图片',
 

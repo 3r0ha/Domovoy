@@ -616,6 +616,15 @@ button.link.danger-link {
   white-space: nowrap;
 }
 
+.row-machine {
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.machine-note {
+  color: var(--faint);
+}
+
 .aloud {
   position: absolute;
   width: 1px;

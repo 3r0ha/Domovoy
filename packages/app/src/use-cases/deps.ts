@@ -3,6 +3,7 @@ import type { DeviceHub } from '../devices.js';
 import type { HandoffGateway } from '../handoff.js';
 import type { CapitalRepairDirectory } from '../capital.js';
 import type { CityFeed } from '../city.js';
+import type { MachineTranslator } from '../machine-translation.js';
 import type { MeetingRegistry } from '../meetings.js';
 import type { Notifier } from '../notifier.js';
 import type { Reasoner } from '../reasoner.js';
@@ -34,6 +35,11 @@ export interface AppDeps {
    * автора, а жилец, ответ по-русски.
    */
   translate?: TextTranslator;
+  /**
+   * Машинный перевод того, что написано одним человеком, а читают многие.
+   * Без него жилец видит объявления и заявки соседей так, как они написаны.
+   */
+  machine?: MachineTranslator;
   /** Имя бота: из него собираются ссылки наклеек. */
   botName?: string;
   /** Рисование наклеек. Без него коды объектов только перечисляются. */

@@ -40,6 +40,7 @@ import { demoDevices, demoDoorHistory, demoSensorContact, seedDemo } from './dem
 import { meterVisionFromEnv } from './meter-vision.js';
 import { fileSweepStore, sharedSweepStore } from './sweep-store.js';
 import { gigaChatFromEnv } from './gigachat.js';
+import { machineTranslatorFromEnv } from './machine-translator.js';
 import { gigaChatFilesFromEnv } from './gigachat-files.js';
 import { reasonerFromEnv } from './reasoner.js';
 import { transcriberFromEnv } from './transcriber.js';
@@ -298,8 +299,17 @@ const main = async (): Promise<void> => {
     gigachat?.translate ??
     translatorFromEnv(process.env, (error) => console.error('Не удалось перевести текст', error));
 
+  // Объявления, работы, собрания и заявки соседей переводит бесплатная служба:
+  // их читают многие, и обращаться из-за них к модели дорого.
+  const machine = machineTranslatorFromEnv(process.env, (error) =>
+    console.error('Служба перевода не ответила', error),
+  );
+
   if (!reasoner) console.warn('Модель не задана, категорию подскажут ключевые слова');
   if (!translate) console.warn('Модель не задана, написанное не по-русски дойдёт до смены как есть');
+  if (!machine) {
+    console.warn('TRANSLATE_KIND не задан, объявления и заявки соседей читаются так, как написаны');
+  }
 
   const botName = process.env['BOT_NAME']?.trim() || DEFAULT_BOT_NAME;
 
@@ -334,6 +344,7 @@ const main = async (): Promise<void> => {
     ...(vision ? { vision } : {}),
     ...(reasoner ? { reasoner } : {}),
     ...(translate ? { translate } : {}),
+    ...(machine ? { machine } : {}),
     ...(lock ? { lock } : {}),
   };
 
@@ -477,6 +488,7 @@ const main = async (): Promise<void> => {
     ...(transcriber ? { transcriber } : {}),
     ...(reasoner ? { reasoner } : {}),
     ...(translate ? { translate } : {}),
+    ...(machine ? { machine } : {}),
     ...(sessionStore ? { sessionStore } : {}),
     ...(process.env['METRICS_TOKEN'] ? { metrics: { token: process.env['METRICS_TOKEN'] } } : {}),
     ...(receiver ? { updates: { receiver, header: BOT_API_SECRET_HEADER, path: webhookPath } } : {}),

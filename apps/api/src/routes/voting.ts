@@ -9,6 +9,7 @@ import {
   pollProtocol,
   speak,
   startPoll,
+  translateForReading,
   vote,
 } from '@domovoy/app';
 import type { FastifyPluginAsync } from 'fastify';
@@ -42,8 +43,14 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
         const resident = await currentResident(request.max.userId, request.query.buildingId);
         const polls = await listPollsFor(deps, resident);
         const t = speak(resident);
+        // Название и вопрос собрания пишет один человек, а голосует весь дом.
+        const machine = await translateForReading(
+          deps,
+          resident,
+          polls.flatMap((view) => [view.poll.title, view.poll.question]),
+        );
 
-        return polls.map((view) => serializePoll(view, t));
+        return polls.map((view) => serializePoll(view, t, machine));
       },
     );
 
@@ -147,8 +154,14 @@ export const votingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) 
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
         const t = speak(resident);
+        const found = await listInitiativesFor(deps, resident);
+        const machine = await translateForReading(
+          deps,
+          resident,
+          found.flatMap((view) => [view.initiative.title, view.initiative.question]),
+        );
 
-        return (await listInitiativesFor(deps, resident)).map((view) => serializeInitiative(view, t));
+        return found.map((view) => serializeInitiative(view, t, machine));
       },
     );
 

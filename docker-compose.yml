@@ -74,6 +74,12 @@ services:
       REASONER_URL: ${REASONER_URL:-}
       REASONER_KEY: ${REASONER_KEY:-}
       REASONER_MODEL: ${REASONER_MODEL:-}
+      # Машинный перевод объявлений, работ, собраний и заявок соседей.
+      # Пусто: тексты показываются так, как написаны.
+      TRANSLATE_KIND: ${TRANSLATE_KIND:-}
+      TRANSLATE_URL: ${TRANSLATE_URL:-}
+      TRANSLATE_KEY: ${TRANSLATE_KEY:-}
+      TRANSLATE_EMAIL: ${TRANSLATE_EMAIL:-}
       METER_VISION_URL: ${METER_VISION_URL:-}
       METER_VISION_KEY: ${METER_VISION_KEY:-}
       METER_VISION_MODEL: ${METER_VISION_MODEL:-}
@@ -112,6 +118,25 @@ services:
       - state:/state
     restart: unless-stopped
 
+  # Своя служба машинного перевода. По умолчанию не поднимается: образ большой,
+  # и продукт работает без него. Запуск: docker compose --profile translate up.
+  # Вместе с ней задаются TRANSLATE_KIND=libre и TRANSLATE_URL=http://libretranslate:5000.
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    profiles:
+      - translate
+    environment:
+      # Языки продукта, которые служба знает. Остальные она не переводит,
+      # и текст остаётся таким, каким написан.
+      LT_LOAD_ONLY: ${LT_LOAD_ONLY:-ru,en,az,ro,hy,zh,uz}
+      LT_DISABLE_WEB_UI: 'true'
+    volumes:
+      # Модели языков скачиваются один раз и переживают пересборку.
+      - libretranslate:/home/libretranslate/.local
+    expose:
+      - '5000'
+    restart: unless-stopped
+
   # Внешний край: сертификат, сжатие и кеш статики.
   edge:
     image: caddy:2-alpine
@@ -124,6 +149,8 @@ services:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       # Имя с www переадресуется на основной адрес: WWW_ADDRESS=www.domovoy.homes.
       WWW_ADDRESS: ${WWW_ADDRESS:-www.localhost:80}
+      # Запасное имя на случай фильтрации основного домена по имени.
+      ALT_ADDRESS: ${ALT_ADDRESS:-:81}
     ports:
       - '${HTTP_PORT:-8080}:80'
       - '${HTTPS_PORT:-8443}:443'
@@ -136,5 +163,6 @@ services:
 volumes:
   postgres:
   state:
+  libretranslate:
   caddy-data:
   caddy-config:

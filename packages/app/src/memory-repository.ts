@@ -19,6 +19,7 @@ import {
   type Visit,
   type Vote,
 } from '@domovoy/domain';
+import type { Language } from '@domovoy/i18n';
 
 import { apartmentsOf } from './apartments.js';
 import type {
@@ -32,6 +33,7 @@ import type {
   RequestFilter,
   Resident,
   StoredFile,
+  StoredTranslation,
   SupportFilter,
   TariffRecord,
   VisitFilter,
@@ -97,6 +99,7 @@ export class InMemoryRepository implements Repository {
   private readonly tickets = new Map<string, SupportTicket>();
   private readonly visits = new Map<string, Visit>();
   private readonly handoffs = new Map<string, Handoff>();
+  private readonly translations = new Map<string, StoredTranslation>();
 
   constructor(
     seed: {
@@ -561,6 +564,18 @@ export class InMemoryRepository implements Repository {
 
   async listTariffs(buildingId: string): Promise<TariffRecord[]> {
     return this.tariffs.filter((record) => record.buildingId === buildingId);
+  }
+
+  async listTranslations(fingerprints: readonly string[], language: Language): Promise<StoredTranslation[]> {
+    return fingerprints
+      .map((fingerprint) => this.translations.get(`${language}:${fingerprint}`))
+      .filter((record): record is StoredTranslation => record !== undefined);
+  }
+
+  async saveTranslations(records: readonly StoredTranslation[]): Promise<void> {
+    for (const record of records) {
+      this.translations.set(`${record.language}:${record.fingerprint}`, record);
+    }
   }
 
   async saveAudit(entry: AuditEntry): Promise<void> {

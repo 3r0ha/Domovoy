@@ -206,6 +206,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': 'Кеңесті өткізу',
   'tour.step': '{всего} ішінен {номер}',
 
+  'translation.machine': 'Машиналық аударма',
+
   'viewer.close': 'Суретті жабу',
   'viewer.title': 'Сурет',
 

@@ -206,6 +206,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': 'Ýardamy geçmek',
   'tour.step': '{всего} sanyndan {номер}',
 
+  'translation.machine': 'Maşyn terjimesi',
+
   'viewer.close': 'Surady ýapmak',
   'viewer.title': 'Surat',
 

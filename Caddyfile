@@ -26,3 +26,19 @@
 {$WWW_ADDRESS} {
 	redir https://{$SITE_ADDRESS}{uri} permanent
 }
+
+# Запасное имя того же продукта. Основной домен могут отфильтровать по имени
+# на пути к серверу, и тогда продукт открывается по этому адресу. Без
+# ALT_ADDRESS блок слушает порт, который наружу не выведен.
+{$ALT_ADDRESS::81} {
+	encode zstd gzip
+
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy domovoy:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

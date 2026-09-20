@@ -7,6 +7,7 @@ import type { Translate } from '@domovoy/i18n';
 import { formatDay, formatTime, type DomovoyApi, type HouseEventView } from '../api.js';
 import { useT } from '../i18n.js';
 import { Group } from './Group.js';
+import { noted } from './MachineNote.js';
 import { IconNews, IconPolls, IconRequests } from './icons.js';
 
 export interface HouseAheadProps {
@@ -64,7 +65,7 @@ export const HouseAhead = ({ api }: HouseAheadProps) => {
               </span>
             }
             title={event.title}
-            subtitle={`${event.where} · ${when(t, event, now)}`}
+            subtitle={`${event.where} · ${when(t, event, now)}${noted(t, event.machineTranslated)}`}
             separator={index > 0}
           />
         );

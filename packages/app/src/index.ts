@@ -17,9 +17,20 @@ export {
   type Repository,
   type RequestFilter,
   type Resident,
+  type StoredTranslation,
   type SupportFilter,
   type VisitFilter,
 } from './repository.js';
+export {
+  NO_TRANSLATION,
+  TRANSLATION_BATCH,
+  TRANSLATION_MISS_MS,
+  TRANSLATION_TIMEOUT_MS,
+  textFingerprint,
+  translateForReading,
+  type MachineTranslator,
+  type Translations,
+} from './machine-translation.js';
 export {
   DESCRIPTION_IN_NOTICE,
   actionsFor,

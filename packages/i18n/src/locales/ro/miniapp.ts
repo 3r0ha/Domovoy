@@ -209,6 +209,8 @@ export const miniapp: Dictionary = {
   'tour.skip.aria': 'Omite indiciul',
   'tour.step': '{номер} din {всего}',
 
+  'translation.machine': 'Traducere automată',
+
   'viewer.close': 'Închide imaginea',
   'viewer.title': 'Imagine',
 

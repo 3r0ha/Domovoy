@@ -94,6 +94,8 @@ export interface RequestView {
   /** Короткая суть в одну строку, её показывают в списках. */
   title: string;
   description: string;
+  /** Суть и описание переведены машинно: рядом с ними идёт пометка. */
+  machineTranslated?: boolean;
   /** Как написал жилец, если писал не по-русски: смена читает перевод и оригинал. */
   original?: OriginalTextView;
   target: string;
@@ -284,6 +286,8 @@ export interface PollView {
   kindTitle: string;
   title: string;
   question: string;
+  /** Название и вопрос переведены машинно. */
+  machineTranslated?: boolean;
   opensAt: string;
   closesAt: string;
   open: boolean;
@@ -321,6 +325,8 @@ export interface InitiativeView {
   kindTitle: string;
   title: string;
   question: string;
+  /** Название и вопрос переведены машинно. */
+  machineTranslated?: boolean;
   createdAt: string;
   /** Сколько помещений подписалось. */
   signatures: number;
@@ -469,6 +475,8 @@ export interface HouseEventView {
   kind: 'works' | 'poll' | 'inspection';
   at: string;
   title: string;
+  /** Название переведено машинно. */
+  machineTranslated?: boolean;
   where: string;
 }
 
@@ -538,6 +546,8 @@ export interface AnnouncementView {
   id: string;
   title: string;
   body: string;
+  /** Название и текст переведены машинно: рядом с ними идёт пометка. */
+  machineTranslated?: boolean;
   createdAt: string;
   /** Кого касается: «весь дом», «подъезд 2», «подъезд 2, стояк 1». */
   audience: string;
@@ -636,12 +646,14 @@ export interface HouseNowView {
   incidents: {
     id: string;
     title: string;
+    /** Название переведено машинно. */
+    machineTranslated?: boolean;
     target: string;
     status: string;
     resolutionDueAt: string;
     reporters: number;
   }[];
-  works: { title: string; audience: string; until: string }[];
+  works: { title: string; machineTranslated?: boolean; audience: string; until: string }[];
 }
 
 export interface Profile {
