@@ -9,6 +9,7 @@ import {
   retargetRequest,
   transitionRequest,
   type AppDeps,
+  type MachineTranslator,
   type Reasoner,
   type Resident,
 } from '../dist/index.js';
@@ -341,5 +342,70 @@ describe('помощник отвечает только по делу', () => {
 
     assert.match(seen.facts ?? '', new RegExp(outage.number), 'об открытой заявке дома помощник не знает');
     assert.match(seen.facts ?? '', /Контакты дома/, 'контактов дома в фактах нет');
+  });
+});
+
+describe('оборудование в уточнении адреса', () => {
+  const anvar: Resident = { ...ivan, id: 'res-3', maxUserId: 1003, displayName: 'Анвар', language: 'uz' };
+
+  const withMachine = (machine: MachineTranslator): AppDeps => {
+    const deps = setup();
+
+    return { ...deps, machine };
+  };
+
+  it('жилец с другим языком выбирает объект на своём языке, а русский по справочнику', async () => {
+    const asked: string[][] = [];
+    const machine: MachineTranslator = {
+      async translate(texts) {
+        asked.push([...texts]);
+
+        return texts.map((text) => `[uz] ${text}`);
+      },
+    };
+    const deps = withMachine(machine);
+
+    await deps.repository.saveResident(anvar);
+
+    const request = await createServiceRequest(deps, { resident: anvar, description: 'Лифт не едет' });
+    const mine = await clarifyTarget(deps, anvar, request);
+
+    assert.equal(
+      mine?.options.some((option) => option.label === '[uz] Лифт, подъезд 2'),
+      true,
+    );
+    assert.deepEqual(asked, [['Лифт, подъезд 2']], 'в службу уходит только справочник, без квартир и подъездов');
+
+    const again = await clarifyTarget(deps, anvar, request);
+
+    assert.equal(
+      again?.options.some((option) => option.label === '[uz] Лифт, подъезд 2'),
+      true,
+    );
+    assert.equal(asked.length, 1, 'второй вопрос берёт название из хранилища');
+
+    const hers = await createServiceRequest(deps, { resident: maria, description: 'Лифт не едет' });
+    const theirs = await clarifyTarget(deps, maria, hers);
+
+    assert.equal(
+      theirs?.options.some((option) => option.label === 'Лифт, подъезд 2'),
+      true,
+      'русскому жильцу справочник читается как он есть',
+    );
+    assert.equal(asked.length, 1, 'службу ради русского языка не тревожат');
+  });
+
+  it('отказ службы оставляет название из справочника', async () => {
+    const deps = withMachine({ translate: () => Promise.reject(new Error('служба молчит')) });
+
+    await deps.repository.saveResident(anvar);
+
+    const request = await createServiceRequest(deps, { resident: anvar, description: 'Лифт не едет' });
+    const asked = await clarifyTarget(deps, anvar, request);
+
+    assert.equal(
+      asked?.options.some((option) => option.label === 'Лифт, подъезд 2'),
+      true,
+    );
   });
 });

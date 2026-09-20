@@ -25,7 +25,7 @@ import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
 import { askAssistant, capabilitiesFor, findCapability, type Capability } from '../assistant.js';
 import { actingHouse } from '../buildings.js';
-import { speak } from '../language.js';
+import { languageOf, speak } from '../language.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
@@ -90,6 +90,8 @@ const houseFor = async (deps: AppDeps, command: CreateRequestCommand, buildingId
     equipment: equipment.map((item) => ({ code: item.code, title: item.title })),
     entrances: [...new Set(apartments.map((apartment) => apartment.entrance))].sort((left, right) => left - right),
     ...(own ? { apartment: own.number } : {}),
+    // Уточняющий вопрос читает сам жилец: он идёт на его языке, а разбор остаётся русским.
+    language: languageOf(command.resident),
   };
 };
 

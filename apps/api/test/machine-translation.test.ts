@@ -4,7 +4,8 @@ import { describe, it } from 'node:test';
 import { signInitData } from '@maxkit/bridge';
 import type { FastifyInstance } from 'fastify';
 
-import { InMemoryRepository, type MachineTranslator, type Resident } from '@domovoy/app';
+import { InMemoryRepository, createMockHub, type Device, type MachineTranslator, type Resident } from '@domovoy/app';
+import { encodeTarget } from '@domovoy/domain';
 
 import { buildServer } from '../dist/index.js';
 
@@ -69,6 +70,13 @@ interface Harness {
   login: (userId: number, name: string) => Promise<string>;
 }
 
+/** Оборудование дома: его названия ведёт компания по-русски. */
+const DEVICES: Device[] = [
+  { id: 'intercom-1', buildingId: BUILDING_ID, kind: 'intercom', title: 'Домофон, подъезд 1', entrance: 1 },
+];
+
+const LIFT = { buildingId: BUILDING_ID, code: 'LIFT1', title: 'Лифт, подъезд 1' };
+
 const setup = async (machine?: MachineTranslator): Promise<Harness> => {
   const app = await buildServer({
     botToken: BOT_TOKEN,
@@ -79,8 +87,10 @@ const setup = async (machine?: MachineTranslator): Promise<Harness> => {
         { id: 'apt-2', buildingId: BUILDING_ID, code: 'ACEFHK35', number: 2, entrance: 1, riser: 1, area: 50 },
       ],
       residents: [john, maria, manager],
+      equipment: [LIFT],
     }),
     defaultBuildingId: BUILDING_ID,
+    hub: createMockHub({ devices: DEVICES, now: () => new Date(), createCode: () => '123456' }),
     ...(machine ? { machine } : {}),
   });
 
@@ -220,5 +230,74 @@ describe('заявка соседа в ленте дома', () => {
     assert.match(seen?.title ?? '', /^EN: /u);
     assert.match(seen?.description ?? '', /^EN: /u);
     assert.equal(seen?.machineTranslated, true);
+  });
+});
+
+const doors = async (app: FastifyInstance, token: string) => {
+  const list = await app.inject({ method: 'GET', url: '/api/devices', headers: authed(token) });
+
+  assert.equal(list.statusCode, 200, list.body);
+
+  return list.json<{ id: string; title: string }[]>();
+};
+
+describe('названия из справочника дома', () => {
+  it('двери приходят жильцу переведёнными, а второе чтение берёт их из хранилища', async () => {
+    const { batches, machine } = service();
+    const { app, login } = await setup(machine);
+    const token = await login(JOHN_ID, 'John');
+
+    assert.equal((await doors(app, token))[0]?.title, 'EN: Домофон, подъезд 1');
+    assert.equal(batches.length, 1);
+
+    assert.equal((await doors(app, token))[0]?.title, 'EN: Домофон, подъезд 1');
+    assert.equal(batches.length, 1, 'название взято из хранилища');
+  });
+
+  it('смене двери остаются русскими, и запросов к службе нет', async () => {
+    const { batches, machine } = service();
+    const { app, login } = await setup(machine);
+
+    assert.equal((await doors(app, await login(STAFF_ID, 'Управляющий')))[0]?.title, 'Домофон, подъезд 1');
+    assert.equal(batches.length, 0);
+  });
+
+  it('отказ службы оставляет название из справочника', async () => {
+    const { app, login } = await setup({ translate: () => Promise.reject(new Error('служба недоступна')) });
+
+    assert.equal((await doors(app, await login(JOHN_ID, 'John')))[0]?.title, 'Домофон, подъезд 1');
+  });
+
+  it('«где случилось» в заявке называет оборудование на языке жильца', async () => {
+    const { machine } = service();
+    const { app, login } = await setup(machine);
+    const token = await login(JOHN_ID, 'John');
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/requests',
+      headers: authed(token),
+      payload: {
+        description: 'Лифт застрял между этажами',
+        startParam: encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: LIFT.code }),
+      },
+    });
+
+    assert.equal(created.statusCode, 201, created.body);
+    assert.equal(created.json<{ request: { target: string } }>().request.target, 'EN: Лифт, подъезд 1');
+
+    const mine = await app.inject({ method: 'GET', url: '/api/requests', headers: authed(token) });
+
+    assert.equal(mine.statusCode, 200, mine.body);
+    assert.equal(mine.json<{ target: string }[]>()[0]?.target, 'EN: Лифт, подъезд 1');
+
+    const staff = await app.inject({
+      method: 'GET',
+      url: '/api/requests?scope=queue',
+      headers: authed(await login(STAFF_ID, 'Управляющий')),
+    });
+
+    assert.equal(staff.statusCode, 200, staff.body);
+    assert.equal(staff.json<{ target: string }[]>()[0]?.target, 'Лифт, подъезд 1');
   });
 });

@@ -12,6 +12,7 @@ import {
 
 import { apartmentsOf } from './apartments.js';
 import { speak } from './language.js';
+import { translateForReading } from './machine-translation.js';
 import type { Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -71,6 +72,26 @@ const candidatesFor = async (deps: AppDeps, resident: Resident, request: Service
   }
 
   return options;
+};
+
+/**
+ * Подписи кнопок на языке жильца. Переводится только оборудование: квартиры
+ * и подъезды названы словарём, и он уже на нужном языке. Перевод идёт после
+ * выбора вариантов: справочник ведётся по-русски, и по русским названиям
+ * продукт узнаёт объект в словах человека.
+ */
+const shown = async (
+  deps: AppDeps,
+  resident: Resident,
+  options: readonly TargetOption[],
+): Promise<TargetOption[]> => {
+  const machine = await translateForReading(
+    deps,
+    resident,
+    options.map((option) => (option.startParam.startsWith('eqp_') ? option.label : undefined)),
+  );
+
+  return options.map((option) => ({ ...option, label: machine.of(option.label) }));
 };
 
 /** Вид объекта из его названия: «Домофон, подъезд 1» это «домоф». */
@@ -164,7 +185,7 @@ export const clarifyTarget = async (
   // вопрос про подъезд разошёлся бы с кнопками.
   const question = anyApartment ? t('app.clarify.whichFlat') : asked;
 
-  return { question, options, ...(anyApartment ? { anyApartment } : {}) };
+  return { question, options: await shown(deps, resident, options), ...(anyApartment ? { anyApartment } : {}) };
 };
 
 export interface RetargetCommand {

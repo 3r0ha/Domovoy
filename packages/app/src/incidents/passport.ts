@@ -8,6 +8,7 @@ import {
   isFinal,
   isSameTarget,
   reportersCount,
+  targetName,
   wearOf,
   type RequestTarget,
   type RiskAssessment,
@@ -17,6 +18,7 @@ import {
 import { apartmentsOf, locateTarget } from '../apartments.js';
 import { servesBuilding } from '../buildings.js';
 import { speak } from '../language.js';
+import { translateForReading } from '../machine-translation.js';
 import { type Resident } from '../repository.js';
 import { withReadableAddress, type AppDeps } from '../use-cases.js';
 
@@ -126,9 +128,14 @@ export const objectPassport = async (
     .filter((at): at is Date => at instanceof Date)
     .sort((left, right) => right.getTime() - left.getTime());
 
+  const located = await withReadableAddress(deps, target);
+  // Название оборудования взято из справочника дома: жильцу с другим языком
+  // его переводит служба, а адрес и номер квартиры остаются как есть.
+  const machine = await translateForReading(deps, viewer, [targetName(located)]);
+
   return {
     startParam,
-    target: describeTarget(await withReadableAddress(deps, target), undefined, speak(viewer)),
+    target: machine.of(describeTarget(located, undefined, speak(viewer))),
     open,
     history: [...sameObject].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()),
     totalRequests: sameObject.length,

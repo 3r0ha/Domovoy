@@ -662,9 +662,13 @@ const doneBySaying = async (
   if (isChatter(text)) {
     const who = await kit.residentOf(typed);
 
-    await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
+    // Короткое слово бывает делом: «язык», «счета», «til». Названный раздел
+    // разбирается дальше, а меню остаётся ответом на приветствие и значки.
+    if (!findCapability(text, who.role)) {
+      await typed.reply(await menuTitle(kit, who), kit.menuKeyboard(who));
 
-    return true;
+      return true;
+    }
   }
 
   // Код из квитанции, набранный сообщением: это привязка квартиры, а не обращение.

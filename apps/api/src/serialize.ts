@@ -7,6 +7,7 @@ import {
   NO_TRANSLATION,
   speak,
   speakDefault,
+  translateForReading,
   announcementAudience,
   lastMonth,
   zoneOf,
@@ -59,6 +60,7 @@ import {
   reportersCount,
   spreadOf,
   statusTitle,
+  targetName,
   verificationState,
   type MeterKind,
   type OriginalText,
@@ -202,7 +204,9 @@ const serializedRequest = (
   // Оба текста: смена работает по русскому, автор видит свой. Что показать,
   // решает клиент, который знает, кто смотрит.
   ...originalOf(request.original),
-  target: asTitle(describeTarget(request.target, undefined, t)),
+  // Оборудование названо в справочнике дома, а не словарём: службой переводится
+  // только оно, подъезд и номер квартиры остаются на языке словаря.
+  target: asTitle(machine.of(describeTarget(request.target, undefined, t))),
   createdAt: request.createdAt.toISOString(),
   reactionDueAt: request.reactionDueAt.toISOString(),
   resolutionDueAt: request.resolutionDueAt.toISOString(),
@@ -1249,7 +1253,15 @@ export const boundApartmentSchema = {
 
 /** Заявка после изменения: имена исполнителей подтягиваются к ней же. */
 export const requestView = async (deps: RoutesDeps, request: ServiceRequest, viewer?: Resident) =>
-  serializeRequest(request, deps.now(), await staffNames(deps, [request]), viewer);
+  serializeRequest(
+    request,
+    deps.now(),
+    await staffNames(deps, [request]),
+    viewer,
+    // Суть и описание заявки человек написал сам, а название объекта пришло
+    // из справочника дома: его читателю переводит служба.
+    await translateForReading(deps, viewer, [targetName(request.target)]),
+  );
 
 /** Заголовки выгрузки: имя файла кириллицей понимают все клиенты. */
 export const asAttachment = (reply: FastifyReply, name: string, contentType: string): FastifyReply =>

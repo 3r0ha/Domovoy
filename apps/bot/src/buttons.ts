@@ -40,6 +40,7 @@ import {
   supportInitiative,
   supportRequest,
   transitionRequest,
+  translateForReading,
   useApartment,
   vote,
   zoneOf,
@@ -53,6 +54,7 @@ import {
   isCompanyStaff,
   sectionParam,
   statusTitle,
+  targetName,
   verificationState,
   type NoticeKind,
 } from '@domovoy/domain';
@@ -710,8 +712,12 @@ const where: Button = async (kit, typed, [requestId, index]) => {
 
     delete typed.session?.where;
 
+    // Объект назван справочником дома: жилец читает его на своём языке, как
+    // и на кнопке, которую он только что нажал.
+    const machine = await translateForReading(kit.deps, resident, [targetName(updated.target)]);
+
     await typed.reply(
-      t('request.where_set', { где: describeTarget(updated.target, undefined, t), номер: updated.number }),
+      t('request.where_set', { где: machine.of(describeTarget(updated.target, undefined, t)), номер: updated.number }),
       actionKeyboard(actionsFor(updated, resident), replyIfOpen(updated), undefined, undefined, t),
     );
   } catch (error) {

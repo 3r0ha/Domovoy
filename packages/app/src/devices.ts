@@ -2,6 +2,7 @@ import { DomainError, formatClock, isCompanyStaff, type Apartment, type RequestT
 
 import { recordAction } from './audit.js';
 import { speak } from './language.js';
+import { translateForReading, type TranslationDeps } from './machine-translation.js';
 import { formatGuestEntry, noopNotifier, notifyResident } from './notifier.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
@@ -79,12 +80,36 @@ export interface DeviceHub {
 /** Сколько минут живёт гостевой код. */
 export const GUEST_CODE_MINUTES = 15;
 
-export interface DeviceDeps {
+export interface DeviceDeps extends TranslationDeps {
   hub?: DeviceHub;
-  now: () => Date;
   /** Нужен, чтобы найти дом квартиры: у сотрудника он может быть не рабочим. */
-  repository?: { findApartment: (apartmentId: string) => Promise<Apartment | undefined> };
+  repository?: NonNullable<TranslationDeps['repository']> & {
+    findApartment: (apartmentId: string) => Promise<Apartment | undefined>;
+  };
 }
+
+/**
+ * Названия устройств на языке жильца. Справочник дома ведётся по-русски, а имя
+ * двери человек читает на каждой кнопке: перевод идёт здесь, чтобы и бот,
+ * и приложение получали готовые подписи.
+ */
+const named = async (
+  deps: DeviceDeps,
+  resident: Resident | undefined,
+  devices: readonly Device[],
+): Promise<Device[]> => {
+  const machine = await translateForReading(
+    deps,
+    resident,
+    devices.map((device) => device.title),
+  );
+
+  return devices.map((device) => ({ ...device, title: machine.of(device.title) }));
+};
+
+/** Название одного устройства на языке человека. */
+const nameOf = async (deps: DeviceDeps, resident: Resident | undefined, device: Device): Promise<string> =>
+  (await named(deps, resident, [device]))[0]?.title ?? device.title;
 
 /** Дом и подъезд квартиры человека. */
 const homeSpot = async (
@@ -157,11 +182,16 @@ export const devicesFor = async (
     }
   }
 
-  return [...found.values()];
+  return named(deps, resident, [...found.values()]);
 };
 
 /** Устройства, относящиеся к объекту с наклейки. */
-export const devicesAt = async (deps: DeviceDeps, buildingId: string, target: RequestTarget): Promise<Device[]> => {
+export const devicesAt = async (
+  deps: DeviceDeps,
+  buildingId: string,
+  target: RequestTarget,
+  viewer?: Resident,
+): Promise<Device[]> => {
   const hub = deps.hub;
 
   if (!hub) return [];
@@ -171,7 +201,11 @@ export const devicesAt = async (deps: DeviceDeps, buildingId: string, target: Re
 
   if (entrance === undefined) return [];
 
-  return all.filter((device) => device.entrance === entrance && !isSensor(device));
+  return named(
+    deps,
+    viewer,
+    all.filter((device) => device.entrance === entrance && !isSensor(device)),
+  );
 };
 
 /** @throws {DomainError} если устройство не относится к дому и подъезду человека. */
@@ -208,9 +242,10 @@ export const openDevice = async (deps: AppDeps, resident: Resident, deviceId: st
 
   await ask(() => hub(deps).open(device.id, 'resident', resident.id));
 
+  // В журнале дверь названа по справочнику: его читает смена.
   await recordAction(deps, { actor: resident, action: 'door_opened', subject: device.title });
 
-  return device;
+  return { ...device, title: await nameOf(deps, resident, device) };
 };
 
 /** @throws {DomainError} */
@@ -269,6 +304,7 @@ export const sendSnapshot = async (
 
   const picture = file.contentType === 'image/png' || file.contentType === 'image/jpeg';
   const t = speak(resident);
+  const title = await nameOf(deps, resident, device);
 
   const messageId = await notifier.sendFile({
     maxUserId: resident.maxUserId,
@@ -278,12 +314,12 @@ export const sendSnapshot = async (
     content: file.content,
     encoding: file.encoding,
     text: t('app.device.snapshot', {
-      устройство: device.title,
+      устройство: title,
       время: formatClock(snapshot.at, undefined, t),
     }),
   });
 
-  return { title: device.title, at: snapshot.at, ...(messageId ? { messageId } : {}) };
+  return { title, at: snapshot.at, ...(messageId ? { messageId } : {}) };
 };
 
 /** Открыть дверь гостевым кодом: запрос приходит от панели домофона. @throws {DomainError} */
@@ -305,12 +341,9 @@ export const openByCode = async (deps: AppDeps, code: string): Promise<void> => 
   const device = (await ask(() => hub(deps).list(home))).find((item) => item.id === opened.deviceId);
 
   const t = speak(host);
+  const door = device ? await nameOf(deps, host, device) : t('app.notice.guestDoor');
 
-  await notifyResident(
-    deps.notifier ?? noopNotifier,
-    host,
-    formatGuestEntry(t, device?.title ?? t('app.notice.guestDoor'), deps.now()),
-  );
+  await notifyResident(deps.notifier ?? noopNotifier, host, formatGuestEntry(t, door, deps.now()));
 };
 
 /** Датчики дома и их связь. Доступно смене. */

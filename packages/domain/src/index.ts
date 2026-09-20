@@ -25,6 +25,7 @@ export {
   flatAbove,
   isInAudience,
   selectAudience,
+  targetName,
 } from './audience.js';
 export {
   BROADCAST_FLATS_LIMIT,

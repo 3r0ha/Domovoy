@@ -417,7 +417,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       { schema: { params: startParamParamsSchema } },
       async (request) => {
         const resident = await currentResident(request.max.userId);
-        const described = await describeContext(deps, request.params.startParam, speak(resident));
+        const described = await describeContext(deps, request.params.startParam, speak(resident), resident);
 
         if (!described) throw new DomainError('code_not_found', 'Код объекта не распознан');
 

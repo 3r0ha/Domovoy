@@ -91,7 +91,7 @@ const continueWithObject = async (kit: BotKit, typed: BotContext, flat: BindResu
   delete typed.session?.afterBind;
 
   const resident = await kit.residentOf(typed);
-  const described = await describeContext(kit.deps, payload, speak(resident));
+  const described = await describeContext(kit.deps, payload, speak(resident), resident);
 
   if (!described) return;
 
@@ -130,7 +130,7 @@ const ownOrder = async (kit: BotKit, typed: BotContext, payload: string, residen
 /** Код с наклейки: бот ждёт описания того, что с объектом не так. */
 const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Promise<boolean> => {
   const resident = await kit.residentOf(typed);
-  const described = await describeContext(kit.deps, payload, speak(resident));
+  const described = await describeContext(kit.deps, payload, speak(resident), resident);
 
   if (!described) return false;
 

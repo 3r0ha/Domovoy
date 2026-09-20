@@ -20,7 +20,6 @@ import {
   translateForReading,
   CLOSED_PAGE,
   MAX_FILE_BYTES,
-  NO_TRANSLATION,
   type RequestScope,
 } from '@domovoy/app';
 import {
@@ -30,6 +29,7 @@ import {
   RATING_RANGE,
   allowedTransitions,
   hasReported,
+  targetName,
   type RequestCategory,
   type RequestStatus,
   type ServiceRequest,
@@ -111,9 +111,12 @@ const submitted = async (
     });
   }
 
+  // Заявку завёл сам человек: переводится только название объекта из справочника.
+  const machine = await translateForReading(deps, resident, [targetName(result.request.target)]);
+
   return reply.code(result.kind === 'joined' ? 200 : 201).send({
     joined: result.kind === 'joined',
-    request: serializeRequest(result.request, deps.now(), undefined, resident),
+    request: serializeRequest(result.request, deps.now(), undefined, resident, machine),
     ...(result.question ? { question: result.question } : {}),
   });
 };
@@ -171,7 +174,15 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         const names = await staffNames(deps, found);
 
         if (resident.role === 'resident') {
-          return found.map((item) => serializeRequest(item, moment, names, resident));
+          // Свои заявки человек написал сам: из справочника дома здесь только
+          // название объекта, и переводится оно.
+          const machine = await translateForReading(
+            deps,
+            resident,
+            found.map((item) => targetName(item.target)),
+          );
+
+          return found.map((item) => serializeRequest(item, moment, names, resident, machine));
         }
 
         const assessed = await assessQueue(deps, found);
@@ -267,11 +278,13 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
 
         const moment = deps.now();
         // Паспорт объекта читает весь дом: заявки в нём заведены разными людьми.
-        const machine = await translateForReading(
-          deps,
-          resident,
-          [...passport.open, ...passport.history].flatMap((item) => [item.title, item.description]),
-        );
+        const machine = await translateForReading(deps, resident, [
+          ...[...passport.open, ...passport.history].flatMap((item) => [
+            item.title,
+            item.description,
+            targetName(item.target),
+          ]),
+        ]);
 
         const seen = (item: ServiceRequest) => ({
           ...serializeRequest(item, moment, undefined, resident, machine),
@@ -279,7 +292,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         });
 
         const decoded = decodeTarget(request.params.startParam);
-        const devices = decoded ? await devicesAt(deps, resident.buildingId ?? '', decoded) : [];
+        const devices = decoded ? await devicesAt(deps, resident.buildingId ?? '', decoded, resident) : [];
 
         return reply.send({
           startParam: passport.startParam,
@@ -307,10 +320,11 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         const survey = resident.role === 'resident' ? [] : await surveyOf(deps, found);
         // Своё обращение человек написал сам, и переводить его ему незачем.
         // Переписка по заявке личная: её переводит модель, а не служба.
-        const machine =
-          found.authorId === resident.id
-            ? NO_TRANSLATION
-            : await translateForReading(deps, resident, [found.title, found.description]);
+        // Название объекта из справочника переводится и в своей заявке.
+        const machine = await translateForReading(deps, resident, [
+          targetName(found.target),
+          ...(found.authorId === resident.id ? [] : [found.title, found.description]),
+        ]);
 
         return reply.send({
           ...serializeRequest(found, deps.now(), await staffNames(deps, [found]), resident, machine),
@@ -450,7 +464,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         const machine = await translateForReading(
           deps,
           resident,
-          found.flatMap((item) => [item.title, item.description]),
+          found.flatMap((item) => [item.title, item.description, targetName(item.target)]),
         );
 
         return found.map((item) => serializeRequest(item, now, names, resident, machine));

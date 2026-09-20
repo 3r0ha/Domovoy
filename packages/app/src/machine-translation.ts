@@ -2,7 +2,6 @@ import { DEFAULT_LANGUAGE, type Language } from '@domovoy/i18n';
 
 import { languageOf } from './language.js';
 import type { Resident, StoredTranslation } from './repository.js';
-import type { AppDeps } from './use-cases.js';
 
 /**
  * Порт машинного перевода. Отдельный от модельного: здесь переводится то, что
@@ -15,6 +14,19 @@ export interface MachineTranslator {
    * означает, что этот текст перевести не удалось.
    */
   translate(texts: readonly string[], to: Language, from?: Language): Promise<(string | undefined)[]>;
+}
+
+/**
+ * Что нужно переводу на чтении: служба, хранилище переводов и часы. Полные
+ * зависимости продукта подходят, а узкие, вроде домофонии, дополняются ими.
+ */
+export interface TranslationDeps {
+  now: () => Date;
+  machine?: MachineTranslator;
+  repository?: {
+    listTranslations?(fingerprints: readonly string[], language: Language): Promise<StoredTranslation[]>;
+    saveTranslations?(records: readonly StoredTranslation[]): Promise<void>;
+  };
 }
 
 const FNV_PRIME = 0x01000193;
@@ -119,20 +131,25 @@ const fromStore = (
  * исходный текст: читать по-русски лучше, чем не получить ответа.
  */
 export const translateForReading = async (
-  deps: AppDeps,
+  deps: TranslationDeps,
   resident: Resident | undefined,
   texts: readonly (string | undefined)[],
 ): Promise<Translations> => {
   const language = languageOf(resident);
+  const store = deps.repository;
 
   if (!deps.machine || language === DEFAULT_LANGUAGE) return NO_TRANSLATION;
+
+  // Перевод держится на хранилище: без него одни и те же названия уходили бы
+  // в службу на каждом чтении.
+  if (!store?.listTranslations || !store.saveTranslations) return NO_TRANSLATION;
 
   const wanted = wantedTexts(texts);
 
   if (wanted.length === 0) return NO_TRANSLATION;
 
   const sources = new Map(wanted.map((text) => [textFingerprint(text), text]));
-  const known = await deps.repository.listTranslations([...sources.keys()], language).catch(() => []);
+  const known = await store.listTranslations([...sources.keys()], language).catch(() => []);
   const { ready, asked } = fromStore(known, sources, deps.now().getTime());
   const missing = wanted.filter((text) => !asked.has(text));
 
@@ -153,7 +170,7 @@ export const translateForReading = async (
       return { fingerprint: textFingerprint(text), language, ...(useful ? { text: useful } : {}), at };
     });
 
-    await deps.repository.saveTranslations(records).catch(() => undefined);
+    await store.saveTranslations(records).catch(() => undefined);
   }
 
   if (ready.size === 0) return NO_TRANSLATION;

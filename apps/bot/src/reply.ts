@@ -3,11 +3,12 @@ import {
   clarifyTarget,
   languageOf,
   languageOfText,
+  translateForReading,
   zoneOf,
   type Resident,
   type SubmitResult,
 } from '@domovoy/app';
-import { categoryKey, describeTarget, emergencyHint, formatMoment, statusTitle } from '@domovoy/domain';
+import { categoryKey, describeTarget, emergencyHint, formatMoment, statusTitle, targetName } from '@domovoy/domain';
 import { languageTitle, translatorFor, type Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
@@ -154,6 +155,18 @@ const askWhere = async (
   return { question: clarification.question, keyboard: whereKeyboard(request.id, clarification.options, t) };
 };
 
+/** Где случилось: название оборудования на языке того, кто читает. */
+const placeOf = async (
+  kit: BotKit,
+  resident: Resident,
+  request: { target: Parameters<typeof describeTarget>[0] },
+  t: Translate,
+): Promise<string> => {
+  const machine = await translateForReading(kit.deps, resident, [targetName(request.target)]);
+
+  return machine.of(describeTarget(request.target, undefined, t));
+};
+
 /** Что жилец узнаёт в ответ на своё обращение. */
 export const announce = async (
   kit: BotKit,
@@ -197,11 +210,14 @@ export const announce = async (
   // Сроки показываются по времени дома: в карточке заявки они уже так и
   // печатаются, и два разных времени у одного срока человека сбивают.
   const zone = await zoneOf(kit.deps, created.buildingId);
+  // Оборудование названо в справочнике дома по-русски: жильцу с другим языком
+  // название переводит служба, подъезд и номер квартиры берутся из словаря.
+  const place = await placeOf(kit, resident, created, t);
 
   if (result.kind === 'joined') {
     await typed.reply(
       `${t('request.joined', { номер: created.number, состояние: statusTitle(created.status, false, t) })}\n` +
-        `${t('request.what', { что: t(categoryKey(created.category)), где: describeTarget(created.target, undefined, t) })}\n` +
+        `${t('request.what', { что: t(categoryKey(created.category)), где: place })}\n` +
         `${t('request.joined_you', {
           который: result.reporters,
           срок: formatMoment(created.resolutionDueAt, zone, t),
@@ -218,7 +234,7 @@ export const announce = async (
   if (result.again) {
     await typed.reply(
       `${t('request.same', { номер: strong(created.number) })}\n` +
-        `${t('request.what', { что: t(categoryKey(created.category)), где: plain(describeTarget(created.target, undefined, t)) })}\n` +
+        `${t('request.what', { что: t(categoryKey(created.category)), где: plain(place) })}\n` +
         t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone, t)) }),
       kit.openApp(startParam, typed),
     );
@@ -230,7 +246,7 @@ export const announce = async (
     `${t('request.accepted', { номер: strong(created.number) })}\n` +
     `${t('request.what', {
       что: t(categoryKey(created.category)).toLowerCase(),
-      где: plain(describeTarget(created.target, undefined, t)),
+      где: plain(place),
     })}\n` +
     `${t('request.react', { срок: formatMoment(created.reactionDueAt, zone, t) })}\n` +
     t('request.fix', { срок: strong(formatMoment(created.resolutionDueAt, zone, t)) }) +

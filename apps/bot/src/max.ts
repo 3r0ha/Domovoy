@@ -1,5 +1,5 @@
 import type { Attachment } from '@domovoy/domain';
-import type { Language, Translate } from '@domovoy/i18n';
+import { languageTitle, translatorFor, type Language, type Translate } from '@domovoy/i18n';
 
 import { speakLanguage } from './i18n.js';
 
@@ -10,6 +10,8 @@ export interface DialogSession {
   lang?: Language;
   /** Код из ссылки, отложенный до выбора языка: разговор продолжится с него. */
   afterLang?: string;
+  /** Язык последнего сообщения, если он не тот, что выбран: на него зовут кнопкой. */
+  offerLang?: Language;
   /** Обращение, на которое ответили плановыми работами. */
   plannedDescription?: string;
   plannedTarget?: string;
@@ -333,20 +335,48 @@ export const withBack = (extra: Record<string, unknown> | undefined, context: Bo
   if (!rows) return extra;
 
   const has = exits(rows);
+  const offer = languageRow(context, rows);
 
   // Где человек уже может выйти отменой, второй выход только мешает.
-  if (has.back) return extra;
+  if (has.back && offer.length === 0) return extra;
 
-  const added = [...(has.menu ? [] : [menuButtonOf(t)]), backButtonOf(t)];
+  const added = has.back ? [] : [[...(has.menu ? [] : [menuButtonOf(t)]), backButtonOf(t)]];
 
   return {
     ...extra,
     attachments: attachments.map((attachment: KeyboardAttachment) =>
       attachment === keyboard
-        ? { ...attachment, payload: { ...attachment.payload, buttons: [...rows, added] } }
+        ? { ...attachment, payload: { ...attachment.payload, buttons: [...rows, ...offer, ...added] } }
         : attachment,
     ),
   };
+};
+
+/**
+ * Переход на язык последнего сообщения. Человек написал на языке, который
+ * продукт знает, а читает на другом: ответ он получает сразу, а язык меняет
+ * одной кнопкой, не разыскивая раздел.
+ */
+const languageRow = (context: BotContext, rows: { payload?: string }[][]): { payload?: string }[][] => {
+  const code = context.session?.offerLang;
+
+  if (!code) return [];
+
+  const already = rows.some((row) => row.some((button) => button.payload?.startsWith('lang:')));
+
+  if (already) return [];
+
+  const voice = translatorFor(code);
+
+  return [
+    [
+      {
+        type: 'callback',
+        text: voice('app.assistant.languageButton', { язык: languageTitle(code) }),
+        payload: `lang:${code}`,
+      } as { payload?: string },
+    ],
+  ];
 };
 
 /**

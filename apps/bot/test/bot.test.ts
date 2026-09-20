@@ -1674,6 +1674,30 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
+  it('под любым ответом на чужом языке стоит переход на него', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      reasoner: {
+        understand: () => Promise.resolve(undefined),
+        onTopic: () => Promise.resolve(true),
+        route: () => Promise.resolve({ kind: 'elsewhere' as const, screen: 'home' }),
+      },
+      devices: [
+        { id: 'dev-1', buildingId: BUILDING_ID, kind: 'intercom', title: 'Домофон, подъезд 1', entrance: 1 },
+      ],
+    });
+
+    // Человек читает по-русски, а написал по-английски: ответ идёт сразу,
+    // а переход на английский стоит под ним.
+    platform.userSends('how to open the door', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Что открыть/u);
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /lang:en/u, 'перехода на язык сообщения нет');
+
+    await bot.stop();
+  });
+
   it('просьба на другом языке доходит до дела: язык разбирает модель', async () => {
     const bot = await start([{ ...RESIDENT_WITH_FLAT, language: 'en' }], {
       // Модель читает сообщение на любом языке и называет раздел по-русски.

@@ -18,6 +18,7 @@ import {
   openDevice,
   viewDevice,
   type Device,
+  type MachineTranslator,
   type Notification,
   type Resident,
 } from '../dist/index.js';
@@ -301,5 +302,107 @@ describe('оборудование дома', () => {
       ['snapshot:res-1', 'opened:res-1', 'opened:res-1', 'snapshot:res-2', 'snapshot:res-1'],
     );
     assert.equal(hub.events.filter((event) => event.action === 'snapshot').length, 7, 'домофония помнит каждый кадр');
+  });
+});
+
+/** Служба перевода в проверках: запоминает пачки и отвечает подставным переводом. */
+const fakeMachine = (
+  answer: (text: string) => string | undefined = (text) => `[uz] ${text}`,
+): { batches: string[][]; machine: MachineTranslator } => {
+  const batches: string[][] = [];
+
+  return {
+    batches,
+    machine: {
+      async translate(texts) {
+        batches.push([...texts]);
+
+        return texts.map((text) => answer(text));
+      },
+    },
+  };
+};
+
+const withMachine = (machine: MachineTranslator) => {
+  const kit = setup();
+
+  return { ...kit, deps: { ...kit.deps, machine } };
+};
+
+describe('названия оборудования на языке жильца', () => {
+  it('жилец с другим языком читает двери переведёнными, а смена по справочнику', async () => {
+    const { batches, machine } = fakeMachine();
+    const { deps } = withMachine(machine);
+
+    const mine = await devicesFor(deps, resident({ language: 'uz' }), 1);
+
+    assert.deepEqual(
+      mine.map((device) => device.title),
+      ['[uz] Домофон, подъезд 1', '[uz] Камера у подъезда 1', '[uz] Шлагбаум во двор'],
+    );
+    assert.equal(batches.length, 1, 'одна пачка на весь ответ');
+
+    const staff = await devicesFor(deps, resident({ role: 'dispatcher', apartmentId: undefined, language: 'uz' }), 1);
+
+    assert.deepEqual(
+      staff.map((device) => device.title).filter((title) => title.startsWith('[uz]')),
+      [],
+      'у смены языка нет: очередь ведётся по справочнику',
+    );
+  });
+
+  it('жильцу с русским языком службу не тревожат', async () => {
+    const { batches, machine } = fakeMachine();
+    const { deps } = withMachine(machine);
+
+    const mine = await devicesFor(deps, resident({ language: 'ru' }), 1);
+
+    assert.equal(mine[0]?.title, 'Домофон, подъезд 1');
+    assert.equal(batches.length, 0);
+  });
+
+  it('второе чтение того же экрана берёт названия из кеша', async () => {
+    const { batches, machine } = fakeMachine();
+    const { deps } = withMachine(machine);
+    const anvar = resident({ language: 'uz' });
+
+    await devicesFor(deps, anvar, 1);
+    const again = await devicesFor(deps, anvar, 1);
+
+    assert.equal(batches.length, 1, 'службу второй раз не спрашивают');
+    assert.equal(again[0]?.title, '[uz] Домофон, подъезд 1');
+  });
+
+  it('отказ службы оставляет название из справочника', async () => {
+    const { deps } = withMachine({ translate: () => Promise.reject(new Error('служба молчит')) });
+
+    const mine = await devicesFor(deps, resident({ language: 'uz' }), 1);
+
+    assert.deepEqual(
+      mine.map((device) => device.title),
+      ['Домофон, подъезд 1', 'Камера у подъезда 1', 'Шлагбаум во двор'],
+    );
+  });
+
+  it('открытая дверь и оборудование объекта названы так же', async () => {
+    const { machine } = fakeMachine();
+    const { deps } = withMachine(machine);
+    const anvar = resident({ language: 'uz' });
+
+    const opened = await openDevice(deps, anvar, 'intercom-1');
+
+    assert.equal(opened.title, '[uz] Домофон, подъезд 1');
+
+    const nearby = await devicesAt(
+      deps,
+      BUILDING_ID,
+      { kind: 'entrance', buildingId: BUILDING_ID, entrance: 2 },
+      anvar,
+    );
+
+    assert.deepEqual(
+      nearby.map((device) => device.title),
+      ['[uz] Домофон, подъезд 2'],
+    );
   });
 });

@@ -156,6 +156,8 @@ export interface HouseContext {
   entrances?: number[];
   /** Квартира обратившегося, если она известна. */
   apartment?: number;
+  /** Язык жильца: на нём пишется уточняющий вопрос, который читает он сам. */
+  language?: Language;
 }
 
 const TOPICS: readonly QuestionTopic[] = ['works', 'incident', 'bill', 'request', 'unknown'];

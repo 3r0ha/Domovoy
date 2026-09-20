@@ -61,8 +61,16 @@ export const audienceForTarget = (target: RequestTarget): AnnouncementAudience |
 };
 
 /**
+ * Название объекта из справочника дома: «Лифт, подъезд 1». У остальных объектов
+ * его нет, они называются словарём продукта.
+ */
+export const targetName = (target: RequestTarget): string | undefined =>
+  target.kind === 'equipment' ? target.title : undefined;
+
+/**
  * Описание объекта заявки: без него диспетчер звонит и уточняет адрес.
- * Название оборудования берётся из справочника дома и не переводится.
+ * Название оборудования берётся из справочника дома: словарь его не знает,
+ * и на язык читателя его переводит служба.
  */
 export const describeTarget = (
   target: RequestTarget,

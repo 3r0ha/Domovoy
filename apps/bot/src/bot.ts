@@ -1,6 +1,8 @@
 import {
   ensureResident,
   buildingByChat,
+  languageOf,
+  languageOfText,
   type AppDeps,
   type Building,
   type Resident,
@@ -339,10 +341,17 @@ export const createBotNotifier = (
  * обработчика, и там его уже не спросить.
  */
 const rememberLanguage = (context: BotContext, resident: Resident): void => {
-  if (resident.language === undefined) return;
-
   context.session ??= {};
-  context.session.lang = resident.language;
+
+  if (resident.language !== undefined) context.session.lang = resident.language;
+
+  // Написано на языке, который продукт знает, а человек читает на другом: под
+  // ответом появится переход на него. Ответ при этом приходит сразу, целиком.
+  const said = context.message?.body?.text;
+  const heard = said ? languageOfText(said) : undefined;
+
+  if (heard && resident.role === 'resident' && heard !== languageOf(resident)) context.session.offerLang = heard;
+  else delete context.session.offerLang;
 };
 
 /** В чате отвечают только тому, кто обратился: команда или обращение по имени. */

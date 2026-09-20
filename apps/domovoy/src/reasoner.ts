@@ -1,4 +1,5 @@
 import { CATEGORY_RULES } from '@domovoy/domain';
+import { languageTitle } from '@domovoy/i18n';
 import type { AssistInput, DoingInput, HouseContext, ReadIntent, ReasonedFields, Reasoner } from '@domovoy/app';
 
 /** Разбор обращения внешней моделью. */
@@ -333,6 +334,10 @@ const aboutHouse = (house: HouseContext | undefined): string =>
           : '',
         'Поле equipment заполняй кодом из этого списка, только если человек назвал именно этот объект:',
         'сверь подъезд и вид оборудования с текстом обращения. Если подъезд не назван или не совпал, опусти поле.',
+        // Вопрос читает сам жилец, а остальные поля идут смене: у них разные языки.
+        house.language && house.language !== 'ru'
+          ? `Поле question напиши на языке: ${languageTitle(house.language)}. Остальные поля оставь по-русски.`
+          : '',
       ]
         .filter(Boolean)
         .join('\n')

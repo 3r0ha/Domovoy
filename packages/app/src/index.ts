@@ -29,6 +29,7 @@ export {
   textFingerprint,
   translateForReading,
   type MachineTranslator,
+  type TranslationDeps,
   type Translations,
 } from './machine-translation.js';
 export {

@@ -20,6 +20,7 @@ import {
   describeAudience,
   describeTarget,
   reportersCount,
+  targetName,
 } from '@domovoy/domain';
 import type { FastifyPluginAsync } from 'fastify';
 import {
@@ -371,7 +372,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         // Авария и работы в ленте дома написаны соседом или компанией: жилец
         // с другим языком читает их в переводе.
         const machine = await translateForReading(deps, resident, [
-          ...state.incidents.map((item) => item.title),
+          ...state.incidents.flatMap((item) => [item.title, targetName(item.target)]),
           ...state.works.map((item) => item.title),
         ]);
 
@@ -381,7 +382,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
             id: item.id,
             title: machine.of(item.title),
             ...(machine.machine(item.title) ? { machineTranslated: true } : {}),
-            target: asTitle(describeTarget(item.target, undefined, t)),
+            target: asTitle(machine.of(describeTarget(item.target, undefined, t))),
             status: item.status,
             resolutionDueAt: item.resolutionDueAt.toISOString(),
             reporters: reportersCount(item),
