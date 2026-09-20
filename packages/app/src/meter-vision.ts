@@ -5,13 +5,22 @@ import { ownMeter } from './meters.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
-/** Порт распознавания показаний с фотографии табло. */
+/**
+ * Порт распознавания показаний с фотографии табло. `undefined` означает, что
+ * цифры не разобрали. Снимок без табло отвергается {@link DomainError} с кодом
+ * `meter_not_in_photo`, а молчание службы любой другой ошибкой.
+ */
 export interface MeterVision {
-  /** Показание с фотографии. `undefined` означает, что показание не разобрали. */
   read(image: Blob): Promise<number | undefined>;
   /** То же по ссылке: в чате фотография остаётся у платформы. */
   readUrl?(url: string): Promise<number | undefined>;
 }
+
+/** Отказ службы одним кодом: человеку говорят, что цифры вводятся руками. */
+export const visionFailed = (error: unknown): DomainError =>
+  error instanceof DomainError
+    ? error
+    : new DomainError('vision_unavailable', 'Распознавание не ответило, введите показание цифрами');
 
 export interface MeterVisionDeps extends AppDeps {
   vision?: MeterVision;
@@ -45,5 +54,7 @@ export const readMeterPhoto = async (
 
   const file = await readFile(deps, command.resident, fileIdFromToken(command.token));
 
-  return deps.vision.read(new Blob([new Uint8Array(file.bytes)], { type: file.contentType }));
+  return deps.vision.read(new Blob([new Uint8Array(file.bytes)], { type: file.contentType })).catch((error: unknown) => {
+    throw visionFailed(error);
+  });
 };

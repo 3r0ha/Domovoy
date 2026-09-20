@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const FONT_FILES = [
   '@expo-google-fonts/roboto/400Regular/Roboto_400Regular.ttf',
   '@expo-google-fonts/roboto/500Medium/Roboto_500Medium.ttf',
+  '@expo-google-fonts/roboto/600SemiBold/Roboto_600SemiBold.ttf',
 ];
 
 /** Ширина картинки в точках: с такой наклейку печатают и читают с экрана. */

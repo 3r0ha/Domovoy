@@ -4,6 +4,7 @@ import {
   isCompanyStaff,
   selectAudience,
   type AnnouncementAudience,
+  type MeterKind,
   type RequestCategory,
   type Role,
 } from '@domovoy/domain';
@@ -23,10 +24,72 @@ export interface AnnouncementCommand {
   entrance?: number;
   riser?: number;
   /** Плановые работы: что не работает и до какого момента. */
-  works?: { category: RequestCategory; from: Date; until: Date };
+  works?: { category: RequestCategory; from: Date; until: Date; resource?: MeterKind };
 }
 
 const CAN_PUBLISH: readonly Role[] = ['dispatcher', 'manager'];
+
+export interface HouseNotice {
+  buildingId: string;
+  title: string;
+  body: string;
+  entrance?: number;
+  riser?: number;
+  works?: { category: RequestCategory; from: Date; until: Date; resource?: MeterKind };
+}
+
+/** Объявление дому от продукта: так же, как от смены, но без проверки прав. */
+export const announceToHouse = async (
+  deps: AppDeps,
+  notice: HouseNotice,
+): Promise<{ announcement: Announcement; audience: AnnouncementAudience; notified: number }> => {
+  const { buildingId, entrance, riser } = notice;
+
+  const audience: AnnouncementAudience =
+    riser !== undefined && entrance !== undefined
+      ? { kind: 'riser', buildingId, entrance, riser }
+      : entrance !== undefined
+        ? { kind: 'entrance', buildingId, entrance }
+        : { kind: 'building', buildingId };
+
+  const apartments = await deps.repository.listApartments(buildingId);
+  const recipients = selectAudience(apartments, audience);
+
+  const announcement = await deps.repository.saveAnnouncement({
+    id: deps.createId(),
+    buildingId,
+    audience: {
+      kind: audience.kind,
+      ...(entrance !== undefined ? { entrance } : {}),
+      ...(riser !== undefined ? { riser } : {}),
+    },
+    title: notice.title,
+    body: notice.body,
+    createdAt: deps.now(),
+    recipientIds: recipients.map((apartment) => apartment.id),
+    ...(notice.works ? { works: notice.works } : {}),
+  });
+
+  const notifier = deps.notifier ?? noopNotifier;
+  const residents = await deps.repository.listResidentsByApartments(announcement.recipientIds);
+  const text = formatAnnouncement(notice.title, notice.body);
+
+  const wants = wanting(residents, notice.works ? 'works' : 'news');
+  const hintOf = houseHintFor(deps, announcement.buildingId, apartments);
+
+  for (const resident of wants) {
+    const house = await hintOf(resident);
+
+    await notifyAbout(notifier, resident, house ? formatAnnouncement(notice.title, notice.body, house) : text, {
+      section: 'news',
+      mutable: notice.works ? 'works' : 'news',
+    });
+  }
+
+  await postToChat(deps, announcement, audience);
+
+  return { announcement, audience, notified: wants.length };
+};
 
 /** Публикация объявления. */
 export const publishAnnouncement = async (
@@ -47,52 +110,16 @@ export const publishAnnouncement = async (
 
   await assertServes(deps, command.resident, buildingId);
 
-  const { entrance, riser } = command;
-
-  const audience: AnnouncementAudience =
-    riser !== undefined && entrance !== undefined
-      ? { kind: 'riser', buildingId, entrance, riser }
-      : entrance !== undefined
-        ? { kind: 'entrance', buildingId, entrance }
-        : { kind: 'building', buildingId };
-
-  const apartments = await deps.repository.listApartments(buildingId);
-  const recipients = selectAudience(apartments, audience);
-
-  const announcement = await deps.repository.saveAnnouncement({
-    id: deps.createId(),
+  const { announcement, audience, notified } = await announceToHouse(deps, {
     buildingId,
-    audience: {
-      kind: audience.kind,
-      ...(entrance !== undefined ? { entrance } : {}),
-      ...(riser !== undefined ? { riser } : {}),
-    },
     title: command.title,
     body: command.body,
-    createdAt: deps.now(),
-    recipientIds: recipients.map((apartment) => apartment.id),
+    ...(command.entrance !== undefined ? { entrance: command.entrance } : {}),
+    ...(command.riser !== undefined ? { riser: command.riser } : {}),
     ...(command.works ? { works: command.works } : {}),
   });
 
-  const notifier = deps.notifier ?? noopNotifier;
-  const residents = await deps.repository.listResidentsByApartments(announcement.recipientIds);
-  const text = formatAnnouncement(command.title, command.body);
-
-  const wants = wanting(residents, command.works ? 'works' : 'news');
-  const hintOf = houseHintFor(deps, announcement.buildingId, apartments);
-
-  for (const resident of wants) {
-    const house = await hintOf(resident);
-
-    await notifyAbout(notifier, resident, house ? formatAnnouncement(command.title, command.body, house) : text, {
-      section: 'news',
-      mutable: command.works ? 'works' : 'news',
-    });
-  }
-
-  await postToChat(deps, announcement, audience);
-
-  return { announcement, audience, description: describeAudience(audience), notified: wants.length };
+  return { announcement, audience, description: describeAudience(audience), notified };
 };
 
 /** Сколько объявлений отдаём за раз. */

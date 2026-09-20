@@ -375,7 +375,7 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
       {confirming ? (
         <Confirm
           title="Отправить рассылку?"
-          text={`${reach()}. Сообщение придёт в MAX сразу.`}
+          text={reach()}
           confirmLabel="Отправить"
           busy={sending}
           onConfirm={() => void send()}

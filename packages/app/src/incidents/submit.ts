@@ -24,6 +24,7 @@ import {
 import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
 import { askAssistant, capabilitiesFor, findCapability, type Capability } from '../assistant.js';
+import { actingHouse } from '../buildings.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
@@ -259,7 +260,7 @@ const SHORT_ENOUGH = 40;
 
 /** Обращение жильца: новая заявка либо подтверждение уже открытой. */
 export const submitProblem = async (deps: AppDeps, command: CreateRequestCommand): Promise<SubmitResult> => {
-  const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;
+  const buildingId = actingHouse(deps, command.resident);
 
   // Длинный рассказ не отбивается: продукт сокращает его сам, а человек
   // остаётся с заявкой, а не с отказом по длине.

@@ -43,8 +43,8 @@ export interface Reception {
 const HORIZON_DAYS = 14;
 
 const houseOf = async (deps: AppDeps, resident: Resident, buildingId?: string): Promise<string> => {
-  // Часы приёма это открытые сведения: новому человеку без дома они нужны
-  // до привязки, и он видит приём своего дома или дома по умолчанию.
+  // Часы приёма это открытые сведения: сотрудник без дома видит приём дома
+  // по умолчанию. Жильцу без квартиры приёма нет.
   if (!housed(resident)) return publicHouseOf(deps, resident);
 
   const house = buildingId ?? (await homeBuildingOf(deps, resident));
@@ -115,7 +115,7 @@ const isSlotClash = (error: unknown): boolean =>
 export const takeVisit = async (deps: AppDeps, command: BookVisitCommand): Promise<Visit> => {
   await assertSaid(deps, command.topic, {
     asked: 'с чем человек придёт в управляющую организацию',
-    hint: 'Напишите, с чем придёте: так смена подготовится к разговору.',
+    hint: 'Напишите, с чем придёте.',
     role: command.resident.role,
   });
 

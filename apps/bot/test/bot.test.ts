@@ -16,10 +16,11 @@ import {
   updateBuilding,
   type AppDeps,
   type Device,
+  type MeterVision,
   type Resident,
   type Transcriber,
 } from '@domovoy/app';
-import { LEGAL_VERSION, apartmentKeyParam, encodeTarget } from '@domovoy/domain';
+import { DomainError, LEGAL_VERSION, apartmentKeyParam, encodeTarget } from '@domovoy/domain';
 import { type MockPlatform, type SentMessage, startMockPlatform } from '@maxkit/platform-mock';
 import { MemoryMarkerStore, type MarkerStore } from '@maxkit/runtime';
 
@@ -63,6 +64,24 @@ const RESIDENT_WITH_FLAT: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+};
+
+/** Сосед из второй квартиры: он привязан, поэтому по наклейке сразу к делу. */
+const NEIGHBOUR_WITH_FLAT: Resident = {
+  id: 'res-2',
+  maxUserId: 4004,
+  displayName: 'Пётр',
+  role: 'resident',
+  apartmentId: 'apt-2',
+  buildingId: BUILDING_ID,
+};
+
+/** Жилец без квартиры, документы уже принял: продукт ждёт от него только код. */
+const UNBOUND_RESIDENT: Resident = {
+  id: 'res-unbound',
+  maxUserId: 3011,
+  displayName: 'Пётр',
+  role: 'resident',
 };
 
 describe('чат-бот управляющей компании', () => {
@@ -194,6 +213,8 @@ describe('чат-бот управляющей компании', () => {
     residents: Resident[] = [],
     extra: {
       transcriber?: Transcriber;
+      /** Показание с фотографии табло: в проверках отвечает заглушкой. */
+      vision?: MeterVision;
       onNotifyError?: (error: unknown) => void;
       /** Начало отсчёта: нужно тестам про сроки. */
       now?: () => Date;
@@ -290,14 +311,14 @@ describe('чат-бот управляющей компании', () => {
   };
 
   it('переход по коду с наклейки спрашивает только суть проблемы', async () => {
-    const bot = await start();
+    const bot = await start([RESIDENT_WITH_FLAT]);
     const payload = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' });
 
     platform.pushUpdate({
       update_type: 'bot_started',
       timestamp: Date.now(),
-      chat_id: 2001,
-      user: { user_id: 1001, first_name: 'Иван', is_bot: false },
+      chat_id: 3003,
+      user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload,
     });
 
@@ -309,20 +330,78 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
-  it('заведённое оборудование бот называет по имени', async () => {
+  it('новичку по наклейке сначала документы и код квартиры, а объект ждёт привязки', async () => {
     const bot = await start();
+    const payload = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' });
+
+    platform.pushUpdate({
+      update_type: 'bot_started',
+      timestamp: Date.now(),
+      chat_id: 2001,
+      user: { user_id: 1001, first_name: 'Иван', is_bot: false },
+      payload,
+    });
+
+    await waitForMessage(2001, /персональные данные/);
+    assert.doesNotMatch(platform.outgoing.map((message) => message.text).join(' '), /Лифт, подъезд 2/);
+
+    platform.userPressesButton('legal:accept', { userId: 1001, chatId: 2001 });
+
+    const asked = await waitForMessage(2001, /код квартиры из квитанции/);
+
+    assert.doesNotMatch(asked, /Чем помочь/);
+
+    platform.userSends(FLAT_CODE, { userId: 1001, chatId: 2001 });
+
+    // Экран привязки сменяется вопросом об объекте: ждём сам вопрос.
+    assert.match(await waitForMessage(2001, /Лифт, подъезд 2/), /Опишите|Напишите, что случилось/);
+    assert.equal((await bot.deps.repository.findResidentByMaxUserId(1001))?.apartmentId, 'apt-1');
+
+    await bot.stop();
+  });
+
+  it('объект с наклейки чужого дома после привязки заявку не открывает', async () => {
+    const bot = await start([UNBOUND_RESIDENT]);
+
+    await bot.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Мира, 17' });
+    await bot.repository.saveEquipment({ buildingId: 'b2', code: 'lift-9', title: 'Лифт, подъезд 9' });
+
+    platform.pushUpdate({
+      update_type: 'bot_started',
+      timestamp: Date.now(),
+      chat_id: 3011,
+      user: { user_id: 3011, first_name: 'Пётр', is_bot: false },
+      payload: encodeTarget({ kind: 'equipment', buildingId: 'b2', equipmentId: 'lift-9' }),
+    });
+
+    // Документы уже приняты: сразу просьба о коде, без документов.
+    const asked = await waitForMessage(3011, /код квартиры из квитанции/);
+
+    assert.doesNotMatch(asked, /персональные данные/);
+
+    platform.userSends(FLAT_CODE, { userId: 3011, chatId: 3011 });
+    await waitForMessage(3011, /от другого дома/);
+
+    assert.equal((await bot.deps.repository.findResidentByMaxUserId(3011))?.apartmentId, 'apt-1');
+    assert.doesNotMatch(platform.outgoing.map((message) => message.text).join(' '), /Лифт, подъезд 9/);
+
+    await bot.stop();
+  });
+
+  it('заведённое оборудование бот называет по имени', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
 
     await bot.repository.saveEquipment({ buildingId: BUILDING_ID, code: 'lift-2', title: 'Лифт, подъезд 2' });
 
     platform.pushUpdate({
       update_type: 'bot_started',
       timestamp: Date.now(),
-      chat_id: 2002,
-      user: { user_id: 1002, first_name: 'Иван', is_bot: false },
+      chat_id: 3003,
+      user: { user_id: 3003, first_name: 'Мария', is_bot: false },
       payload: encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' }),
     });
 
-    assert.match(await waitForMessage(2002, /Лифт, подъезд 2/), /Опишите|Напишите, что случилось/);
+    assert.match(await waitForMessage(3003, /Лифт, подъезд 2/), /Опишите|Напишите, что случилось/);
 
     await bot.stop();
   });
@@ -340,9 +419,12 @@ describe('чат-бот управляющей компании', () => {
     });
     await platform.waitForOutgoing(1, 3000);
 
-    // Первый разговор начинается с документов: без согласия продукт не записывает.
+    // Первый разговор начинается с документов и кода квартиры: без них продукт не записывает.
     platform.userPressesButton('legal:accept', { userId: 1001, chatId: 2001 });
-    await waitForMessage(2001, /Чем помочь/);
+    await waitForMessage(2001, /код квартиры из квитанции/);
+
+    platform.userSends(FLAT_CODE, { userId: 1001, chatId: 2001 });
+    await waitForMessage(2001, /Лифт, подъезд 2/);
 
     platform.forgetOutgoing();
     platform.userSends('Застряли между этажами, кабина не двигается', { userId: 1001, chatId: 2001 });
@@ -374,19 +456,100 @@ describe('чат-бот управляющей компании', () => {
     await bot.stop();
   });
 
-  it('без адреса и квартиры бот объясняет, что делать', async () => {
+  it('без квартиры после согласия бот просит код одним сообщением и заявку не заводит', async () => {
     const bot = await start();
 
     platform.userSends('/new', { userId: 9009, chatId: 9009 });
-    await waitForMessage(9009, /персональные данные/);
 
+    const documents = await waitForMessage(9009, /персональные данные/);
+
+    assert.doesNotMatch(documents, /Аварийная служба/, 'дома нет, телефона тоже');
+
+    platform.forgetOutgoing();
     platform.userPressesButton('legal:accept', { userId: 9009, chatId: 9009 });
-    await waitForMessage(9009, /Опишите|Напишите, что случилось/);
 
+    const asked = await waitForMessage(9009, /код квартиры из квитанции/);
+
+    assert.doesNotMatch(asked, /Чем помочь|Опишите|Напишите, что случилось/);
+    assert.equal(platform.outgoing.filter((message) => message.chatId === 9009).length, 1, 'сообщение одно');
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /🏢 Квартира/);
+    assert.doesNotMatch(keyboard, /Что сломалось|Мои обращения|Роль/);
+
+    platform.forgetOutgoing();
     platform.userSends('Что-то сломалось', { userId: 9009, chatId: 9009 });
+    await waitForMessage(9009, /Код не подошёл/);
 
-    // Дом у человека есть, квартиры нет: обращение уходит на дом, а не в отказ.
-    assert.match(await waitForMessage(9009, /принята/), /дом целиком/);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'заявка по дому целиком не завелась');
+
+    await bot.stop();
+  });
+
+  it('без квартиры команды, кнопки, вложения и незнакомые команды получают просьбу о коде', async () => {
+    const bot = await start([UNBOUND_RESIDENT]);
+    const where = { userId: 3011, chatId: 3011 };
+
+    const askedFor = async (send: () => void): Promise<void> => {
+      platform.forgetOutgoing();
+      send();
+      await waitForMessage(3011, /код квартиры из квитанции/);
+    };
+
+    await askedFor(() => platform.userSends('/bill', where));
+    await askedFor(() => platform.userSends('/contacts', where));
+    await askedFor(() => platform.userSends('/news', where));
+    await askedFor(() => platform.userSends('/чтоугодно', where));
+    await askedFor(() => platform.userPressesButton('menu:new', where));
+    await askedFor(() => platform.userPressesButton('group:money', where));
+    await askedFor(() =>
+      platform.pushUpdate({
+        update_type: 'message_created',
+        timestamp: Date.now(),
+        message: {
+          sender: { user_id: 3011, first_name: 'Пётр', is_bot: false },
+          recipient: { chat_id: 3011, chat_type: 'dialog' },
+          timestamp: Date.now(),
+          body: { mid: 'mid-photo-unbound', seq: 1, attachments: [{ type: 'image', payload: { token: 'photo-token' } }] },
+        },
+      }),
+    );
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0);
+
+    // Что открыто и без квартиры: справка о привязке и свои данные.
+    platform.forgetOutgoing();
+    platform.userSends('/help', where);
+    assert.match(await waitForMessage(3011, /Чтобы начать/), /код квартиры/);
+
+    platform.forgetOutgoing();
+    platform.userSends('/mydata', where);
+    await waitForMessage(3011, /Я храню о вас/);
+
+    // Код внутри фразы привязывает, и меню становится обычным.
+    platform.forgetOutgoing();
+    platform.userSends(`мой код ${FLAT_CODE}`, where);
+    await waitForMessage(3011, /вы в квартире 1/);
+    assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /Что сломалось/);
+
+    await bot.stop();
+  });
+
+  it('в режиме проверки непривязанному остаются квартира и роль', async () => {
+    const bot = await start([UNBOUND_RESIDENT], { demo: true });
+
+    platform.userSends('/start', { userId: 3011, chatId: 3011 });
+    await waitForMessage(3011, /код квартиры из квитанции/);
+
+    const keyboard = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
+
+    assert.match(keyboard, /🏢 Квартира/);
+    assert.match(keyboard, /👥 Роль/);
+    assert.doesNotMatch(keyboard, /Что сломалось|Мои обращения/);
+
+    platform.userSends('/demo', { userId: 3011, chatId: 3011 });
+    await waitForMessage(3011, /Кем смотрим продукт/);
 
     await bot.stop();
   });
@@ -877,7 +1040,7 @@ describe('чат-бот управляющей компании', () => {
   });
 
   it('переход по наклейке сообщает, что о поломке уже знают', async () => {
-    const bot = await start([RESIDENT_WITH_FLAT]);
+    const bot = await start([RESIDENT_WITH_FLAT, NEIGHBOUR_WITH_FLAT]);
     const payload = encodeTarget({ kind: 'equipment', buildingId: BUILDING_ID, equipmentId: 'lift-2' });
 
     platform.userSends('/new', { userId: 3003, chatId: 3003 });
@@ -1367,7 +1530,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(4009, /персональные данные/);
 
     platform.userPressesButton('legal:accept', { userId: 4009, chatId: 4009 });
-    await waitForMessage(4009, /Чем помочь/);
+    await waitForMessage(4009, /код квартиры из квитанции/);
 
     platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
 
@@ -1388,7 +1551,7 @@ describe('чат-бот управляющей компании', () => {
     await waitForMessage(4010, /персональные данные/);
 
     platform.userPressesButton('legal:accept', { userId: 4010, chatId: 4010 });
-    await waitForMessage(4010, /Чем помочь/);
+    await waitForMessage(4010, /код квартиры из квитанции/);
 
     platform.userSends('WXYWXY33', { userId: 4010, chatId: 4010 });
 
@@ -1456,6 +1619,216 @@ describe('чат-бот управляющей компании', () => {
     assert.equal(request?.description, 'не работает лифт в подъезде');
     assert.equal(request?.category, 'elevator', 'категория угадана по расшифровке');
     assert.equal(request?.attachments[0]?.transcript, 'не работает лифт в подъезде');
+
+    await bot.stop();
+  });
+
+  /** Сообщение Марии с вложением платформы: запись или снимок, с подписью или без. */
+  const mariaSends = (mid: string, attachment: { type: string; payload: Record<string, string> }, text?: string) =>
+    platform.pushUpdate({
+      update_type: 'message_created',
+      timestamp: Date.now(),
+      message: {
+        sender: { user_id: 3003, first_name: 'Мария', is_bot: false },
+        recipient: { chat_id: 3003, chat_type: 'dialog' },
+        timestamp: Date.now(),
+        body: { mid, seq: 1, ...(text ? { text } : {}), attachments: [attachment] },
+      },
+    });
+
+  const VOICE = { type: 'audio', payload: { token: 'voice-token' } };
+  const PHOTO = { type: 'image', payload: { url: 'https://max.test/photo.jpg' } };
+
+  const withMeters = async (bot: Awaited<ReturnType<typeof start>>): Promise<void> => {
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+    await bot.repository.saveMeter({ id: 'hot-1', apartmentId: 'apt-1', kind: 'hot_water', serial: 'ГВС-1' });
+  };
+
+  it('показание голосом не подаётся само: число переспрашивается кнопкой', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      transcriber: { transcribe: () => Promise.resolve('Холодная вода 12350') },
+    });
+
+    await withMeters(bot);
+    mariaSends('mid-voice-reading', VOICE);
+
+    const asked = await waitForMessage(3003, /Услышал показание/);
+
+    assert.match(asked, /12\s350/u);
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 0, 'показание с голоса подано без подтверждения');
+
+    platform.userPressesButton('meter-read:cold-1:12350', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято/);
+
+    assert.equal((await bot.repository.listReadings('cold-1'))[0]?.value, 12350);
+
+    await bot.stop();
+  });
+
+  it('число голосом без названия прибора: продукт спрашивает, чей это счётчик', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], { transcriber: { transcribe: () => Promise.resolve('140,2') } });
+
+    await withMeters(bot);
+    mariaSends('mid-voice-number', VOICE);
+
+    const asked = await waitForMessage(3003, /Какого это счётчика/);
+
+    assert.match(asked, /140,2/);
+    assert.equal((await bot.repository.listReadingsFor(['cold-1', 'hot-1'])).length, 0);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'число ушло заявкой');
+
+    await bot.stop();
+  });
+
+  it('голосовое в ответ на вопрос о показании тоже переспрашивается', async () => {
+    // Расшифровка приходит с названием прибора: число из неё всё равно достаётся.
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      transcriber: { transcribe: () => Promise.resolve('Холодная вода 123,5') },
+    });
+
+    await withMeters(bot);
+    platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Выберите счётчик/);
+    platform.userPressesButton('meter:cold-1', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Холодная вода/);
+
+    mariaSends('mid-voice-answer', VOICE);
+    await waitForMessage(3003, /Услышал показание 123,5/);
+
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 0);
+
+    await bot.stop();
+  });
+
+  it('голосовое, которое не разобрали, заявкой не становится', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], { transcriber: { transcribe: () => Promise.resolve(undefined) } });
+
+    mariaSends('mid-voice-noise', VOICE);
+    await waitForMessage(3003, /Голосовое не разобрал/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'из шума вышла заявка');
+
+    // Рассказ словами после этого идёт заявкой без повторного «что случилось».
+    platform.userSends('Нет горячей воды со вчерашнего вечера', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/);
+
+    const [request] = await bot.deps.repository.listRequests({});
+
+    assert.equal(request?.description, 'Нет горячей воды со вчерашнего вечера');
+
+    await bot.stop();
+  });
+
+  it('слишком длинная запись и молчание расшифровки объясняются словами', async () => {
+    const tooLong = await start([RESIDENT_WITH_FLAT], {
+      transcriber: {
+        transcribe: () => Promise.reject(new DomainError('voice_too_long', 'Запись длиннее двух минут. Скажите короче')),
+      },
+    });
+
+    mariaSends('mid-voice-long', VOICE);
+    await waitForMessage(3003, /длиннее двух минут/);
+    assert.equal((await tooLong.deps.repository.listRequests({})).length, 0);
+    await tooLong.stop();
+
+    platform.reset();
+
+    const silent = await start([RESIDENT_WITH_FLAT], {
+      transcriber: { transcribe: () => Promise.reject(new Error('GigaChat не ответил за 30 с')) },
+    });
+
+    mariaSends('mid-voice-timeout', VOICE);
+    await waitForMessage(3003, /Расшифровка сейчас не отвечает/);
+    assert.equal((await silent.deps.repository.listRequests({})).length, 0);
+    await silent.stop();
+  });
+
+  it('показание с фотографии табло переспрашивается, а не подаётся', async () => {
+    const seen: string[] = [];
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      vision: {
+        read: () => Promise.resolve(undefined),
+        readUrl: (url) => {
+          seen.push(url);
+
+          return Promise.resolve(1234.5);
+        },
+      },
+    });
+
+    await withMeters(bot);
+    platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Выберите счётчик/);
+    platform.userPressesButton('meter:cold-1', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Холодная вода/);
+
+    mariaSends('mid-photo-meter', PHOTO);
+
+    const asked = await waitForMessage(3003, /С фотографии вижу/);
+
+    assert.match(asked, /1\s234,5/u);
+    assert.deepEqual(seen, ['https://max.test/photo.jpg']);
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 0, 'показание со снимка подано без подтверждения');
+
+    platform.userPressesButton('meter-read:cold-1:1234.5', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Принято/);
+
+    assert.equal((await bot.repository.listReadings('cold-1'))[0]?.value, 1234.5);
+
+    await bot.stop();
+  });
+
+  it('снимок без табло и нечитаемое табло объясняются по-разному', async () => {
+    const answers: (() => Promise<number | undefined>)[] = [
+      () => Promise.reject(new DomainError('meter_not_in_photo', 'На снимке не вижу табло счётчика')),
+      () => Promise.resolve(undefined),
+      () => Promise.reject(new Error('GigaChat не ответил за 30 с')),
+    ];
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      vision: { read: () => Promise.resolve(undefined), readUrl: () => answers.shift()!() },
+    });
+
+    await withMeters(bot);
+    platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Выберите счётчик/);
+    platform.userPressesButton('meter:cold-1', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Холодная вода/);
+
+    mariaSends('mid-photo-cat', PHOTO);
+    await waitForMessage(3003, /не вижу табло счётчика/);
+
+    // Ожидание остаётся: следующий снимок идёт тому же счётчику.
+    mariaSends('mid-photo-blur', PHOTO);
+    await waitForMessage(3003, /Цифры на снимке не разобрать/);
+
+    mariaSends('mid-photo-late', PHOTO);
+    await waitForMessage(3003, /Распознавание не ответило/);
+
+    assert.equal((await bot.repository.listReadings('cold-1')).length, 0);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'снимок табло ушёл заявкой');
+
+    await bot.stop();
+  });
+
+  it('снимок к заявке уходит с подписью и без неё', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    mariaSends('mid-photo-captioned', PHOTO, 'В подвале течёт труба у стояка');
+    await waitForMessage(3003, /принята/);
+
+    const [captioned] = await bot.deps.repository.listRequests({});
+
+    assert.equal(captioned?.description, 'В подвале течёт труба у стояка');
+    assert.equal(captioned?.attachments[0]?.kind, 'photo');
+
+    platform.forgetOutgoing();
+    mariaSends('mid-photo-mute', PHOTO);
+    await waitForMessage(3003, /принята/);
+
+    const mute = (await bot.deps.repository.listRequests({})).find((item) => item.id !== captioned?.id);
+
+    assert.equal(mute?.attachments[0]?.kind, 'photo', 'снимок без подписи потерялся');
+    assert.match(mute?.description ?? '', /фотограф/i);
 
     await bot.stop();
   });
@@ -1675,7 +2048,7 @@ describe('чат-бот управляющей компании', () => {
   });
 
   it('переход по наклейке показывает открытую заявку по этому объекту', async () => {
-    const bot = await start([RESIDENT_WITH_FLAT]);
+    const bot = await start([RESIDENT_WITH_FLAT, NEIGHBOUR_WITH_FLAT]);
     const payload = encodeTarget({ kind: 'entrance', buildingId: BUILDING_ID, entrance: 1 });
 
     platform.pushUpdate({
@@ -2831,7 +3204,7 @@ describe('чат-бот управляющей компании', () => {
     assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'без согласия заявки нет');
 
     platform.userPressesButton('legal:accept', { userId: 9100, chatId: 9100 });
-    await waitForMessage(9100, /Чем помочь/);
+    await waitForMessage(9100, /код квартиры из квитанции/);
 
     await bot.stop();
   });
@@ -3254,7 +3627,7 @@ describe('чат-бот управляющей компании', () => {
     // После согласия бот доделывает то, о чём просили: команду повторять не нужно.
     platform.userPressesButton('legal:accept', { userId: 9010, chatId: 9010 });
 
-    assert.match(await waitForMessage(9010, /привяжите квартиру/), /из квитанции/);
+    assert.match(await waitForMessage(9010, /код квартиры/), /из квитанции/);
 
     await bot.stop();
   });
@@ -4011,10 +4384,9 @@ describe('чат-бот управляющей компании', () => {
 
       platform.userSends('/broadcast', { userId: 5005, chatId: 5005 });
 
-      const said = await waitForMessage(5005, /Рассылка собирается в приложении/);
+      await waitForMessage(5005, /Рассылка собирается в приложении/);
       const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
-      assert.match(said, /охват до отправки/);
       assert.match(buttons, /Рассылка в приложении/);
       assert.doesNotMatch(buttons, /cast:/, 'выбор адресата остался в переписке');
 
@@ -4502,7 +4874,7 @@ describe('названия в меню', () => {
 
     const long = roles.flatMap((role) => {
       const menu = menuFor(
-        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, buildingId: BUILDING_ID },
+        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, apartmentId: 'apt-1', buildingId: BUILDING_ID },
         { demo: true },
       );
 
@@ -4521,7 +4893,7 @@ describe('названия в меню', () => {
     // помощник называет всем ролям, значит и перейти в него должно быть чем.
     const without = roles.filter((role) => {
       const menu = menuFor(
-        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, buildingId: BUILDING_ID },
+        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, apartmentId: 'apt-1', buildingId: BUILDING_ID },
         { demo: true },
       );
 
@@ -4531,5 +4903,19 @@ describe('названия в меню', () => {
     });
 
     assert.deepEqual(without, []);
+  });
+
+  it('жильцу без квартиры меню сводится к привязке и, на проверке, роли', () => {
+    const plain = menuFor(UNBOUND_RESIDENT);
+    const demo = menuFor(UNBOUND_RESIDENT, { demo: true });
+
+    assert.deepEqual(plain.top.map((item) => item.command), ['flat']);
+    assert.deepEqual(plain.groups, []);
+    assert.deepEqual(demo.top.map((item) => item.command), ['flat', 'demo']);
+
+    // Сотрудника без квартиры правило не касается: у него дом из назначения роли.
+    const staff = menuFor({ ...UNBOUND_RESIDENT, role: 'technician', buildingId: BUILDING_ID });
+
+    assert.ok(staff.groups.length > 0);
   });
 });

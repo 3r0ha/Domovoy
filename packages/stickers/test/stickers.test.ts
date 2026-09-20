@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DomainError, decodeTarget, planStickers, type StickerPlanOptions } from '@domovoy/domain';
+import {
+  DomainError,
+  STICKER_STYLES,
+  decodeTarget,
+  planStickers,
+  type StickerPlanOptions,
+  type StickerStyleName,
+} from '@domovoy/domain';
 
 import { renderSheet, renderSticker, wrapText, writeStickers } from '../dist/index.js';
 
@@ -102,14 +109,39 @@ describe('рисунок наклейки', () => {
     const classic = renderSticker(first!, { style: 'classic' });
     const night = renderSticker(first!, { style: 'night' });
 
-    assert.match(classic, /<rect[^>]*fill="#111111"/);
-    assert.match(night, /<circle/, 'у ночного стиля модули круглые');
-    assert.match(night, /fill="#14161c"/);
+    assert.match(classic, /<rect[^>]*fill="#151515"/);
+    assert.match(night, /<rect[^>]*fill="#12162a"/, 'модули у всех стилей квадратные');
+    assert.equal(night.includes('<circle'), false);
+    assert.match(night, /stop-color="#161a2b"/, 'фон карточки свой у каждого стиля');
+    assert.match(night, /fill="#f4f6fb"/, 'подписи на тёмном фоне светлые');
+  });
+
+  it('код объекта на самой наклейке не печатается: он нужен листу, а не стене', () => {
+    assert.equal(renderSticker(first!).includes(first!.payload), false);
+  });
+
+  it('в середине кода домик, а вокруг кода белое поле: код при этом читается', async () => {
+    const jsQR = (await import('jsqr')).default;
+    const { Resvg } = await import('@resvg/resvg-js');
+
+    for (const style of Object.keys(STICKER_STYLES) as StickerStyleName[]) {
+      const svg = renderSticker(first!, { style, note: 'Наведите камеру' });
+
+      assert.match(svg, /<path[^>]*d="M12 3\.5/, 'домик в середине');
+
+      for (const width of [720, 240]) {
+        const image = new Resvg(svg, { fitTo: { mode: 'width', value: width }, font: { loadSystemFonts: false } }).render();
+        const read = jsQR(new Uint8ClampedArray(image.pixels), image.width, image.height);
+
+        assert.equal(read?.data, first!.link, `стиль «${style}» на ${width} px не читается`);
+      }
+    }
   });
 
   it('уголки-искатели рисуются целиком: по ним камера находит код', () => {
     const svg = renderSticker(first!, { style: 'night' });
-    const frames = svg.match(/<rect[^>]*stroke=/g) ?? [];
+    const finders = svg.match(/<g data-finder="1">(.*?)<\/g>/u)?.[1] ?? '';
+    const frames = finders.match(/<rect[^>]*stroke=/g) ?? [];
 
     assert.equal(frames.length, 3);
   });

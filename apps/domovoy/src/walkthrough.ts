@@ -453,9 +453,18 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
 
     say('Сосед в чате дома', 'нажимает «Принимаю»');
     platform.userPressesButton('legal:accept', { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId });
-    await expect(NEWCOMER, /Чем помочь/);
+    await expect(NEWCOMER, /код квартиры из квитанции/);
 
-    say('', 'Сосед пока не привязан к квартире и вводит код из своей квитанции');
+    say('', 'Пока квартира не привязана, продукт просит код и ничего другого не делает');
+    say('Сосед в чате дома', 'Не горит лампа в подъезде');
+    platform.userSends('Не горит лампа в подъезде', {
+      userId: NEWCOMER.maxUserId,
+      chatId: NEWCOMER.maxUserId,
+      firstName: 'Пётр',
+    });
+    await expect(NEWCOMER, /код квартиры из квитанции/);
+
+    say('', 'Сосед вводит код из своей квитанции');
     say('Сосед в чате дома', flatCode);
     platform.userSends(flatCode, { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
     await expect(NEWCOMER, /вы в квартире/);

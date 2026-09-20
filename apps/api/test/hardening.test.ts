@@ -216,7 +216,7 @@ describe('адрес заявки из кода с наклейки', () => {
     });
 
     assert.equal(response.statusCode, 403);
-    assert.equal(response.json().error, 'forbidden');
+    assert.equal(response.json().error, 'apartment_required');
 
     await app.close();
   });

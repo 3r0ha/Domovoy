@@ -1,4 +1,4 @@
-import { apartmentsOf, type Resident } from '@domovoy/app';
+import { apartmentsOf, needsApartment, type Resident } from '@domovoy/app';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import type { Extra } from './kit.js';
@@ -323,6 +323,9 @@ export interface MenuOffer {
 /** Примерка роли: пункт стоит первым экраном, чтобы до него был один клик. */
 const DEMO_ITEM: MenuItem = { title: '👥 Роль', command: 'demo' };
 
+/** Жильцу без квартиры остаётся одно дело: привязать её. */
+const BIND_ITEM: MenuItem = { title: '🏢 Квартира', command: 'flat' };
+
 /** Какому пункту нужен поставщик, без которого он только выдаёт ошибку. */
 const REQUIRES: Readonly<Record<string, keyof MenuOffer>> = { door: 'doors' };
 
@@ -335,6 +338,11 @@ const offered = (item: MenuItem, offer: MenuOffer): boolean => {
 /** Меню под роль: то, что человеку доступно, разложенное по группам. */
 export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => {
   const role = resident.role;
+
+  if (needsApartment(resident)) {
+    return { top: offer.demo === true ? [BIND_ITEM, DEMO_ITEM] : [BIND_ITEM], groups: [] };
+  }
+
   const own = roleMenu(role);
   const allowed = own.groups.map((group) => ({
     ...group,

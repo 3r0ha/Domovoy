@@ -8,8 +8,9 @@ const SILENCE_MS = 1200;
  * Отметка «Думаю…» на время долгого ответа. Модель отвечает секунды, и без
  * этой строки переписка выглядит так, будто сообщение не дошло. Строка
  * появляется только если ответ и правда задержался, и убирается вместе с ним.
+ * Для разбора записи и снимка слово своё: «Расшифровываю…», «Смотрю на снимок…».
  */
-export const thinking = (kit: BotKit, typed: BotContext): (() => Promise<void>) => {
+export const thinking = (kit: BotKit, typed: BotContext, note = 'Думаю…'): (() => Promise<void>) => {
   const chatId = typed.chatId;
   let mid: string | undefined;
   let done = false;
@@ -20,7 +21,7 @@ export const thinking = (kit: BotKit, typed: BotContext): (() => Promise<void>) 
     void (async () => {
       // Пустая клавиатура, а не её отсутствие: иначе к отметке допишется выход,
       // по которому человек успеет нажать до самого ответа.
-      const sent = await typed.reply('Думаю…', {}).catch(() => undefined);
+      const sent = await typed.reply(note, {}).catch(() => undefined);
 
       if (done) {
         const late = midOf(sent);

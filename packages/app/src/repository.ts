@@ -64,8 +64,8 @@ export interface Announcement {
   body: string;
   createdAt: Date;
   recipientIds: string[];
-  /** Плановые работы, если объявление о них. */
-  works?: { category: RequestCategory; from: Date; until: Date };
+  /** Плановые работы, если объявление о них. Ресурс известен у отключений: по нему считается перерасчёт. */
+  works?: { category: RequestCategory; from: Date; until: Date; resource?: MeterKind };
   /** Заявка, из-за которой объявление и появилось. */
   requestId?: string;
 }

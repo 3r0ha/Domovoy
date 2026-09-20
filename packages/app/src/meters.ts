@@ -14,6 +14,7 @@ import {
   NEIGHBOURS_FOR_COMPARISON,
   verificationState,
   type Meter,
+  type MeterKind,
   type Reading,
 } from '@domovoy/domain';
 
@@ -95,6 +96,12 @@ const NOT_A_READING =
 /** Назван ли в сообщении прибор учёта: по этому отказ отличают от обращения. */
 export const meterNamedIn = (text: string): boolean =>
   !NOT_A_READING.test(text) && Object.values(METER_WORDS).some((words) => words.test(text));
+
+/** Какие приборы названы в сообщении. */
+export const meterKindsIn = (text: string): MeterKind[] =>
+  Object.entries(METER_WORDS)
+    .filter(([, words]) => words.test(text))
+    .map(([kind]) => kind as MeterKind);
 
 /** Показание, названное словами: число из той же фразы и приборы, к которым оно подходит. */
 export interface ReadingInWords {
@@ -332,8 +339,7 @@ const spikeAdvice = (meter: Meter, spent: number): string => {
   return (
     `Расход по счётчику «${rule.title}» за период: ${formatMeterValue(spent)} ${rule.unit}, ` +
     'это заметно больше обычного.\n' +
-    'Если вы не расходовали больше обычного, проверьте краны и бачок: течь видно по счётчику ' +
-    'раньше, чем по потолку соседей.'
+    'Если вы не расходовали больше обычного, проверьте краны и бачок.'
   );
 };
 

@@ -1,4 +1,5 @@
 import {
+  assertApartment,
   ensureResident,
   openByCode,
   raiseSensorAlarm,
@@ -32,6 +33,23 @@ import { secretGuard } from './secret.js';
 import {
   buildingIdSchema,
 } from './serialize.js';
+
+/**
+ * Что открыто жильцу без квартиры: профиль, документы, привязка и режим
+ * проверки. Остальные маршруты отвечают ему отказом `apartment_required`.
+ */
+const WITHOUT_APARTMENT = new Set([
+  '/api/me',
+  '/api/me/legal',
+  '/api/me/apartment',
+  '/api/me/apartments',
+  '/api/me/apartment/use',
+  '/api/me/data',
+  '/api/me/notices',
+  '/api/me/contact',
+  '/api/me/logout',
+  '/api/demo',
+]);
 
 export interface RoutesOptions extends MeterVisionDeps {
   auth: SessionAuth;
@@ -156,6 +174,15 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
   // Всё, что требует сессии, живёт в одной области: проверка токена ставится один раз.
   await fastify.register(async (scope) => {
     await scope.register(maxSession, { auth });
+
+    /** Жилец без квартиры дальше профиля и привязки не проходит. */
+    scope.addHook('preValidation', async (request) => {
+      if (WITHOUT_APARTMENT.has(request.routeOptions.url ?? '')) return;
+
+      const resident = await deps.repository.findResidentByMaxUserId(request.max.userId);
+
+      if (resident) assertApartment(resident);
+    });
 
     /** Выход: токен перестаёт работать сразу, а не через двенадцать часов. */
     scope.post('/api/me/logout', async (request, reply) => {

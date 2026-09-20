@@ -10,6 +10,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from 'fastify';
 import type {
   DeviceHub,
   CapitalRepairDirectory,
+  CityFeed,
   HandoffGateway,
   MeetingRegistry,
   MeterVision,
@@ -62,6 +63,8 @@ export interface ServerOptions {
   meetings?: MeetingRegistry;
   /** Сведения о капитальном ремонте. Без них раздела нет. */
   capitalRepair?: CapitalRepairDirectory;
+  /** Отключения по данным города. Без источника о работах объявляет только смена. */
+  city?: CityFeed;
   now?: () => Date;
   createId?: () => string;
   logger?: boolean;
@@ -256,6 +259,7 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     ...(options.handoffs ? { handoffs: options.handoffs } : {}),
     ...(options.meetings ? { meetings: options.meetings } : {}),
     ...(options.capitalRepair ? { capitalRepair: options.capitalRepair } : {}),
+    ...(options.city ? { city: options.city } : {}),
     ...(options.demo ? { demo: true } : {}),
   });
 

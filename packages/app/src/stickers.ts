@@ -10,6 +10,7 @@ import {
   stickerFileName,
   type StickerLook,
   type StickerPlan,
+  type StickerStyle,
   type StickerStyleName,
 } from '@domovoy/domain';
 
@@ -44,11 +45,11 @@ export interface StickerStyleView {
 
 /** Стили наклейки для выбора в приложении и боте. */
 export const stickerStyles = (): StickerStyleView[] =>
-  Object.entries(STICKER_STYLES).map(([name, style]) => ({
+  Object.entries(STICKER_STYLES as Record<StickerStyleName, StickerStyle>).map(([name, style]) => ({
     name: name as StickerStyleName,
     title: style.title,
     paper: style.paper,
-    ink: style.ink,
+    ink: style.text ?? style.ink,
     accent: style.accent,
   }));
 

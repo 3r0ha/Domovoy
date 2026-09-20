@@ -1,4 +1,4 @@
-import { metersFor, submitReading } from '@domovoy/app';
+import { metersFor, submitReading, visionFailed } from '@domovoy/app';
 import {
   DomainError,
   METER_RULES,
@@ -16,6 +16,7 @@ import {
   readingPrompt,
 } from './keyboards.js';
 import { expect, forget, strong, type BotContext } from './max.js';
+import { thinking } from './thinking.js';
 import type { BotKit } from './kit.js';
 
 /** Числа в отказе приходят с точкой, а в переписке они везде с запятой. */
@@ -24,21 +25,36 @@ export const commas = (text: string): string => text.replace(/(\d)\.(\d)/g, '$1,
 /** Отказы, которые лечатся тем же вводом: человек ошибся в самом числе. */
 const RETRY_READING = new Set(['reading_invalid', 'reading_too_large', 'reading_decreased']);
 
-/** Показание счётчика: за принятым сразу спрашивается следующий прибор. */
+/** Одно число в тексте: цифрами или словами. Два числа это уже не показание. */
+const numberIn = (text: string): number | undefined => {
+  const found = text.replace(/(\d)\s(?=\d{3}(?!\d))/gu, '$1').match(/\d+(?:[.,]\d+)?/gu) ?? [];
+
+  if (found.length > 1) return undefined;
+  if (found.length === 1) return Number(found[0].replace(',', '.'));
+
+  return numberFromWords(text);
+};
+
+/**
+ * Показание счётчика: за принятым сразу спрашивается следующий прибор.
+ * Сказанное голосом не подаётся само, даже если расшифровано цифрами:
+ * расшифровка ошибается, а начисление идёт по этому числу, и вернуть его
+ * человек уже не сможет. Такое число переспрашивается кнопкой.
+ */
 export const takeReading = async (
   kit: BotKit,
   typed: BotContext,
   meterId: string,
   text: string,
+  byVoice = false,
 ): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const digits = Number(text.replace(',', '.').replace(/\s/g, ''));
 
-  if (!Number.isFinite(digits)) {
-    // Голосом показание диктуют словами: «сто двадцать три запятая четыре».
-    // Услышанное переспрашивается: расшифровка ошибается, а начисление идёт
-    // по этому числу, и вернуть его человек уже не сможет.
-    const heard = numberFromWords(text);
+  if (byVoice || !Number.isFinite(digits)) {
+    // Голосом показание диктуют и словами, и с названием прибора: «сто двадцать
+    // три запятая четыре», «холодная вода 12350».
+    const heard = Number.isFinite(digits) ? digits : numberIn(text);
 
     if (heard === undefined) {
       await typed.reply(
@@ -131,11 +147,44 @@ export const readFromPhoto = async (
   meterId: string,
   photoUrl: string | undefined,
 ): Promise<void> => {
-  const value = photoUrl && kit.vision?.readUrl ? await kit.vision.readUrl(photoUrl) : undefined;
+  if (!photoUrl || !kit.vision?.readUrl) {
+    await typed.reply(
+      'Показание с фотографии здесь не читается. Отправьте его числом, например 123,456',
+      readingKeyboard(meterId, false),
+    );
+
+    return;
+  }
+
+  // Разбор снимка идёт секунды: на это время в переписке видно, что он идёт.
+  const looking = thinking(kit, typed, 'Смотрю на снимок…');
+  let value: number | undefined;
+
+  try {
+    value = await kit.vision.readUrl(photoUrl);
+  } catch (error) {
+    await looking();
+
+    // Снимок не табло или служба молчит: и то и другое лечится числом в ответ.
+    const failed = visionFailed(error);
+
+    await typed.reply(
+      `${errorText(failed)} ` +
+        (failed.code === 'meter_not_in_photo'
+          ? 'Сфотографируйте табло с цифрами или отправьте показание числом, например 123,456'
+          : 'Отправьте показание числом, например 123,456'),
+      readingKeyboard(meterId, false),
+    );
+
+    return;
+  }
+
+  await looking();
 
   if (value === undefined) {
     await typed.reply(
-      'Показание с фотографии не читается. Отправьте его числом, например 123,456',
+      'Цифры на снимке не разобрать. Снимите табло ближе, без бликов и наклона, ' +
+        'или отправьте показание числом, например 123,456',
       readingKeyboard(meterId, false),
     );
 

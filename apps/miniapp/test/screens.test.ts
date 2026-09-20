@@ -1969,6 +1969,58 @@ describe('показания счётчиков', () => {
     },
   ];
 
+  /** Снимок уходит двумя запросами подряд: ждём, пока экран дойдёт до ответа. */
+  const untilShown = async (screen: Awaited<ReturnType<typeof render>>, pattern: RegExp): Promise<void> => {
+    for (let attempt = 0; attempt < 20 && !pattern.test(screen.text); attempt += 1) {
+      await screen.act(() => undefined);
+    }
+  };
+
+  it('снимок табло подставляет число в поле, а подаёт его человек', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/meters': [METERS[0]],
+      'POST /api/files': { kind: 'photo', token: 'file:shot' },
+      'POST /api/meters/cold-1/photo': { value: 1234.5 },
+    });
+
+    const screen = await render(createElement(MetersScreen as never, { api, photoSupported: true } as never), bridge);
+
+    await screen.act(() => pick(screen.find<HTMLInputElement>('.reading-photo input'), jpeg('табло.jpg')));
+    await untilShown(screen, /Подать/);
+
+    assert.equal(screen.find<HTMLInputElement>('.field-row input').value, '1234.5');
+    assert.ok(calls.some((call) => call.path === '/api/meters/cold-1/photo'), 'снимок не ушёл на разбор');
+    assert.equal(
+      calls.some((call) => call.path.endsWith('/readings')),
+      false,
+      'показание подано без человека',
+    );
+    assert.match(screen.text, /Подать/);
+
+    await screen.unmount();
+  });
+
+  it('нечитаемый снимок объясняется словами, поле остаётся пустым', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({
+      '/api/meters': [METERS[0]],
+      'POST /api/files': { kind: 'photo', token: 'file:shot' },
+      'POST /api/meters/cold-1/photo': {},
+    });
+
+    const screen = await render(createElement(MetersScreen as never, { api, photoSupported: true } as never), bridge);
+
+    await screen.act(() => pick(screen.find<HTMLInputElement>('.reading-photo input'), jpeg('табло.jpg')));
+    await untilShown(screen, /не разобрать/);
+
+    assert.equal(screen.find<HTMLInputElement>('.field-row input').value, '');
+    assert.match(screen.text, /Цифры на снимке не разобрать/);
+    assert.ok(screen.find('.reading-photo'), 'снять табло заново не предлагают');
+
+    await screen.unmount();
+  });
+
   it('о поверке предупреждают заранее, а не отказом после ввода', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({
@@ -2580,6 +2632,43 @@ describe('привязка квартиры', () => {
     await screen.act(() => tap(screen, 'Написать в поддержку'));
 
     assert.equal(toSupport, 1);
+
+    await screen.unmount();
+  });
+
+  it('жильцу без дома экран не ходит за контактами и ведёт только в профиль и роль', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({});
+    const opened: string[] = [];
+
+    const screen = await render(
+      createElement(
+        Toasts as never,
+        null,
+        createElement(BindApartmentScreen as never, {
+          api,
+          housed: false,
+          onBound: () => undefined,
+          onProfile: () => opened.push('profile'),
+          onDemo: () => opened.push('demo'),
+        } as never),
+      ),
+      bridge,
+    );
+    await screen.act(() => {});
+
+    assert.match(screen.text, /Код из квитанции/);
+    assert.doesNotMatch(screen.text, /Написать в поддержку/);
+    assert.equal(
+      calls.some((call) => call.path === '/api/house/contacts'),
+      false,
+      `запросы: ${calls.map((call) => call.path).join(', ')}`,
+    );
+
+    await screen.act(() => tap(screen, 'Профиль и документы'));
+    await screen.act(() => tap(screen, 'Роль'));
+
+    assert.deepEqual(opened, ['profile', 'demo']);
 
     await screen.unmount();
   });
@@ -5691,6 +5780,12 @@ describe('согласие с документами', () => {
 
     assert.equal(sent?.method, 'POST');
     assert.equal(accepted, 1, 'согласие не дошло до приложения');
+    assert.equal(
+      calls.some((call) => call.path === '/api/house/contacts'),
+      false,
+      'до привязки дома нет, и контакты не запрашиваются',
+    );
+    assert.doesNotMatch(screen.text, /Аварийная служба/);
 
     await screen.unmount();
   });
@@ -5853,7 +5948,7 @@ describe('запись голоса', () => {
     const sent = calls.find((call) => call.path === '/api/voice');
 
     assert.equal(sent?.method, 'POST');
-    assert.equal(JSON.parse(sent?.body ?? '{}').contentType, 'audio/ogg;codecs=opus');
+    assert.equal(JSON.parse(sent?.body ?? '{}').contentType, 'audio/ogg', 'тип уходит без параметров кодека');
 
     assert.equal(screen.find<HTMLTextAreaElement>('.composer-field').value, 'Течёт кран на кухне');
     assert.equal(

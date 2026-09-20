@@ -44,6 +44,14 @@ const offsetAt = (at: Date, zone: string): number => {
   return (sign === '-' ? -1 : 1) * (Number(hours) * 60 + Number(minutes)) * 60_000;
 };
 
+/** Первый миг месяца по календарю дома. */
+export const startOfPeriod = (period: string, zone: string): Date => {
+  const [year, month] = period.split('-').map(Number);
+  const wall = Date.UTC(year!, (month ?? 1) - 1, 1);
+
+  return new Date(wall - offsetAt(new Date(wall), zone));
+};
+
 /** Последний миг месяца по календарю дома. */
 export const endOfPeriod = (period: string, zone: string): Date => {
   const [year, month] = period.split('-').map(Number);

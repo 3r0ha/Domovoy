@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { DomainError } from '@domovoy/domain';
+
 import {
   InMemoryRepository,
   atBuilding,
@@ -165,7 +167,7 @@ describe('дом без владельца', () => {
     );
   });
 
-  it('человек без дома получает телефоны организации дома по умолчанию, но не дежурного', async () => {
+  it('сотрудник без дома получает телефоны организации дома по умолчанию, но не дежурного', async () => {
     const deps = setup();
 
     await deps.repository.saveResident({
@@ -179,12 +181,19 @@ describe('дом без владельца', () => {
       phone: '+7 900 000-00-00',
     });
 
-    // Телефон аварийной службы нужен новому человеку на первом экране,
-    // до привязки квартиры. Дежурный при этом остаётся своим.
-    const contacts = await contactsFor(deps, person('resident'));
+    const contacts = await contactsFor(deps, person('technician'));
 
     assert.equal(contacts.buildingId, FIRST);
     assert.equal(contacts.duty, undefined);
+  });
+
+  it('жильцу без квартиры контактов нет: дома у него ещё нет', async () => {
+    await assert.rejects(contactsFor(setup(), person('resident')), (error: unknown) => {
+      assert.ok(error instanceof DomainError);
+      assert.equal(error.code, 'apartment_required');
+      assert.match(error.message, /привяжите квартиру/);
+      return true;
+    });
   });
 
   it('дом остаётся своим для того, кто его ведёт', async () => {
@@ -193,33 +202,18 @@ describe('дом без владельца', () => {
     assert.equal(contacts.buildingId, FIRST);
   });
 
-  it('жилец без квартиры с оставшейся привязкой получает контакты своего дома, а не отказ', async () => {
+  it('оставшаяся после отвязки привязка к дому контактов жильцу не открывает', async () => {
     const deps = setup();
-
-    await deps.repository.saveResident({
-      id: 'staff-duty',
-      maxUserId: 77,
-      displayName: 'Дежурный',
-      role: 'dispatcher',
-      buildingId: SECOND,
-      servesBuildingIds: [SECOND],
-      onDuty: true,
-    });
 
     // После отвязки квартиры дом в профиле остаётся, а приложение может
     // прислать и другой дом, запомненный с прошлого раза.
-    const stale = await contactsFor(deps, person('resident', SECOND), FIRST);
-
-    assert.equal(stale.buildingId, SECOND);
-    assert.equal(stale.duty, undefined, 'дежурного видят только свои');
-
-    const own = await contactsFor(deps, person('resident', SECOND));
-
-    assert.equal(own.buildingId, SECOND);
+    await assert.rejects(contactsFor(deps, person('resident', SECOND), FIRST), /привяжите квартиру/);
+    await assert.rejects(contactsFor(deps, person('resident', SECOND)), /привяжите квартиру/);
+    await assert.rejects(contactsFor(deps, person('resident', 'gone')), /привяжите квартиру/);
   });
 
-  it('привязка к удалённому дому ведёт к дому по умолчанию', async () => {
-    const contacts = await contactsFor(setup(), person('resident', 'gone'));
+  it('сотрудник с привязкой к удалённому дому получает дом по умолчанию', async () => {
+    const contacts = await contactsFor(setup(), { ...person('technician'), servesBuildingIds: [] });
 
     assert.equal(contacts.buildingId, FIRST);
   });

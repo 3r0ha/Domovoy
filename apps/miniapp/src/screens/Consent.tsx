@@ -22,15 +22,12 @@ export interface ConsentProps {
  */
 export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
   const legal = useBridgeRequest((alive) => api.until(alive).legal(), [api]);
-  // Телефоны дома нужны до всякого согласия: аварию решают звонком.
-  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const haptics = useHaptics();
   const sheet = useTrapped<HTMLElement>(true);
 
   const documents = legal.data?.documents ?? [];
-  const emergency = contacts.data?.service?.emergencyPhone ?? contacts.data?.service?.phone ?? '';
   // Согласиться можно только с тем, что человек мог открыть и прочитать.
   const readable = documents.length > 0;
 
@@ -92,19 +89,6 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
             {busy ? 'Сохраняем…' : 'Принимаю'}
           </button>
         </div>
-
-        {emergency ? (
-          <p className="hint aside consent-note">
-            Аварийная служба круглосуточно: <a href={`tel:${emergency.replace(/[^+\d]/g, '')}`}>{emergency}</a>. Звонок
-            не требует согласия.
-          </p>
-        ) : null}
-
-        {/* Телефон аварийной службы нужен раньше согласия: без него на этом
-            экране человеку некуда звонить при аварии. */}
-        {!emergency && contacts.error ? (
-          <RetryLink title="Телефон аварийной службы не загрузился" onRetry={contacts.reload} />
-        ) : null}
       </section>
     </div>
   );

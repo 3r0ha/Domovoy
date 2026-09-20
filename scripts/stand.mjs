@@ -40,6 +40,7 @@ run(process.execPath, ['apps/domovoy/dist/main.js'], {
     HANDOFF: process.env.HANDOFF ?? 'mock',
     MEETINGS: process.env.MEETINGS ?? 'mock',
     CAPITAL_REPAIR: process.env.CAPITAL_REPAIR ?? 'mock',
+    CITY_FEED: process.env.CITY_FEED ?? 'mock',
   },
 });
 

@@ -10,6 +10,7 @@ import {
   saveContact,
   startersFor,
   listNotices,
+  needsApartment,
   setNotice,
   exportPersonalData,
   forgetResident,
@@ -55,6 +56,7 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       given.hub?.model && 'doors',
       given.payments?.model && 'payments',
       given.handoffs?.model && 'handoff',
+      given.city?.model && 'city',
     ].filter((name): name is string => typeof name === 'string');
 
   /** Дом смены: у жильца его нет, а у сотрудника он может отличаться от своего. */
@@ -63,12 +65,16 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       ? undefined
       : deps.repository.findBuilding(resident.buildingId ?? deps.defaultBuildingId);
 
+  /** Свой дом: дом квартиры, привязки или установки. У жильца без квартиры его нет. */
+  const ownHouse = async (resident: Resident, apartment?: { buildingId: string }): Promise<Building | undefined> =>
+    needsApartment(resident)
+      ? undefined
+      : deps.repository.findBuilding(apartment?.buildingId ?? resident.buildingId ?? deps.defaultBuildingId);
+
     scope.get('/api/me', async (request) => {
       const resident = await currentResident(request.max.userId);
       const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
-      const building = await deps.repository.findBuilding(
-        apartment?.buildingId ?? resident.buildingId ?? deps.defaultBuildingId,
-      );
+      const building = await ownHouse(resident, apartment);
       const eldership = apartment ? await elderOf(deps, apartment.buildingId, apartment.entrance) : undefined;
 
       const workHouse = await houseOfShift(resident);

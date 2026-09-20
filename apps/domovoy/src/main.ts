@@ -7,7 +7,9 @@ import {
   InMemoryRepository,
   createSweeper,
   makeManager,
+  createHttpCityFeed,
   createMockCapitalRepair,
+  createMockCityFeed,
   createMockHandoffs,
   createMockMeetings,
   createMockHub,
@@ -233,6 +235,24 @@ const main = async (): Promise<void> => {
       ? createMockCapitalRepair({ title: process.env['CAPITAL_REPAIR_TITLE']?.trim() || undefined })
       : undefined;
 
+  // Отключения по данным города: формат один, источник у каждого города свой.
+  const cityUrl = process.env['CITY_FEED_URL']?.trim();
+  const cityTitle = process.env['CITY_FEED_TITLE']?.trim() || undefined;
+  const city = cityUrl
+    ? createHttpCityFeed({
+        url: cityUrl,
+        ...(process.env['CITY_FEED_KEY']?.trim() ? { key: process.env['CITY_FEED_KEY'].trim() } : {}),
+        ...(cityTitle ? { title: cityTitle } : {}),
+        onError: (error) => console.error('Источник отключений не ответил', error),
+      })
+    : process.env['CITY_FEED'] === 'mock'
+      ? createMockCityFeed({
+          ...(cityTitle ? { title: cityTitle } : {}),
+          addresses: async () => (await repository.listBuildings()).map((building) => building.address),
+          now: () => new Date(),
+        })
+      : undefined;
+
   // Система собраний собственников: заочное голосование имеет силу только в ней.
   const meetings =
     process.env['MEETINGS'] === 'mock'
@@ -292,6 +312,7 @@ const main = async (): Promise<void> => {
     ...(handoffs ? { handoffs } : {}),
     ...(meetings ? { meetings } : {}),
     ...(capitalRepair ? { capitalRepair } : {}),
+    ...(city ? { city } : {}),
     ...(vision ? { vision } : {}),
     ...(reasoner ? { reasoner } : {}),
     ...(lock ? { lock } : {}),
@@ -427,6 +448,7 @@ const main = async (): Promise<void> => {
     ...(handoffs ? { handoffs } : {}),
     ...(meetings ? { meetings } : {}),
     ...(capitalRepair ? { capitalRepair } : {}),
+    ...(city ? { city } : {}),
     allowedOrigins,
     web,
     // Пустая переменная и незаданная означают одно и то же.

@@ -9,6 +9,7 @@ import {
   contactsFor,
   describeFromAttachments,
   listRequestsFor,
+  meterKindsIn,
   meterNamedIn,
   metersFor,
   offTopicFor,
@@ -37,6 +38,7 @@ import {
   type Attachment,
 } from '@domovoy/domain';
 
+import { codeIn } from './apartment.js';
 import { sayBound } from './greeting.js';
 import { menuTitle } from './buttons.js';
 import { showRequestByNumber } from './pages.js';
@@ -124,7 +126,7 @@ const explainRefusal = async (
   if (error.code === 'target_required') {
     await typed.reply(
       isCompanyStaff(resident.role)
-        ? `${error.message}. Выберите дом и квартиру в приложении: обращение жильца заводится на его адрес.`
+        ? `${error.message}. Выберите дом и квартиру в приложении.`
         : `${error.message}. Отсканируйте код на подъезде или откройте приложение, там можно выбрать адрес.`,
       kit.openApp(undefined, typed),
     );
@@ -151,13 +153,38 @@ const emergencyLine = async (kit: BotKit, resident: Resident): Promise<string> =
  * Показание, поданное словами: «холодная вода 12345». Прибор назван, число
  * названо, и ходить за этим в раздел незачем.
  */
-const readingBySaying = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+const readingBySaying = async (
+  kit: BotKit,
+  typed: BotContext,
+  text: string,
+  heardByVoice = false,
+): Promise<boolean> => {
   const resident = await kit.residentOf(typed);
   const said = await readingInWords(kit.deps, resident, text).catch(() => []);
 
   // Прибор назван, а подать показание некуда: без квартиры или без такого
   // счётчика. Заявкой это не становится, человеку объясняют, чего не хватает.
   if (said.length === 0 && /\d/u.test(text) && meterNamedIn(text)) {
+    const now = kit.deps.now();
+    const kinds = meterKindsIn(text);
+    const meters = resident.apartmentId
+      ? (await metersFor(kit.deps, resident).catch(() => [])).filter(
+          (state) => kinds.includes(state.meter.kind) && verificationState(state.meter, now) !== 'expired',
+        )
+      : [];
+
+    // Счётчики есть, а числа нет: «примерно четыреста двадцать» показанием не
+    // считается. Человека просят точное число, а не говорят, что прибора нет.
+    if (meters.length > 0) {
+      await typed.reply(
+        'Показание нужно точное: «примерно» и «около» в начисление не годятся. ' +
+          'Посмотрите на табло, выберите счётчик и пришлите число целиком, например 123,456',
+        metersKeyboard(meters),
+      );
+
+      return true;
+    }
+
     await typed.reply(
       resident.apartmentId
         ? 'Счётчика такого вида за вашей квартирой не записано. Список приборов открывается кнопкой ниже.'
@@ -182,7 +209,7 @@ const readingBySaying = async (kit: BotKit, typed: BotContext, text: string): Pr
       continue;
     }
 
-    await takeReading(kit, typed, reading.meters[0]!.meter.id, String(reading.value));
+    await takeReading(kit, typed, reading.meters[0]!.meter.id, String(reading.value), heardByVoice);
   }
 
   return true;
@@ -425,12 +452,12 @@ const continueReading = async (kit: BotKit, typed: BotContext, meterId: string, 
   if (said.text) {
     // Голосом показание диктуют словами, и это тот же ответ на тот же вопрос.
     if (ANSWERED_NUMBER.test(said.text) || numberFromWords(said.text) !== undefined) {
-      return takeReading(kit, typed, meterId, said.text);
+      return takeReading(kit, typed, meterId, said.text, byVoice(said));
     }
 
     // Число человек назвать пытался, но разобрать его не вышло: «примерно сто»
     // показанием не делают, а переспрашивают о том же.
-    if (mentionsNumber(said.text)) return takeReading(kit, typed, meterId, said.text);
+    if (mentionsNumber(said.text)) return takeReading(kit, typed, meterId, said.text, byVoice(said));
 
     // Человек передумал и рассказывает о поломке или спрашивает: держать его
     // в вопросе о цифрах значит не принять аварию и не ответить на вопрос.
@@ -499,26 +526,6 @@ const askWhichMeter = async (kit: BotKit, typed: BotContext, text: string): Prom
   return true;
 };
 
-/**
- * Сообщение состоит из одного кода и ничего больше. Без этой проверки кодом
- * оказывалось любое сообщение с восемью знаками: «хвс 99999999» отвечало
- * отказом в привязке вместо показания.
- */
-const codeAlone = (text: string): boolean =>
-  new RegExp(`^[a-z0-9]{${APARTMENT_CODE_LENGTH}}$`, 'iu').test(text.trim().replace(/[\s-]/gu, ''));
-
-/**
- * Код в сообщении: один или внутри фразы, «код квартиры ACEFHK34», «мой код
- * PRTM4837». Из фразы берётся только слово, которое целиком проходит проверку
- * кода: восемь знаков его алфавита. Сообщение из одного кода отдаётся как
- * есть, чтобы ошибку в знаке объяснили, а не промолчали.
- */
-const codeIn = (text: string): string | undefined => {
-  if (codeAlone(text)) return text;
-
-  return text.split(/[^\p{L}\p{N}-]+/u).find((word) => isApartmentCode(normalizeApartmentCode(word)));
-};
-
 /** Код квартиры ждут отдельно: пока он не подошёл, ответ остаётся о коде. */
 const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<void> => {
   const code = normalizeApartmentCode(text);
@@ -568,14 +575,19 @@ const takeCode = async (kit: BotKit, typed: BotContext, text: string): Promise<v
  * короткая вежливость, код из квитанции и номер заявки. Возвращает, нашлось ли
  * такое дело: иначе сказанное разбирается как обращение.
  */
-const doneBySaying = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+const doneBySaying = async (
+  kit: BotKit,
+  typed: BotContext,
+  text: string,
+  heardByVoice = false,
+): Promise<boolean> => {
   // Дело по открытой заявке разбирается раньше вежливости: «всё сделали,
   // спасибо» это приёмка работы, а не разговор ни о чём.
   if (await offerDoing(kit, typed, text)) return true;
 
   // Показание словами разбирается раньше короткой вежливости: «хвс 145» короче
   // разговорной реплики, но это поданное показание, а не разговор.
-  if (await readingBySaying(kit, typed, text)) return true;
+  if (await readingBySaying(kit, typed, text, heardByVoice)) return true;
   if (await askWhichMeter(kit, typed, text)) return true;
 
   if (isChatter(text)) {
@@ -645,7 +657,7 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
 
   const words = spoken(said) ? said.text : undefined;
 
-  if (words && (await doneBySaying(kit, typed, words))) return;
+  if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
   if (words && (await notAboutHouse(kit, typed, words))) return;
   if (words && (await answeredClarification(kit, typed, words))) return;
 
@@ -699,32 +711,63 @@ const bookVisitFrom = async (kit: BotKit, typed: BotContext, at: string, topic: 
  * голосом отвечают на любой вопрос продукта, а не только на «что случилось».
  * Расшифровка остаётся при вложении, поэтому второй раз её не спрашивают.
  */
-const readAloud = async (kit: BotKit, said: Said): Promise<Said> => {
-  if (said.text?.trim() || !kit.transcriber) return said;
+const readAloud = async (kit: BotKit, typed: BotContext, said: Said): Promise<{ said: Said; failed?: string }> => {
+  if (said.text?.trim() || !kit.transcriber) return { said };
 
   const voice = said.attachments.find((file) => file.kind === 'voice' && !file.transcript);
 
-  if (!voice) return said;
+  if (!voice) return { said };
 
-  const text = await kit.transcriber.transcribe(voice).catch(() => undefined);
+  // Расшифровка идёт секунды: на это время в переписке видно, что она идёт.
+  const listening = thinking(kit, typed, 'Расшифровываю…');
 
-  if (!text) return said;
+  try {
+    const text = await kit.transcriber.transcribe(voice);
 
-  return {
-    text,
-    attachments: said.attachments.map((file) => (file === voice ? { ...file, transcript: text } : file)),
-  };
+    // Тишина, шум, чужой язык или пересказ вместо расшифровки: заявка из
+    // такого не заводится, человека просят повторить.
+    if (!text) {
+      return { said, failed: 'Голосовое не разобрал: тишина, шум или речь не по-русски. Скажите ещё раз или напишите словами.' };
+    }
+
+    return {
+      said: {
+        text,
+        attachments: said.attachments.map((file) => (file === voice ? { ...file, transcript: text } : file)),
+      },
+    };
+  } catch (error) {
+    if (error instanceof DomainError) return { said, failed: errorText(error) };
+
+    return { said, failed: 'Расшифровка сейчас не отвечает. Напишите словами.' };
+  } finally {
+    await listening();
+  }
 };
+
+/** Сказанное голосом: текст пришёл из расшифровки, а не набран руками. */
+const byVoice = (said: Said): boolean =>
+  said.attachments.some((file) => file.kind === 'voice' && file.transcript !== undefined && file.transcript === said.text);
+
+/** Голосовое не разобрано: вопрос остаётся тем же, а без вопроса ждут рассказа словами. */
+const askAloudAgain = async (typed: BotContext, failed: string): Promise<void> => {
+  if (!typed.session?.awaiting) expect(typed, { kind: 'description' });
+
+  await typed.reply(failed, cancelKeyboard());
+};
+
+/** Из разговора выходят и словом, а не только кнопкой. */
+const quitting = (said: Said): boolean => Boolean(said.text && QUIT.test(said.text));
 
 /** Продолжение разговора в переписке: сообщение читается по тому, чего бот ждал. */
 export const continueDialog = async (kit: BotKit, typed: BotContext, original: Said): Promise<void> => {
-  const said = await readAloud(kit, original);
+  const { said, failed } = await readAloud(kit, typed, original);
   const waiting = typed.session?.awaiting;
 
+  if (failed) return askAloudAgain(typed, failed);
   if (!waiting) return heard(kit, typed, said);
 
-  // Из разговора выходят и словом, а не только кнопкой.
-  if (said.text && QUIT.test(said.text)) {
+  if (quitting(said)) {
     forget(typed);
 
     await typed.reply('Отменил. Что нужно сделать?', kit.menuKeyboard(await kit.residentOf(typed)));

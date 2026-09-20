@@ -35,17 +35,23 @@ const MODEL = 'GigaChat-2-Max';
 /** За сколько до конца срока брать новый токен: сетевой задержке нужен запас. */
 const EARLY_MS = 60_000;
 
+/** После отказа новый токен просят не сразу: ручка выдачи ограничивает частоту. */
+const RETRY_MS = 15_000;
+
 interface Token {
   value: string;
   until: number;
 }
 
+export type TokenSource = () => Promise<string | undefined>;
+
 /** Выдаёт действующий токен, обновляя его по сроку. */
-export const createTokenSource = (options: GigaChatOptions): (() => Promise<string | undefined>) => {
+export const createTokenSource = (options: GigaChatOptions): TokenSource => {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const now = options.now ?? Date.now;
   let token: Token | undefined;
   let asking: Promise<Token | undefined> | undefined;
+  let failedAt: number | undefined;
 
   const fetchToken = async (): Promise<Token | undefined> => {
     try {
@@ -81,6 +87,7 @@ export const createTokenSource = (options: GigaChatOptions): (() => Promise<stri
 
   return async () => {
     if (token && token.until - EARLY_MS > now()) return token.value;
+    if (failedAt !== undefined && now() - failedAt < RETRY_MS) return undefined;
 
     // Пока токен обновляется, остальные запросы ждут тот же ответ.
     asking ??= fetchToken().finally(() => {
@@ -88,9 +95,27 @@ export const createTokenSource = (options: GigaChatOptions): (() => Promise<stri
     });
 
     token = await asking;
+    failedAt = token ? undefined : now();
 
     return token?.value;
   };
+};
+
+const shared = new Map<string, TokenSource>();
+
+/**
+ * Один токен на ключ: разбор текста и разбор файлов ходят за ним в одну
+ * ручку, и по отдельности они упирались бы в её предел частоты.
+ */
+export const sharedTokenSource = (options: GigaChatOptions): TokenSource => {
+  if (options.fetch || options.now) return createTokenSource(options);
+
+  const key = [options.oauthUrl ?? OAUTH_URL, options.scope ?? '', options.authKey].join('\n');
+  const found = shared.get(key) ?? createTokenSource(options);
+
+  shared.set(key, found);
+
+  return found;
 };
 
 /** Разбор обращений и помощник на GigaChat. */
@@ -98,7 +123,7 @@ export const createGigaChatReasoner = (options: GigaChatOptions): Reasoner =>
   createHttpReasoner({
     endpoint: options.endpoint ?? ENDPOINT,
     model: options.model ?? MODEL,
-    authorization: createTokenSource(options),
+    authorization: sharedTokenSource(options),
     // Бесплатный режим для физического лица держит один поток.
     serial: true,
     ...(options.fetch ? { fetch: options.fetch } : {}),

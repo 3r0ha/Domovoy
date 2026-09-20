@@ -176,6 +176,23 @@ export {
 } from './capital.js';
 export { createMockHub, type MockHub, type MockHubOptions } from './devices-mock.js';
 export {
+  OUTAGE_TITLES,
+  affectedBuildings,
+  createHttpCityFeed,
+  createMockCityFeed,
+  importOutages,
+  normalizeAddress,
+  outageCategory,
+  parseOutage,
+  sameHouse,
+  type CityFeed,
+  type CityOutage,
+  type HttpCityFeedOptions,
+  type MockCityFeedOptions,
+  type OutageImport,
+  type OutageResource,
+} from './city.js';
+export {
   createMockMeetings,
   type MeetingDecision,
   type MeetingNotice,
@@ -221,6 +238,7 @@ export {
 export { equipmentHealth, type EquipmentHealth } from './health.js';
 export {
   readMeterPhoto,
+  visionFailed,
   type MeterVision,
   type MeterVisionDeps,
   type ReadMeterPhotoCommand,
@@ -236,6 +254,7 @@ export {
 } from './plan.js';
 export { assignRole, listPeople, roleTitle, setDuty, setServedBuildings, type Person } from './roles.js';
 export {
+  assertApartment,
   atBuilding,
   contactsFor,
   formatContacts,
@@ -243,6 +262,7 @@ export {
   homeOf,
   housed,
   listServedBuildings,
+  needsApartment,
   publicHouseOf,
   servedBy,
   type HouseContacts,
@@ -442,6 +462,7 @@ export {
   meterHistory,
   metersFor,
   pendingReadings,
+  meterKindsIn,
   meterNamedIn,
   readingInWords,
   readingProgress,

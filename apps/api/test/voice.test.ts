@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { InMemoryRepository, type Resident, type Transcriber } from '@domovoy/app';
+import { DomainError } from '@domovoy/domain';
 import { signInitData } from '@maxkit/bridge';
 
 import { buildServer } from '../dist/index.js';
@@ -232,6 +233,61 @@ describe('расшифровка записи голоса', () => {
 
     assert.equal(photo.statusCode, 400);
     assert.equal(photo.json().error, 'file_type_not_allowed');
+
+    await app.close();
+  });
+
+  it('тип записи принимается с параметрами кодека и под именами системной записи', async () => {
+    const { transcriber, seen } = heard('Течёт кран');
+    const { app, login } = await setup({ transcriber });
+    const token = await login(1001);
+
+    for (const contentType of ['audio/webm;codecs=opus', 'audio/x-m4a', 'audio/mp4', 'audio/wav', 'audio/ogg; codecs=opus']) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/voice',
+        headers: authed(token),
+        payload: { contentType, data: recording() },
+      });
+
+      assert.equal(response.statusCode, 200, `${contentType}: ${response.body}`);
+    }
+
+    assert.equal(seen[0]?.token.slice(0, 'data:audio/webm;'.length), 'data:audio/webm;', 'параметры кодека ушли в токен');
+    assert.equal(seen[1]?.token.startsWith('data:audio/x-m4a;'), true);
+
+    await app.close();
+  });
+
+  it('отказ по самой записи уходит своим кодом: слишком длинная, не звук', async () => {
+    const answers = [
+      new DomainError('voice_too_long', 'Запись длиннее двух минут. Скажите короче или напишите словами'),
+      new DomainError('file_type_not_allowed', 'Формат записи не поддерживается, запишите ещё раз'),
+    ];
+    const transcriber: Transcriber = { transcribe: () => Promise.reject(answers.shift()) };
+    const { app, login } = await setup({ transcriber });
+    const token = await login(1001);
+
+    const long = await app.inject({
+      method: 'POST',
+      url: '/api/voice',
+      headers: authed(token),
+      payload: { contentType: 'audio/ogg', data: recording() },
+    });
+
+    assert.equal(long.statusCode, 413);
+    assert.equal(long.json().error, 'voice_too_long');
+    assert.match(long.json().message, /длиннее двух минут/);
+
+    const odd = await app.inject({
+      method: 'POST',
+      url: '/api/voice',
+      headers: authed(token),
+      payload: { contentType: 'audio/ogg', data: recording() },
+    });
+
+    assert.equal(odd.statusCode, 400);
+    assert.equal(odd.json().error, 'file_type_not_allowed');
 
     await app.close();
   });

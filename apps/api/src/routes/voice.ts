@@ -14,7 +14,24 @@ const VOICE_BASE64_MAX = Math.ceil(MAX_VOICE_BYTES / 3) * 4 + 64;
 const VOICE_BODY_LIMIT = VOICE_BASE64_MAX + 1024;
 
 /** Что принимается записью голоса: форматы, в которых пишут браузер и клиент MAX. */
-const VOICE_TYPES = new Set(['audio/ogg', 'audio/webm', 'audio/mpeg', 'audio/mp4', 'audio/aac', 'audio/wav']);
+const VOICE_TYPES = new Set([
+  'audio/ogg',
+  'audio/opus',
+  'audio/webm',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/x-m4a',
+  'audio/aac',
+  'audio/x-aac',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/wave',
+]);
+
+/** Тип без параметров: браузер пишет `audio/webm;codecs=opus`. */
+const mediaType = (contentType: string): string => contentType.split(';')[0]!.trim().toLowerCase();
 
 /** Разбор base64: данные приходят и как есть, и заголовком data-URL. */
 const decodeBase64 = (value: string): Buffer =>
@@ -49,7 +66,8 @@ export const voiceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
     async (request) => {
       await currentResident(request.max.userId);
 
-      const { contentType, data } = request.body;
+      const { data } = request.body;
+      const contentType = mediaType(request.body.contentType);
 
       if (!VOICE_TYPES.has(contentType)) throw new DomainError('file_type_not_allowed', 'Это не запись голоса');
 
@@ -68,13 +86,16 @@ export const voiceRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         token: `data:${contentType};base64,${bytes.toString('base64')}`,
       };
 
-      const recognized = await deps.transcriber.transcribe(voice).catch(() => {
-        throw new ServiceError('speech_unavailable', 'Служба расшифровки не ответила');
+      // Отказ по самой записи (длина, формат) уходит как есть, молчание службы одним кодом.
+      const recognized = await deps.transcriber.transcribe(voice).catch((error: unknown) => {
+        if (error instanceof DomainError) throw error;
+
+        throw new ServiceError('speech_unavailable', 'Расшифровка не ответила. Попробуйте ещё раз или напишите');
       });
 
       const text = recognized?.trim();
 
-      if (!text) throw new ServiceError('speech_not_recognized', 'Разобрать речь не удалось');
+      if (!text) throw new ServiceError('speech_not_recognized', 'Не разобрал речь. Скажите ещё раз или напишите');
 
       return { text };
     },

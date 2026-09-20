@@ -46,6 +46,9 @@ const RESIDENT_SECTIONS: readonly Section[] = [
   { screen: 'news', title: 'Новости', hint: 'Объявления дома', icon: IconNews, tone: 'tile-orange' },
 ];
 
+/** Профиль: он есть и у жильца без квартиры, там документы и свои данные. */
+const PROFILE: Section = { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey' };
+
 const RESIDENT_EXTRA: readonly Section[] = [
   { screen: 'polls', title: 'Собрания', hint: 'Голосования и предложения', icon: IconPolls, tone: 'tile-green' },
   { screen: 'quality', title: 'Работа дома', hint: 'Как справляется компания', icon: IconReport, tone: 'tile-blue' },
@@ -59,7 +62,7 @@ const RESIDENT_EXTRA: readonly Section[] = [
     tone: 'tile-orange',
   },
   { screen: 'help', title: 'Помощник', hint: 'Спросите словами, что нужно', icon: IconHelp, tone: 'tile-yellow' },
-  { screen: 'profile', title: 'Профиль', hint: 'Ваши данные', icon: IconPerson, tone: 'tile-grey' },
+  PROFILE,
 ];
 
 /** Подрядчику дом не показывают: у него только порученные наряды. */
@@ -291,14 +294,27 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
   const isStaff = role !== 'resident';
   const needsBinding = !isStaff && !bound;
 
-  // Без квартиры квитанции нет: вкладку «Оплата» занимают новости, сама она остаётся в «Ещё».
+  const flat: Section = {
+    screen: 'bind',
+    title: needsBinding || contractor ? 'Квартира' : bound ? 'Добавить квартиру' : 'Моя квартира',
+    hint: 'По коду из квитанции',
+    icon: IconHome,
+    tone: 'tile-blue',
+  };
+
+  // Жильцу без квартиры дома нет: только привязка, профиль и, на проверке,
+  // примерка роли. Панели разделов у него нет, к профилю ведёт сам экран.
+  if (needsBinding) {
+    return { everything: [flat, PROFILE, ...(offer.demo === true ? [DEMO_SECTION] : [])], tabs: [], hidden: [] };
+  }
+
   const sections = contractor
     ? CONTRACTOR_SECTIONS
     : role === 'technician'
       ? TECHNICIAN_SECTIONS
       : isStaff
         ? STAFF_SECTIONS
-        : RESIDENT_SECTIONS.filter((section) => bound || !FOR_BOUND.includes(section.screen));
+        : RESIDENT_SECTIONS;
 
   const extra = contractor
     ? bound
@@ -311,16 +327,7 @@ export const layoutSections = (role: RoleView, bound: boolean, offer: Offer = {}
           (!FOR_BOUND.includes(section.screen) || bound),
       );
 
-  const flat: Section = {
-    screen: 'bind',
-    title: needsBinding || contractor ? 'Квартира' : bound ? 'Добавить квартиру' : 'Моя квартира',
-    hint: 'По коду из квитанции',
-    icon: IconHome,
-    tone: 'tile-blue',
-  };
-
-  const ordered = needsBinding ? [flat, ...sections, ...extra] : [...sections, ...extra, flat];
-  const everything = [...ordered, DEMO_SECTION].filter(
+  const everything = [...sections, ...extra, flat, DEMO_SECTION].filter(
     (section) =>
       offeredScreen(section.screen, offer) &&
       (!isStaff || contractor || offer.demo === true || !RESIDENT_OWN.includes(section.screen)),

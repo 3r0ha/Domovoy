@@ -146,14 +146,7 @@ export const ObjectScreen = ({ api, startParam, onTitle, onReport, onOpenRequest
       </CellList>
 
       {object.totalRequests > 0 ? (
-        <>
-          <p className="hint aside">{objectHistory(object.totalRequests, object.lastRepairAt, object.averageDays)}</p>
-
-          {/* Частота поломок это наблюдение продукта, а не регламент обслуживания. */}
-          {object.averageDays === undefined ? null : (
-            <p className="hint aside">Это прогноз по прошлым поломкам, а не регламент</p>
-          )}
-        </>
+        <p className="hint aside">{objectHistory(object.totalRequests, object.lastRepairAt, object.averageDays)}</p>
       ) : null}
 
       {object.totalRequests > 1 ? <Year history={object.history} /> : null}

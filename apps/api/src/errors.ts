@@ -35,6 +35,7 @@ export const STATUS_BY_CODE = {
   reading_decreased: 400,
   reading_invalid: 400,
   reading_too_large: 400,
+  meter_not_in_photo: 400,
   serial_required: 400,
   target_required: 400,
   tariff_invalid: 400,
@@ -49,6 +50,7 @@ export const STATUS_BY_CODE = {
   // сессия есть, а профиля за ней уже нет
   resident_not_found: 401,
   // нет прав
+  apartment_required: 403,
   buildings_for_staff_only: 403,
   duty_for_staff_only: 403,
   forbidden: 403,
@@ -112,6 +114,7 @@ export const STATUS_BY_CODE = {
   message_too_long: 413,
   note_too_long: 413,
   payload_too_long: 413,
+  voice_too_long: 413,
   // слишком часто
   too_many_requests: 429,
   // внешняя служба не отвечает

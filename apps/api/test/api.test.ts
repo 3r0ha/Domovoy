@@ -55,6 +55,25 @@ const tenant: Resident = {
   buildingId: BUILDING_ID,
 };
 
+/** Сосед из второй квартиры: чужие заявки он не видит, хотя дом тот же. */
+const neighbourTenant: Resident = {
+  id: 'res-neighbour',
+  maxUserId: 1002,
+  displayName: 'Пётр',
+  role: 'resident',
+  apartmentId: 'apt-2',
+  buildingId: BUILDING_ID,
+};
+
+/** Пришедший из чата дома: дом известен, квартиры ещё нет. */
+const newcomerInHouse: Resident = {
+  id: 'res-newcomer',
+  maxUserId: 1001,
+  displayName: 'Мария',
+  role: 'resident',
+  buildingId: BUILDING_ID,
+};
+
 const initDataFor = (userId: number, name = 'Жилец'): Promise<string> =>
   signInitData(
     {
@@ -290,9 +309,111 @@ describe('вход в приложение', () => {
   });
 });
 
+describe('жилец без квартиры', () => {
+  /** Что закрыто до привязки: дом ещё не известен. */
+  const CLOSED: { method: 'GET' | 'POST'; url: string; payload?: Record<string, unknown> }[] = [
+    { method: 'GET', url: '/api/requests' },
+    { method: 'POST', url: '/api/requests', payload: { description: 'Что-то сломалось' } },
+    { method: 'GET', url: '/api/announcements' },
+    { method: 'GET', url: '/api/house/contacts' },
+    { method: 'GET', url: '/api/reception' },
+    { method: 'GET', url: '/api/assistant' },
+    { method: 'GET', url: '/api/polls' },
+    { method: 'GET', url: '/api/meters' },
+    { method: 'GET', url: '/api/charges' },
+    { method: 'GET', url: '/api/context/eqp_b1_lift-2' },
+  ];
+
+  it('до привязки открыты профиль, документы, свои данные и привязка, остальное отвечает apartment_required', async () => {
+    const { app, login } = await setup();
+    const token = await login(1001, 'Мария');
+
+    const me = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
+
+    assert.equal(me.statusCode, 200);
+    assert.equal(me.json().apartmentId, null);
+    assert.equal(me.json().address, undefined, 'дома у непривязанного нет, и адреса тоже');
+
+    for (const url of ['/api/me/apartments', '/api/me/data', '/api/me/notices']) {
+      const open = await app.inject({ method: 'GET', url, headers: authed(token) });
+
+      assert.equal(open.statusCode, 200, `${url}: ${open.body}`);
+    }
+
+    assert.equal((await app.inject({ method: 'GET', url: '/api/legal' })).statusCode, 200);
+
+    for (const check of CLOSED) {
+      const closed = await app.inject({
+        method: check.method,
+        url: check.url,
+        headers: authed(token),
+        ...(check.payload ? { payload: check.payload } : {}),
+      });
+
+      assert.equal(closed.statusCode, 403, `${check.method} ${check.url}: ${closed.body}`);
+      assert.equal(closed.json().error, 'apartment_required', `${check.method} ${check.url}`);
+      assert.equal(closed.json().message, 'Сначала привяжите квартиру кодом из квитанции');
+    }
+
+    // Режим проверки выключен: отказ про него, а не про квартиру, значит маршрут открыт.
+    const demo = await app.inject({ method: 'GET', url: '/api/demo', headers: authed(token) });
+
+    assert.equal(demo.json().error, 'forbidden');
+
+    await app.close();
+  });
+
+  it('после привязки те же маршруты открываются, а в профиле появляется адрес', async () => {
+    const { app, login } = await setup();
+    const token = await login(1001, 'Мария');
+
+    const bound = await app.inject({
+      method: 'POST',
+      url: '/api/me/apartment',
+      headers: authed(token),
+      payload: { code: CODES.first },
+    });
+
+    assert.equal(bound.statusCode, 200, bound.body);
+
+    for (const url of ['/api/requests', '/api/house/contacts', '/api/announcements']) {
+      const open = await app.inject({ method: 'GET', url, headers: authed(token) });
+
+      assert.equal(open.statusCode, 200, `${url}: ${open.body}`);
+    }
+
+    const me = await app.inject({ method: 'GET', url: '/api/me', headers: authed(token) });
+
+    assert.equal(me.json().apartmentId, 'apt-1');
+
+    await app.close();
+  });
+
+  it('удаление профиля доступно и без квартиры', async () => {
+    const { app, login } = await setup();
+    const token = await login(1001, 'Мария');
+
+    assert.equal((await app.inject({ method: 'DELETE', url: '/api/me', headers: authed(token) })).statusCode, 204);
+
+    await app.close();
+  });
+
+  it('сотрудник без квартиры под правило не попадает', async () => {
+    const staff: Resident = { id: 'disp-unbound', maxUserId: 5005, displayName: 'Ольга', role: 'dispatcher', buildingId: BUILDING_ID };
+    const { app, login } = await setup([staff]);
+    const token = await login(5005);
+
+    const contacts = await app.inject({ method: 'GET', url: '/api/house/contacts', headers: authed(token) });
+
+    assert.equal(contacts.statusCode, 200, contacts.body);
+
+    await app.close();
+  });
+});
+
 describe('код с наклейки', () => {
   it('превращается в понятный адрес', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const response = await app.inject({
@@ -309,7 +430,7 @@ describe('код с наклейки', () => {
   });
 
   it('неизвестный код отвергается', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const response = await app.inject({ method: 'GET', url: '/api/context/мусор', headers: authed(token) });
@@ -321,7 +442,7 @@ describe('код с наклейки', () => {
 
 describe('заявки', () => {
   it('создаётся по коду объекта без выбора адреса', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const response = await app.inject({
@@ -364,8 +485,8 @@ describe('заявки', () => {
     await app.close();
   });
 
-  it('без привязки к квартире заявка уходит на дом', async () => {
-    const { app, login } = await setup();
+  it('без привязки к квартире заявка не заводится, даже по дому целиком', async () => {
+    const { app, login, repository } = await setup([newcomerInHouse]);
     const token = await login(1001);
 
     const response = await app.inject({
@@ -375,14 +496,16 @@ describe('заявки', () => {
       payload: { description: 'что-то сломалось' },
     });
 
-    assert.equal(response.statusCode, 201, response.body);
-    assert.match(response.json<{ request: { target: string } }>().request.target, /дом целиком/iu);
+    assert.equal(response.statusCode, 403, response.body);
+    assert.equal(response.json().error, 'apartment_required');
+    assert.equal(response.json().message, 'Сначала привяжите квартиру кодом из квитанции');
+    assert.equal((await repository.listRequests({})).length, 0);
 
     await app.close();
   });
 
   it('пустое описание отсекается схемой', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001);
 
     const response = await app.inject({
@@ -397,9 +520,9 @@ describe('заявки', () => {
   });
 
   it('жилец видит свои заявки и не видит чужие', async () => {
-    const { app, login } = await setup([tenant]);
+    const { app, login } = await setup([tenant, neighbourTenant]);
     const first = await login(1001, 'Мария');
-    const second = await login(2002, 'Иван');
+    const second = await login(1002, 'Пётр');
 
     const created = await app.inject({
       method: 'POST',
@@ -529,9 +652,9 @@ describe('работа управляющей компании', () => {
   });
 
   it('по чужой заявке не пишут', async () => {
-    const { app, login } = await setup([tenant]);
+    const { app, login } = await setup([tenant, neighbourTenant]);
     const resident = await login(1001);
-    const stranger = await login(2002);
+    const stranger = await login(1002);
 
     const created = await app.inject({
       method: 'POST',
@@ -1309,7 +1432,7 @@ describe('привязка жильцов', () => {
     const before = await create();
 
     assert.equal(before.statusCode, 403, 'непривязанный жилец заявку по квартире не заводит');
-    assert.equal(before.json().error, 'forbidden');
+    assert.equal(before.json().error, 'apartment_required');
 
     await app.inject({
       method: 'POST',
@@ -1414,7 +1537,7 @@ describe('привязка жильцов', () => {
   });
 
   it('непривязанный жилец виден управляющей компании', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, newcomerInHouse]);
 
     await login(1001, 'Мария');
     const staffToken = await login(5005);
@@ -1434,7 +1557,7 @@ describe('привязка жильцов', () => {
   });
 
   it('сотрудник привязывает жильца, и тот пропадает из списка', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, newcomerInHouse]);
 
     await login(1001, 'Мария');
     const staffToken = await login(5005);
@@ -1931,7 +2054,7 @@ describe('снимки к заявке', () => {
     });
 
   it('снимок отправляется и возвращается вложением', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, 'Мария');
 
     const response = await upload(app, token);
@@ -1944,7 +2067,7 @@ describe('снимки к заявке', () => {
   });
 
   it('снимок приезжает обратно теми же байтами и с тем же типом', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, 'Мария');
 
     const uploaded = await upload(app, token);
@@ -2021,7 +2144,7 @@ describe('снимки к заявке', () => {
   });
 
   it('чужой снимок жильцу не отдают', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant, neighbourTenant]);
     const token = await login(1001, 'Мария');
     const neighbour = await login(1002, 'Пётр');
 
@@ -2035,7 +2158,7 @@ describe('снимки к заявке', () => {
   });
 
   it('без сессии за снимком не пускают', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, 'Мария');
 
     const id = (await upload(app, token)).json().token.slice('file:'.length);
@@ -2046,7 +2169,7 @@ describe('снимки к заявке', () => {
   });
 
   it('не изображение отклоняют с объяснением', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, 'Мария');
 
     const response = await upload(app, token, PIXEL, 'application/pdf');
@@ -2100,7 +2223,7 @@ describe('снимки к заявке', () => {
   });
 
   it('несуществующий снимок, 404', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, 'Мария');
 
     assert.equal(

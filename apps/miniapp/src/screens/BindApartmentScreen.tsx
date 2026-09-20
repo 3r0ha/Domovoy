@@ -2,18 +2,24 @@ import { Button, CellSimple, Input } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, type DomovoyApi } from '../api.js';
+import { ApiError, type DomovoyApi, type HouseContactsView } from '../api.js';
 import { useToast } from '../toast.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
-import { IconChat, IconDocument, IconPerson } from './icons.js';
+import { IconChat, IconDocument, IconPeople, IconPerson } from './icons.js';
 
 export interface BindApartmentScreenProps {
   api: DomovoyApi;
+  /** У человека уже есть дом: контакты и поддержка ему доступны. */
+  housed?: boolean;
   /** Позвать, когда квартира привязана: профиль изменился. */
   onBound: () => void;
   /** Уйти в поддержку: код теряют, и спросить его надо у кого-то живого. */
   onSupport?: () => void;
+  /** Профиль и документы: жильцу без квартиры больше ничего не открыто. */
+  onProfile?: () => void;
+  /** Примерка роли на проверке. */
+  onDemo?: () => void;
 }
 
 /** Сколько знаков в коде квартиры: столько же, сколько печатает квитанция. */
@@ -26,10 +32,9 @@ const TYPED_LENGTH = CODE_LENGTH + 4;
 const plainCode = (typed: string): string => typed.replaceAll(/[\s‐-―-]/gu, '').toUpperCase();
 
 /** Куда звонить, если код не нашёлся. Контакты приходят вместе с домом. */
-const Help = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) => {
-  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts().catch(() => null), [api]);
-  const phone = contacts.data?.service?.phone;
-  const hours = contacts.data?.service?.hours;
+const Help = ({ contacts, onSupport }: { contacts: HouseContactsView | null; onSupport?: () => void }) => {
+  const phone = contacts?.service?.phone;
+  const hours = contacts?.service?.hours;
 
   return (
     <Group title="Не нашли код?">
@@ -80,13 +85,63 @@ const Help = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () => void }) =
   );
 };
 
+/** Что открыто до привязки: профиль с документами и, на проверке, роль. */
+const Meanwhile = ({ onProfile, onDemo }: { onProfile?: () => void; onDemo?: () => void }) => {
+  if (!onProfile && !onDemo) return null;
+
+  return (
+    <Group>
+      {onProfile ? (
+        <CellSimple
+          before={
+            <span className="tile tile-grey">
+              <IconPerson />
+            </span>
+          }
+          title="Профиль и документы"
+          height="compact"
+          showChevron
+          onClick={onProfile}
+        />
+      ) : null}
+
+      {onDemo ? (
+        <CellSimple
+          before={
+            <span className="tile tile-green">
+              <IconPeople />
+            </span>
+          }
+          title="Роль"
+          subtitle="Посмотреть продукт другой стороной"
+          separator
+          height="compact"
+          showChevron
+          onClick={onDemo}
+        />
+      ) : null}
+    </Group>
+  );
+};
+
 /** Привязка к квартире по коду из квитанции. */
-export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentScreenProps) => {
+export const BindApartmentScreen = ({
+  api,
+  housed = true,
+  onBound,
+  onSupport,
+  onProfile,
+  onDemo,
+}: BindApartmentScreenProps) => {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const say = useToast();
-  const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
+  // Без дома контактов нет: у жильца до привязки их не спрашивают.
+  const contacts = useBridgeRequest(
+    (alive) => (housed ? api.until(alive).houseContacts().catch(() => null) : Promise.resolve(null)),
+    [api, housed],
+  );
   const house = contacts.data?.address ?? '';
 
   const bind = async (): Promise<void> => {
@@ -165,7 +220,9 @@ export const BindApartmentScreen = ({ api, onBound, onSupport }: BindApartmentSc
         </Button>
       </section>
 
-      <Help api={api} {...(onSupport ? { onSupport } : {})} />
+      <Help contacts={contacts.data ?? null} {...(onSupport ? { onSupport } : {})} />
+
+      <Meanwhile {...(onProfile ? { onProfile } : {})} {...(onDemo ? { onDemo } : {})} />
     </div>
   );
 };

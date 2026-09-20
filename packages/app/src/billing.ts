@@ -1,6 +1,16 @@
-import { DEFAULT_TIME_ZONE, DomainError, chargesFor, leftToPay, type Charges } from '@domovoy/domain';
+import {
+  DEFAULT_TIME_ZONE,
+  DomainError,
+  METER_RULES,
+  chargesFor,
+  excessOutageHours,
+  leftToPay,
+  type Charges,
+  type MeterKind,
+  type Outage,
+} from '@domovoy/domain';
 
-import { endOfPeriod, monthBefore, periodConsumption } from './consumption.js';
+import { endOfPeriod, monthBefore, periodConsumption, startOfPeriod } from './consumption.js';
 import { commonNeedsShare, knownForCommon } from './house-meters.js';
 import { tariffsFor } from './tariffs.js';
 import { zoneOf } from './zone.js';
@@ -55,6 +65,41 @@ export const periodOf = (at: Date, timeZone: string = DEFAULT_TIME_ZONE): string
   return format.format(at);
 };
 
+/** Ресурс объявленных работ: у отключения он записан, у работ по электрике и теплу следует из категории. */
+const resourceOf = (works: { category: string; resource?: MeterKind }): MeterKind | undefined => {
+  if (works.resource) return works.resource;
+  if (works.category === 'electricity' || works.category === 'heating') return works.category;
+
+  return undefined;
+};
+
+/**
+ * Перерывы по ресурсам, которые касались квартиры за расчётный период:
+ * объявленные отключения дома, подъезда или стояка с этой квартирой в адресатах.
+ */
+const outagesFor = async (
+  deps: AppDeps,
+  house: string,
+  apartmentId: string,
+  period: { from: Date; to: Date },
+): Promise<{ kind: MeterKind; excessHours: number }[]> => {
+  const announced = await deps.repository.listWorksBetween(house, period.from, period.to);
+  const outages: Outage[] = [];
+
+  for (const announcement of announced) {
+    const kind = announcement.works ? resourceOf(announcement.works) : undefined;
+    const addressed = announcement.audience.kind === 'building' || announcement.recipientIds.includes(apartmentId);
+
+    if (!kind || !addressed || !announcement.works) continue;
+
+    outages.push({ kind, from: announcement.works.from, until: announcement.works.until });
+  }
+
+  return (Object.keys(METER_RULES) as MeterKind[])
+    .map((kind) => ({ kind, excessHours: excessOutageHours(kind, outages, period) }))
+    .filter((item) => item.excessHours > 0);
+};
+
 /** Начисление за месяц по показаниям жильца. @throws {DomainError} если квартира не привязана. */
 export const chargesForResident = async (deps: AppDeps, resident: Resident): Promise<Charges> => {
   if (!resident.apartmentId) {
@@ -74,6 +119,10 @@ export const chargesForResident = async (deps: AppDeps, resident: Resident): Pro
   const paid = deps.payments ? await paying(deps, (gateway) => gateway.paid(apartmentId, period)) : undefined;
   const common = commonNeedsShare(await knownForCommon(deps, house), resident.apartmentId, period);
   const meters = await deps.repository.listMeters(resident.apartmentId);
+  const outages = await outagesFor(deps, house, apartmentId, {
+    from: startOfPeriod(period, zone),
+    to: endOfPeriod(period, zone),
+  });
 
   return chargesFor({
     period,
@@ -88,6 +137,7 @@ export const chargesForResident = async (deps: AppDeps, resident: Resident): Pro
       area: apartment?.area ?? 0,
     }),
     ...(common.length > 0 ? { common } : {}),
+    ...(outages.length > 0 ? { outages } : {}),
     ...(paid === undefined ? {} : { paid }),
   });
 };

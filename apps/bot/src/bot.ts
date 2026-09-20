@@ -34,6 +34,7 @@ import {
   supportKeyboard,
   PERSONAL,
 } from './keyboards.js';
+import { needsFlat } from './apartment.js';
 import { BUTTONS } from './buttons.js';
 import { registerComments, speakInChat } from './chat.js';
 import { registerChatEvents } from './events.js';
@@ -72,6 +73,12 @@ import {
 const WITHOUT_LEGAL_BUTTONS = new Set(['legal', 'menu', 'group', 'cancel', 'more', 'app']);
 
 /**
+ * Кнопки, доступные жильцу без квартиры: пункт меню, привязка, документы,
+ * свои данные и примерка роли. Пункт меню проверяет сама команда.
+ */
+const WITHOUT_FLAT_BUTTONS = new Set(['legal', 'menu', 'demo', 'bind', 'flat', 'mydata', 'forget']);
+
+/**
  * Хождение по меню: такие нажатия переписывают сообщение, под которым стояла
  * кнопка. Дела, у которых остаётся след в переписке, отвечают новым сообщением.
  * Возврата тут нет намеренно: он стоит и под чеком заявки, и под кодом гостя,
@@ -87,6 +94,11 @@ const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
   if (name && button) {
     // Кнопка меняет данные так же, как команда, поэтому и согласие спрашивается так же.
     if (!inChat(typed) && !WITHOUT_LEGAL_BUTTONS.has(name) && (await needsLegal(kit, typed))) {
+      await toast(typed);
+      return;
+    }
+
+    if (!inChat(typed) && !WITHOUT_FLAT_BUTTONS.has(name) && (await needsFlat(kit, typed))) {
       await toast(typed);
       return;
     }
@@ -122,8 +134,14 @@ const inviteToDialog = async (typed: BotContext, openApp: () => Extra | undefine
   await typed.reply(`${nameOf(user)}, отвечу вам лично: напишите мне в личные сообщения.`, openApp());
 };
 
-/** Что бот делает и без согласия: приветствие, справка, документы и контакты. */
-const WITHOUT_LEGAL = new Set(['start', 'help', 'legal', 'contacts']);
+/** Что бот делает и без согласия: приветствие, справка и документы. */
+const WITHOUT_LEGAL = new Set(['start', 'help', 'legal']);
+
+/**
+ * Что жилец делает и без квартиры: привязывает её, читает документы и справку,
+ * смотрит свои данные и примеряет роль на проверке.
+ */
+const WITHOUT_FLAT = new Set(['start', 'help', 'legal', 'flat', 'mydata', 'demo']);
 
 /** Куда ведёт кнопка под уведомлением: подпись под раздел приложения. */
 const SECTION_TITLES: Record<string, string> = {
@@ -409,18 +427,22 @@ export const createDomovoyBot = (
 
   bot.use(screenKeeper({ deleteMessage: (mid) => bot.api.deleteMessage(mid) }) as never);
 
+  /** Дом, которому принадлежит этот чат. */
+  const houseOf = async (context: BotContext): Promise<Building | undefined> =>
+    context.chatId === undefined ? undefined : buildingByChat(deps, context.chatId);
+
   const residentOf = async (context: BotContext, buildingId?: string): Promise<Resident> => {
     const user = context.user ?? context.callback?.user ?? context.message?.sender;
     const maxUserId = user?.user_id;
 
     if (maxUserId === undefined) throw new DomainError('user_unknown', 'Не удалось определить пользователя');
 
-    return ensureResident(deps, { maxUserId, displayName: nameOf(user), ...(buildingId ? { buildingId } : {}) });
-  };
+    // В чате дома человек действует в этом доме, даже если сам ещё нигде не привязан.
+    const house = buildingId ?? (inChat(context) ? (await houseOf(context))?.id : undefined);
+    const known = await ensureResident(deps, { maxUserId, displayName: nameOf(user), ...(house ? { buildingId: house } : {}) });
 
-  /** Дом, которому принадлежит этот чат. */
-  const houseOf = async (context: BotContext): Promise<Building | undefined> =>
-    context.chatId === undefined ? undefined : buildingByChat(deps, context.chatId);
+    return house && !known.buildingId ? { ...known, buildingId: house } : known;
+  };
 
   /** Без адреса мини-приложения сообщение остаётся с кнопкой меню, а не голым. */
   const openAppKeyboard = (startParam?: string, context?: BotContext) => {
@@ -449,8 +471,11 @@ export const createDomovoyBot = (
       forget(typed);
 
       // До согласия с документами продукт делает только то, что без обработки
-      // данных обойтись не может: здоровается, объясняет себя и даёт контакты.
+      // данных обойтись не может: здоровается и объясняет себя.
       if (!inChat(typed) && !WITHOUT_LEGAL.has(name) && (await needsLegal(kit, typed, name))) return undefined;
+
+      // Без квартиры дома нет, и дел по дому тоже: жилец сначала привязывается.
+      if (!inChat(typed) && !WITHOUT_FLAT.has(name) && (await needsFlat(kit, typed))) return undefined;
 
       if (!inChat(typed) || !PRIVATE_COMMANDS.has(name)) return run(typed);
 
@@ -525,6 +550,8 @@ export const createDomovoyBot = (
 
     if (actions.has(name) || name === 'start' || inChat(typed)) return;
 
+    if ((await needsLegal(kit, typed)) || (await needsFlat(kit, typed))) return;
+
     await typed.reply(
       'Такой команды у меня нет. Можно написать словами, что нужно, я разберу.',
       kit.menuKeyboard(await residentOf(typed)),
@@ -542,7 +569,7 @@ export const createDomovoyBot = (
       // Пустой текст и сообщение вовсе без текста, это разные случаи: первый пишет
       // человек, второй приходит от наклейки или геометки.
       if (!text && attachments.length === 0) {
-        if (!inChat(typed)) {
+        if (!inChat(typed) && !(await needsFlat(kit, typed))) {
           await continueDialog(kit, typed, { ...(written === undefined ? {} : { text: '' }), attachments: [] });
         }
 
@@ -559,6 +586,9 @@ export const createDomovoyBot = (
       // Согласие спрашивается и на обычное сообщение: иначе первый же текст
       // заводит заявку и профиль у человека, который документов не видел.
       if (await needsLegal(kit, typed)) return;
+
+      // Без квартиры слова, снимок и голосовое получают просьбу о коде. Сам код проходит.
+      if (await needsFlat(kit, typed, text)) return;
 
       await continueDialog(kit, typed, { text, attachments });
     }) as never,

@@ -151,7 +151,6 @@ export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: Q
                 </span>
               }
               title="Заявка по звонку"
-              subtitle="Жилец позвонил, а не написал"
               showChevron
               height="compact"
               onClick={onNewRequest}
@@ -235,7 +234,6 @@ export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: Q
               </span>
             }
             title="Заявка по звонку"
-            subtitle="Жилец позвонил, а не написал"
             showChevron
             height="compact"
             onClick={onNewRequest}

@@ -101,9 +101,6 @@ export const planStickers = (options: StickerPlanOptions): StickerPlan[] => {
   return plans;
 };
 
-/** Форма модуля кода: она задаёт характер наклейки сильнее цвета. */
-export type StickerShape = 'square' | 'dot' | 'rounded';
-
 export interface StickerStyle {
   title: string;
   /** Фон наклейки. */
@@ -112,15 +109,18 @@ export interface StickerStyle {
   ink: string;
   /** Цвет уголков-искателей: он и отличает стиль издалека. */
   accent: string;
-  shape: StickerShape;
+  /** Второй цвет фона для перелива. Пусто: фон ровный. */
+  paperEnd?: string;
+  /** Цвет подписей на фоне. Пусто: тот же, что у кода. */
+  text?: string;
 }
 
 export const STICKER_STYLES = {
-  classic: { title: 'Классика', paper: '#ffffff', ink: '#111111', accent: '#111111', shape: 'square' },
-  sky: { title: 'Небо', paper: '#eef4ff', ink: '#13366e', accent: '#2f6fe4', shape: 'rounded' },
-  grass: { title: 'Трава', paper: '#eefaf0', ink: '#14532d', accent: '#2f9e5a', shape: 'dot' },
-  sunset: { title: 'Закат', paper: '#fff3ea', ink: '#7a2e0e', accent: '#e2601a', shape: 'rounded' },
-  night: { title: 'Ночь', paper: '#14161c', ink: '#f4f6fb', accent: '#8ab4ff', shape: 'dot' },
+  classic: { title: 'Классика', paper: '#f6f6f4', paperEnd: '#e9e9e4', ink: '#151515', accent: '#151515' },
+  sky: { title: 'Небо', paper: '#e4eeff', paperEnd: '#cfe0ff', ink: '#0d2a66', accent: '#2f6fe4' },
+  grass: { title: 'Трава', paper: '#e3f6e9', paperEnd: '#c9ecd6', ink: '#0f3d27', accent: '#22a06b' },
+  sunset: { title: 'Закат', paper: '#ffeede', paperEnd: '#ffd9c2', ink: '#5e2408', accent: '#f26a1b' },
+  night: { title: 'Ночь', paper: '#161a2b', paperEnd: '#0b0e1a', ink: '#12162a', accent: '#4a7fe8', text: '#f4f6fb' },
 } as const satisfies Record<string, StickerStyle>;
 
 export type StickerStyleName = keyof typeof STICKER_STYLES;

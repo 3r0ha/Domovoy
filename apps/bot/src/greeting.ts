@@ -3,9 +3,11 @@ import {
   describeContext,
   legalAccepted,
   listRequestsFor,
+  needsApartment,
   objectPassport,
   type BindResult,
   type Building,
+  type ContextDescription,
   type Resident,
 } from '@domovoy/app';
 import {
@@ -19,6 +21,7 @@ import {
   type Role,
 } from '@domovoy/domain';
 
+import { askApartment } from './apartment.js';
 import { actionKeyboard, bindIfApartment, cancelKeyboard, errorText, replyIfOpen } from './keyboards.js';
 import { expect, inChat, strong, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
@@ -66,6 +69,31 @@ export const sayBound = async (kit: BotKit, typed: BotContext, flat: BindResult)
         'Можно отправлять цифры со счётчиков, смотреть счёт и голосовать на собраниях дома.',
     kit.menuKeyboard(await kit.residentOf(typed)),
   );
+
+  await continueWithObject(kit, typed, flat);
+};
+
+/**
+ * Объект с наклейки, отложенный до привязки: разговор о нём продолжается, если
+ * он в доме квартиры. Код чужого дома заявку не открывает.
+ */
+const continueWithObject = async (kit: BotKit, typed: BotContext, flat: BindResult): Promise<void> => {
+  const payload = typed.session?.afterBind;
+
+  if (!payload) return;
+
+  delete typed.session?.afterBind;
+
+  const described = await describeContext(kit.deps, payload);
+
+  if (!described) return;
+
+  if (described.buildingId !== flat.apartment.buildingId) {
+    await typed.reply('Код с наклейки от другого дома: заявку по нему не заведу.');
+    return;
+  }
+
+  await askAboutObject(kit, typed, payload, described, await kit.residentOf(typed));
 };
 
 /**
@@ -100,8 +128,32 @@ const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Pro
 
   const resident = await kit.residentOf(typed);
 
+  // Жилец без квартиры: объект запоминается, а разговор начинается с документов и кода.
+  if (needsApartment(resident)) {
+    typed.session ??= {};
+    typed.session.afterBind = payload;
+
+    if (legalAccepted(resident)) await askApartment(kit, typed, resident);
+    else await askLegal(kit, typed);
+
+    return true;
+  }
+
   if (await ownOrder(kit, typed, payload, resident)) return true;
 
+  await askAboutObject(kit, typed, payload, described, resident);
+
+  return true;
+};
+
+/** Паспорт объекта и вопрос о том, что с ним случилось. */
+const askAboutObject = async (
+  kit: BotKit,
+  typed: BotContext,
+  payload: string,
+  described: ContextDescription,
+  resident: Resident,
+): Promise<void> => {
   expect(typed, { kind: 'description', target: payload });
 
   const passport = await objectPassport(kit.deps, payload, resident);
@@ -123,8 +175,6 @@ const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Pro
       '\nОпишите одним сообщением, что случилось, и заявку оформлю сам.',
     cancelKeyboard(),
   );
-
-  return true;
 };
 
 /** Начало разговора: с кодом объекта сразу к делу, без него короткое меню. */
@@ -142,6 +192,12 @@ export const greet = async (kit: BotKit, typed: BotContext, payload?: string | n
 
   // Код из ссылки мог устареть или быть набран с ошибкой: молчать об этом нельзя.
   const missed = payload ? 'Код из ссылки не подошёл: такого объекта в доме нет.\n\n' : '';
+
+  // Жилец без квартиры после согласия видит одно: просьбу о коде.
+  if (legalAccepted(person) && needsApartment(person)) {
+    await askApartment(kit, typed, person, missed);
+    return;
+  }
 
   await typed.reply(`${missed}${hello(person.role)}`, kit.menuKeyboard(person));
 

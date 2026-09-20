@@ -66,7 +66,7 @@ describe('профиль жильца', () => {
     assert.equal(second.displayName, 'Мария', 'имя из первого входа не перетирается молча');
   });
 
-  it('настройка с несуществующим домом вход не ломает', async () => {
+  it('новому человеку дом не подставляется даже в установке с одним домом', async () => {
     const deps: AppDeps = {
       ...setup(),
       defaultBuildingId: 'дом-которого-нет',
@@ -74,7 +74,13 @@ describe('профиль жильца', () => {
 
     const created = await ensureResident(deps, { maxUserId: 1001, displayName: 'Мария' });
 
-    assert.equal(created.buildingId, BUILDING_ID, 'единственный дом базы подходит лучше догадки');
+    assert.equal(created.buildingId, undefined, 'дом появляется вместе с квартирой');
+  });
+
+  it('пришедший из чата дома получает дом этого чата', async () => {
+    const created = await ensureResident(setup(), { maxUserId: 1001, displayName: 'Мария', buildingId: BUILDING_ID });
+
+    assert.equal(created.buildingId, BUILDING_ID);
   });
 
   it('когда домов несколько, дом не выбирается за человека', async () => {
@@ -132,12 +138,12 @@ describe('адрес заявки', () => {
     );
   });
 
-  it('без адреса, привязки и дома заявка не создаётся', async () => {
+  it('сотрудник без адреса, квартиры и дома заявку не создаёт', async () => {
     const deps = setup();
 
     await assert.rejects(
       createServiceRequest(deps, {
-        resident: resident({ apartmentId: undefined, buildingId: undefined }),
+        resident: resident({ id: 'disp-1', role: 'dispatcher', apartmentId: undefined, buildingId: undefined }),
         description: 'Что-то сломалось',
       }),
       (error: unknown) => {
@@ -148,11 +154,32 @@ describe('адрес заявки', () => {
     );
   });
 
-  it('жилец без квартиры, но с домом заводит заявку на дом', async () => {
+  it('жилец без квартиры заявку не заводит, даже если дом в привязке остался', async () => {
+    const deps = setup();
+
+    for (const buildingId of [BUILDING_ID, undefined]) {
+      await assert.rejects(
+        createServiceRequest(deps, {
+          resident: resident({ apartmentId: undefined, buildingId }),
+          description: 'Не работает домофон в первом подъезде',
+        }),
+        (error: unknown) => {
+          assert.ok(error instanceof DomainError);
+          assert.equal(error.code, 'apartment_required');
+          assert.match(error.message, /привяжите квартиру кодом из квитанции/);
+          return true;
+        },
+      );
+    }
+
+    assert.equal((await deps.repository.listRequests({})).length, 0, 'заявка по дому целиком не завелась');
+  });
+
+  it('сотрудник без квартиры заводит заявку на дом смены', async () => {
     const deps = setup();
 
     const created = await createServiceRequest(deps, {
-      resident: resident({ apartmentId: undefined }),
+      resident: resident({ id: 'disp-1', role: 'dispatcher', apartmentId: undefined }),
       description: 'Не работает домофон в первом подъезде',
     });
 
@@ -181,7 +208,7 @@ describe('адрес заявки', () => {
 
     await assert.rejects(
       createServiceRequest(deps, {
-        resident: resident({ apartmentId: undefined }),
+        resident: resident(),
         description: 'Течёт',
         startParam: 'мусор',
       }),

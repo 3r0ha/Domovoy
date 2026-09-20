@@ -120,6 +120,7 @@ const MeterCard = ({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ consumption: number; spike: boolean; advice?: string } | null>(null);
   const [editing, setEditing] = useState(false);
+  const [reading, setReading] = useState(false);
   const photo = usePhotos(api);
 
   const snapshot = photo.photos.at(-1)?.token;
@@ -133,18 +134,31 @@ const MeterCard = ({
 
     let active = true;
 
-    forget.current();
+    setError(null);
+    setReading(true);
 
+    // Распознанное число встаёт в поле, а не подаётся: человек сверяет его с табло.
+    // Снимок забывается после ответа, а не до него: сброс меняет зависимость
+    // и снимает ожидание, и ответ пропадал бы вместе с ним.
     void api
       .readMeterPhoto(meter.id, snapshot)
       .then((read) => {
         if (!active) return;
 
-        if (read.value === undefined) setError('С фотографии не разобрали, введите цифрами');
-        else setValue(String(read.value));
+        if (read.value === undefined) {
+          setError('Цифры на снимке не разобрать. Снимите ближе и без бликов или введите цифрами');
+        } else {
+          setValue(String(read.value));
+        }
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof ApiError ? reason.message : 'Не удалось разобрать фотографию');
+      })
+      .finally(() => {
+        if (!active) return;
+
+        setReading(false);
+        forget.current();
       });
 
     return () => {
@@ -260,6 +274,10 @@ const MeterCard = ({
             <CellAction className="reading-send" mode="primary" disabled={sending} onClick={() => void submit()}>
               {sending ? 'Отправляем…' : 'Подать'}
             </CellAction>
+          ) : reading ? (
+            <p className="hint inset reading-wait" role="status">
+              Читаю табло…
+            </p>
           ) : photoSupported ? (
             <div className="reading-photo">
               <PhotoField

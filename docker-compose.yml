@@ -90,6 +90,10 @@ services:
       MEETINGS_TITLE: ${MEETINGS_TITLE:-}
       CAPITAL_REPAIR: ${CAPITAL_REPAIR:-}
       CAPITAL_REPAIR_TITLE: ${CAPITAL_REPAIR_TITLE:-}
+      CITY_FEED: ${CITY_FEED:-}
+      CITY_FEED_URL: ${CITY_FEED_URL:-}
+      CITY_FEED_KEY: ${CITY_FEED_KEY:-}
+      CITY_FEED_TITLE: ${CITY_FEED_TITLE:-}
       # Закрывает /metrics. Без токена страница открыта.
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Проверка ролями: значение 1 включает примерку роли в боте и приложении.

@@ -2,6 +2,7 @@ import { commonNeedsTitle } from './common.js';
 import { roundMoney } from './numbers.js';
 import { METER_RULES, type MeterKind } from './meters.js';
 import type { ConsumptionBasis } from './norms.js';
+import { outageReduction } from './outages.js';
 import { DomainError } from './types.js';
 
 /** Строка квитанции. */
@@ -78,6 +79,8 @@ export interface ChargeInput {
   /** Тарифы дома на этот месяц. Без них считать нечем. */
   tariffs: Tariffs;
   paid?: number;
+  /** Часы перерывов сверх нормы по ресурсу: за них плата снижается. */
+  outages?: { kind: MeterKind; excessHours: number }[];
 }
 
 /** Ставка на ресурс. Без неё начисление вышло бы нечислом. @throws {DomainError} */
@@ -120,6 +123,24 @@ export const chargesFor = (input: ChargeInput): Charges => {
         ...(item.basis && item.basis !== 'meter' ? { basis: item.basis } : {}),
       };
     });
+
+  // Перерасчёт за перерыв дольше нормы: отрицательная строка рядом с ресурсом,
+  // чтобы было видно, за что и на сколько снизилась плата.
+  for (const outage of input.outages ?? []) {
+    const line = lines.find((item) => item.title === METER_RULES[outage.kind].title);
+
+    if (!line || checkAmount(outage.excessHours, line.title) <= 0) continue;
+
+    const reduction = outageReduction(line.amount, outage.excessHours);
+
+    if (reduction <= 0) continue;
+
+    lines.push({
+      title: `Перерасчёт: ${line.title.toLowerCase()} отключали дольше нормы`,
+      amount: -reduction,
+      detail: `${decimal(outage.excessHours)} ч сверх нормы × 0,15% × ${decimal(line.amount)} ₽`,
+    });
+  }
 
   for (const item of input.common ?? []) {
     const title = commonNeedsTitle(item.kind);

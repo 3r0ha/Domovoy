@@ -264,6 +264,14 @@ export {
   type Tariffs,
 } from './billing.js';
 export {
+  OUTAGE_LIMITS,
+  OUTAGE_REDUCTION_PER_HOUR,
+  excessOutageHours,
+  outageReduction,
+  type Outage,
+  type OutageLimit,
+} from './outages.js';
+export {
   AVERAGE_MONTHS,
   AVERAGE_WINDOW,
   NORM_FACTOR,
@@ -375,7 +383,6 @@ export {
   type StickerLook,
   type StickerPlan,
   type StickerPlanOptions,
-  type StickerShape,
   type StickerStyle,
   type StickerStyleName,
 } from './stickers.js';

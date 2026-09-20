@@ -92,6 +92,94 @@ describe('квитанция', () => {
     assert.equal(charges.total, 2055);
   });
 
+  it('объявленное отключение дольше нормы снижает плату за ресурс', async () => {
+    const { deps, repository, setNow } = setup();
+
+    await repository.saveMeter({ id: 'm-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+    await repository.saveReading({
+      id: 'r-0',
+      meterId: 'm-1',
+      submittedBy: 'res-1',
+      value: 100,
+      at: new Date('2026-07-20T10:00:00Z'),
+    });
+
+    setNow(new Date('2026-08-22T10:00:00Z'));
+    await submitReading(deps, { resident: maria, meterId: 'm-1', value: 110 });
+    setNow(NOW);
+
+    // Отключение по данным города: воды не было двенадцать часов подряд, норма четыре.
+    await repository.saveAnnouncement({
+      id: 'a-1',
+      buildingId: BUILDING_ID,
+      audience: { kind: 'building' },
+      title: 'Отключение холодной воды',
+      body: 'Ремонт водовода',
+      createdAt: new Date('2026-08-09T10:00:00Z'),
+      recipientIds: ['apt-1'],
+      works: {
+        category: 'plumbing',
+        from: new Date('2026-08-10T06:00:00Z'),
+        until: new Date('2026-08-10T18:00:00Z'),
+        resource: 'cold_water',
+      },
+    });
+
+    const charges = await chargesForResident(deps, maria);
+    const reduction = charges.lines.find((line) => line.title.startsWith('Перерасчёт'));
+
+    assert.equal(reduction?.amount, -5.22, '8 часов сверх нормы × 0,15% × 435 ₽');
+    assert.match(reduction?.detail ?? '', /8 ч сверх нормы/);
+    assert.equal(charges.total, 2049.78);
+  });
+
+  it('работы по сантехнике без ресурса и отключение чужого подъезда плату не снижают', async () => {
+    const { deps, repository, setNow } = setup();
+
+    await repository.saveMeter({ id: 'm-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+    await repository.saveReading({
+      id: 'r-0',
+      meterId: 'm-1',
+      submittedBy: 'res-1',
+      value: 100,
+      at: new Date('2026-07-20T10:00:00Z'),
+    });
+
+    setNow(new Date('2026-08-22T10:00:00Z'));
+    await submitReading(deps, { resident: maria, meterId: 'm-1', value: 110 });
+    setNow(NOW);
+
+    await repository.saveAnnouncement({
+      id: 'a-1',
+      buildingId: BUILDING_ID,
+      audience: { kind: 'building' },
+      title: 'Замена задвижек',
+      body: 'Воды не будет',
+      createdAt: new Date('2026-08-09T10:00:00Z'),
+      recipientIds: ['apt-1'],
+      works: { category: 'plumbing', from: new Date('2026-08-10T06:00:00Z'), until: new Date('2026-08-11T06:00:00Z') },
+    });
+    await repository.saveAnnouncement({
+      id: 'a-2',
+      buildingId: BUILDING_ID,
+      audience: { kind: 'entrance', entrance: 2 },
+      title: 'Отключение холодной воды',
+      body: 'Второй подъезд',
+      createdAt: new Date('2026-08-09T10:00:00Z'),
+      recipientIds: [],
+      works: {
+        category: 'plumbing',
+        from: new Date('2026-08-12T06:00:00Z'),
+        until: new Date('2026-08-13T06:00:00Z'),
+        resource: 'cold_water',
+      },
+    });
+
+    const charges = await chargesForResident(deps, maria);
+
+    assert.equal(charges.lines.some((line) => line.title.startsWith('Перерасчёт')), false);
+  });
+
   it('без показаний остаётся только содержание жилья', async () => {
     const { deps } = setup();
 

@@ -167,7 +167,7 @@ export const announce = async (
         `${STATUS_TITLES[created.status]}.\n` +
         `${rule.title}, ${describeTarget(created.target)}.\n` +
         `Вы ${result.reporters}-й, кто написал об этом. Починят до ${formatMoment(created.resolutionDueAt, zone)}.\n` +
-        'Об изменениях сообщу вам так же, как автору.',
+        'Об изменениях сообщу.',
       kit.openApp(startParam, typed),
     );
     return;
@@ -188,7 +188,7 @@ export const announce = async (
   }
 
   const receipt =
-    `Заявка ${strong(created.number)} принята. Номер пригодится, если будете звонить.\n` +
+    `Заявка ${strong(created.number)} принята.\n` +
     `Что: ${rule.title.toLowerCase()}, ${plain(describeTarget(created.target))}.\n` +
     `Ответим до ${formatMoment(created.reactionDueAt, zone)}.\n` +
     `Починят до ${strong(formatMoment(created.resolutionDueAt, zone))}.` +

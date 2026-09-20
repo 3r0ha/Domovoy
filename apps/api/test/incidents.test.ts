@@ -438,7 +438,8 @@ describe('привязка к квартире', () => {
     const token = await login(1001);
 
     const before = await app.inject({ method: 'GET', url: '/api/meters', headers: authed(token) });
-    assert.equal(before.statusCode, 409, 'квартиры ещё нет: это состояние, а не ошибка запроса');
+    assert.equal(before.statusCode, 403, 'квартиры ещё нет: сначала привязка');
+    assert.equal(before.json().error, 'apartment_required');
 
     const bound = await app.inject({
       method: 'POST',
@@ -694,8 +695,8 @@ describe('показания счётчиков', () => {
 
     const response = await app.inject({ method: 'GET', url: '/api/meters', headers: authed(await login(1001)) });
 
-    assert.equal(response.statusCode, 409);
-    assert.equal(response.json().error, 'apartment_not_bound');
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error, 'apartment_required');
 
     await app.close();
   });

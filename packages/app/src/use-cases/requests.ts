@@ -30,6 +30,7 @@ import {
 import { locateTarget } from '../apartments.js';
 import { recordAction } from '../audit.js';
 import { announceResolved } from '../broadcast.js';
+import { assertApartment } from '../buildings.js';
 import {
   actionsFor,
   formatAssignment,
@@ -100,9 +101,9 @@ export const targetOf = (command: CreateRequestCommand): RequestTarget | null =>
         ? { kind: 'building', buildingId: command.resident.buildingId }
         : command.resident.apartmentId
           ? { kind: 'apartment', apartmentId: command.resident.apartmentId }
-          : // Жилец без квартиры, но с домом: обращение уходит на дом, как из
-            // чата дома, а не отказом «адрес не определён».
-            command.resident.buildingId
+          : // Сотрудник без квартиры: обращение уходит на дом смены. Жильцу без
+            // квартиры дом не подставляется.
+            command.resident.buildingId && command.resident.role !== 'resident'
             ? { kind: 'building', buildingId: command.resident.buildingId }
             : null;
 
@@ -114,6 +115,8 @@ export const createServiceRequest = async (deps: AppDeps, command: CreateRequest
   const target: RequestTarget | null = targetOf(command);
 
   if (!target) {
+    assertApartment(resident);
+
     throw new DomainError('target_required', 'Не удалось определить адрес заявки');
   }
 

@@ -195,7 +195,7 @@ export const ProfileScreen = ({
         {canShareContact ? (
           <CellSimple
             title="Телефон"
-            subtitle={number ? formatPhone(number) : 'Чтобы дозвонились при аварии'}
+            subtitle={number ? formatPhone(number) : 'Не указан'}
             showChevron={!number}
             {...(number ? {} : { onClick: () => void share() })}
           />
@@ -247,7 +247,6 @@ export const ProfileScreen = ({
           <CellSimple
             className="row-split"
             title="Отвязать квартиру"
-            subtitle="Если переехали или продали"
             showChevron
             onClick={() => setLeaving(true)}
           />

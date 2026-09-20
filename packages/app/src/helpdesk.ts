@@ -49,7 +49,7 @@ const staffOf = async (deps: AppDeps, buildingId: string): Promise<Resident[]> =
 export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Promise<SupportTicket> => {
   await assertSaid(deps, command.text, {
     asked: 'вопрос в управляющую организацию',
-    hint: 'Напишите вопрос словами: так его смогут разобрать.',
+    hint: 'Напишите вопрос словами.',
     role: command.resident.role,
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
   });

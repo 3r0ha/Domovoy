@@ -16,16 +16,33 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /** Табло у счётчика: шесть цифр и запятая. */
 const MAX_DIGITS = 8;
 
-/** Число из ответа службы. */
+/** Дробных разрядов у табло не больше четырёх: длиннее это два ряда цифр подряд. */
+const MAX_FRACTION_DIGITS = 4;
+
+/** Число в ответе службы: целое или с дробной частью через запятую либо точку. */
+const NUMBER = /\d+(?:[.,]\d+)?/gu;
+
+/**
+ * Число из ответа службы. Разбор строгий: в ответе должно быть ровно одно
+ * число. Два числа это серийный номер рядом с показанием или два ряда цифр,
+ * и выбирать между ними продукт не берётся: показание уходит в начисление.
+ */
 export const parseReading = (body: unknown): number | undefined => {
   const source = body as { value?: unknown; text?: unknown };
 
-  if (typeof source.value === 'number' && Number.isFinite(source.value) && source.value >= 0) return source.value;
+  if (typeof source.value === 'number') {
+    return Number.isFinite(source.value) && source.value >= 0 ? source.value : undefined;
+  }
 
   const text = typeof source.text === 'string' ? source.text : typeof source.value === 'string' ? source.value : '';
-  const digits = text.replace(/[^\d,.]/g, '').replace(',', '.');
+  const found = [...new Set((text.match(NUMBER) ?? []).map((item) => item.replace(',', '.')))];
 
-  if (digits.length === 0 || digits.replace('.', '').length > MAX_DIGITS) return undefined;
+  if (found.length !== 1) return undefined;
+
+  const digits = found[0]!;
+  const fraction = digits.split('.')[1] ?? '';
+
+  if (digits.replace('.', '').length > MAX_DIGITS || fraction.length > MAX_FRACTION_DIGITS) return undefined;
 
   const parsed = Number(digits);
 

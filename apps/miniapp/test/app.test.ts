@@ -122,16 +122,35 @@ const render = async (fetchStub: typeof globalThis.fetch, startParam?: string) =
 };
 
 describe('стартовый экран приложения', () => {
-  it('жильца без квартиры встречает привязка', async () => {
-    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: null });
+  it('жильца без квартиры встречает привязка, и кроме неё, профиля и роли ничего нет', async () => {
+    const { fetchStub, paths } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: null, demo: true });
 
     const screen = await render(fetchStub);
 
     assert.match(screen.text, /Код из квитанции/);
-    assert.ok(screen.tabs().includes('Квартира'), `вкладки: ${screen.tabs().join(', ')}`);
-    assert.ok(screen.tabs().length <= 5, `вкладок: ${screen.tabs().join(', ')}`);
-    // Квитанции без квартиры нет: место «Оплаты» в панели занимают новости.
-    assert.deepEqual(screen.tabs(), ['Квартира', 'Заявки', 'Дом', 'Новости', 'Ещё']);
+    assert.match(screen.text, /Профиль и документы/);
+    assert.match(screen.text, /Роль/);
+    assert.deepEqual(screen.tabs(), [], 'вкладок без квартиры нет');
+    assert.equal(screen.find('[data-guide="assistant"]'), null, 'помощник до привязки закрыт');
+    assert.doesNotMatch(screen.text, /Написать в поддержку/);
+    assert.equal(
+      paths.some((path) => path.startsWith('/api/requests') || path.startsWith('/api/house/contacts')),
+      false,
+      `лишние запросы: ${paths.join(', ')}`,
+    );
+
+    await screen.unmount();
+  });
+
+  it('без квартиры ссылка на объект ждёт привязки, а без режима проверки роли нет', async () => {
+    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: null });
+
+    const screen = await render(fetchStub, 'ent_b1_1');
+
+    assert.match(screen.text, /Код из квитанции/);
+    assert.doesNotMatch(screen.text, /подъезд 1/);
+    assert.doesNotMatch(screen.text, /Роль/);
+    assert.equal(screen.backVisible, false);
 
     await screen.unmount();
   });
@@ -203,7 +222,7 @@ describe('стартовый экран приложения', () => {
   });
 
   it('переход по коду с наклейки ведёт к объекту, а не к пустой форме', async () => {
-    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: null });
+    const { fetchStub } = server({ id: 'res-1', displayName: 'Мария', role: 'resident', apartmentId: 'apt-1' });
 
     const screen = await render(fetchStub, 'ent_b1_1');
 

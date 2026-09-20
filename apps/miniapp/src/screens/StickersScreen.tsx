@@ -235,8 +235,6 @@ const Sticker = ({
         }}
       />
 
-      <p className="hint">Надпись печатается на наклейке: её видно и в пересланной картинке.</p>
-
       {error ? <ErrorText>{error}</ErrorText> : null}
       {said ? <p className="done">{said}</p> : null}
 
@@ -296,7 +294,7 @@ const Sheet = ({ api }: { api: DomovoyApi }) => {
   return (
     <section className="card">
       <h2>Лист для печати</h2>
-      <p className="hint">Все коды дома на одной странице. Придёт файлом в переписку с ботом.</p>
+      <p className="hint">Все коды дома на одной странице.</p>
 
       {error ? <ErrorText>{error}</ErrorText> : null}
       {said ? <p className="done">{said}</p> : null}

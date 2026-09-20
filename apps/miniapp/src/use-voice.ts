@@ -46,6 +46,20 @@ const formatFor = (recorder: typeof MediaRecorder): string | undefined =>
     ? FORMATS.find((candidate) => recorder.isTypeSupported(candidate))
     : undefined;
 
+/**
+ * Тип записи для ручки расшифровки: без параметров кодека и в том виде,
+ * который она знает. Браузер пишет `audio/webm;codecs=opus`, системная запись
+ * приходит как `audio/x-m4a`, а пустой тип у записи бывает в вебвью.
+ */
+export const voiceType = (declared: string): string => {
+  const base = declared.split(';')[0]!.trim().toLowerCase();
+
+  if (base === 'audio/x-m4a' || base === 'audio/m4a') return 'audio/mp4';
+  if (base === 'audio/x-wav' || base === 'audio/wave') return 'audio/wav';
+
+  return base.startsWith('audio/') ? base : 'audio/ogg';
+};
+
 /** Почему микрофон не включился. Отказ без слов выглядит как несработавшее нажатие. */
 const refusal = (reason: unknown): string => {
   const name = reason instanceof Error ? reason.name : '';
@@ -102,7 +116,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
     }
 
     try {
-      const answer = await api.until(leaving.signal).voice(await asBase64(sound), sound.type || 'audio/ogg');
+      const answer = await api.until(leaving.signal).voice(await asBase64(sound), voiceType(sound.type));
       const said = answer.text.trim();
 
       if (said.length === 0) {

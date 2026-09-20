@@ -198,7 +198,7 @@ describe('коды ошибок отражают смысл', () => {
   });
 
   it('чтение несуществующей заявки, 404', async () => {
-    const { app, login } = await setup();
+    const { app, login } = await setup([tenant]);
     const token = await login(1001, { first_name: 'Мария' });
 
     const response = await app.inject({ method: 'GET', url: '/api/requests/нет-такой', headers: authed(token) });
@@ -367,20 +367,20 @@ describe('лента объявлений', () => {
   };
 
   it('жилец читает объявления, адресованные ему', async () => {
-    const { app, login } = await setup([manager]);
+    const { app, login } = await setup([manager, tenant]);
     const staff = await login(7007);
 
     await app.inject({
       method: 'POST',
       url: '/api/announcements',
       headers: authed(staff),
-      payload: { title: 'Отключение воды', body: 'Завтра с 9 до 14', entrance: 1, riser: 1 },
+      payload: { title: 'Отключение воды', body: 'Завтра с 9 до 14', entrance: 2, riser: 1 },
     });
 
     const token = await login(1001, { first_name: 'Мария' });
 
     const before = await app.inject({ method: 'GET', url: '/api/announcements', headers: authed(token) });
-    assert.deepEqual(before.json(), []);
+    assert.deepEqual(before.json(), [], 'объявление другого подъезда жильцу не показывают');
 
     await app.inject({
       method: 'POST',
@@ -458,7 +458,7 @@ describe('профиль и уведомления', () => {
   });
 
   it('стартовые вопросы помощника приходят с сервера и зависят от роли', async () => {
-    const { app, login } = await setup([dispatcher]);
+    const { app, login } = await setup([dispatcher, tenant]);
 
     const forResident = await app.inject({
       method: 'GET',

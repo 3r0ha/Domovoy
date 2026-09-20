@@ -2,6 +2,7 @@ import { acceptLegal, legalAccepted } from '@domovoy/app';
 import { LEGAL_DOCUMENTS } from '@domovoy/domain';
 import { Keyboard } from '@maxkit/max-bot-api';
 
+import { needsFlat } from '../apartment.js';
 import { appRow, keyboardOf } from '../keyboards.js';
 import { ROOT_MENUS, type BotContext } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
@@ -22,12 +23,6 @@ const documentRows = (kit: BotKit) =>
  * поэтому она приходит ссылкой на сайт и текстом в переписку.
  */
 export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> => {
-  // Телефон аварийной службы стоит рядом с просьбой: авария не ждёт согласия.
-  const resident = await kit.residentOf(typed);
-  const house = await kit.deps.repository.findBuilding(resident.buildingId ?? kit.deps.defaultBuildingId);
-  const emergency = house?.service?.emergencyPhone ?? house?.service?.phone;
-  const urgent = emergency ? `\nАварийная служба круглосуточно: ${emergency}.` : '';
-
   // Экран согласия остаётся сам по себе: с «Назад» и «Меню» человек уходил
   // в меню, выбирал дело и упирался в те же документы новой копией сообщения.
   const screen = keyboardOf(
@@ -41,7 +36,7 @@ export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> =>
     'Домовой обрабатывает персональные данные по поручению управляющей организации дома.\n' +
       'Политика обработки и пользовательское соглашение, по кнопкам ниже.\n' +
       `Нажимая «Принимаю», вы соглашаетесь с ними. Без согласия я не смогу принять заявку ` +
-      `и сохранить показания.${urgent}`,
+      'и сохранить показания.',
     screen,
   );
 };
@@ -90,6 +85,9 @@ export const takeLegal = async (kit: BotKit, typed: BotContext): Promise<void> =
   delete typed.session?.afterLegal;
 
   if (asked && (await kit.run(asked, typed))) return;
+
+  // Жилец без квартиры после согласия получает одно сообщение: просьбу о коде.
+  if (await needsFlat(kit, typed)) return;
 
   await typed.reply('Спасибо. Чем помочь?', kit.menuKeyboard(saved));
 };

@@ -5,6 +5,7 @@ import {
   checkInspectionItem,
   closePoll,
   createServiceRequest,
+  periodOf,
   planInspections,
   publishAnnouncement,
   setDuty,
@@ -254,6 +255,13 @@ const MONTHS_SHOWN = 6;
  * набор стареет и последнее показание попадает в текущий расчётный период,
  * после чего демонстрация не даёт подать своё.
  */
+/** День расчётного месяца: квитанция считается за месяц перед текущим окном подачи. */
+const billedMonthDay = (now: Date, day: number, hour: number): Date => {
+  const [year, month] = periodOf(now).split('-').map(Number);
+
+  return new Date(Date.UTC(year!, (month ?? 1) - 2, day, hour));
+};
+
 const monthsOf = (now: Date, back: number): Date[] => {
   const period = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 
@@ -400,13 +408,29 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
     }
   }
 
-  if (!options.withRequests) return data;
-
   const person = (id: string): Resident => data.residents.find((resident) => resident.id === id)!;
+
+  const dispatcher = person('staff-dispatcher');
+
+  // Отключение в расчётном месяце дольше нормы: в квитанции видна строка перерасчёта.
+  const outageStart = billedMonthDay(deps.now(), 10, 6);
+
+  await publishAnnouncement(deps, {
+    resident: dispatcher,
+    title: 'Отключение горячей воды',
+    body: 'Ремонт на тепловой сети. Отключение с 06:00 до 20:00. Работы ведёт Теплосеть. По данным: Портал города.',
+    works: {
+      category: 'plumbing',
+      from: outageStart,
+      until: new Date(outageStart.getTime() + 14 * 3600_000),
+      resource: 'hot_water',
+    },
+  });
+
+  if (!options.withRequests) return data;
 
   const maria = person('res-maria');
   const ivan = person('res-ivan');
-  const dispatcher = person('staff-dispatcher');
 
   const MINUTE = 60_000;
   const HOUR = 60 * MINUTE;

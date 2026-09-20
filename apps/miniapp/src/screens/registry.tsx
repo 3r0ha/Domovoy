@@ -125,16 +125,28 @@ const forDispatcher = (body: Body): Body => allowed(isDispatcher, body);
 const REGISTRY: Partial<Record<Screen, Body>> = {
   more: (context) => <MoreScreen sections={context.hidden} waiting={context.waiting} onPick={context.goDeeper} />,
 
-  bind: (context) => (
-    <BindApartmentScreen
-      api={context.api}
-      onSupport={() => context.open('support')}
-      onBound={() => {
-        context.open('list');
-        context.refreshSession();
-      }}
-    />
-  ),
+  bind: (context) => {
+    // У жильца без квартиры дома нет: ни контактов, ни поддержки. Ему с этого
+    // экрана открыты только профиль с документами и, на проверке, роль.
+    const housed = isStaff(context.profile) || context.profile.apartmentId !== null;
+
+    return (
+      <BindApartmentScreen
+        api={context.api}
+        housed={housed}
+        {...(housed
+          ? { onSupport: () => context.open('support') }
+          : {
+              onProfile: () => context.goDeeper('profile'),
+              ...(context.profile.demo === true ? { onDemo: () => context.goDeeper('demo') } : {}),
+            })}
+        onBound={() => {
+          context.open('list');
+          context.refreshSession();
+        }}
+      />
+    );
+  },
 
   object: (context) =>
     context.startParam ? (

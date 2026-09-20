@@ -220,6 +220,7 @@ export type ErrorCode =
   | 'message_too_long'
   | 'note_too_long'
   | 'payload_too_long'
+  | 'voice_too_long'
   | 'too_many_requests'
   // служба не отвечает
   | 'code_not_issued'
@@ -254,6 +255,7 @@ export type ErrorCode =
   | 'reading_invalid'
   | 'reading_decreased'
   | 'reading_too_large'
+  | 'meter_not_in_photo'
   | 'description_too_long'
   | 'rating_out_of_range'
   | 'serial_required'
@@ -267,6 +269,7 @@ export type ErrorCode =
   | 'wrong_object'
   | 'apartment_exists'
   | 'apartment_not_bound'
+  | 'apartment_required'
   | 'areas_missing'
   | 'assignee_required'
   | 'request_stale';

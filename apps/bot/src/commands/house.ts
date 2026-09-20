@@ -72,7 +72,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       if (!last) {
         await typed.reply(
           'Открытых собраний сейчас нет.\n' +
-            'Здесь появятся собрания собственников: голос подают кнопкой, решение считают по площади квартир.',
+            'Здесь появятся собрания собственников: решение считают по площади квартир.',
           menuButton(typed),
         );
         return;
@@ -205,8 +205,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       }
 
       await typed.reply(
-        `По заявке ${request.number} есть основание для обращения: ${offer.reason}.\n` +
-          'Вот текст обращения, прочитайте его. Отправлю сам, по кнопке.',
+        `По заявке ${request.number} есть основание для обращения: ${offer.reason}.\nТекст обращения:`,
       );
       await typed.reply(offer.complaint, oneKeyboard('📨 Отправить в инспекцию', `gzhi:${request.id}:send`));
       return;

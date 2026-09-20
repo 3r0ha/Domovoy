@@ -28,7 +28,7 @@ export const broadcastCommands = (kit: BotKit): Record<string, Handler> => ({
       await inApp(
         kit,
         typed,
-        'Рассылка собирается в приложении: там выбирается адресат и виден охват до отправки.',
+        'Рассылка собирается в приложении.',
         'broadcast',
         'Рассылка в приложении',
       );

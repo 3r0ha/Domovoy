@@ -95,7 +95,6 @@ const Hours = ({
             </span>
           }
           title={hours || 'Часы приёма не заданы'}
-          subtitle="Из них жильцы и выбирают время"
           height="compact"
         />
         <CellAction
@@ -486,7 +485,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
         {cancelling ? (
           <Confirm
             title="Отменить запись?"
-            text={`${view.mine.day}, ${view.mine.clock}. Время освободится для других, записаться снова можно будет на свободный час.`}
+            text={`${view.mine.day}, ${view.mine.clock}.`}
             confirmLabel="Отменить запись"
             busyLabel="Отменяем…"
             busy={busy}

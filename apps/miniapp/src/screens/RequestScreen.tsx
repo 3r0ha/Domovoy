@@ -296,7 +296,6 @@ const Support = ({ api, request, onChanged }: { api: DomovoyApi; request: Reques
         <CellSimple
           className="row-split"
           title="У вас то же самое?"
-          subtitle="Добавим ваш голос к этой заявке"
           height="compact"
         />
 

@@ -119,7 +119,6 @@ export const BuildingsScreen = ({ api, onPick, onAdd, opens = 'queue', canAdd = 
               </span>
             }
             title="Завести дом"
-            subtitle="Ещё один адрес компании"
             height="compact"
             showChevron
             onClick={() => setCard({ code: '', address: '' })}

@@ -1,5 +1,6 @@
 import { dayIn, hourIn } from '@domovoy/domain';
 
+import { importOutages } from './city.js';
 import { remindAboutDebt } from './debt.js';
 import { sendMorningDigest } from './digest.js';
 import { remindAboutHouseMeters } from './house-meters.js';
@@ -33,6 +34,8 @@ export interface SweepState {
   worksUntil?: Record<string, string>;
   /** Отметки по домам: у каждого свой календарь и своё утро. */
   houses?: Record<string, SweepDays>;
+  /** Отключения города, о которых дома уже знают: ключ события и дома, момент окончания. */
+  outages?: Record<string, string>;
 }
 
 export interface SweepStore {
@@ -53,6 +56,8 @@ export interface SweepReport {
   debtors: number;
   digests: number;
   inspections: number;
+  /** Отключения по данным города, объявленные домам за обход. */
+  outages: number;
   /** Что не получилось за обход. */
   failures: { job: string; error: unknown }[];
 }
@@ -90,6 +95,7 @@ const empty = (): SweepReport => ({
   debtors: 0,
   digests: 0,
   inspections: 0,
+  outages: 0,
   failures: [],
 });
 
@@ -204,6 +210,17 @@ export const createSweeper = (deps: AppDeps, options: SweepOptions = {}) => {
       report.closed = (await closeAcceptedBySilence(deps)).length;
       report.polls = (await closeDuePolls(deps)).length;
     });
+
+    // Городской источник опрашивается каждый обход: отключение объявляют
+    // за день-два, и жильцам важно узнать о нём раньше, чем пропадёт вода.
+    if (deps.city) {
+      await attempt('city', async () => {
+        const imported = await importOutages(deps, state.outages);
+
+        report.outages = imported.created.length;
+        next.outages = imported.seen;
+      });
+    }
 
     for (const house of houses) await daily(house);
 

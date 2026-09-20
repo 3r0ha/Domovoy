@@ -317,11 +317,7 @@ export const HouseMetersScreen = ({ api, canAdd, toChat }: HouseMetersScreenProp
   return (
     <section className="list">
       {list.length === 0 ? (
-        <Empty
-          icon={<IconMeters />}
-          title="Приборов нет"
-          hint="Без них общедомовой расход не считается"
-        />
+        <Empty icon={<IconMeters />} title="Приборов нет" />
       ) : null}
 
       {list.map((meter) => (

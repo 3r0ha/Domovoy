@@ -632,8 +632,8 @@ export class PostgresRepository implements Repository {
       await sql.query(
         `insert into announcement
            (id, building_id, kind, entrance, riser, title, body, created_at,
-            works_category, works_from, works_until, request_id)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+            works_category, works_from, works_until, request_id, works_resource)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           announcement.id,
           announcement.buildingId,
@@ -647,6 +647,7 @@ export class PostgresRepository implements Repository {
           announcement.works?.from ?? null,
           announcement.works?.until ?? null,
           announcement.requestId ?? null,
+          announcement.works?.resource ?? null,
         ],
       );
 

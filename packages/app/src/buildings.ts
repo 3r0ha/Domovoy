@@ -12,18 +12,32 @@ export const servedBy = (resident: Resident, _deps: AppDeps): string[] => [
   ...new Set([...(resident.buildingId ? [resident.buildingId] : []), ...(resident.servesBuildingIds ?? [])]),
 ];
 
-/**
- * Дом, в котором человек сейчас действует: выбранный, рабочий или дом установки.
- * Умолчание здесь для сценариев создания: права проверяет `assertServes`.
- */
-export const actingHouse = (deps: AppDeps, actor: Resident, buildingId?: string): string =>
-  buildingId ?? actor.buildingId ?? deps.defaultBuildingId;
+/** Жилец без квартиры: дома у него нет, и продукт ему закрыт до привязки. */
+export const needsApartment = (resident: Resident): boolean =>
+  resident.role === 'resident' && apartmentsOf(resident).length === 0;
+
+/** @throws {DomainError} если жилец ещё не привязал квартиру. */
+export const assertApartment = (resident: Resident): void => {
+  if (!needsApartment(resident)) return;
+
+  throw new DomainError('apartment_required', 'Сначала привяжите квартиру кодом из квитанции');
+};
 
 /**
- * Дом, в котором человек живёт. У сотрудника он может не совпадать с рабочим:
- * смену он ведёт в одном доме, а квартира у него в другом. Для проверок права
- * берётся `homeOf`: он не подставляет дом установки.
+ * Дом, в котором человек сейчас действует: выбранный, рабочий или дом установки.
+ * Дом установки достаётся только сотруднику без дома, жильцу без квартиры он
+ * не подставляется. Права проверяет `assertServes`. @throws {DomainError}
  */
+export const actingHouse = (deps: AppDeps, actor: Resident, buildingId?: string): string => {
+  const house = buildingId ?? actor.buildingId;
+
+  if (house) return house;
+
+  assertApartment(actor);
+
+  return deps.defaultBuildingId;
+};
+
 /**
  * Есть ли у человека свой дом: квартира, обслуживание или, у сотрудника,
  * рабочий дом. Жильцу дом без квартиры своим не считается: после отвязки или
@@ -34,7 +48,14 @@ export const housed = (resident: Resident): boolean =>
   apartmentsOf(resident).length > 0 ||
   (resident.servesBuildingIds?.length ?? 0) > 0;
 
+/**
+ * Дом, в котором человек живёт. У сотрудника он может не совпадать с рабочим:
+ * смену он ведёт в одном доме, а квартира у него в другом. Для проверок права
+ * берётся `homeOf`: он не подставляет дом установки. @throws {DomainError}
+ */
 export const homeBuildingOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
+  assertApartment(resident);
+
   const apartment = resident.apartmentId ? await deps.repository.findApartment(resident.apartmentId) : undefined;
 
   return apartment?.buildingId ?? resident.buildingId ?? deps.defaultBuildingId;
@@ -209,10 +230,13 @@ export const servesBuilding = async (deps: AppDeps, resident: Resident, building
 };
 
 /**
- * Дом для человека без своего дома: тот, что остался в привязке, если он ещё
+ * Дом для сотрудника без своего дома: тот, что остался в привязке, если он ещё
  * есть, иначе дом установки. Открытые сведения дома он читает без проверки прав.
+ * Жильцу без квартиры дом не подставляется. @throws {DomainError}
  */
 export const publicHouseOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
+  assertApartment(resident);
+
   const known = resident.buildingId ? await deps.repository.findBuilding(resident.buildingId) : undefined;
 
   return known?.id ?? deps.defaultBuildingId;
@@ -279,9 +303,8 @@ export const contactsFor = async (
 ): Promise<HouseContacts> => {
   const settled = housed(resident);
 
-  // Новому человеку без дома контакты нужны раньше привязки: телефон аварийной
-  // службы стоит на первом экране. Он получает контакты своего дома или дома
-  // по умолчанию, а выбранный дом, оставшийся в приложении, не проверяется.
+  // Сотрудник без дома получает контакты дома по умолчанию, а выбранный дом,
+  // оставшийся в приложении, не проверяется. Жильцу без квартиры контактов нет.
   const house = settled ? (buildingId ?? (await homeBuildingOf(deps, resident))) : await publicHouseOf(deps, resident);
 
   if (settled) await assertServes(deps, resident, house);

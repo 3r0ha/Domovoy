@@ -2,6 +2,7 @@ import {
   apartmentsOf,
   demoRoles,
   exportPersonalData,
+  needsApartment,
   personalDataSummary,
   listOwnApartments,
 } from '@domovoy/app';
@@ -89,6 +90,20 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
   help: async (typed) => {
     if (inChat(typed)) {
       await typed.reply(kit.chatHelp(await kit.houseOf(typed)), kit.openApp(undefined, typed));
+      return;
+    }
+
+    const resident = await kit.residentOf(typed);
+
+    // Без квартиры помощнику отвечать не о чем: справка только о привязке.
+    if (needsApartment(resident)) {
+      expect(typed, { kind: 'code' });
+
+      await typed.reply(
+        'Чтобы начать, пришлите код квартиры из квитанции: 8 знаков рядом с адресом.\n' +
+          'После привязки здесь будут заявки, показания, квитанция и двери подъезда.',
+        kit.menuKeyboard(resident),
+      );
       return;
     }
 

@@ -5,17 +5,9 @@ import { type AppDeps } from './deps.js';
 import { withReadableAddress } from './requests.js';
 
 /**
- * Дом для только что пришедшего человека. Дом установки не подставляется: в
- * установке из нескольких домов он сделал бы постороннего жильцом дома по
- * умолчанию, с его контактами, дежурным, собраниями и файлами. Единственный
- * дом базы другим домам не мешает.
+ * Только что пришедший человек. Дом ему не подставляется: он появляется вместе
+ * с квартирой по коду из квитанции. Дом известен только у пришедшего из чата дома.
  */
-const buildingForNewcomer = async (deps: AppDeps): Promise<string | undefined> => {
-  const buildings = await deps.repository.listBuildings();
-
-  return buildings.length === 1 ? buildings[0]?.id : undefined;
-};
-
 export const ensureResident = async (
   deps: AppDeps,
   input: { maxUserId: number; displayName: string; /** Дом, из чата которого пришёл человек. */ buildingId?: string },
@@ -23,14 +15,12 @@ export const ensureResident = async (
   const existing = await deps.repository.findResidentByMaxUserId(input.maxUserId);
   if (existing) return existing;
 
-  const buildingId = input.buildingId ?? (await buildingForNewcomer(deps));
-
   const resident: Resident = {
     id: deps.createId(),
     maxUserId: input.maxUserId,
     displayName: input.displayName,
     role: 'resident',
-    ...(buildingId ? { buildingId } : {}),
+    ...(input.buildingId ? { buildingId: input.buildingId } : {}),
   };
 
   return deps.repository.saveResident(resident);

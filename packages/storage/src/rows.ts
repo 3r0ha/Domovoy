@@ -3,6 +3,7 @@ import type {
   Apartment,
   Attachment,
   Handoff,
+  MeterKind,
   RequestCategory,
   RequestEvent,
   RequestJoin,
@@ -321,6 +322,7 @@ export interface AnnouncementRow {
   works_category: RequestCategory | null;
   works_from: Date | null;
   works_until: Date | null;
+  works_resource: MeterKind | null;
   request_id: string | null;
 }
 
@@ -337,7 +339,14 @@ export const toAnnouncement = (row: AnnouncementRow): Announcement => ({
   createdAt: row.created_at,
   recipientIds: row.recipient_ids ?? [],
   ...(row.works_category && row.works_from && row.works_until
-    ? { works: { category: row.works_category, from: row.works_from, until: row.works_until } }
+    ? {
+        works: {
+          category: row.works_category,
+          from: row.works_from,
+          until: row.works_until,
+          ...(row.works_resource ? { resource: row.works_resource } : {}),
+        },
+      }
     : {}),
   ...(row.request_id === null ? {} : { requestId: row.request_id }),
 });

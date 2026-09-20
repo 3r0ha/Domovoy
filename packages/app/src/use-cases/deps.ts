@@ -2,6 +2,7 @@ import type { PaymentGateway } from '../billing.js';
 import type { DeviceHub } from '../devices.js';
 import type { HandoffGateway } from '../handoff.js';
 import type { CapitalRepairDirectory } from '../capital.js';
+import type { CityFeed } from '../city.js';
 import type { MeetingRegistry } from '../meetings.js';
 import type { Notifier } from '../notifier.js';
 import type { Reasoner } from '../reasoner.js';
@@ -37,6 +38,8 @@ export interface AppDeps {
   meetings?: MeetingRegistry;
   /** Сведения о капитальном ремонте. Без них раздел не показывается. */
   capitalRepair?: CapitalRepairDirectory;
+  /** Отключения по данным города. Без источника о работах объявляет только смена. */
+  city?: CityFeed;
 }
 
 /** Блокировка по ключу на время работы. */

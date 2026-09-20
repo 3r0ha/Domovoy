@@ -192,7 +192,7 @@ const menu: Button = async (kit, typed, [name]) => {
 const group: Button = async (kit, typed, [key]) => {
   if (inChat(typed)) {
     await typed.reply(
-      'Меню открывается в переписке со мной: там ответы видны только вам.',
+      'Меню открывается в переписке со мной.',
       kit.openApp(undefined, typed),
     );
     return;
@@ -560,10 +560,7 @@ const alarmAnswer =
       }
 
       if (!affected) {
-        await typed.reply(
-          'Спасибо, это важно: значит, причина не в общем стояке, а в квартире соседа.',
-          menuButton(typed),
-        );
+        await typed.reply('Спасибо, записал: причина не в общем стояке, а в квартире соседа.', menuButton(typed));
         return;
       }
 
@@ -833,7 +830,7 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
       return;
     }
 
-    await typed.reply(`Основание: ${offer.reason}.\nВот текст обращения, прочитайте его.`);
+    await typed.reply(`Основание: ${offer.reason}.\nТекст обращения:`);
     await typed.reply(
       offer.complaint,
       oneKeyboard('📨 Отправить в инспекцию', `gzhi:${requestId}:send`),

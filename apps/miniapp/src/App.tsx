@@ -50,18 +50,19 @@ const Shell = ({ children }: { children: ReactNode }) => (
 export type Waiting = Partial<Record<Screen, number>>;
 
 /** Что ждёт действия именно от этого человека и в каких разделах. */
-const useWaiting = (api: DomovoyApi, role: RoleView, version: number): Waiting => {
+const useWaiting = (api: DomovoyApi, role: RoleView, version: number, enabled: boolean): Waiting => {
   const queue = role === 'dispatcher' || role === 'manager';
 
+  // Жильцу без квартиры разделы закрыты: считать ему нечего.
   const list = useBridgeRequest(
-    (alive) => api.until(alive).listRequests(queue ? 'queue' : 'mine'),
-    [api, queue, version],
+    (alive) => (enabled ? api.until(alive).listRequests(queue ? 'queue' : 'mine') : Promise.resolve([])),
+    [api, queue, version, enabled],
   );
 
   /** Смене, вопросы без ответа, жильцу, ответы, которые он ещё не читал. */
   const support = useBridgeRequest(
-    (alive) => api.until(alive).supportWaiting().catch(() => ({ waiting: 0 })),
-    [api, version],
+    (alive) => (enabled ? api.until(alive).supportWaiting().catch(() => ({ waiting: 0 })) : Promise.resolve({ waiting: 0 })),
+    [api, version, enabled],
   );
 
   const count = (list.data ?? []).filter((request) => {
@@ -109,6 +110,51 @@ const linkedScreen = (param: string | undefined, offer: Offer): Screen | undefin
   return asked && offeredScreen(asked, offer) ? asked : undefined;
 };
 
+/**
+ * С чего начать по ссылке запуска: раздел или код объекта. Ссылка на раздел
+ * кодом объекта не является: паспорт по ней не открывают, а незнакомый раздел
+ * просто открывает приложение с начала. Жильцу без квартиры дома нет, и ссылка
+ * ждёт привязки.
+ */
+const entryOf = (
+  profile: Profile,
+  param: string | undefined,
+  offer: Offer,
+): { needsBinding: boolean; screen: Screen | undefined; object: string | undefined } => {
+  const needsBinding = profile.role === 'resident' && profile.apartmentId === null;
+
+  if (needsBinding) return { needsBinding, screen: undefined, object: undefined };
+
+  return { needsBinding, screen: linkedScreen(param, offer), object: isSectionParam(param) ? undefined : param };
+};
+
+/** Переключатели шапки: дом у смены вне квартирных разделов, квартира у жильца в корне. */
+const switchesOf = (input: {
+  isStaff: boolean;
+  needsBinding: boolean;
+  deep: boolean;
+  homeScreen: boolean;
+  building: { id: string | null; version: number };
+  setBuilding: (update: (current: { id: string | null; version: number }) => { id: string | null; version: number }) => void;
+  apartment: string | null;
+  pick: (apartmentId: string) => void;
+}): { building?: TopBarProps['building']; apartment?: TopBarProps['apartment'] } => {
+  const picksBuilding = input.isStaff && !input.deep && !input.homeScreen;
+  const picksApartment = !input.needsBinding && (input.homeScreen || (!input.isStaff && !input.deep));
+
+  return {
+    ...(picksBuilding
+      ? {
+          building: {
+            value: input.building.id,
+            onChange: (id: string | null) => input.setBuilding((current) => ({ id, version: current.version + 1 })),
+          },
+        }
+      : {}),
+    ...(picksApartment ? { apartment: { value: input.apartment, onChange: input.pick } } : {}),
+  };
+};
+
 /** Что подключено в этой установке: раздела без поставщика человек не видит. */
 const offerOf = (profile: Profile): Offer => ({
   doors: profile.doors !== false,
@@ -127,6 +173,7 @@ const accepted = (profile: Profile): boolean => profile.legal?.accepted !== fals
 const FirstRun = ({
   api,
   agreed,
+  reading,
   tour,
   onDocument,
   onAgreed,
@@ -134,12 +181,14 @@ const FirstRun = ({
 }: {
   api: DomovoyApi;
   agreed: boolean;
+  /** Открыт документ: окно согласия уходит, чтобы текст было видно, и возвращается по «Назад». */
+  reading: boolean;
   tour: TourStep[];
   onDocument: (title: string, text: string) => void;
   onAgreed: () => void;
   onTourDone: () => void;
 }) => {
-  if (!agreed) return <Consent api={api} onDocument={onDocument} onAccepted={onAgreed} />;
+  if (!agreed) return reading ? null : <Consent api={api} onDocument={onDocument} onAccepted={onAgreed} />;
 
   return tour.length > 0 ? <Tour steps={tour} onDone={onTourDone} /> : null;
 };
@@ -306,15 +355,12 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
   const api = useMemo(() => session.reread(), [session, building.version, refreshed]);
 
   const offer = offerOf(profile);
-  const launchedScreen = linkedScreen(scanned ?? launched, offer);
-  // Ссылка на раздел кодом объекта не является: паспорт по ней не открывают,
-  // и незнакомый раздел просто открывает приложение с начала.
-  const startParam = isSectionParam(scanned ?? launched) ? undefined : (scanned ?? launched);
-  const scrolled = useScrolled();
-  const waiting = useWaiting(api, profile.role, changed);
-  const home = startScreen(profile);
   const bound = profile.apartmentId !== null;
   const isStaff = profile.role !== 'resident';
+  const { needsBinding, screen: launchedScreen, object: startParam } = entryOf(profile, scanned ?? launched, offer);
+  const scrolled = useScrolled();
+  const waiting = useWaiting(api, profile.role, changed, !needsBinding);
+  const home = startScreen(profile);
 
   // Раскладка разделов держится за одну ссылку: на неё смотрит подсветка тура.
   const layout = useMemo(
@@ -374,9 +420,6 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
     ? screenTitle(screens.under, { objectTitle, device, document, sections: everything }) || 'Назад'
     : 'Назад';
 
-  const picksBuilding = isStaff && !screens.deep && !homeScreen;
-  const picksApartment = homeScreen || (!isStaff && !screens.deep);
-
   const context = screenContext({
     api,
     profile,
@@ -406,19 +449,13 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
     title,
     scrolled,
     offline,
-    building: picksBuilding
-      ? {
-          value: building.id,
-          onChange: (id: string | null) => setBuilding((current) => ({ id, version: current.version + 1 })),
-        }
-      : undefined,
-    apartment: picksApartment ? { value: apartment, onChange: pick } : undefined,
+    ...switchesOf({ isStaff, needsBinding, deep: screens.deep, homeScreen, building, setBuilding, apartment, pick }),
     onRefresh: () => {
       haptics.picked();
       setRefreshed((version) => version + 1);
     },
-    // Помощник появляется в шапке после согласия: до него вопрос обрабатывать нечем.
-    onAssistant: agreed
+    // Помощник появляется в шапке после согласия и привязки: до них ему нечего открывать.
+    onAssistant: agreed && !needsBinding
       ? () => {
           haptics.picked();
           setTip(true);
@@ -442,7 +479,9 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
         {screenBody(screen, context)}
       </main>
 
-      <TabBar sections={tabs} current={screen} waiting={waiting} hidden={hidden} onPick={openTab} />
+      {tabs.length > 0 ? (
+        <TabBar sections={tabs} current={screen} waiting={waiting} hidden={hidden} onPick={openTab} />
+      ) : null}
 
       {tip ? (
         <Assistant
@@ -458,6 +497,7 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
       <FirstRun
         api={api}
         agreed={agreed}
+        reading={screen === 'document'}
         tour={tour}
         onDocument={openDocument}
         onAgreed={() => setAgreed(true)}

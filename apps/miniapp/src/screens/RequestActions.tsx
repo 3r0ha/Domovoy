@@ -255,7 +255,7 @@ export const RequestActions = ({
             </div>
           ) : null}
 
-          {needsAssignee ? <p className="hint">Выберите исполнителя: без него заявка в работу не уйдёт</p> : null}
+          {needsAssignee ? <p className="hint">Выберите исполнителя</p> : null}
 
           {proving ? (
             <>
