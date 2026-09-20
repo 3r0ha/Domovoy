@@ -303,6 +303,14 @@ export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void>
     ['res-petr', 'apt-6', 2],
     ['staff-dispatcher', 'apt-10', months.length],
     ['staff-dispatcher', 'apt-20', months.length],
+    // Свободные квартиры тоже с историей: проверяющий привязывается к любой
+    // из них и сразу видит расход, квитанцию и отказ по заниженным цифрам.
+    ['staff-dispatcher', 'apt-5', months.length],
+    ['staff-dispatcher', 'apt-7', months.length],
+    ['staff-dispatcher', 'apt-8', 2],
+    ['staff-dispatcher', 'apt-9', months.length],
+    ['staff-dispatcher', 'apt-21', months.length],
+    ['staff-dispatcher', 'apt-22', months.length],
   ] as const) {
     for (const kind of ['cold_water', 'hot_water', 'electricity'] as const) {
       let value = START_VALUES[kind];

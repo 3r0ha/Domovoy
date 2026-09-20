@@ -1823,12 +1823,17 @@ describe('чат-бот управляющей компании', () => {
 
     platform.forgetOutgoing();
     mariaSends('mid-photo-mute', PHOTO);
+    await waitForMessage(3003, /Что на снимке/);
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 1, 'по одной картинке заявка не заводится');
+
+    platform.userSends('Разбито стекло на площадке', { userId: 3003, chatId: 3003 });
     await waitForMessage(3003, /принята/);
 
     const mute = (await bot.deps.repository.listRequests({})).find((item) => item.id !== captioned?.id);
 
-    assert.equal(mute?.attachments[0]?.kind, 'photo', 'снимок без подписи потерялся');
-    assert.match(mute?.description ?? '', /фотограф/i);
+    assert.equal(mute?.description, 'Разбито стекло на площадке');
+    assert.equal(mute?.attachments[0]?.kind, 'photo', 'снимок дождался слов и ушёл в заявку');
 
     await bot.stop();
   });
@@ -2929,6 +2934,27 @@ describe('чат-бот управляющей компании', () => {
 
     assert.doesNotMatch(answer, /Принято/, 'минус принят как показание');
     assert.equal((await bot.deps.repository.listReadingsFor(['cold-1'])).length, 0, 'минус записан как показание');
+
+    await bot.stop();
+  });
+
+  it('промах по клавишам в ожидании показания не уводит разговор в меню', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT]);
+
+    await bot.repository.saveMeter({ id: 'cold-1', apartmentId: 'apt-1', kind: 'cold_water', serial: 'ХВС-1' });
+
+    platform.userSends('/meters', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /Отправьте показание/);
+
+    platform.forgetOutgoing();
+    platform.userSends('Sh', { userId: 3003, chatId: 3003 });
+
+    assert.match(await waitForMessage(3003, /./u), /не похоже на показание/i);
+
+    platform.forgetOutgoing();
+    platform.userSends('140', { userId: 3003, chatId: 3003 });
+
+    assert.match(await waitForMessage(3003, /./u), /Принято/, 'вопрос о показании остался');
 
     await bot.stop();
   });

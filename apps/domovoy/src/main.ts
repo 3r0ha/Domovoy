@@ -57,6 +57,15 @@ const env = (name: string, fallback?: string): string => {
  * в наборе Node.js нет, поэтому без него не проходит ни один запрос к платформе,
  * а ошибка выглядит как обычный сбой сети.
  */
+/** Какой апдейт не обработался: по виду и составу полей его находят в журнале платформы. */
+const describeUpdate = (update: unknown): string => {
+  if (typeof update !== 'object' || update === null) return 'без тела';
+
+  const { update_type: kind, ...rest } = update as Record<string, unknown>;
+
+  return `${typeof kind === 'string' ? kind : 'неизвестного вида'} (${Object.keys(rest).join(', ')})`;
+};
+
 const warnAboutCertificate = (error: unknown): void => {
   const code = (error as { cause?: { code?: string } }).cause?.code;
 
@@ -385,7 +394,7 @@ const main = async (): Promise<void> => {
     markerStore: new FileMarkerStore(env('MARKER_FILE', './state/marker')),
     ...(sessionMiddleware ? { sessionMiddleware } : {}),
     onNotifyError: (error) => console.error('Не удалось доставить уведомление', error),
-    onHandlerError: (error) => console.error('Ошибка обработки апдейта', error),
+    onHandlerError: (error, update) => console.error(`Ошибка обработки апдейта ${describeUpdate(update)}`, error),
   });
 
   /**
@@ -430,7 +439,7 @@ const main = async (): Promise<void> => {
       ? new WebhookReceiver({
           secret: webhookSecret,
           handleUpdate: bot.handleUpdate,
-          onHandlerError: (error) => console.error('Ошибка обработки апдейта', error),
+          onHandlerError: (error, update) => console.error(`Ошибка обработки апдейта ${describeUpdate(update)}`, error),
         })
       : undefined;
 

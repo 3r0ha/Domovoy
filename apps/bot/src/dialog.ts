@@ -54,6 +54,7 @@ import {
   metersForValueKeyboard,
   metersKeyboard,
   oneKeyboard,
+  readingKeyboard,
   replyIfOpen,
   visitCancelKeyboard,
   visitKeyboard,
@@ -328,6 +329,28 @@ const doneByWords = async (
   return true;
 };
 
+/**
+ * Снимок без слов: что на нём, знает только приславший. Заявка по одной картинке
+ * уходила бы в категорию «другое», поэтому продукт спрашивает, а снимок держит
+ * при себе до ответа. Голосовое сюда не попадает: человек уже рассказал, и заявка
+ * заводится, даже если расшифровать не вышло.
+ */
+const askAboutPhoto = async (
+  typed: BotContext,
+  said: Said,
+  attachments: Attachment[],
+  startParam: string | undefined,
+): Promise<boolean> => {
+  if (said.text?.trim() || attachments.length === 0) return false;
+  if (attachments.some((file) => file.kind === 'voice')) return false;
+
+  expect(typed, { kind: 'description', ...(startParam ? { target: startParam } : {}), photos: attachments });
+
+  await typed.reply('Что на снимке? Напишите словами или запишите голосовое.', cancelKeyboard());
+
+  return true;
+};
+
 const describeProblem = async (
   kit: BotKit,
   typed: BotContext,
@@ -348,6 +371,8 @@ const describeProblem = async (
       await typed.reply('Опишите словами, что случилось. Подойдут фото, голосовое и файл.', cancelKeyboard());
       return;
     }
+
+    if (await askAboutPhoto(typed, said, attachments, startParam)) return;
 
     // Сказанное словами, набрано оно или надиктовано, разбирается одинаково:
     // вопрос, дело по заявке, просьба. Снимок и файл идут только в заявку.
@@ -458,6 +483,17 @@ const continueReading = async (kit: BotKit, typed: BotContext, meterId: string, 
     // Число человек назвать пытался, но разобрать его не вышло: «примерно сто»
     // показанием не делают, а переспрашивают о том же.
     if (mentionsNumber(said.text)) return takeReading(kit, typed, meterId, said.text, byVoice(said));
+
+    // Промах по клавишам: вопрос о показании остаётся, иначе разговор молча
+    // уходит в меню, и человек не понимает, приняты его цифры или нет.
+    if (isChatter(said.text)) {
+      await typed.reply(
+        'Это не похоже на показание. Пришлите число с табло или нажмите «Отмена».',
+        readingKeyboard(meterId, false),
+      );
+
+      return;
+    }
 
     // Человек передумал и рассказывает о поломке или спрашивает: держать его
     // в вопросе о цифрах значит не принять аварию и не ответить на вопрос.
@@ -759,6 +795,10 @@ const askAloudAgain = async (typed: BotContext, failed: string): Promise<void> =
 /** Из разговора выходят и словом, а не только кнопкой. */
 const quitting = (said: Said): boolean => Boolean(said.text && QUIT.test(said.text));
 
+/** Снимок, присланный до слов, ждал ответа в сессии и идёт в ту же заявку. */
+const withKept = (said: Said, kept: Attachment[] | undefined): Said =>
+  kept?.length ? { ...said, attachments: [...kept, ...said.attachments] } : said;
+
 /** Продолжение разговора в переписке: сообщение читается по тому, чего бот ждал. */
 export const continueDialog = async (kit: BotKit, typed: BotContext, original: Said): Promise<void> => {
   const { said, failed } = await readAloud(kit, typed, original);
@@ -776,7 +816,7 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
 
   // Снимки и голосовые понимают только эти два ожидания, остальным нужен текст.
   if (waiting.kind === 'reading') return continueReading(kit, typed, waiting.meterId, said);
-  if (waiting.kind === 'description') return describeProblem(kit, typed, waiting.target, said);
+  if (waiting.kind === 'description') return describeProblem(kit, typed, waiting.target, withKept(said, waiting.photos));
 
   // Снимок с подписью и без неё читают там, где он и есть отчёт: сообщение
   // по заявке, вопрос в поддержку и отметка о сделанной работе.

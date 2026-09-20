@@ -100,6 +100,16 @@ ASCII-имя, а рядом добавляется `filename*=UTF-8''…` с п�
 короткий ответ на нажатие приходилось слать отдельным сообщением в переписку.
 Добавлено `notification?: string`; остальные поля не тронуты.
 
+### 7. Апдейт без тела сообщения роняет обработку
+
+`src/core/context.ts`
+
+`getUser` читал `update.message.sender` напрямую. Платформа присылает апдейты вида
+`message_created` и без поля `message`: обращение к `sender` бросало
+`TypeError: Cannot read properties of undefined`, и апдейт не обрабатывался целиком.
+На боевой установке так терялись голосовые сообщения. Чтение стало безопасным,
+поведение для полных апдейтов не изменилось.
+
 ## Что намеренно не менялось
 
 Цикл опроса и приём вебхука остались как есть, хотя в них тоже есть дефекты: маркер не
@@ -111,8 +121,8 @@ ASCII-имя, а рядом добавляется `filename*=UTF-8''…` с п�
 
 ## Тесты
 
-`npm test --workspace @maxkit/max-bot-api`, 42 теста: 31 из апстрима без изменений
-и 11 наших на перечисленные выше изменения.
+`npm test --workspace @maxkit/max-bot-api`, 56 тестов: 31 из апстрима без изменений
+и 25 наших на перечисленные выше изменения.
 
 ## Обновление с апстрима
 
@@ -123,5 +133,6 @@ git clone https://github.com/max-messenger/max-bot-api-client-ts.git /tmp/upstre
 diff -ru /tmp/upstream/src packages/max-bot-api/src
 ```
 
-Ожидаемые отличия: `core/network/api/client.ts`, `scenario/engine.ts`, `scenario/types.ts`,
-плюс добавленные файлы в `tests/`.
+Ожидаемые отличия: `core/context.ts`, `core/network/api/client.ts`, `scenario/engine.ts`,
+`scenario/types.ts`, `helpers/format.ts`, `helpers/upload/upload.ts`, плюс добавленные файлы
+в `tests/`.

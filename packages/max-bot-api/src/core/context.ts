@@ -419,11 +419,13 @@ const getUser = (update: Update): User | undefined => {
   }
 
   if (update.update_type === 'message_callback') {
-    return update.callback.user;
+    return update.callback?.user;
   }
 
+  // Платформа присылает и апдейты без тела сообщения: обращение к `sender`
+  // напрямую роняло обработку всего апдейта.
   if (update.update_type === 'message_created') {
-    return update.message.sender || undefined;
+    return update.message?.sender || undefined;
   }
 
   return undefined;
