@@ -11,9 +11,12 @@ const container = document.querySelector<HTMLElement>('#stand');
 
 if (!container) throw new Error('Не нашёл контейнер стенда');
 
+// Стенд открывает и чужую сборку: так проверяется то, что уже выложено.
+const appUrl = params.get('app') ?? `${globalThis.location.origin}/index.html`;
+
 await createStand({
   container,
-  appUrl: `${globalThis.location.origin}/index.html`,
+  appUrl,
   ...(botToken ? { botToken } : {}),
   client: {
     ...(startParam ? { startParam } : {}),

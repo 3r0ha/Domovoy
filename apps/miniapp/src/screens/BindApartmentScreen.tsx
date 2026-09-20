@@ -187,7 +187,6 @@ export const BindApartmentScreen = ({
         </p>
 
         <label htmlFor="apartment-code">Код из квитанции</label>
-        <p className="hint">Он связывает вас с квартирой: без него показания и счёт не откроются</p>
 
         <Input
           className="field"

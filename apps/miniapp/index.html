@@ -51,11 +51,36 @@
     <script>
       (function () {
         var once = 'domovoy:reloaded';
+        var broken = false;
+
+        // Если сборка не запустилась в этом клиенте, человек должен увидеть причину,
+        // а не пустой экран: из разметки она попадёт и в снимок экрана.
+        var show = function (reason) {
+          var root = document.getElementById('root');
+
+          if (broken || !root || root.childElementCount > 0) return;
+
+          broken = true;
+          root.innerHTML =
+            '<div class="guard"><h1>Приложение не запустилось</h1>' +
+            '<p>Напишите боту словами: он работает отдельно от приложения.</p>' +
+            '<p class="guard-why"></p>' +
+            '<p>При аварии звоните: <a href="tel:112">112</a>, газовая служба <a href="tel:104">104</a>.</p></div>';
+          root.querySelector('.guard-why').textContent = String(reason).slice(0, 300);
+        };
+
+        globalThis.addEventListener('error', function (event) {
+          show(event.message || (event.error && event.error.message) || 'ошибка загрузки');
+        });
+
+        globalThis.addEventListener('unhandledrejection', function (event) {
+          show((event.reason && event.reason.message) || event.reason || 'ошибка запуска');
+        });
 
         setTimeout(function () {
           var root = document.getElementById('root');
 
-          if (!root || root.childElementCount > 0) return;
+          if (broken || !root || root.childElementCount > 0) return;
 
           try {
             if (sessionStorage.getItem(once)) return;

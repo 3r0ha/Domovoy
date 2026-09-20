@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App.js';
+import { Guard } from './screens/Guard.js';
 
 import '@maxhub/max-ui/styles.css';
 import './styles.css';
@@ -22,8 +23,10 @@ const baseUrl = env.VITE_API_URL ?? '';
 
 createRoot(container).render(
   <StrictMode>
-    <MaxProvider trustedOrigins={trustedOrigins}>
-      <App baseUrl={baseUrl} />
-    </MaxProvider>
+    <Guard>
+      <MaxProvider trustedOrigins={trustedOrigins}>
+        <App baseUrl={baseUrl} />
+      </MaxProvider>
+    </Guard>
   </StrictMode>,
 );

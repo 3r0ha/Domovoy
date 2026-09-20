@@ -28,9 +28,12 @@ export const createdMessageBodyHas = <Keys extends Array<keyof MessageBody>>(...
   return (update: Update): update is MessageCreatedUpdate => {
     // Поле со значением undefined считаем отсутствующим.
     if (update.update_type !== 'message_created') return false;
+    // Платформа присылает и апдейты без тела сообщения: полей в них нет вовсе.
+    const body = update.message?.body;
+    if (!body) return false;
     for (const key of keys) {
-      if (!(key in update.message.body)) return false;
-      if (update.message.body[key] === undefined) return false;
+      if (!(key in body)) return false;
+      if (body[key] === undefined) return false;
     }
     return true;
   };
