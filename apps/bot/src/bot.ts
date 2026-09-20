@@ -53,6 +53,7 @@ import { visitCommands } from './commands/visits.js';
 import type { BotKit, Extra } from './kit.js';
 import {
   addressed,
+  APOLOGIZED,
   DIALOG_COMMANDS,
   forget,
   inChat,
@@ -330,7 +331,27 @@ const answerable = (typed: BotContext): boolean =>
 
 /**
  * Непредвиденный сбой не должен выглядеть как молчание: человек узнаёт, что не
- * вышло, а сама ошибка уходит наверх, в журнал.
+ * вышло, и ему остаётся, куда нажать. Сама ошибка уходит наверх, в журнал.
+ */
+const apologize = async (typed: BotContext, text: string): Promise<void> => {
+  if (APOLOGIZED.has(typed)) return;
+
+  APOLOGIZED.add(typed);
+
+  try {
+    // После нажатия остаётся и сообщение: всплывающее гаснет за пару секунд,
+    // и читающий медленно решает, что кнопка не сработала.
+    if (typed.callback?.callback_id) await toast(typed, 'Не получилось. Попробуйте ещё раз');
+
+    if (answerable(typed)) await typed.reply(text, menuButton(typed));
+  } catch {
+    // Ответить не вышло: апдейт мог прийти без чата, и писать некуда.
+  }
+};
+
+/**
+ * Отказ ниже по цепочке: сессия, состояние экрана, разбор апдейта. Обработчики
+ * извиняются сами, сюда доходит то, что случилось раньше них.
  */
 const guarded =
   (run: (typed: BotContext) => Promise<void>) =>
@@ -340,13 +361,7 @@ const guarded =
     } catch (error) {
       // После нажатия остаётся и сообщение: всплывающее гаснет за пару секунд,
       // и читающий медленно решает, что кнопка не сработала.
-      if (typed.callback?.callback_id) await toast(typed, 'Не получилось. Попробуйте ещё раз');
-
-      if (answerable(typed)) {
-        await typed
-          .reply('Не получилось выполнить. Нажмите ещё раз или выберите в меню.', menuButton(typed))
-          .catch(() => undefined);
-      }
+      await apologize(typed, 'Не получилось выполнить. Нажмите ещё раз или выберите в меню.');
 
       throw error;
     }
@@ -421,6 +436,16 @@ export const createDomovoyBot = (
     ...options.deps,
     notifier: options.deps.notifier ?? createBotNotifier(bot, options.onNotifyError, options.miniAppUrl),
   };
+
+  bot.use((async (typed: BotContext, next: () => Promise<void>) => {
+    try {
+      await next();
+    } catch (error) {
+      await apologize(typed, 'Не получилось обработать сообщение. Попробуйте ещё раз или выберите в меню.');
+
+      throw error;
+    }
+  }) as never);
 
   bot.use(scenarioRecovery() as never);
   bot.use((options.sessionMiddleware ?? session({ store: new MemorySessionStore<DialogSession>() })) as never);

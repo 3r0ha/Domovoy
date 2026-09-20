@@ -26,6 +26,7 @@ import { useTour } from './use-tour.js';
 import { Tour, type TourStep } from './screens/Tour.js';
 import { IconHome } from './screens/icons.js';
 import { Loading } from './screens/Loading.js';
+import { ScreenGuard } from './screens/ScreenGuard.js';
 import { TabBar } from './screens/TabBar.js';
 import { TopBar, type TopBarProps } from './screens/TopBar.js';
 import { screenBody, type ScreenContext } from './screens/registry.js';
@@ -476,7 +477,13 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
           </button>
         ) : null}
 
-        {screenBody(screen, context)}
+        <ScreenGuard
+          key={screen}
+          onHome={() => openTab(home)}
+          {...(screens.deep ? { onBack: context.back } : {})}
+        >
+          {screenBody(screen, context)}
+        </ScreenGuard>
       </main>
 
       {tabs.length > 0 ? (

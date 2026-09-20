@@ -225,6 +225,8 @@ describe('чат-бот управляющей компании', () => {
       demo?: boolean;
       /** Разбор обращения моделью: без него категорию подсказывают ключевые слова. */
       reasoner?: AppDeps['reasoner'];
+      /** Состояние диалога: в проверках подменяется, чтобы увидеть отказ хранилища. */
+      sessionMiddleware?: (context: never, next: () => Promise<void>) => Promise<void>;
     } = {},
   ) => {
     const repository = new InMemoryRepository({
@@ -2934,6 +2936,21 @@ describe('чат-бот управляющей компании', () => {
 
     assert.doesNotMatch(answer, /Принято/, 'минус принят как показание');
     assert.equal((await bot.deps.repository.listReadingsFor(['cold-1'])).length, 0, 'минус записан как показание');
+
+    await bot.stop();
+  });
+
+  it('отказ хранилища состояния не оставляет человека без ответа', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      sessionMiddleware: () => Promise.reject(new Error('хранилище недоступно')),
+    });
+
+    platform.userSends('Течёт кран на кухне', { userId: 3003, chatId: 3003 });
+
+    const answer = await waitForMessage(3003, /./u);
+
+    assert.match(answer, /Не получилось обработать сообщение/);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'заявка без состояния не заводится');
 
     await bot.stop();
   });

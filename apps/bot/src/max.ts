@@ -148,6 +148,9 @@ const BACK_BUTTON = { type: 'callback', text: '⬅️ Назад', payload: 'can
  */
 export const ROOT_MENUS = new WeakSet<object>();
 
+/** Кому уже сказали, что не вышло: второй раз об одном и том же не пишут. */
+export const APOLOGIZED = new WeakSet<object>();
+
 /**
  * Подсказка, которая ждёт ответа сообщением. Такие экраны живут до ответа
  * или отмены, а потом убираются: иначе в переписке остаётся ряд «Отмена»,

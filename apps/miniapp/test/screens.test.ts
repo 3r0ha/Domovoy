@@ -37,6 +37,7 @@ const { codeFromScan } = await import('../dist-test/screens/ScanCode.js');
 const { TariffsScreen } = await import('../dist-test/screens/TariffsScreen.js');
 const { VisitsScreen } = await import('../dist-test/screens/VisitsScreen.js');
 const { ImportScreen } = await import('../dist-test/screens/ImportScreen.js');
+const { ScreenGuard } = await import('../dist-test/screens/ScreenGuard.js');
 const { BuildingsScreen } = await import('../dist-test/screens/BuildingsScreen.js');
 const { AuditScreen } = await import('../dist-test/screens/AuditScreen.js');
 const { ProfileScreen } = await import('../dist-test/screens/ProfileScreen.js');
@@ -5884,6 +5885,45 @@ const stubMicrophone = (options: { refuse?: boolean; absent?: boolean; chunk?: B
     },
   };
 };
+
+describe('отказ раздела', () => {
+  const Broken = () => {
+    throw new Error('раздел сломался');
+  };
+
+  it('не уносит приложение: человек видит причину и уходит назад или на главную', async () => {
+    const { bridge } = createMockBridge();
+    let went = '';
+
+    // React пишет упавшее дерево в консоль: в проверке это лишний шум.
+    const complained = console.error;
+    console.error = () => undefined;
+
+    try {
+      const screen = await render(
+        createElement(
+          ScreenGuard as never,
+          { onBack: () => (went = 'назад'), onHome: () => (went = 'главная') } as never,
+          createElement(Broken as never),
+        ),
+        bridge,
+      );
+
+      assert.match(screen.text, /Раздел не открылся/);
+      assert.match(screen.text, /раздел сломался/);
+
+      await screen.act(() => screen.findAll<HTMLButtonElement>('button')[0]?.click());
+      assert.equal(went, 'назад');
+
+      await screen.act(() => screen.findAll<HTMLButtonElement>('button')[1]?.click());
+      assert.equal(went, 'главная');
+
+      await screen.unmount();
+    } finally {
+      console.error = complained;
+    }
+  });
+});
 
 describe('двойной монтаж экрана', () => {
   const QUEUED = [
