@@ -1,10 +1,12 @@
 # Продукт целиком одной командой: `docker compose up`.
 services:
+  # Пароль базы задаётся переменной. Наружу порт не выставлен, и база видна
+  # только внутри сети compose, но на установке пароль всё равно свой.
   postgres:
     image: postgres:16
     environment:
       POSTGRES_USER: domovoy
-      POSTGRES_PASSWORD: domovoy
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-domovoy}
       POSTGRES_DB: domovoy
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -40,7 +42,7 @@ services:
         condition: service_healthy
     environment:
       BOT_TOKEN: ${BOT_TOKEN:?нужен токен бота}
-      DATABASE_URL: postgresql://domovoy:domovoy@postgres:5432/domovoy
+      DATABASE_URL: postgresql://domovoy:${POSTGRES_PASSWORD:-domovoy}@postgres:5432/domovoy
       REDIS_URL: redis://redis:6379
       PORT: '3000'
       DEFAULT_BUILDING_ID: ${DEFAULT_BUILDING_ID:-dom15}
