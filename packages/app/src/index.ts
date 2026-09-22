@@ -6,6 +6,8 @@ export {
   type AuditEntry,
   type BindAttempt,
   type Building,
+  type ConnectionRequest,
+  type OwnedApartment,
   type TariffKind,
   type TariffRecord,
   type Equipment,
@@ -70,10 +72,12 @@ export {
   canKnockUpstairs,
   closeAcceptedBySilence,
   describeFromAttachments,
+  COMPLAINT_MAX_LENGTH,
   escalationFor,
   sendComplaint,
   knockUpstairs,
   objectPassport,
+  rememberHouseFromObject,
   remindAboutAcceptance,
   remindAboutOverdue,
   remindAboutWorks,
@@ -125,6 +129,8 @@ export {
 } from './assistant.js';
 export {
   classifyIntent,
+  editByWords,
+  pickTimeByWords,
   understandRequest,
   type AssistFields,
   type AssistInput,
@@ -210,6 +216,7 @@ export {
   type OutageImport,
   type OutageResource,
 } from './city.js';
+export { createGridFeed, houseOfGridAddress, parseGridRow, searchTextOf, type GridFeedOptions } from './grid-feed.js';
 export {
   createMockMeetings,
   type MeetingDecision,
@@ -279,6 +286,7 @@ export {
   homeBuildingOf,
   homeOf,
   housed,
+  knowsHouse,
   listServedBuildings,
   needsApartment,
   publicHouseOf,
@@ -291,6 +299,7 @@ export { acceptLegal, legalAccepted } from './legal.js';
 export {
   counted,
   languageChosen,
+  languageHeard,
   languageOf,
   languageOfText,
   setLanguage,
@@ -338,13 +347,48 @@ export {
   BIND_ATTEMPTS,
   bindApartment,
   bindApartmentByStaff,
+  declareOwnership,
+  dropNeighbour,
+  flatNeighbours,
   listApartmentsFor,
   listUnbound,
+  setOwnership,
   unbindApartment,
   type ApartmentOption,
   type BindResult,
+  type FlatNeighbour,
   type UnboundResident,
 } from './binding.js';
+export {
+  dropVisit as dropVisitSlot,
+  missedVisit,
+  proposeVisit,
+  remindAboutVisits,
+  slotsForHouse,
+  takeVisitSlot,
+  visitByWords,
+  type MissedVisitCommand,
+  type PickVisitCommand,
+} from './appointments.js';
+export { disputable, disputeRequest, type DisputeCommand } from './disputes.js';
+export { NAME_MAX_LENGTH, NAME_MIN_LENGTH, checkName, renameSelf, resetName } from './naming.js';
+export { QUIET_FROM, QUIET_UNTIL, isQuiet, nextMorning, wakesHouse } from './quiet.js';
+export { workdayFor, type Workday, type WorkdayItem } from './workday.js';
+export {
+  ADDRESS_MAX_LENGTH,
+  askToConnect,
+  listConnectionRequests,
+  ownConnectionRequest,
+  type ConnectCommand,
+} from './connection.js';
+export {
+  pushToRegistry,
+  registryRecord,
+  type RegistryBatch,
+  type RegistryGateway,
+  type RegistryRecord,
+  type RegistryReceipt,
+} from './registry.js';
 export {
   apartmentsOf,
   listOwnApartments,
@@ -413,6 +457,7 @@ export {
   payArrears,
   periodTitle,
   remindAboutDebt,
+  remindBeforeDue,
   type Debt,
   type DebtPeriod,
 } from './debt.js';
@@ -551,6 +596,7 @@ export { QUALITY_DAYS, formatQuality, formatQualityShort, houseQuality, type Hou
 export {
   aimBroadcast,
   broadcastTargets,
+  ANONYMOUS_NAME,
   canAct,
   canActNow,
   commentRequest,

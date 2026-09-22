@@ -60,7 +60,7 @@ export interface TariffView {
   title: string;
   unit: string;
   value: number;
-  /** Тариф задан управляющей компанией. */
+  /** Тариф задан управляющей организацией. */
   own: boolean;
   since?: Date;
 }

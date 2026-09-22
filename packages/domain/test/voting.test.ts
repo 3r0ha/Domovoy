@@ -51,7 +51,13 @@ const vote = (apartmentId: string, choice: VoteChoice, at = DURING): Vote => ({
 
 describe('приём голоса', () => {
   it('до открытия и после закрытия не принимается', () => {
-    const base = { poll: poll(), apartment: APARTMENTS[0]!, residentId: 'res-1', choice: 'for' as const };
+    const base = {
+      poll: poll(),
+      apartment: APARTMENTS[0]!,
+      residentId: 'res-1',
+      choice: 'for' as const,
+      owner: true,
+    };
 
     assert.throws(() => castVote({ ...base, at: new Date('2026-08-31T23:00:00Z') }), /ещё не началось/);
     assert.throws(() => castVote({ ...base, at: new Date('2026-09-16T00:00:00Z') }), /завершено/);
@@ -66,22 +72,66 @@ describe('приём голоса', () => {
           residentId: 'res-1',
           choice: 'for',
           at: DURING,
+          owner: true,
         }),
       /собственники помещений этого дома/,
     );
   });
 
-  it('голос привязан к помещению, а не к человеку', () => {
+  it('голос принадлежит собственнику помещения', () => {
     const accepted = castVote({
       poll: poll(),
       apartment: APARTMENTS[0]!,
       residentId: 'res-1',
       choice: 'for',
       at: DURING,
+      owner: true,
     });
 
     assert.equal(accepted.apartmentId, 'apt-1');
     assert.equal(accepted.residentId, 'res-1');
+  });
+
+  it('наниматель и член семьи не голосуют', () => {
+    assert.throws(
+      () =>
+        castVote({
+          poll: poll(),
+          apartment: APARTMENTS[0]!,
+          residentId: 'res-2',
+          choice: 'for',
+          at: DURING,
+          owner: false,
+        }),
+      /Голосуют собственники/,
+    );
+  });
+
+  it('сособственники голосуют каждый своей долей', () => {
+    const half = castVote({
+      poll: poll(),
+      apartment: APARTMENTS[0]!,
+      residentId: 'res-1',
+      choice: 'for',
+      at: DURING,
+      owner: true,
+      share: 0.5,
+    });
+
+    assert.equal(half.share, 0.5);
+    assert.throws(
+      () =>
+        castVote({
+          poll: poll(),
+          apartment: APARTMENTS[0]!,
+          residentId: 'res-1',
+          choice: 'for',
+          at: DURING,
+          owner: true,
+          share: 1.5,
+        }),
+      /Доля в помещении/,
+    );
   });
 
   it('открыто ли голосование, видно отдельно', () => {
@@ -95,7 +145,14 @@ describe('приём голоса', () => {
     assert.equal(isOpen(closed, DURING), false);
     assert.throws(
       () =>
-        castVote({ poll: closed, apartment: APARTMENTS[0]!, residentId: 'res-1', choice: 'for', at: DURING }),
+        castVote({
+          poll: closed,
+          apartment: APARTMENTS[0]!,
+          residentId: 'res-1',
+          choice: 'for',
+          at: DURING,
+          owner: true,
+        }),
       /Итоги подведены/,
     );
   });

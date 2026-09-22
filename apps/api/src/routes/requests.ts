@@ -14,6 +14,7 @@ import {
   commentRequest,
   listRequestsFor,
   objectPassport,
+  rememberHouseFromObject,
   submitProblem,
   surveyOf,
   transitionRequest,
@@ -26,6 +27,7 @@ import {
   decodeTarget,
   DomainError,
   MESSAGE_MAX_LENGTH,
+  MATERIAL_TITLE_LENGTH,
   RATING_RANGE,
   allowedTransitions,
   hasReported,
@@ -125,6 +127,21 @@ const submitted = async (
     ...(result.question ? { question: result.question } : {}),
   });
 };
+
+/** Материалы, списанные со сдачей работы. */
+const materialsBodySchema = {
+  type: 'array',
+  maxItems: 20,
+  items: {
+    type: 'object',
+    required: ['title', 'count'],
+    properties: {
+      title: { type: 'string', maxLength: MATERIAL_TITLE_LENGTH },
+      count: { type: 'number', exclusiveMinimum: 0 },
+      unit: { type: 'string', maxLength: 16 },
+    },
+  },
+} as const;
 
 /** Заявки: подача, переходы, переписка и вложения. */
 export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
@@ -275,7 +292,13 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         },
       },
       async (request, reply) => {
-        const resident = await currentResident(request.max.userId);
+        // Наклейка называет дом: до привязки квартиры продукт иначе не знает,
+        // где человек живёт, и не показывает ему ни объявлений, ни контактов.
+        const resident = await rememberHouseFromObject(
+          deps,
+          await currentResident(request.max.userId),
+          request.params.startParam,
+        );
 
         const passport = await objectPassport(deps, request.params.startParam, resident);
 
@@ -349,6 +372,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         attachments?: { kind: 'photo' | 'voice' | 'file'; token: string; transcript?: string }[];
         rating?: number;
         provedBy?: string;
+        materials?: { title: string; count: number; unit?: string }[];
       };
     }>(
       '/api/requests/:id/transition',
@@ -365,6 +389,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
               attachments: attachmentsBodySchema,
               rating: { type: 'integer', minimum: RATING_RANGE.min, maximum: RATING_RANGE.max },
               provedBy: { type: 'string', maxLength: 512 },
+              materials: materialsBodySchema,
             },
           },
           response: { 200: requestSchema },
@@ -382,6 +407,7 @@ export const requestRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
           ...(request.body.attachments?.length ? { attachments: request.body.attachments } : {}),
           ...(request.body.rating === undefined ? {} : { rating: request.body.rating }),
           ...(request.body.provedBy ? { provedBy: request.body.provedBy } : {}),
+          ...(request.body.materials?.length ? { materials: request.body.materials } : {}),
         });
 
         return reply.send(await requestView(deps, updated, resident));

@@ -25,7 +25,8 @@ import { apartmentsOf, locateTarget } from '../apartments.js';
 import { answerAboutHouse } from '../answers.js';
 import { askAssistant, capabilitiesFor, findCapability, type Capability } from '../assistant.js';
 import { actingHouse } from '../buildings.js';
-import { languageOf, speak } from '../language.js';
+import { fieldBy, fieldCode } from '../fields.js';
+import { languageHeard, speak } from '../language.js';
 import { actionsFor, noopNotifier, notifyResident } from '../notifier.js';
 import { understandRequest, type HouseContext, type Place } from '../reasoner.js';
 import { plannedWork, type Resident } from '../repository.js';
@@ -101,8 +102,9 @@ const houseFor = async (deps: AppDeps, command: CreateRequestCommand, buildingId
     equipment: equipment.map((item) => ({ code: item.code, title: item.title })),
     entrances: [...new Set(apartments.map((apartment) => apartment.entrance))].sort((left, right) => left - right),
     ...(own ? { apartment: own.number } : {}),
-    // Уточняющий вопрос читает сам жилец: он идёт на его языке, а разбор остаётся русским.
-    language: languageOf(command.resident),
+    // Уточняющий вопрос читает сам жилец: он идёт на его языке, а разбор
+    // остаётся русским. Язык не выбран, значит его называют слова обращения.
+    language: languageHeard(command.resident, command.description),
   };
 };
 
@@ -217,12 +219,26 @@ export const aboutHouse = async (deps: AppDeps, resident: Resident, text: string
 
   const read = await deps.reasoner?.route?.({ text, sections }).catch(() => undefined);
 
-  return read?.kind === 'breakdown' || read?.kind === 'elsewhere';
+  return kindOf(read?.kind) !== undefined;
+};
+
+/** Куда модель отнесла написанное. Слово приходит с разметкой и переведённым. */
+const KINDS: readonly { value: 'breakdown' | 'elsewhere'; words: RegExp }[] = [
+  { value: 'breakdown', words: /breakdown|поломк|неисправн|авари/u },
+  { value: 'elsewhere', words: /elsewhere|раздел|друг/u },
+];
+
+const kindOf = (value: unknown): 'breakdown' | 'elsewhere' | undefined => {
+  const code = fieldCode(value);
+
+  if (code === 'breakdown' || code === 'elsewhere') return code;
+
+  return fieldBy(value, KINDS);
 };
 
 /**
  * Раздел, о котором написал человек, если это не поломка. «Открыть дверь» и
- * «оплатить счёт» это не обращение в управляющую компанию, а просьба сделать
+ * «оплатить счёт» это не обращение в управляющую организацию, а просьба сделать
  * дело: продукт открывает нужный раздел, а не заводит по ним заявку.
  * @returns раздел или `undefined`, если написанное про поломку.
  */
@@ -236,12 +252,18 @@ export const sectionFor = async (
   const sections = own.map((item) => ({ screen: item.screen, title: item.title, about: item.about }));
 
   const read = await deps.reasoner?.route?.({ text, sections }).catch(() => undefined);
+  const kind = kindOf(read?.kind);
 
-  if (read?.kind === 'breakdown') return undefined;
+  if (kind === 'breakdown') return undefined;
 
-  if (read?.kind === 'elsewhere') {
+  if (kind === 'elsewhere') {
     // Раздела, которого у роли нет, модель не выбирает: ответ был бы в пустоту.
-    return own.find((item) => item.screen === read.screen && item.screen !== 'new');
+    const screen = fieldCode(read?.screen);
+    const named = own.find((item) => item.screen === screen && item.screen !== 'new');
+
+    // Раздел назван неверно, а дело названо: решают слова, иначе продукт
+    // заведёт заявку по просьбе вроде «открыть дверь».
+    return named ?? byWords(text, role);
   }
 
   // Модель промолчала: подбор по словам осторожнее её. Заявкой не становится
@@ -251,6 +273,11 @@ export const sectionFor = async (
   if (text.trim().length > SHORT_ENOUGH) return undefined;
   if (TROUBLE.test(text)) return undefined;
 
+  return byWords(text, role);
+};
+
+/** Раздел по словам обращения: запасной путь, когда модели нет или она ошиблась. */
+const byWords = (text: string, role: Resident['role']): Capability | undefined => {
   const asked = findCapability(text, role);
 
   return asked && asked.screen !== 'new' ? asked : undefined;

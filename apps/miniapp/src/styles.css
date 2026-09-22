@@ -16,6 +16,25 @@ body {
   font: 1rem/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/*
+ * Полоса прокрутки не рисуется. В клиенте MAX на телефоне её и нет: там
+ * наложенный указатель, который виден только под пальцем. В настольном
+ * браузере она шла во всю высоту окна и пересекала шапку и нижнюю панель,
+ * то есть показывала то, чего у человека на экране не будет. Прокрутка
+ * колесом, полосой тачпада и клавишами при этом работает как работала.
+ */
+html,
+body,
+.app * {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+.app *::-webkit-scrollbar {
+  display: none;
+}
+
 .app {
   --bg: var(--background-surface, #edeef2);
   --card: var(--background-card, #ffffff);
@@ -39,12 +58,22 @@ body {
   --danger-solid: color-mix(in srgb, var(--danger) 82%, #000000);
   --sunk: var(--background-tertiary, rgb(9 9 9 / 5%));
 
-  --font-small: 0.875rem;
-  --font-meta: 1rem;
+  /*
+   * Шесть ступеней, и вторичная ниже основной: сроки, номера и подписи стояли
+   * в размер заголовка, и экран читался сплошной стеной одного веса.
+   */
+  --font-small: 0.8125rem;
+  --font-meta: 0.9375rem;
   --font-body: 1rem;
   --font-item: 1.0625rem;
   --font-title: 1.125rem;
-  --font-head: 1.25rem;
+  --font-head: 1.5rem;
+
+  /* Шаг отступов: всё кратно ему, иначе зазоры разъезжаются от экрана к экрану. */
+  --gap-tight: 6px;
+  --gap: 12px;
+  --gap-wide: 20px;
+  --radius: 16px;
 
   min-height: 100dvh;
   background: var(--bg);
@@ -53,12 +82,40 @@ body {
 }
 
 /*
+ * Запасные цвета для тёмной схемы. Цвета темы даёт клиент MAX, и когда они
+ * есть, эти значения не участвуют. Без клиента, то есть в браузере и на
+ * стенде, в запасе стояла только светлая тема, при объявленном
+ * `color-scheme: light dark`: свои цвета оставались светлыми, а поля ввода
+ * и выпадающие списки браузер рисовал тёмными.
+ *
+ * Производные цвета пересчитываются сами: они собраны из --text, --accent
+ * и --danger через color-mix. Отдельно задан только --danger-solid: он
+ * подмешивает чёрный под белые буквы, и от светлого красного тёмной схемы
+ * получался бы бурый.
+ */
+@media (prefers-color-scheme: dark) {
+  .app {
+    --bg: var(--background-surface, #0f1014);
+    --card: var(--background-card, #1b1c21);
+    --text: var(--text-primary, #f2f3f5);
+    --muted: var(--text-secondary, rgb(242 243 245 / 70%));
+    --accent: var(--text-themed, #4c8dff);
+    --danger: var(--text-negative, #ff6b80);
+    --border: var(--divider-primary, rgb(242 243 245 / 18%));
+    --sunk: var(--background-tertiary, rgb(255 255 255 / 8%));
+    --danger-solid: color-mix(in srgb, var(--danger) 78%, #3a0512);
+  }
+}
+
+/*
  * Видимый фокус у всего своего: по клавиатуре иначе не видно, где стоишь.
  * Обводка рисуется снаружи и раскладку не двигает.
  */
 .app :is(button, a, select, textarea, input, [tabindex]):focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  /* Обводка идёт вплотную: на отступе в два пикселя между ней и скруглением
+     поля появлялась щель, и рамка читалась как чужая. */
+  outline-offset: 1px;
 }
 
 /*
@@ -72,10 +129,10 @@ body {
 }
 
 main {
-  padding: 12px 16px 96px;
+  padding: var(--gap) 16px 96px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--gap);
   max-width: 720px;
   margin: 0 auto;
 }
@@ -106,7 +163,7 @@ h1 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: 1.5rem;
+  font-size: var(--font-head);
   line-height: 1.15;
   letter-spacing: -0.02em;
   overflow-wrap: anywhere;
@@ -114,7 +171,7 @@ h1 {
 
 /* Длинное название идёт мельче, а помощник рядом с ним ужимается до значка. */
 .topbar-long .screen-title {
-  font-size: 1.25rem;
+  font-size: var(--font-title);
 }
 
 .topbar-long .ask {
@@ -153,9 +210,10 @@ main > *:not(.topbar) {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: -12px -16px 0;
-  padding: 12px 16px;
+  gap: 10px;
+  /* Шапка выходит за поля main ровно на них же: иначе размытие обрывается полосой. */
+  margin: calc(var(--gap) * -1) -16px 0;
+  padding: var(--gap) 16px;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(12px);
 }
@@ -239,7 +297,8 @@ main > *:not(.topbar) {
 .check-actions {
   display: flex;
   flex: 0 0 auto;
-  gap: 8px;
+  /* Пункты обхода отмечают на ходу и одним пальцем: вплотную промахиваются. */
+  gap: 12px;
   margin-left: auto;
 }
 
@@ -329,9 +388,19 @@ button.now-row {
   background: color-mix(in srgb, var(--accent) 86%, #000);
 }
 
-/* Недоступная кнопка гасится фоном: одной бледной подписи на синем не видно. */
+/*
+ * Недоступная кнопка серая, а не бледно-синяя: бледно-синим окрашена рабочая
+ * второстепенная, и выключенную от неё было не отличить. Белые буквы на такой
+ * заливке тоже уходят, поэтому подпись приглушается вместе с фоном.
+ */
 .app [class*='Button_variant_primary']:disabled {
-  background: color-mix(in srgb, var(--accent) 34%, var(--sunk));
+  background: var(--sunk);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.app [class*='Button_variant_primary']:disabled,
+.app [class*='Button_variant_primary']:disabled [class*='Button__content'] {
+  color: var(--faint);
 }
 
 .aside {
@@ -388,13 +457,25 @@ button.link.danger-link {
   margin: 0;
 }
 
+/*
+ * Помощник и обновление стоят парой: между ними зазор, а правый край блока
+ * совпадает с полем экрана, как у строки с адресом под ним. Вынесенные за поле
+ * и прижатые друг к другу, они читались одной кляксой у самого края.
+ */
+/*
+ * Кнопки не вылезают за строку заголовка: отрицательные поля поджимали шапку,
+ * но на те же восемь пикселей вылезали вниз и выедали весь зазор до выбора
+ * квартиры, из-за чего помощник стоял к нему вплотную.
+ */
 .topbar-acts {
   flex: none;
   display: flex;
   align-items: center;
-  margin: -10px -10px -10px 0;
+  gap: 8px;
 }
 
+/* Своя подложка, как у помощника: голый значок рядом с залитой таблеткой
+   висел в воздухе, а его край не совпадал ни с чем на экране. */
 .refresh {
   flex: none;
   display: flex;
@@ -404,13 +485,13 @@ button.link.danger-link {
   height: 44px;
   border: 0;
   border-radius: 999px;
-  background: none;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   color: var(--muted);
   cursor: pointer;
 }
 
 .refresh:active {
-  background: var(--sunk);
+  background: color-mix(in srgb, var(--text) 16%, transparent);
 }
 
 /*
@@ -541,6 +622,16 @@ button.link.danger-link {
   color: var(--faint);
   font-size: var(--font-meta);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* Номер диктуют по телефону: на узком экране ужимается состояние, а не он. */
+  flex: none;
+}
+
+.request-head .row-state {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dot {
@@ -586,8 +677,12 @@ button.link.danger-link {
   min-width: 0;
 }
 
+/*
+ * Разделитель уезжает на новую строку вместе с тем, что после него: приклеенный
+ * к предыдущему слову, он повисал в конце строки как «выполняется ·».
+ */
 .row-target::before {
-  content: '\00a0· ';
+  content: ' ·\00a0';
 }
 
 /* Рядом с кнопкой строке тесно: адрес встаёт под состоянием целиком, а не рвётся вокруг кнопки. */
@@ -613,6 +708,22 @@ button.link.danger-link {
 
 .row-number {
   color: var(--faint);
+  white-space: nowrap;
+}
+
+.row-visit {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* Пометка текущего дома: она называет состояние, а не зовёт нажать. */
+.row-now {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--muted);
+  font-size: var(--font-small);
   white-space: nowrap;
 }
 
@@ -644,6 +755,11 @@ button.link.danger-link {
   font-weight: 600;
 }
 
+/* Авария: красная грань слева видна раньше, чем прочитан заголовок. */
+.request-row-alarm {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
 .hint.overdue {
   color: var(--danger-text);
 }
@@ -657,8 +773,9 @@ button.link.danger-link {
 
 .block {
   background: var(--card);
-  border-radius: 16px;
-  padding: 16px 13px;
+  border-radius: var(--radius);
+  /* Поля со всех сторон одинаковые: разные слева и сверху видно глазом. */
+  padding: 16px;
   overflow-wrap: break-word;
 }
 
@@ -692,6 +809,13 @@ button.link.danger-link {
 
 .block > button {
   margin-top: 10px;
+}
+
+/* Заголовок справочной карточки: ниже заголовка заявки, выше подписи. */
+.zone-title {
+  margin: 0 0 4px;
+  font-size: var(--font-item);
+  font-weight: 600;
 }
 
 .block .request-title {
@@ -1007,6 +1131,15 @@ main > * > .loading:only-child {
   font-size: var(--font-meta);
 }
 
+/* Пустой отбор: объяснение и выход из него рядом, а не поодиночке. */
+.nothing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 0;
+}
+
 .address {
   display: flex;
   gap: 12px;
@@ -1301,6 +1434,118 @@ main > * > .loading:only-child {
   flex: 0 0 auto;
 }
 
+/* Материалы наряда: название и количество в одну строку, кнопка по содержимому. */
+.materials {
+  margin-top: 8px;
+}
+
+.materials-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Поля как везде в продукте: серые без рамки. Белые с обводкой были здесь
+   единственными и выбивались из всех остальных экранов. */
+.materials-row input {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sunk);
+  color: inherit;
+  font: inherit;
+}
+
+.materials-row input:first-child {
+  flex: 1 1 auto;
+}
+
+.materials-row input:nth-child(2) {
+  flex: 0 0 72px;
+}
+
+.materials-row input:nth-child(3) {
+  flex: 0 0 64px;
+}
+
+/* Списанное строкой на каждый материал: так его видно и так его можно убрать. */
+.materials-list {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.materials-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+/* Название ужимается многоточием, расход стоит своей колонкой и не пляшет. */
+.materials-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.materials-count {
+  flex: none;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Частичная оплата: поле под кнопкой, подпись слева от него. */
+/*
+ * Частичная оплата одной строкой: поле во всю ширину с подписью внутри. Рядом
+ * с отдельной подписью оно выглядело пустой коробкой, приставленной сбоку.
+ */
+.part {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--sunk);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.part::placeholder {
+  color: var(--faint);
+}
+
+/* Основание отказа: подпись и сам текст, а не строка в истории. */
+.refusal p {
+  margin: 6px 0 0;
+}
+
+/* Несогласие с отказом: поле во всю ширину, кнопка под ним. */
+.dispute textarea,
+.connect textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+/* Окна визита: строки списка одной высоты, чтобы время читалось столбиком. */
+.visit p {
+  margin: 0 0 8px;
+}
+
 /* Камера рядом с главным действием: значок без подписи, круглая по высоте кнопки. */
 .send-row {
   display: flex;
@@ -1427,6 +1672,9 @@ button.link {
   padding: 12px 0;
   margin: -12px 0;
   border: none;
+  /* Обводка фокуса идёт по скруглению: на прямых углах она рисовалась
+     квадратом вокруг круглой соседней кнопки. */
+  border-radius: 10px;
   background: none;
   color: color-mix(in srgb, var(--accent) 84%, var(--text));
   font-size: var(--font-meta);
@@ -1451,6 +1699,18 @@ button.link.quiet {
   font-size: var(--font-body);
   line-height: 1.55;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+/* Раздел документа: заголовок и пункты абзацами, а не одной полосой текста. */
+.document-part h2 {
+  font-size: var(--font-title);
+}
+
+.document-line {
+  margin: 10px 0 0;
+  line-height: 1.55;
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -1511,8 +1771,9 @@ button.link.quiet {
 }
 
 .empty h2 {
-  margin: 8px 0 0;
-  font-size: var(--font-item);
+  margin: 12px 0 0;
+  font-size: var(--font-title);
+  font-weight: 600;
 }
 
 .empty .hint {
@@ -1782,6 +2043,15 @@ button.flat {
   padding: 0;
 }
 
+/* Та же полоса, что слева от стояка: объясняется в легенде, а не строкой под ней. */
+.legend-pipe {
+  display: inline-block;
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--danger);
+}
+
 .flat-fine {
   background: color-mix(in srgb, var(--success) 18%, transparent);
   color: var(--success);
@@ -1794,9 +2064,11 @@ button.flat {
   letter-spacing: -0.02em;
 }
 
+/* Знак валюты часть суммы, а не сноска при ней: вдвое мельче и серым он
+   отрывался от числа и висел отдельным значком. */
 .currency {
-  margin-left: 6px;
-  font-size: 0.5em;
+  margin-left: 4px;
+  font-size: 0.72em;
   font-weight: 600;
   color: var(--muted);
 }
@@ -1930,6 +2202,7 @@ button.flat {
   background: var(--sunk);
 }
 
+
 .segment {
   position: relative;
   flex: 1;
@@ -2016,20 +2289,24 @@ button.flat {
   display: flex;
 }
 
+/*
+ * Счётчик садится в правый верхний угол значка, а не поверх него: на «Ещё»
+ * он закрывал третью точку, и в панели читалось «..».
+ */
 .badge-count {
   position: absolute;
-  top: -5px;
-  left: 13px;
-  min-width: 19px;
-  height: 19px;
+  top: -7px;
+  left: 16px;
+  min-width: 18px;
+  height: 18px;
   padding: 0 5px;
-  border-radius: 10px;
+  border-radius: 9px;
   box-shadow: 0 0 0 2px var(--background-card, var(--card));
   background: var(--danger-solid);
   color: #fff;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  line-height: 19px;
+  line-height: 18px;
   text-align: center;
 }
 
@@ -2127,6 +2404,8 @@ button.flat {
   color: var(--faint, var(--muted));
   font-size: var(--font-meta);
   letter-spacing: 0.02em;
+  /* Номер заявки диктуют по телефону: разорванный переносом он не читается. */
+  white-space: nowrap;
 }
 
 .request footer {
@@ -2275,6 +2554,19 @@ button.flat {
   padding: 5px 6px 5px 4px;
   border-radius: 22px;
   background: var(--sunk);
+}
+
+/*
+ * Обводка рисуется по самой строке ввода, а не по голому полю внутри неё:
+ * прямоугольная рамка вылезала за скруглённую подложку и наезжала на кнопки.
+ */
+.composer:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.composer .composer-field:focus-visible {
+  outline: none;
 }
 
 .composer-icon {
@@ -2511,15 +2803,21 @@ button.chat-done {
   padding: 12px;
 }
 
+/*
+ * Свободный час и категория: заливка, а не пустая рамка. Прозрачная кнопка
+ * с бледной рамкой стоит на карточке и читается как выключенная, а выбирать
+ * из неё и есть всё действие экрана.
+ */
 .chip {
   /* Выбор категории и часа приёма нажимают пальцем: строка должна быть высокой. */
   min-height: 44px;
   padding: 11px 16px;
-  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  border: 0;
   border-radius: 999px;
-  background: none;
+  background: var(--sunk);
   color: var(--text);
   font-size: var(--font-meta);
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
 
@@ -2643,9 +2941,45 @@ button.chat-done {
   margin: 0 0 12px;
 }
 
+/*
+ * Подпись под чем-то: меньше основного текста и приглушена. Раньше она шла
+ * в размер заголовка, и карточка выглядела стеной одинаковых строк.
+ */
 .hint {
   color: var(--muted);
   margin: 0;
+  font-size: var(--font-meta);
+}
+
+/* Две подписи подряд не слипаются: между ними виден шаг. */
+.hint + .hint {
+  margin-top: var(--gap-tight);
+}
+
+/*
+ * Сведения о заявке одним блоком под чертой: исполнитель, оценка, расход
+ * и опрос соседей читаются как справка, а не как продолжение описания.
+ */
+.facts:not(:empty) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-tight);
+  margin-top: var(--gap);
+  padding-top: var(--gap);
+  border-top: 1px solid var(--border);
+}
+
+.facts .hint + .hint {
+  margin-top: 0;
+}
+
+/* Основания расчёта под разбором счёта: поля как у строк списка. */
+.bases {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-tight);
+  margin-top: calc(var(--gap) * -1 + 2px);
+  padding: 0 16px;
 }
 
 .error {
@@ -2755,6 +3089,12 @@ select {
   margin-right: auto;
 }
 
+/* Пара кнопок одной высоты: «Пропустить» была вдвое ниже «Дальше» и висела. */
+.tour-actions .link {
+  padding: 8px 12px;
+  margin: 0;
+}
+
 .tour-next {
   border: 0;
   border-radius: 10px;
@@ -2779,7 +3119,10 @@ select {
 }
 
 .assistant-head h2 {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
+  font-size: var(--font-title);
 }
 
 /* Закрыть разговор: крестик на виду, чтобы не искать выход под длинной перепиской. */
@@ -2829,11 +3172,16 @@ select {
 }
 
 /* Кнопка под сообщением: своё полупрозрачное облако, как в переписке. */
+/*
+ * Кнопка под ответом это таблетка, а не прямоугольник: в радиусе облака она
+ * читалась как ещё одна реплика, а не как действие.
+ */
 .inline-btn {
   width: 100%;
-  padding: 10px 12px;
+  min-height: 44px;
+  padding: 10px 16px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 999px;
   font: inherit;
   font-weight: 500;
   text-align: center;
@@ -2945,8 +3293,12 @@ select {
   cursor: pointer;
 }
 
+/* Выключенное согласие гасится цветом, а не прозрачностью: полупрозрачная
+   синяя кнопка по-прежнему читалась как рабочая. */
 .confirm-do:disabled {
-  opacity: 0.6;
+  background: var(--sunk);
+  color: var(--faint);
+  box-shadow: inset 0 0 0 1px var(--border);
   cursor: default;
 }
 
@@ -3028,8 +3380,18 @@ button[class*='CellAction'][class*='secondary']:not(:disabled) [class*='CellActi
   color: var(--text);
 }
 
+/* Выключенная строка-действие гасится целиком: половинной яркости подписи мало. */
+button[class*='CellAction']:disabled [class*='CellAction__content'] {
+  color: var(--faint);
+}
+
 .actions h2 {
   margin: 0;
+}
+
+/* Отказ отделён от работы: рядом с «Взять» по нему промахивались. */
+.actions-more {
+  margin-top: 14px;
 }
 
 select.building {
@@ -3304,10 +3666,37 @@ button.link.danger-action {
   color: var(--muted);
 }
 
+/* Счётчик без подписи прижимается вправо: слева от него пусто. */
+.group-title-bare {
+  justify-content: flex-end;
+}
+
+/*
+ * Число сводки. Цифры одной ширины, иначе правый край столбца ровный, а сами
+ * числа под ним пляшут. Единица стоит отдельной частью и обычным весом:
+ * внутри числа она тянула на себя тот же вес, что и оно само, и столбец
+ * читался строками разной длины вместо одного ряда чисел.
+ */
 .report-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   font-size: var(--font-item);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/*
+ * Место под единицу держится всегда, даже когда её нет: иначе «12» упиралось
+ * в правый край, а «67 %» кончалось на знаке, и числа в столбце шли уступом.
+ */
+.report-unit {
+  min-width: 12px;
+  color: var(--muted);
+  font-size: var(--font-meta);
+  font-weight: 400;
+  text-align: left;
 }
 
 /* Число и под ним слово о правке: правится нажатием по строке, и это видно. */

@@ -25,6 +25,7 @@ const withFlat = (id: string, maxUserId: number, apartmentId: string, name: stri
   role: 'resident',
   apartmentId,
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId, share: 1, basis: 'company' }],
 });
 
 const maria = withFlat('res-maria', 1001, 'apt-1', 'Мария');
@@ -954,7 +955,7 @@ describe('плановые работы по HTTP', () => {
 });
 
 describe('дом глазами жильца', () => {
-  it('работа управляющей компании доступна жильцу, а не только сотрудникам', async () => {
+  it('работа управляющей организации доступна жильцу, а не только сотрудникам', async () => {
     const { app, login } = await setup([maria, dispatcher]);
     const token = await login(1001);
 
@@ -1091,7 +1092,7 @@ describe('общедомовой узел учёта', () => {
     buildingId: BUILDING_ID,
   };
 
-  it('управляющая компания заводит прибор и снимает показание', async () => {
+  it('управляющая организация заводит прибор и снимает показание', async () => {
     const { app, login } = await setup([nina]);
     const token = await login(7007);
 

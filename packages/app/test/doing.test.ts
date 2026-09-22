@@ -246,6 +246,27 @@ describe('дела словами', () => {
     assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', id);
   });
 
+  it('имя дела и номер читаются с разметкой и знаками', async () => {
+    const deps = setup();
+    const id = await inWork(deps);
+    const number = (await deps.repository.findRequest(id))!.number;
+
+    const doing = await doingFor(
+      {
+        ...deps,
+        reasoner: {
+          understand: () => Promise.resolve(undefined),
+          doing: () => Promise.resolve({ deed: '**Done**', number: `№ ${number.toLowerCase()}` }),
+        },
+      },
+      technician,
+      'протечку ликвидировал, всё сухо',
+    );
+
+    assert.equal(doing?.kind === 'transition' ? doing.to : '', 'done');
+    assert.equal(doing?.kind === 'transition' ? doing.request?.id : '', id);
+  });
+
   it('модель прав не добавляет: чужое дело отбрасывается', async () => {
     const deps = setup();
 

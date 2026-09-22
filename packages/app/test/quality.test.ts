@@ -70,7 +70,7 @@ const closed = async (deps: AppDeps, description: string, rating?: number): Prom
   });
 };
 
-describe('как работает управляющая компания', () => {
+describe('как работает управляющая организация', () => {
   it('жилец видит те же числа, что и компания у себя', async () => {
     const deps = setup();
 

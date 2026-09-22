@@ -34,6 +34,7 @@ const resident = (id: string, apartmentId: string, maxUserId: number): Resident 
   role: 'resident',
   apartmentId,
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId, share: 1, basis: 'company' }],
 });
 
 const maria = resident('res-1', 'apt-1', 1001);
@@ -99,7 +100,7 @@ describe('объявление собрания', () => {
 
     await assert.rejects(
       startPoll(deps, { resident: maria, kind: 'simple', title: 'Тест', question: 'Вопрос', days: 7 }),
-      /объявляет управляющая компания/,
+      /объявляет управляющая организация/,
     );
   });
 

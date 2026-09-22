@@ -1,4 +1,4 @@
--- Вопрос жильца управляющей компании и переписка по нему.
+-- Вопрос жильца управляющей организации и переписка по нему.
 do $$
 begin
   if not exists (select 1 from pg_type where typname = 'ticket_status') then

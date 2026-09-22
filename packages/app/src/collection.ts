@@ -36,7 +36,7 @@ export interface HouseDebt {
 
 const onlyStaff = (actor: Resident): void => {
   if (!isCompanyStaff(actor.role)) {
-    throw new DomainError('forbidden', 'Долги дома видит управляющая компания');
+    throw new DomainError('forbidden', 'Долги дома видит управляющая организация');
   }
 };
 

@@ -45,12 +45,13 @@ export const app: Dictionary = {
 
   'basis.meter': 'hasaplaýjy boýunça',
   'basis.average': 'ortaça boýunça',
-  'basis.norm': 'kadalaýyn hasap boýunça',
+  'basis.norm': 'kada boýunça',
 
   'noticeKind.meters': 'Hasaplaýjylaryň görkezijileri',
   'noticeKind.works': 'Meýilnamalaýyn işler',
   'noticeKind.polls': 'Eýeleriň ýygnaklary',
   'noticeKind.news': 'Jaýyň bildirişleri',
+  'noticeKind.debt': 'Töleg barada ýatlatmalar',
 
   'charge.maintenance': 'Saklaýyş we şu wagtky abatlaýyş',
   'charge.common': '{ресурс}: jaýyň umumy hajatlaryna',
@@ -174,7 +175,7 @@ export const app: Dictionary = {
     'Mesele galan bolsa, ýazyň, arza resmileşdirerin.',
   'notice.acceptance':
     'Arza {номер}: iş ýerine ýetirildi diýlip bellendi.\n{место}.\n' +
-    'Hemmesi ýerinde bolsa, hiç zat etmeli däl, {часы} soň arza özi ýapylar.\n' +
+    'Hemmesi ýerinde bolsa, hiç zat etmeli däl, {часы} geçenden soň arza özi ýapylar.\n' +
     'Mesele galan bolsa, ony işe gaýtaryň, ussa ýene geler.',
   'notice.autoConfirmed':
     'Arza {номер} ýapyldy: {часы} içinde garşylyk gelmedi.\n{место}.\n' +
@@ -184,6 +185,7 @@ export const app: Dictionary = {
   'notice.complaintSent': 'Şikaýat iberildi: {организация}.{номер}\nJogap 30 günüň içinde gelýär.',
   'notice.complaintNumber': '\nBelgisi {номер}.',
   'notice.debt': '{долг}\n\nAşakdaky düwme bilen töläp bolýar.',
+  'notice.due': 'Aý üçin hasaplandy: {сумма}. Aýyň {день} senesine çenli töläň, soň jerime işleýär.',
 
   'hours.one': '{сколько} sagat',
   'hours.few': '{сколько} sagat',
@@ -207,7 +209,7 @@ export const app: Dictionary = {
   'answer.houseAhead': 'Häzir jaýda hiç zat kesilmedi. Iň ýakyny: {событие}, {когда}.',
   'answer.houseQuiet': 'Häzir jaýda hiç zat kesilmedi, awariýa hem ýok.',
   'answer.billEmpty': 'Bu aý üçin hasaplama heniz ýok.',
-  'answer.billLeft': 'Tölege {сумма}, aýyň {число} çenli.',
+  'answer.billLeft': 'Tölege {сумма}, aýyň {число} senesine çenli.',
   'answer.billPaid': 'Bu aý üçin hemmesi tölendi.',
   'answer.requestsEmpty': 'Siziň açyk arzaňyz ýok.',
   'answer.requests': 'Siziň arzalaryňyz:\n{строки}',
@@ -220,7 +222,7 @@ export const app: Dictionary = {
     'Hasaplaýjylaryň görkezijilerini tabşyrmaly wagt, {осталось}:\n{приборы}\n' +
     'Aşakdaky düwmä basyň we hasaplaýjydaky sanlary iberiň.',
   'meters.expired':
-    'Barlag möhleti gutardy: {приборы}.\nTäze barlaga çenli kadalaýyn hasap boýunça hasaplanýar.',
+    'Barlag möhleti gutardy: {приборы}.\nTäze barlaga çenli kada boýunça hasaplanýar.',
   'meters.name': '{прибор} ({номер})',
   'meters.spike':
     '«{прибор}» hasaplaýjysy boýunça döwrüň sarpy: {расход} {единица}, bu adatdakysyndan ep-esli köp.\n' +
@@ -236,7 +238,7 @@ export const app: Dictionary = {
   'debt.penalty': '\n\nGijikdirilendigi üçin jerime: {пени}\nJemi tölemeli: {итого}',
   'debt.short': 'Köne bergi, {месяцы} üçin: {сумма}',
   'debt.shortPenalty': 'Köne bergi, {месяцы} üçin: {сумма}, gijikdirme jerimesi {пени}',
-  'debt.range': '{от} — {до} aralygy',
+  'debt.range': '{от} bilen {до} aralygy',
   'debt.period': '{месяц} {год}',
 
   'support.answered': '{сотрудник}, dolandyryjy kompaniýa, «{тема}» soragyna jogap berýär:\n{текст}',
@@ -249,10 +251,10 @@ export const app: Dictionary = {
   'poll.meeting': 'Eýeleriň ýygnagy',
   'poll.survey': 'Ýaşaýjylaryň sowalnamasy',
   'poll.started': '{вид}: {название}\n\n{вопрос}\n\n{порядок}',
-  'poll.orderMeeting': '{правило}. Ses berişlik {от} — {до} aralygynda dowam edýär.',
+  'poll.orderMeeting': '{правило}. Ses berişlik {от} bilen {до} aralygynda dowam edýär.',
   'poll.orderSurvey':
-    '{до} çenli jogap berip bolýar. Sowalnama eýeleriň ýygnagynyň ýerini tutmaýar.',
-  'poll.remind': '«{название}» ýygnagy {до} ýapylýar.\n{нехватка}',
+    '{до} möhletine çenli jogap berip bolýar. Sowalnama eýeleriň ýygnagynyň ýerini tutmaýar.',
+  'poll.remind': '«{название}» ýygnagynyň ýapylýan möhleti: {до}.\n{нехватка}',
   'poll.remindFew': 'Hemmeler ses bermedi: ses az wagty çözgüt kabul edilmez.',
   'poll.remindArea':
     'Ähli meýdanyň eýeleri ses bermedi: {площадь} m² ýetmeýär. Ses az wagty çözgüt kabul edilmez.',
@@ -279,7 +281,7 @@ export const app: Dictionary = {
   'poll.tally.abstain': 'Saklandy',
   'poll.base.participants': 'ses berenlerden',
   'poll.base.building': 'ähli eýelerden',
-  'poll.threshold.strict': '{доля} dan köp',
+  'poll.threshold.strict': '{доля} paýdan köp',
   'poll.threshold.plain': '{доля}',
 
   'poll.result.survey': 'Ýaşaýjylaryň sowalnamasy, ýygnagyň çözgüdi däl. Jogap berdiler: jaýyň meýdanynyň {участие}.',
@@ -301,22 +303,22 @@ export const app: Dictionary = {
   'protocol.initiator': 'Başlangyççy: {кто}',
   'protocol.surveyBy': 'Geçirdi: {кто}',
   'protocol.administrator': 'Ýygnagyň administratory: {кто}',
-  'protocol.voting': 'Ses berişlik: {от} — {до} aralygynda',
+  'protocol.voting': 'Ses berişlik: {от} bilen {до} aralygynda',
   'protocol.agenda': 'Gün tertibiniň meselesi',
   'protocol.counting': 'Sesleri sanamak',
   'protocol.totalArea': 'Jaýlaryň umumy meýdany: {площадь} m²',
   'protocol.turnout': 'Gatnaşdy: {площадь} m² ({доля})',
-  'protocol.quorumYes': 'Kworum: bar, {порог} dan köp talap edilýär',
+  'protocol.quorumYes': 'Kworum: bar, {порог} paýdan köp talap edilýär',
   'protocol.quorumUnknown': 'Kworum: tassyklanmaýar, {сколько} jaýyň meýdany girizilmedik',
   'protocol.quorumNo': 'Kworum: ýok, {площадь} m² ýetmeýär',
   'protocol.line': '{ответ}: {площадь} m² ({доля})',
   'protocol.decision': 'Çözgüt',
   'protocol.rule': '{правило}: {база} {набрано}, bosaga {порог}.',
-  'protocol.moreThan': '{доля} dan köp',
-  'protocol.atLeast': '{доля} dan az däl',
+  'protocol.moreThan': '{доля} paýdan köp',
+  'protocol.atLeast': 'azyndan {доля}',
   'protocol.noQuorum': 'Ýygnak bolmady: kworum ýok.',
-  'protocol.formed': 'Teswirnama {дата} düzüldi',
-  'protocol.surveyFormed': 'Netijeler {дата} jemlenildi',
+  'protocol.formed': 'Teswirnamanyň düzülen senesi: {дата}',
+  'protocol.surveyFormed': 'Netijeleriň jemlenen senesi: {дата}',
   'protocol.attachments': 'Goşundylar: eýeleriň sanawy, eýeleriň çözgütleri, ýygnagy geçirmek hakynda habar.',
   'protocol.originals':
     'Çözgütleriň we teswirnamanyň asyl nusgalary dolandyryjy gurama, soňra bolsa döwlet ýaşaýyş jaý ' +
@@ -332,6 +334,9 @@ export const app: Dictionary = {
   'binding.neighbour':
     'Siziň {квартира} kwartiraňyza ýene bir ýaşaýjy birikdirildi: {кто}.\n' +
     'Eger bu siziň goňşyňyz bolmasa, dolandyryjy kompaniýa habar beriň.',
+  'binding.ownerClaimed':
+    '{кто} {квартира} kwartiranyň eýesidigini görkezdi.\n' +
+    'Eger beýle bolmasa, dolandyryjy gurama aýdyň: ýygnakdaky ses şoňa bagly.',
   'binding.bound':
     'Dolandyryjy kompaniýa sizi {квартира} kwartira birikdirdi.\n' +
     'Indi hasaplaýjynyň görkezmeleri we ýygnaklarda ses berişlik açyk.',
@@ -361,10 +366,28 @@ export const app: Dictionary = {
   'clarify.flat': '{номер} kwartira',
   'clarify.entrance': '{номер} girelge',
 
-  'device.snapshot': '{устройство}: {время} kadry',
+  'device.snapshot': '{устройство}: {время} wagtyndaky kadr',
 
   'visit.booked': 'Dolandyryjy gurama sizi kabul edişe ýazdy: {когда}.\n{тема}',
-  'visit.cancelled': '{день} sagat {время} kabul ediş dolandyryjy gurama tarapyndan ýatyryldy.',
+  'visit.cancelled': '{день}, sagat {время} bellenen kabul edişi dolandyryjy gurama ýatyrdy.',
+
+  'visit.offer': 'Arza {номер}: ussa gelmäge taýýar. Amatly wagty saýlaň.',
+  'visit.chosenForStaff': 'Arza {номер}: ýaşaýjy {когда} garaşýar. {место}.',
+  'visit.missed':
+    'Ussa {номер} arzasy boýunça {когда} geldi we kwartira girip bilmedi. Başga wagt saýlaň, ol ýene geler.',
+  'visit.refused':
+    '{номер} arzasy boýunça ussa kwartira {сколько} gezek girip bilmedi. Arza açyk galýar, emma işiň wagtyny ' +
+    'indi dolandyryjy gurama ylalaşýar: olara jaň ediň.',
+  'visit.declined': 'Teklip edilenleriň hiç biri gabat gelmeýär. Dolandyryjy gurama başga wagt teklip eder.',
+  'visit.dropped': 'Arza {номер}: ýaşaýjy baryş wagtyny ýatyrdy we täzesini saýlaýar.',
+  'visit.todayForResident':
+    'Şu gün sagat {время} {номер} arzasy boýunça ussa geler. Meýilnamalar üýtgän bolsa, wagty ýatyryň.',
+  'visit.todayForStaff': 'Şu gün sagat {время} {номер} arzasy boýunça sizi garaşýarlar. {место}.',
+
+  'dispute.forStaff': 'Arza {номер}, {место}. Arza beriji «{причина}» ret edişi bilen ylalaşmaýar. Ol ýazýar: {что}',
+  'dispute.upheld':
+    '{номер} arzasy boýunça ret ediş güýjünde galdy. Ylalaşmasaňyz, muny ýaşaýyş jaý gözegçiligi seredýär: ' +
+    'ýüzlenme taýýar, ony düwme bilen ibermek bolýar.',
 
   'assistant.offTopic':
     'Men diňe jaý we şu goşundy boýunça kömek edýärin: arzalar, hasaplaýjylar, kwitansiýa, ýygnaklar, ' +
@@ -457,12 +480,12 @@ export const app: Dictionary = {
   'plain.readingWindow': 'Görkezijiler aýyň 26-syna çenli kabul edilýär',
   'plain.quorum': 'Karar jaýyň meýdanynyň ýarysyndan köpi ses berende kabul edilýär',
   'plain.qualified': 'Bu mesele boýunça sesleriň üçden ikisi gerek',
-  'plain.initiative': 'Ýygnagy bilelikde sesleriň ondan birine eýe eýeler çagyrýar',
+  'plain.initiative': 'Ýygnagy bilelikde sesleriň ondan birine eýelik edýän eýeler çagyrýar',
   'plain.share': 'Ses kwartiranyň meýdany boýunça hasaplanýar',
   'plain.penalty': 'Jerime gijikmäniň 31-nji gününden başlanýar, 91-nji günden artýar',
   'plain.workerAtHome': 'Usta şahadatnamasyny görkezýär we bahila geýýär',
-  'plain.norm': 'Görkezijisiz kadalaşdyryjy boýunça hasaplaýarys',
-  'plain.typicalNorm': 'Kadalaşdyryjy nusgalyk: özüniňkini gurama kesgitleýär',
+  'plain.norm': 'Görkezijisiz kada boýunça hasaplaýarys',
+  'plain.typicalNorm': 'Kada nusgalyk: özüniňkini gurama kesgitleýär',
   'plain.wearForecast': 'Bu geçen näsazlyklar boýunça çaklama, reglament däl',
 
   'responsible.management': 'Dolandyryjy gurama',
@@ -473,11 +496,14 @@ export const app: Dictionary = {
 
   'zone.elevator': 'Lifte ýöriteleşdirilen gurama hyzmat edýär',
   'zone.insideFlat': 'Kwartiranyň içindäki enjamy eýesi bejerýär',
+  'zone.flatBorder':
+    'Serhet birinji öçüriji enjamdan geçýär: oňa çenli dolandyryjy gurama, ondan soň eýesi jogap berýär',
   'zone.yard': 'Jaýyň howlusyny dolandyryjy gurama saklaýar',
   'zone.common': 'Bu jaýyň umumy emlägi, ony dolandyryjy gurama saklaýar',
   'zoneNext.elevator': 'Arzany dolandyryjy gurama alyp barýar: ol ony lifte hyzmat edýän kompaniýa berýär.',
   'zoneNext.insideFlat': 'Dolandyryjy gurama şeýle işleri aýratyn arza boýunça, adatça tölegli ýerine ýetirýär.',
-  'zoneNext.yard': 'Ýer jaýyň mellek çäginden daşarda bolsa, ýüzlenme munisipal gulluga gidýär.',
+  'zoneNext.flatBorder': 'Näsazlygyň takyk nirededigini ussa barlagda kesgitleýär.',
+  'zoneNext.yard': 'Ýer jaýyň mellek çäginden daşarda bolsa, ýüz tutma munisipal gulluga gidýär.',
 
   'ticketStatus.open': 'jogaba garaşýar',
   'ticketStatus.answered': 'jogap berildi',
@@ -493,8 +519,8 @@ export const app: Dictionary = {
 
   'deed.reopenClosed': 'Arzany işe gaýtarmak ol ýapylýança mümkin.',
   'deed.rejectStaff': 'Arzalary dolandyryjy gurama ret edýär.',
-  'deed.withdrawOwn': 'Ýüzlenmäni diňe ony beren adam we diňe ol açykka yzyna alyp biler.',
-  'deed.needsInfoStaff': 'Ýaşaýjydan anyklama soramagy dolandyryjy gurama edýär.',
+  'deed.withdrawOwn': 'Ýüz tutmany diňe ony beren adam we diňe ol açykka yzyna alyp biler.',
+  'deed.needsInfoStaff': 'Ýaşaýjydan takyklama soramagy dolandyryjy gurama edýär.',
   'deed.doneWorker': 'Işi işe alnan tabşyrygyň ýerine ýetirijisi tabşyrýar.',
   'deed.acceptDone': 'Işi usta tabşyrandan soň kabul etmek bolýar.',
   'deed.acceptStaff': 'Arzalary işe dolandyryjy gurama alýar.',
@@ -508,6 +534,7 @@ export const app: Dictionary = {
   'contacts.office': 'Kabul ediş: {где}',
   'contacts.person': 'Jogapkär: {кто}',
   'contacts.empty': 'Aragatnaşyklar girizilmedik: goldawa ýazyň, nobatçy topar jogap berer.',
+  'privacy.summary': 'Arzalar {заявок}, görkezijiler {показаний}, sesler {голосов}, tölegler {платежей}',
 
   'role.removed': 'Dolandyryjy kompaniýa sizden gulluk roluny aldy. Arzalar we görkezijiler elýeterli galýar.',
   'role.given': 'Dolandyryjy kompaniýa size rol berdi: {роль}.\nTäze buýruklary görmek üçin /start ýazyň.',
@@ -537,7 +564,7 @@ export const app: Dictionary = {
   'starter.door': 'Girelgäniň gapysyny nädip açmaly?',
   'starter.queue': 'Nobatda näme gyssagly?',
   'starter.assign': 'Ýerine ýetirijini nädip bellemeli?',
-  'starter.handoff': 'Ýüzlenmäni goňşy gurama nädip geçirmeli?',
+  'starter.handoff': 'Ýüz tutmany goňşy gurama nädip geçirmeli?',
   'starter.answer': 'Ýaşaýja nädip jogap bermeli?',
   'starter.orders': 'Mende haýsy tabşyryklar bar?',
   'starter.finish': 'Işi nädip tabşyrmaly?',

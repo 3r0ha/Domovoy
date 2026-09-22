@@ -6,9 +6,15 @@ import {
   bindApartment,
   chargesForResident,
   counted,
+  declareOwnership,
   devicesFor,
+  dropNeighbour,
+  dropVisitSlot,
+  missedVisit,
+  takeVisitSlot,
   errorTextFor,
   exportPersonalData,
+  formatMomentAt,
   formatPersonalData,
   homeOf,
   personalDataSummary,
@@ -70,6 +76,7 @@ import {
   assignKeyboard,
   cancelKeyboard,
   COMMENT_PROMPTS,
+  complaintKeyboard,
   confirmKeyboard,
   copyKeyboard,
   doorKeyboard,
@@ -87,7 +94,9 @@ import {
   readingKeyboard,
   readingPrompt,
   replyIfOpen,
+  visitChosenKeyboard,
   visitKeyboard,
+  visitKeyboardFor,
 } from './keyboards.js';
 import { sayBound, welcome } from './greeting.js';
 import { takeReading } from './readings.js';
@@ -172,7 +181,7 @@ const app: Button = async (kit, typed, [name]) => {
 
   const t = speak(resident);
 
-  await inApp(kit, typed, `${strong(t(item.title))}\n${t(item.app.about)}`, item.app.screen, undefined, t);
+  await inApp(kit, typed, `${strong(t(item.title))}\n${t(item.app.about)}`, item.app.screen, t);
 };
 
 /**
@@ -251,7 +260,7 @@ export const menuTitle = async (kit: BotKit, resident: Resident): Promise<string
 
   return [
     strong(
-      `${t('menu.title')}${where ? `: ${plain(where)}` : ''}${who ? ` · ${who}` : ''}`,
+      `${where ? t('menu.titleAt', { название: t('menu.title'), адрес: plain(where) }) : t('menu.title')}${who ? ` · ${who}` : ''}`,
     ),
     // Кнопки это короткий путь, а не единственный: словами делается то же самое,
     // и человеку проще написать «открыть дверь», чем искать её в меню.
@@ -868,8 +877,21 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
       return;
     }
 
+    // Правку продукт ждёт словами: «убери про подъезд», «добавь, что течёт
+    // третий день». Переписывать письмо целиком в переписке невозможно.
+    if (what === 'edit') {
+      await typed.reply(t('gzhi.edit_ask'), cancelKeyboard(t));
+
+      return;
+    }
+
     if (what === 'yes') {
-      const { handoff } = await sendComplaint(kit.deps, resident, requestId);
+      const waiting = typed.session?.awaiting;
+      const own = waiting?.kind === 'complaint' && waiting.requestId === requestId ? waiting.text : undefined;
+
+      forget(typed);
+
+      const { handoff } = await sendComplaint(kit.deps, resident, requestId, own);
 
       await typed.reply(
         t('gzhi.sent', { организация: handoff.organization }) +
@@ -898,8 +920,12 @@ const complaint: Button = async (kit, typed, [requestId, what]) => {
       return;
     }
 
+    // Письмо в орган власти пишет человек: продукт собрал черновик, а поправить
+    // его можно словами, не переписывая целиком.
+    expect(typed, { kind: 'complaint', requestId, text: offer.complaint });
+
     await typed.reply(t('gzhi.reason_short', { основание: offer.reason }));
-    await typed.reply(offer.complaint, oneKeyboard(t('button.complaint'), `gzhi:${requestId}:send`));
+    await typed.reply(offer.complaint, complaintKeyboard(requestId, t));
   } catch (error) {
     await explain(typed, error);
   }
@@ -917,7 +943,7 @@ const offerAssignees = async (
   if (staff.length === 0) {
     await typed.reply(
       'Некому поручить: в доме нет мастеров. Роли назначают в разделе «Люди дома».',
-      keyboardOf([...appRow(kit.miniAppUrl, 'Люди дома в приложении', 'residents')], typed),
+      keyboardOf([...appRow(kit.miniAppUrl, 'residents')], typed),
     );
     return;
   }
@@ -1032,6 +1058,111 @@ const leave: Button = async (kit, typed, [step]) => {
   }
 };
 
+/** Жилец выбрал время визита из предложенных окон. */
+const slot: Button = async (kit, typed, [requestId, at]) => {
+  if (!requestId || !at) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  // «Другое время»: продукт не подбирает его сам, а говорит смене, что
+  // предложенное не подошло. Иначе жилец остаётся с тремя чужими окнами.
+  if (at === 'none') {
+    await typed.reply(t('app.visit.declined'), menuButton(typed, t));
+
+    return;
+  }
+
+  try {
+    // Планы меняются: отмена возвращает те же окна, а не закрывает разговор.
+    if (at === 'drop') {
+      const dropped = await dropVisitSlot(kit.deps, resident, requestId);
+      const slots = (dropped.appointment?.slots ?? []).map((slot) => slot.toISOString());
+      const zone = await zoneOf(kit.deps, dropped.buildingId);
+
+      await typed.reply(
+        t('visit.dropped', { номер: strong(dropped.number) }),
+        slots.length > 0 ? visitKeyboardFor(dropped.id, slots, zone, t) : menuButton(typed, t),
+      );
+
+      return;
+    }
+
+    const updated = await takeVisitSlot(kit.deps, { resident, requestId, at: new Date(at) });
+    const zone = await zoneOf(kit.deps, updated.buildingId);
+
+    await typed.reply(
+      t('visit.set', {
+        номер: strong(updated.number),
+        когда: formatMomentAt(updated.appointment?.at ?? new Date(at), zone),
+      }),
+      visitChosenKeyboard(updated.id, t),
+    );
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
+/** Мастер приехал и не попал в квартиру. */
+const missed: Button = async (kit, typed, [requestId]) => {
+  if (!requestId) return stale(typed, kit);
+
+  const staff = await kit.residentOf(typed);
+  const t = speak(staff);
+
+  try {
+    const updated = await missedVisit(kit.deps, { staff, requestId });
+
+    await typed.reply(t('visit.missed_noted', { номер: strong(updated.number) }), menuButton(typed, t));
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
+/** Заявитель не согласен с отказом: продукт ждёт объяснение одним сообщением. */
+const dispute: Button = async (kit, typed, [requestId]) => {
+  if (!requestId) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  expect(typed, { kind: 'dispute', requestId });
+
+  await typed.reply(t('request.dispute_ask'), cancelKeyboard(t));
+};
+
+/** «Это не мой сосед»: привязавшийся по чужой квитанции убирается из квартиры. */
+const drop: Button = async (kit, typed, [residentId]) => {
+  if (!residentId) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  try {
+    await dropNeighbour(kit.deps, resident, residentId);
+
+    await typed.reply(t('flat.neighbour_dropped'), menuButton(typed, t));
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
+/** Собственник или проживающий: от этого зависит голос на собрании. */
+const owner: Button = async (kit, typed, [answer]) => {
+  if (!answer) return stale(typed, kit);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  try {
+    await declareOwnership(kit.deps, resident, answer === 'yes');
+
+    await typed.reply(answer === 'yes' ? t('flat.owner_noted') : t('flat.tenant_noted'), kit.menuKeyboard(resident));
+  } catch (error) {
+    await explain(typed, error);
+  }
+};
+
 /** Удаление профиля: имя стирается, квартира отвязывается, дела дома остаются. */
 const forgetMe: Button = async (kit, typed, [step]) => {
   const resident = await kit.residentOf(typed);
@@ -1068,10 +1199,20 @@ const demo: Button = async (kit, typed, [role]) => {
 
 /** Выгрузка своих данных: файл уходит по просьбе, а не сам собой. */
 const mydata: Button = async (kit, typed, [what]) => {
-  if (what !== 'file') return stale(typed, kit);
+  if (what !== 'file' && what !== 'name') return stale(typed, kit);
 
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
+
+  // Имя человек называет сам: из профиля MAX приходит никнейм, а в заявке
+  // мастер читает, к кому идёт.
+  if (what === 'name') {
+    expect(typed, { kind: 'name' });
+
+    await typed.reply(t('name.ask', { имя: plain(resident.displayName) }), cancelKeyboard(t));
+
+    return;
+  }
   const data = await exportPersonalData(kit.deps, resident);
   const text = formatPersonalData(data, await zoneOf(kit.deps, resident.buildingId));
 
@@ -1085,7 +1226,7 @@ const mydata: Button = async (kit, typed, [what]) => {
             contentType: 'text/plain; charset=utf-8',
             content: text,
             encoding: 'utf8',
-            text: t('data.file', { сводка: personalDataSummary(data) }),
+            text: t('data.file', { сводка: personalDataSummary(data, t) }),
           })
           .catch(() => undefined)
       : undefined;
@@ -1094,7 +1235,7 @@ const mydata: Button = async (kit, typed, [what]) => {
   // остаётся сводка и приложение, где эти же данные видны разделами.
   if (!sent) {
     await typed.reply(
-      `${personalDataSummary(data)}\n${t('data.file_failed')}`,
+      `${personalDataSummary(data, t)}\n${t('data.file_failed')}`,
       kit.openApp(sectionParam('profile'), typed),
     );
   }
@@ -1219,7 +1360,7 @@ const doIt: Button = async (kit, typed, [token, requestId]) => {
     });
 
     await typed.reply(
-      `${t('request.state', { номер: strong(updated.number), состояние: statusTitle(updated.status, false, t) })}.` +
+      t('request.state', { номер: strong(updated.number), состояние: statusTitle(updated.status, false, t) }) +
         (said.comment ? `\n${t('doing.written', { что: plain(said.comment) })}` : ''),
       actionKeyboard(
         actionsFor(updated, resident),
@@ -1257,7 +1398,7 @@ const move: Button = async (kit, typed, [requestId, to, step]) => {
     const request = await getRequestFor(kit.deps, resident, requestId).catch(() => undefined);
 
     await typed.reply(
-      t('request.withdraw_ask', { номер: request ? ` ${request.number}` : '' }),
+      request ? t('request.withdraw_ask_number', { номер: request.number }) : t('request.withdraw_ask'),
       confirmKeyboard(t('button.withdraw_yes'), `req:${requestId}:withdrawn:yes`, t),
     );
 
@@ -1343,4 +1484,9 @@ export const BUTTONS: Record<string, Button> = {
   talk,
   starter,
   do: doIt,
+  slot,
+  missed,
+  dispute,
+  drop,
+  owner,
 };

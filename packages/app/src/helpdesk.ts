@@ -49,7 +49,7 @@ const staffOf = async (deps: AppDeps, buildingId: string): Promise<Resident[]> =
   return onCall(responsible, deps.now(), WORKING_HOURS, await zoneOf(deps, buildingId));
 };
 
-/** Вопрос в управляющую компанию: новое обращение или реплика в открытом. @throws {DomainError} */
+/** Вопрос в управляющую организацию: новое обращение или реплика в открытом. @throws {DomainError} */
 export const askSupport = async (deps: AppDeps, command: AskSupportCommand): Promise<SupportTicket> => {
   // Смена читает вопрос по-русски, поэтому перевод идёт до проверки сказанного:
   // по делу ли вопрос, решается по тому же тексту, который увидит человек в смене.
@@ -124,7 +124,7 @@ export const answerSupport = async (deps: AppDeps, command: AnswerSupportCommand
   const { staff } = command;
 
   if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Отвечает в поддержке управляющая компания');
+    throw new DomainError('forbidden', 'Отвечает в поддержке управляющая организация');
   }
 
   const ticket = await supportTicket(deps, staff, command.ticketId);

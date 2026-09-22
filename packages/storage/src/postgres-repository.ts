@@ -4,6 +4,7 @@ import type {
   AuditEntry,
   BindAttempt,
   Building,
+  ConnectionRequest,
   Equipment,
   HandoffFilter,
   Repository,
@@ -244,8 +245,8 @@ export class PostgresRepository implements Repository {
       const { rows } = await this.sql.query<ResidentRow>(
         `insert into resident
            (id, max_user_id, display_name, role, building_id, apartment_id, apartment_ids, on_duty, forgotten_at,
-            mutes, phone, serves_building_ids, legal_version, legal_at, language)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            mutes, phone, serves_building_ids, legal_version, legal_at, language, owned, name_by_user)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          on conflict (id) do update set
            max_user_id = excluded.max_user_id,
            display_name = excluded.display_name,
@@ -260,7 +261,9 @@ export class PostgresRepository implements Repository {
            serves_building_ids = excluded.serves_building_ids,
            legal_version = excluded.legal_version,
            legal_at = excluded.legal_at,
-           language = excluded.language
+           language = excluded.language,
+           owned = excluded.owned,
+           name_by_user = excluded.name_by_user
          returning *`,
         [
           resident.id,
@@ -278,6 +281,8 @@ export class PostgresRepository implements Repository {
           resident.legalVersion ?? null,
           resident.legalAt ?? null,
           resident.language ?? null,
+          resident.owned?.length ? JSON.stringify(resident.owned) : null,
+          resident.nameByUser ?? null,
         ],
       );
 
@@ -502,7 +507,8 @@ export class PostgresRepository implements Repository {
              target_kind = $8, apartment_id = $9, apartment_number = $10,
              entrance = $11, riser = $12, equipment_code = $13, equipment_title = $14,
              rating = $15, knocked_at = $17, category = $18, reaction_due_at = $19,
-             original_text = $20, original_language = $21
+             original_text = $20, original_language = $21,
+             appointment = $22, materials = $23, disputed_at = $24
          where id = $1`,
         [
           request.id,
@@ -526,6 +532,9 @@ export class PostgresRepository implements Repository {
           request.reactionDueAt,
           request.original?.text ?? null,
           request.original?.language ?? null,
+          request.appointment ? JSON.stringify(request.appointment) : null,
+          request.materials?.length ? JSON.stringify(request.materials) : null,
+          request.disputedAt ?? null,
         ],
       );
 
@@ -644,8 +653,9 @@ export class PostgresRepository implements Repository {
       await sql.query(
         `insert into announcement
            (id, building_id, kind, entrance, riser, title, body, created_at,
-            works_category, works_from, works_until, request_id, works_resource)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+            works_category, works_from, works_until, request_id, works_resource, deliver_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         on conflict (id) do update set deliver_at = excluded.deliver_at`,
         [
           announcement.id,
           announcement.buildingId,
@@ -660,6 +670,7 @@ export class PostgresRepository implements Repository {
           announcement.works?.until ?? null,
           announcement.requestId ?? null,
           announcement.works?.resource ?? null,
+          announcement.deliverAt ?? null,
         ],
       );
 
@@ -667,7 +678,8 @@ export class PostgresRepository implements Repository {
 
       await sql.query(
         `insert into announcement_recipient (announcement_id, apartment_id)
-         select $1, unnest($2::text[])`,
+         select $1, unnest($2::text[])
+         on conflict do nothing`,
         [announcement.id, announcement.recipientIds],
       );
     });
@@ -762,13 +774,13 @@ export class PostgresRepository implements Repository {
 
   async saveVote(vote: Vote): Promise<Vote> {
     await this.sql.query(
-      `insert into poll_vote (poll_id, apartment_id, choice, at, resident_id)
-       values ($1, $2, $3, $4, $5)
-       on conflict (poll_id, apartment_id) do update set
+      `insert into poll_vote (poll_id, apartment_id, choice, at, resident_id, share)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (poll_id, apartment_id, resident_id) do update set
          choice = excluded.choice,
          at = excluded.at,
-         resident_id = excluded.resident_id`,
-      [vote.pollId, vote.apartmentId, vote.choice, vote.at, vote.residentId],
+         share = excluded.share`,
+      [vote.pollId, vote.apartmentId, vote.choice, vote.at, vote.residentId, vote.share ?? null],
     );
 
     return vote;
@@ -783,6 +795,7 @@ export class PostgresRepository implements Repository {
       choice: row.choice,
       at: row.at,
       residentId: row.resident_id,
+      ...(row.share === null ? {} : { share: Number(row.share) }),
     }));
   }
 
@@ -840,15 +853,17 @@ export class PostgresRepository implements Repository {
       if (initiative.signatures.length === 0) return;
 
       await sql.query(
-        `insert into initiative_signature (initiative_id, apartment_id, resident_id, at)
-         select $1, apartment_id, resident_id, at
-         from unnest($2::text[], $3::text[], $4::timestamptz[]) as signed (apartment_id, resident_id, at)
+        `insert into initiative_signature (initiative_id, apartment_id, resident_id, at, share)
+         select $1, apartment_id, resident_id, at, share
+         from unnest($2::text[], $3::text[], $4::timestamptz[], $5::numeric[])
+           as signed (apartment_id, resident_id, at, share)
          on conflict do nothing`,
         [
           initiative.id,
           initiative.signatures.map((signature) => signature.apartmentId),
           initiative.signatures.map((signature) => signature.residentId),
           initiative.signatures.map((signature) => signature.at),
+          initiative.signatures.map((signature) => signature.share ?? null),
         ],
       );
     };
@@ -901,6 +916,7 @@ export class PostgresRepository implements Repository {
           residentId: signature.resident_id,
           apartmentId: signature.apartment_id,
           at: signature.at,
+          ...(signature.share === null ? {} : { share: Number(signature.share) }),
         })),
       ...(row.poll_id ? { pollId: row.poll_id } : {}),
     }));
@@ -1168,6 +1184,39 @@ export class PostgresRepository implements Repository {
     );
 
     return Number(rows[0]?.count ?? 0);
+  }
+
+  async saveConnectionRequest(request: ConnectionRequest): Promise<ConnectionRequest> {
+    await this.sql.query(
+      `insert into connection_request (id, resident_id, address, company, phone, at)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (resident_id) do update set
+         address = excluded.address,
+         company = excluded.company,
+         phone = excluded.phone,
+         at = excluded.at`,
+      [request.id, request.residentId, request.address, request.company ?? null, request.phone ?? null, request.at],
+    );
+
+    return request;
+  }
+
+  async listConnectionRequests(limit = 50): Promise<ConnectionRequest[]> {
+    const { rows } = await this.sql.query<ConnectionRow>(
+      'select * from connection_request order by at desc limit $1',
+      [limit],
+    );
+
+    return rows.map(toConnectionRequest);
+  }
+
+  async findConnectionRequest(residentId: string): Promise<ConnectionRequest | undefined> {
+    const { rows } = await this.sql.query<ConnectionRow>(
+      'select * from connection_request where resident_id = $1',
+      [residentId],
+    );
+
+    return rows[0] ? toConnectionRequest(rows[0]) : undefined;
   }
 
   async saveHandoff(handoff: Handoff): Promise<Handoff> {
@@ -2061,11 +2110,30 @@ interface InitiativeRow {
   poll_id: string | null;
 }
 
+interface ConnectionRow {
+  id: string;
+  resident_id: string;
+  address: string;
+  company: string | null;
+  phone: string | null;
+  at: Date;
+}
+
+const toConnectionRequest = (row: ConnectionRow): ConnectionRequest => ({
+  id: row.id,
+  residentId: row.resident_id,
+  address: row.address,
+  ...(row.company ? { company: row.company } : {}),
+  ...(row.phone ? { phone: row.phone } : {}),
+  at: row.at,
+});
+
 interface SignatureRow {
   initiative_id: string;
   apartment_id: string;
   resident_id: string;
   at: Date;
+  share: string | number | null;
 }
 
 interface VoteRow {
@@ -2074,6 +2142,7 @@ interface VoteRow {
   choice: Vote['choice'];
   at: Date;
   resident_id: string;
+  share: string | number | null;
 }
 
 const toPoll = (row: PollRow): Poll => ({

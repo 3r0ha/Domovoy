@@ -4,8 +4,16 @@ import { useState, type FormEvent } from 'react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { ApiError, formatTime, parseCount, plural, type AnnouncementView, type DomovoyApi } from '../api.js';
-import { spokenLanguage, useT } from '../i18n.js';
+import {
+  ApiError,
+  formatDayAt,
+  formatTime,
+  parseCount,
+  plural,
+  type AnnouncementView,
+  type DomovoyApi,
+} from '../api.js';
+import { useT } from '../i18n.js';
 import { usePages } from '../use-pages.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
@@ -224,7 +232,7 @@ const shortMoment = (isoDate: string, now: Date = new Date()): string => {
   const sameDay = at.toDateString() === now.toDateString();
   const time = formatTime(isoDate);
 
-  return sameDay ? time : `${at.toLocaleDateString(spokenLanguage(), { day: 'numeric', month: 'short' })}, ${time}`;
+  return sameDay ? time : formatDayAt(isoDate, now);
 };
 
 /** Когда объявление вышло: сегодняшнее и вчерашнее названы словом, старое датой. */
@@ -236,7 +244,7 @@ const publishedAt = (t: Translate, isoDate: string, now: Date = new Date()): str
   if (at.toDateString() === now.toDateString()) return t('news.today', { время: time });
   if (at.toDateString() === yesterday.toDateString()) return t('news.yesterday', { время: time });
 
-  return `${at.toLocaleDateString(spokenLanguage(), { day: 'numeric', month: 'short' })}, ${time}`;
+  return formatDayAt(isoDate, now);
 };
 
 /** Три состояния работ: объявлены, идут, закончились. */

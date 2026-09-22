@@ -3,19 +3,14 @@ import type { Dictionary } from '../../translate.js';
 /** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
 export const bot: Dictionary = {
   'greeting.hello': 'Salam!',
-  'greeting.resident':
-    'Evlə bağlı kömək edərəm: nasazlıq barədə bildirmək, sayğac rəqəmlərini göndərmək,\n' +
-    'hesaba baxmaq, giriş qapısını açmaq.\n\n' +
-    'Sadəcə sözlə yaza bilərsiniz: «kran sızır», «qapını aç», «girişi nə vaxt təmizləyəcəklər».',
+  'greeting.resident': 'Evlə bağlı kömək edərəm. Menyudan seçin və ya yazın: «kran sızır», «qapını aç».',
   'start.code_unknown': 'Keçiddəki kod uyğun gəlmədi: evdə belə obyekt yoxdur.',
 
   'lang.chosen': 'Dil: {язык}.',
 
   'legal.ask':
-    'Domovoy şəxsi məlumatları evin idarəetmə təşkilatının tapşırığı ilə emal edir.\n' +
-    'Emal siyasəti və istifadəçi razılaşması aşağıdakı düymələrdədir.\n' +
-    '«Qəbul edirəm» düyməsini basmaqla onlarla razılaşırsınız. Razılıq olmadan müraciəti qəbul edə ' +
-    'və göstəriciləri saxlaya bilmərəm.',
+    'Domovoy şəxsi məlumatları idarəetmə şirkətinin tapşırığı ilə emal edir.\n' +
+    'Razılıq olmadan nə müraciəti, nə də göstəriciləri qəbul edə bilmərəm.',
   'legal.accepted': 'Qüvvədə olan redaksiya ilə razılaşdınız.\nTam mətnlər düymələrlə açılır.',
   'legal.thanks': 'Təşəkkür edirəm. Nə ilə kömək edim?',
 
@@ -23,9 +18,7 @@ export const bot: Dictionary = {
   'flat.unknown':
     'Hansı mənzildə olduğunuzu hələ bilmirəm.\n' +
     'Qəbzdə ünvanın yanında 8 işarəlik kod çap olunub. Onu mesajla göndərin.',
-  'flat.bound':
-    'Hazırdır. İndi bilirəm ki, siz {номер} nömrəli mənzildəsiniz.\n' +
-    'Sayğac rəqəmlərini göndərmək, hesaba baxmaq və ev yığıncaqlarında səs vermək olar.',
+  'flat.bound': 'Hazırdır, {номер} nömrəli mənzil.',
   'flat.already': 'Siz artıq {номер} nömrəli mənzilə bağlısınız.',
   'flat.already_yours': '{номер} nömrəli mənzil artıq sizindir.',
   'flat.other_code': 'Mənziliniz artıq bağlanıb. Bu kod {номер} nömrəli mənzili bağlayacaq. Bağlansın?',
@@ -61,11 +54,11 @@ export const bot: Dictionary = {
     'Şəkil göndərmək olar.',
   'request.accepted': 'Müraciət {номер} qəbul edildi.',
   'request.what': 'Nə: {что}, {где}.',
-  'request.react': '{срок} qədər cavab verəcəyik.',
-  'request.fix': '{срок} qədər düzəldəcəklər.',
+  'request.react': '{срок} vaxtına qədər cavab verəcəyik.',
+  'request.fix': '{срок} vaxtına qədər düzəldəcəklər.',
   'request.same': 'Bu, həmin {номер} müraciətidir, yenisini açmıram.',
   'request.joined': 'Belə problem barədə artıq bildirilib: müraciət {номер}, {состояние}.',
-  'request.joined_you': 'Bu barədə yazanlar arasında {который}-siniz. {срок} qədər düzəldəcəklər.',
+  'request.joined_you': 'Bu barədə yazanlar arasında sıra nömrəniz {который}. {срок} vaxtına qədər düzəldəcəklər.',
   'request.notify': 'Dəyişikliklər barədə xəbər verəcəyəm.',
   'request.planned': 'Məsələ bu işlərdədirsə, müraciət lazım deyil.',
   'request.optional': 'Cavab verməyə bilərsiniz, müraciət artıq qəbul olunub.',
@@ -76,7 +69,7 @@ export const bot: Dictionary = {
   'request.rest': 'Daha {сколько} müraciət var. Siyahı tətbiqdədir.',
   'request.all_open': 'İşdə olanların hamısı budur. Bağlanmış müraciətlər tətbiqdədir.',
   'request.not_found': 'Sizdə {номер} müraciəti yoxdur. Nə baş verdiyini yazın, yenisini rəsmiləşdirim.',
-  'request.due': 'Müddət: {срок} qədər',
+  'request.due': 'Müddət: {срок} vaxtına qədər',
   'request.worker': 'İşi {кто} aparır',
   'request.answers': 'Cavab verir: {кто}',
   'request.state': 'Müraciət {номер}: {состояние}',
@@ -87,7 +80,9 @@ export const bot: Dictionary = {
   'request.reply_ask': 'Cavabı bir mesajla yazın, bu müraciət üzrə ötürüm.',
   'request.back_to_work': 'Müraciət {номер} yenidən işdədir: sözlərinizi ustaya ötürdüm.',
   'request.withdraw_ask':
-    'Müraciət{номер} geri götürülsün? Usta onun üzrə gəlməyəcək, onu qaytarmaq olmayacaq, yenisini rəsmiləşdirmək lazım gələcək.',
+    'Müraciət geri götürülsün? Usta onun üzrə gəlməyəcək, onu qaytarmaq olmayacaq, yenisini rəsmiləşdirmək lazım gələcək.',
+  'request.withdraw_ask_number':
+    'Müraciət {номер} geri götürülsün? Usta onun üzrə gəlməyəcək, onu qaytarmaq olmayacaq, yenisini rəsmiləşdirmək lazım gələcək.',
   'request.where_unknown':
     '{причина}. Girişdəki kodu skan edin və ya tətbiqi açın, orada ünvanı seçmək olar.',
   'request.where_skipped': 'Yaxşı, ünvanı usta yerində dəqiqləşdirəcək. Müraciət artıq növbətçi heyətdədir.',
@@ -114,7 +109,7 @@ export const bot: Dictionary = {
   'meters.consumption': 'Dövr üzrə sərf: {расход}.',
   'meters.refused': 'Göstərici qəbul edilmədi: {причина}',
   'meters.retry': 'Rəqəmi bir də göndərin.',
-  'meters.next_window': 'Növbəti göstəricini ayın {день}-dən qəbul edəcəyik.',
+  'meters.next_window': 'Növbəti göstəricini ayın {день} tarixindən qəbul edəcəyik.',
   'meters.not_number': 'Rəqəmə oxşamır. Göstəricini rəqəmlərlə göndərin, məsələn 123,456',
   'meters.not_reading': 'Bu, göstəriciyə oxşamır. Tablodakı rəqəmi göndərin və ya «Ləğv et» düyməsini basın.',
   'meters.heard': '{значение} göstəricisini eşitdim. Verilsin?\nBelə deyilsə, rəqəmi rəqəmlərlə göndərin.',
@@ -138,7 +133,7 @@ export const bot: Dictionary = {
   'meters.which_value': '{значение} göstəricisinə oxşayır. Bu, hansı sayğacındır?',
 
   'bill.empty': 'Bu ay üçün hələ hesablama yoxdur.',
-  'bill.total': '{срок} qədər {сумма} ödəyin',
+  'bill.total': '{срок} tarixinədək {сумма} ödəyin',
   'bill.paid': 'Hesablanıb {сумма}, bu ay üçün hamısı ödənilib',
   'bill.where': 'Nədən ibarət olduğuna və nəyə görə olduğuna tətbiqdə baxın.',
   'pay.month_ask': 'Ay üçün {сумма} ödənilsin?',
@@ -154,7 +149,7 @@ export const bot: Dictionary = {
   'door.no_snapshot': 'Kadr gəlmədi',
   'door.guest_code':
     'Qonaq üçün kod: {код}\n' +
-    'Qoy onu girişdəki domofonda yığsın. Kod bu gün {время} qədər işləyir.',
+    'Qoy onu girişdəki domofonda yığsın. Kod bu gün {время} saatına qədər işləyir.',
 
   'news.title': 'İdarəetmə şirkətinin elanları:',
   'news.empty':
@@ -169,7 +164,7 @@ export const bot: Dictionary = {
     'Qonşular hələ heç nə barədə bildirməyib.\n' +
     'Burada qonşuların yazdığı giriş və həyət nasazlıqları görünəcək: onları təsdiqləmək olar.',
   'neighbours.about':
-    'Qonşular {сколько} barədə bildirib. ' +
+    'Qonşuların bildirdiyi nasazlıqlar: {сколько}. ' +
     'Tətbiqdə nəyin və harada olduğu görünür, sizdə də eyni olduğunu təsdiqləmək olar.',
 
   'vote.title': 'Mülkiyyətçilər yığıncaqları',
@@ -221,7 +216,7 @@ export const bot: Dictionary = {
   'visit.taken': 'Bu saat tutuldu. Başqasını seçin.',
   'visit.taken_none': 'Bu saat tutuldu, hələlik boş saat yoxdur.',
 
-  'data.about': '{кто}.\nSizin haqqınızda saxladığım: {что}.',
+  'data.about': '{кто}\nSizin haqqınızda saxladığım: {что}.',
   'data.file': 'Məlumatlarınız fayl şəklində. {сводка}',
   'data.file_failed': 'Faylı göndərmək alınmadı. Həmin məlumatlar tətbiqdə görünür.',
   'forget.ask':
@@ -269,6 +264,7 @@ export const bot: Dictionary = {
   'command.unknown': 'Belə əmr məndə yoxdur. Nə lazım olduğunu sözlə yaza bilərsiniz, başa düşərəm.',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}: {адрес}',
   'menu.words': 'Sözlə yaza bilərsiniz: «qapını aç», «nə qədər ödəmək lazımdır», «kran sızır».',
   'menu.in_chat': 'Menyu mənimlə yazışmada açılır.',
   'menu.new': '✍️ Nə sınıb',
@@ -294,15 +290,11 @@ export const bot: Dictionary = {
   'menu.notices.about': 'Nə göndərilsin və nə barədə susulsun. Orada həm də telefon və məlumatların yüklənməsi.',
   'menu.lang': '🌐 Dil',
   'menu.group.money': '💳 Pul və sayğaclar',
-  'menu.group.money.about': 'Bu ay nə qədər ödəniş və sayğac rəqəmlərinin hara göndərilməsi.',
   'menu.group.house': '📣 Ev xəbərləri',
-  'menu.group.house.about': 'İdarəetmə şirkətinin elanları, qonşu yığıncaqları və ev üzrə iş.',
   'menu.group.me': '☎️ Əlaqə və profil',
-  'menu.group.me.about': 'İdarəetmə şirkəti ilə necə əlaqə saxlamaq və məhsulun sizin haqqınızda bildikləri.',
   'menu.demo': '👥 Rol',
 
   'menu.group.home': '🏡 Mənzilim',
-  'menu.group.home.about': 'Hesablarınız, sayğaclar və öz mənziliniz üzrə müraciətlər.',
   'menu.group.bind.about': 'Bu evdə yaşayırsınızsa, mənzili qəbzdəki kodla bağlayın.',
   'menu.home.new': '✍️ Yeni müraciət',
   'menu.home.meters': '💧 Göstəricilər',
@@ -312,11 +304,10 @@ export const bot: Dictionary = {
 
   'menu.contractor.my': '📋 Tapşırıqlar',
   'menu.group.works': '🏢 Ev işləri',
-  'menu.group.contractor.about': 'İdarəetmə şirkəti ilə əlaqə, elanlar və giriş qapıları.',
-  'menu.group.works.about': 'Evin müddətləri necə bağladığı, borclar, yığıncaqlar və giriş qapıları.',
 
   'menu.staff.queue': '🗂 Ev növbəsi',
   'menu.staff.my': '📋 Tapşırıqlarım',
+  'menu.staff.day': '🗓 Günüm',
   'menu.staff.duty': '🌙 Növbətçilik',
   'menu.staff.support': '💬 Sakin sualları',
   'menu.staff.visit': '🗓 Sakin qəbulu',
@@ -347,14 +338,10 @@ export const bot: Dictionary = {
   'menu.staff.audit': '📜 Əməliyyat jurnalı',
   'menu.staff.audit.about': 'Ev üzrə kim nə edib: müraciətlər, rollar, göstəricilər, göndərişlər.',
   'menu.group.people': '💬 Sakinlər',
-  'menu.group.people.about': 'Sakin sualları, qeydiyyatla qəbul və evə mesajlar.',
-  'menu.group.staff_me.about':
-    'Öz mənziliniz, məlumatlar, bildirişlər və sakin kimi idarəetmə şirkəti ilə əlaqə.',
   'menu.group.app': '📱 Tətbiqdə',
-  'menu.group.app.about': 'Yazışmada oxunmayan ekranlar: baxışlar, ev planı, cihazlar.',
   'menu.group.manage': '🗄 Evin idarə edilməsi',
-  'menu.group.manage.about': 'Tariflər, ev kartı, şirkət ünvanları və əməliyyat jurnalı.',
 
+  'chat.answered_privately': '{кто}, sizə şəxsi yazışmada cavab verdim.',
   'topic.bill': '🧾 Aylıq qəbz',
   'topic.request': '📋 Müraciətlər',
   'topic.news': '📣 Elanlar',
@@ -451,4 +438,43 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ Heç biri üzrə',
   'button.stale': 'Bu düymə artıq işləmir',
   'button.stale_more': 'Bu düymə köhnə mesajdandır. Bunlardan başlaya bilərsiniz.',
+  'button.visit_other': '🕘 Başqa vaxt',
+  'button.visit_drop': '🕘 Vaxtı dəyiş',
+  'button.rename': '✏️ Adı dəyiş',
+  'button.complaint_edit': '✏️ Mətni düzəlt',
+  'button.not_my_flatmate': '🚫 Bu mənim qonşum deyil',
+  'button.owner_yes': '✅ Mən mülkiyyətçiyəm',
+  'button.owner_no': '👤 Yaşayıram, mülkiyyətçi deyiləm',
+  'button.dispute': '📄 İmtina ilə razı deyiləm',
+  'button.missed': '🚪 Mənzilə girə bilmədim',
+  'button.connect': '🏢 Mənim evim burada yoxdur',
+
+  'visit.set': 'Qeyd etdim: {номер} müraciəti üzrə usta {когда} gələcək. Planlar dəyişsə, yazın.',
+  'visit.missed_noted': '{номер} müraciəti üzrə qeyd etdim: mənzilə girilmədi. Sakin başqa vaxt seçəcək.',
+  'visit.dropped': '{номер} müraciəti üzrə vaxt ləğv edildi. Başqasını seçin, ustaya mən xəbər verərəm.',
+  'visit.not_understood': 'Təklif olunanlar arasında belə vaxt yoxdur. Bunlardan birini seçin.',
+
+  'name.ask': 'Sizə necə müraciət edək? İndi: {имя}. Adı bir mesajda yazın.',
+  'name.changed': 'İndi siz {имя}. Sizi usta və idarəetmə təşkilatı belə görəcək.',
+
+  'gzhi.edit_ask': 'Nəyi düzəltmək lazım olduğunu yazın: «giriş barədə hissəni sil», «üç gündür axdığını əlavə et».',
+  'gzhi.edited': 'Düzəltdim. Oxuyun və hər şey düzgündürsə, göndərin.',
+  'gzhi.not_edited': 'Nəyi düzəltməyi başa düşmədim. Başqa cür deyin və ya olduğu kimi göndərin.',
+
+  'request.dispute_ask': 'İmtina ilə niyə razı olmadığınızı bir mesajda yazın. İmtinaya yenidən baxılacaq.',
+  'request.disputed': 'Müraciət {номер} yenidən işdədir. İdarəetmə təşkilatı onu təzədən nəzərdən keçirəcək.',
+
+  'flat.owner_ask':
+    'Siz bu mənzilin mülkiyyətçisisiniz? Yığıncaqlarda binanın mülkiyyətçiləri səs verir, qalanı hamıya açıqdır.',
+  'flat.owner_noted': 'Qeyd etdim: siz mülkiyyətçisiniz. Yığıncaqdakı səsiniz mənzilinizin sahəsinə görə sayılır.',
+  'flat.tenant_noted': 'Qeyd etdim. Müraciətlər, göstəricilər və qəbz sizə açıqdır, yığıncaqdakı səs isə yox.',
+  'flat.neighbour_dropped': 'Bu şəxsi mənzilinizdən çıxardım. İdarəetmə təşkilatı bundan xəbərdardır.',
+
+  'connect.ask':
+    'Deyəsən, eviniz hələ burada yoxdur. Ünvanı bir mesajda yazın, biz onu evinizin idarəetmə təşkilatına çatdıracağıq.',
+  'connect.saved': 'Ünvanı qeyd etdim. Ev qoşulan kimi yazacağam.',
+
+  'day.title': 'Sizdəki tapşırıqlar: {сколько}, ziyarət vaxtı təyin olunanlar: {назначено}.',
+  'day.rest': 'Daha tapşırıq: {сколько}. Bütün gün tətbiqdə görünür.',
+  'day.empty': 'Hazırda sizdə tapşırıq yoxdur.',
 };

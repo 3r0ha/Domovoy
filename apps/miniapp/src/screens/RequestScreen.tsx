@@ -31,7 +31,9 @@ import { Attachments } from './Attachments.js';
 import { MachineNote } from './MachineNote.js';
 import { Original } from './Original.js';
 import { Composer } from './Composer.js';
+import { DisputeCard } from './DisputeCard.js';
 import { RequestActions } from './RequestActions.js';
+import { VisitCard } from './VisitCard.js';
 import { RetryLink } from './Retry.js';
 import { Clarify } from './Clarify.js';
 import { Confirm } from './Confirm.js';
@@ -162,13 +164,15 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
   return (
     <div className="survey-block">
       {/* Столбик квартир без подписи читается как набор цифр: рядом стоит, что он значит. */}
-      <p className="hint survey-note">Соседи по стояку · {VERDICTS[spread.verdict]}</p>
+      <p className="hint survey-note">
+        {t('request.survey.title')} · {t(`request.survey.verdict.${spread.verdict}`)}
+      </p>
 
-      <div className="survey" aria-label="Опрос соседей">
+      <div className="survey" aria-label={t('request.survey.label')}>
         <div className={spread.verdict === 'shared' ? 'pipe pipe-alert' : 'pipe'}>
           <div className="flats">
             {[...(view.survey ?? [])].reverse().map((flat) => (
-              <span key={flat.number} className={`flat flat-${flat.state}`} title={SURVEY_TITLES[flat.state]}>
+              <span key={flat.number} className={`flat flat-${flat.state}`} title={surveyTitle(t, flat.state)}>
                 {flat.number}
               </span>
             ))}
@@ -179,7 +183,7 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
           {states.map((state) => (
             <span key={state}>
               <span className={`flat flat-${state}`} aria-hidden="true" />
-              {SURVEY_TITLES[state]}
+              {surveyTitle(t, state)}
             </span>
           ))}
         </p>
@@ -189,17 +193,8 @@ const Spread = ({ view, staff }: { view: RequestView; staff?: boolean }) => {
 };
 
 /** Ответы соседей называются теми же словами, что кнопки, которыми их дают. */
-const SURVEY_TITLES: Record<string, string> = {
-  affected: 'И у меня',
-  fine: 'Всё работает',
-  silent: 'Не отвечали',
-};
-
-const VERDICTS: Record<string, string> = {
-  shared: 'общее имущество',
-  local: 'похоже на квартиру',
-  unknown: 'ответов мало',
-};
+const surveyTitle = (t: Translate, state: string): string =>
+  state === 'affected' ? t('request.support.yes') : t(`request.survey.${state}`);
 
 /** Точка последнего события повторяет цвет текущего состояния. */
 const TIP: Record<string, string> = {
@@ -590,12 +585,19 @@ const Complaint = ({
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
+  // Черновик собрал продукт, а письмо в орган власти пишет человек: подробности,
+  // которых нет в заявке, знает он.
+  const [editing, setEditing] = useState(false);
+  const [edited, setEdited] = useState('');
   const say = useToast();
   const t = useT();
 
   const keep = (next: ComplaintOffer): void => {
     OFFERS.set(request.id, next);
     setOffer(next);
+
+    // Поле правки наполняется готовым текстом: человек правит, а не пишет с нуля.
+    if (next.complaint && !edited) setEdited(next.complaint);
   };
 
   const check = async (): Promise<void> => {
@@ -618,7 +620,13 @@ const Complaint = ({
     setFailed(null);
 
     try {
-      const receipt: ComplaintSent = await api.sendComplaint(request.id);
+      // Уходит тот текст, который человек прочитал и поправил: письмо в орган
+      // власти пишет он, продукт собрал только черновик.
+      const own = edited.trim();
+      const receipt: ComplaintSent = await api.sendComplaint(
+        request.id,
+        own && own !== offer?.complaint ? own : undefined,
+      );
 
       keep({ ...(offer ?? { possible: true, reason: '' }), sent: receipt });
       setAsking(false);
@@ -676,6 +684,23 @@ const Complaint = ({
             >
               {t('request.complaint.read')}
             </button>
+          ) : null}
+
+          {/* Текст правится прямо здесь: подробности, которых нет в заявке,
+              знает человек, а переписывать письмо в чужую форму он не должен. */}
+          {offer.complaint ? (
+            <button type="button" className="link" onClick={() => setEditing((open) => !open)}>
+              {editing ? t('request.complaint.edit.hide') : t('request.complaint.edit')}
+            </button>
+          ) : null}
+
+          {editing ? (
+            <textarea
+              aria-label={t('request.complaint.title')}
+              rows={10}
+              value={edited}
+              onChange={(event) => setEdited(event.target.value)}
+            />
           ) : null}
         </div>
       ) : null}
@@ -778,13 +803,21 @@ export const RequestScreen = ({
 
         <p className="request-title">{view.title}</p>
 
+        {/* Срок называется один раз: у идущей заявки датой и часом, у нарушенной
+            и у закрытой словами. Раньше одно и то же стояло и так, и так. */}
         <p className="hint">
-          {tight(view.target)} · <span className={view.overdue ? 'overdue' : undefined}>{deadline(t, view)}</span>
+          {tight(view.target)}
+          {due && !view.overdue ? null : (
+            <>
+              {' · '}
+              <span className={view.overdue ? 'overdue' : undefined}>{deadline(t, view)}</span>
+            </>
+          )}
         </p>
 
         <Deadline request={view} />
 
-        {due ? <p className="hint aside">{due}</p> : null}
+        {due && !view.overdue ? <p className="hint aside">{due}</p> : null}
 
         {view.description === view.title ? null : <p className="description">{view.description}</p>}
 
@@ -796,14 +829,30 @@ export const RequestScreen = ({
 
         {view.hint ? <p className="row-state request-hint">{view.hint}</p> : null}
 
-        {view.assigneeName ? <p className="hint">{t('request.assignee', { имя: view.assigneeName })}</p> : null}
+        {/* Сведения о заявке идут одним блоком: по отдельности это была стопка
+            одинаковых серых абзацев, в которой ничего не находилось глазом. */}
+        <div className="facts">
+          {view.assigneeName ? <p className="hint">{t('request.assignee', { имя: view.assigneeName })}</p> : null}
 
-        {/* Памятка исполнителю, а не жильцу: с чем его пускают в квартиру. */}
-        {view.workerNote ? <p className="hint aside">{view.workerNote}</p> : null}
+          {/* Памятка исполнителю, а не жильцу: с чем его пускают в квартиру. */}
+          {view.workerNote ? <p className="hint">{view.workerNote}</p> : null}
 
-        <Spread view={view} staff={staff} />
-        {staff ? <Contact api={api} id={view.id} /> : null}
-        {view.rating ? <p className="hint">{t('request.rating.value', { оценка: view.rating })}</p> : null}
+          <Spread view={view} staff={staff} />
+          {staff ? <Contact api={api} id={view.id} /> : null}
+          {view.rating ? <p className="hint">{t('request.rating.value', { оценка: view.rating })}</p> : null}
+
+          {/* Списанное видно и после сдачи: иначе расход нельзя ни проверить,
+              ни оспорить, и смена ведёт его во втором месте. */}
+          {(view.materials ?? []).length > 0 ? (
+            <p className="hint">
+              {t('request.materials', {
+                что: (view.materials ?? [])
+                  .map((item) => `${item.title} ${item.count}${item.unit ? ` ${item.unit}` : ''}`)
+                  .join(', '),
+              })}
+            </p>
+          ) : null}
+        </div>
       </section>
 
       {/* Сотрудники не дошли: без этой строки назначение выглядит так, будто
@@ -822,6 +871,26 @@ export const RequestScreen = ({
           onChanged={reload}
         />
       ) : null}
+
+      {/* Время визита: без жильца дома работы в квартире не идут. Общее
+          имущество открывают без жильца, сданную работу согласовывать поздно,
+          а без исполнителя ехать некому: там карточки визита нет. */}
+      {ended || view.status === 'done' || view.needsVisit !== true ? null : (
+        <VisitCard api={api} request={view} {...(staff ? { staff } : {})} onChanged={reload} />
+      )}
+
+      {/* Основание отказа своим блоком: в истории оно стоит строкой без подписи,
+          и карточка закрытой заявки выглядит пустой. */}
+      {view.status === 'rejected' && view.rejectionReason ? (
+        <section className="block refusal">
+          <h2>{t('request.refusal')}</h2>
+          <p>{view.rejectionReason}</p>
+        </section>
+      ) : null}
+
+      {/* Отказ, с которым заявитель не согласен, возвращается на пересмотр
+          один раз: иначе ему остаётся только завести такую же заявку заново. */}
+      {view.disputable ? <DisputeCard api={api} request={view} onChanged={reload} /> : null}
 
       {/* Уточнение адреса видит автор заявки, кем бы он ни был: продукт
           спрашивает только его, остальным приходит пустой ответ. */}

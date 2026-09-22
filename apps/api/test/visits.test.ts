@@ -141,7 +141,10 @@ describe('запись на приём по HTTP', () => {
     const visit = booked.json<{ id: string; status: string; day: string; clock: string }>();
 
     assert.equal(visit.status, 'booked');
-    assert.equal(visit.clock, '15:00');
+    // Час записи это тот час, который выбрали: первый свободный зависит от
+    // того, когда тест идёт, и в приёмные часы вторника он уже не начало окна.
+    assert.equal(visit.clock, reception.slots[0]!.clock);
+    assert.equal(visit.day, reception.slots[0]!.day);
 
     const taken = await app.inject({
       method: 'POST',

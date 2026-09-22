@@ -4,7 +4,12 @@
  */
 
 export { describeFromAttachments, unheardVoice, type Transcriber } from './incidents/attachments.js';
-export { escalationFor, sendComplaint, type EscalationOffer } from './incidents/escalation.js';
+export {
+  COMPLAINT_MAX_LENGTH,
+  escalationFor,
+  sendComplaint,
+  type EscalationOffer,
+} from './incidents/escalation.js';
 export {
   answerAlert,
   canKnockUpstairs,
@@ -15,7 +20,13 @@ export {
   type KnockCommand,
   type SurveyedApartment,
 } from './incidents/neighbours.js';
-export { assessQueue, objectPassport, type ObjectPassport, type RequestWithRisk } from './incidents/passport.js';
+export {
+  assessQueue,
+  objectPassport,
+  rememberHouseFromObject,
+  type ObjectPassport,
+  type RequestWithRisk,
+} from './incidents/passport.js';
 export {
   closeAcceptedBySilence,
   remindAboutAcceptance,

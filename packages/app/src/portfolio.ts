@@ -19,6 +19,8 @@ export interface BuildingLine {
   inTimeRate?: number;
   /** Средняя оценка жильцов, 1…5. Пусто, если не оценивали. */
   averageRating?: number;
+  /** Дом, в котором сотрудник работает сейчас: в списке из двух адресов их не различить. */
+  current?: boolean;
 }
 
 /** Дома компании в одном списке, худшие сверху. @throws {DomainError} */
@@ -28,7 +30,7 @@ export const portfolio = async (
   days: number = DEFAULT_REPORT_DAYS,
 ): Promise<BuildingLine[]> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Список домов доступен сотрудникам управляющей компании');
+    throw new DomainError('forbidden', 'Список домов доступен сотрудникам управляющей организации');
   }
 
   const now = deps.now();
@@ -55,6 +57,7 @@ export const portfolio = async (
       created: inPeriod.created,
       ...(inPeriod.closed > 0 ? { inTimeRate: inPeriod.inTimeRate } : {}),
       ...(inPeriod.rated > 0 ? { averageRating: inPeriod.averageRating } : {}),
+      ...(building.id === resident.buildingId ? { current: true } : {}),
     };
   });
 

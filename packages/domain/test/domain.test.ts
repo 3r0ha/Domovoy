@@ -181,7 +181,7 @@ describe('сроки', () => {
 
     const wayLater = new Date(request.resolutionDueAt.getTime() + 10 * 3600_000);
 
-    assert.equal(isResolutionOverdue(request, wayLater), false, 'работа стоит не по вине управляющей компании');
+    assert.equal(isResolutionOverdue(request, wayLater), false, 'работа стоит не по вине управляющей организации');
   });
 
   it('закрытая заявка не может быть просрочена', () => {

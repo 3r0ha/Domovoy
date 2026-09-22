@@ -19,7 +19,7 @@ const privacy: LegalText = {
     {
       heading: '1. Ümumi müddəalar',
       lines: [
-        '1.1. Siyasət «Domovoy» proqram məhsulunda (bundan sonra — məhsul) şəxsi məlumatların emalı qaydasını müəyyən edir.',
+        '1.1. Siyasət «Domovoy» proqram məhsulunda (bundan sonra, məhsul) şəxsi məlumatların emalı qaydasını müəyyən edir.',
         '1.2. Şəxsi məlumatların operatoru istifadəçinin çoxmənzilli binasına xidmət göstərən idarəetmə təşkilatıdır. Operator emalın məqsədlərini müəyyən edir və emala görə şəxsi məlumatların subyekti və nəzarət orqanları qarşısında məsuliyyət daşıyır.',
         '1.3. Məhsul şəxsi məlumatları 27.07.2006 tarixli № 152-ФЗ Federal Qanununun 6-cı maddəsinin 3-cü hissəsi əsasında operatorun tapşırığı ilə emal edir, öz emal məqsədlərinə malik deyil, tapşırıqdan kənar üçüncü şəxslərə məlumat ötürmür.',
         '1.4. Operatorun adı və əlaqə məlumatları məhsulun «Dəstək» bölməsində göstərilmişdir.',
@@ -30,7 +30,7 @@ const privacy: LegalText = {
       lines: [
         '2.1. Çoxmənzilli binanın idarə edilməsi müqaviləsi və ondan irəli gələn öhdəliklərin icrası: № 152-ФЗ Federal Qanununun 6-cı maddəsinin 1-ci hissəsinin 5-ci bəndi, Rusiya Federasiyasının Mənzil Məcəlləsinin 161-ci maddəsi.',
         '2.2. Operatorun üzərinə qanunvericiliklə qoyulmuş öhdəliklərin icrası: № 152-ФЗ Federal Qanununun 6-cı maddəsinin 1-ci hissəsinin 2-ci bəndi, Çoxmənzilli binaların idarə edilməsi üzrə fəaliyyətin həyata keçirilməsi Qaydaları (Rusiya Federasiyası Hökumətinin 15.05.2013 tarixli № 416 qərarı), Kommunal xidmətlərin göstərilməsi Qaydaları (Rusiya Federasiyası Hökumətinin 06.05.2011 tarixli № 354 qərarı).',
-        '2.3. MAX informasiya sistemində sahiblər və sahələrin istifadəçiləri ilə qarşılıqlı əlaqə Rusiya Federasiyası Hökumətinin 26.01.2026 tarixli № 40 qərarının redaksiyasında № 416 Qaydaları ilə nəzərdə tutulmuşdur.',
+        '2.3. MAX informasiya sistemində mülkiyyətçilər və sahələrin istifadəçiləri ilə qarşılıqlı əlaqə Rusiya Federasiyası Hökumətinin 26.01.2026 tarixli № 40 qərarının redaksiyasında № 416 Qaydaları ilə nəzərdə tutulmuşdur.',
         '2.4. Şəxsi məlumatların subyektinin razılığı: 2.1 və 2.2-ci bəndlərdə göstərilən əsasların hüdudlarından kənara çıxan hissədə, o cümlədən telefon nömrəsinin könüllü təqdim edilməsi zamanı.',
       ],
     },
@@ -41,7 +41,7 @@ const privacy: LegalText = {
         '3.2. Ünvan məlumatları: bina, giriş, stoyak və istifadəçinin bağlandığı sahə, sahənin bağlanma kodu.',
         '3.3. Müraciətlərin məlumatları: müraciətin mətni, əlavə edilmiş fotoşəkillər və səsli mesajlar, müraciət üzrə yazışma, görülmüş işlərin qiymətləndirilməsi.',
         '3.4. Hesablama məlumatları: uçot cihazlarının göstəriciləri, hesablanmış məbləğlər, ödənişlər, borc və penya.',
-        '3.5. Bina üzrə məlumatlar: sahiblərin ümumi yığıncağında səsvermə, qəbula yazılma, qapıların açılması jurnalı və verilmiş qonaq kodları.',
+        '3.5. Bina üzrə məlumatlar: mülkiyyətçilərin ümumi yığıncağında səsvermə, qəbula yazılma, qapıların açılması jurnalı və verilmiş qonaq kodları.',
         '3.6. Əlaqə məlumatları: istifadəçi tərəfindən könüllü təqdim edilmiş telefon nömrəsi və elektron poçt ünvanı.',
         '3.7. Məhsul pasport məlumatlarını tələb etmir, cihazın yerini müəyyən etmir və istifadəçinin məhsuldan kənar yazışmasını emal etmir.',
       ],
@@ -51,7 +51,7 @@ const privacy: LegalText = {
       lines: [
         '4.1. Müraciətlərin qəbulu və baxılması, operatorun reqlamentinə və normativ hüquqi aktlara uyğun olaraq müddətlərin təyin edilməsi, işlərin gedişi barədə məlumatlandırma.',
         '4.2. Haqqın hesablanması, uçot cihazlarının göstəricilərinin qəbulu və ödənişin həyata keçirilməsi.',
-        '4.3. Sahiblərin ümumi yığıncağının keçirilməsi və səslərin sahələrin sahə paylarına uyğun hesablanması.',
+        '4.3. Mülkiyyətçilərin ümumi yığıncağının keçirilməsi və səslərin sahələrin ölçü paylarına uyğun hesablanması.',
         '4.4. Binanın girişinə daxil olmanın təmin edilməsi və birdəfəlik qonaq kodlarının verilməsi.',
         '4.5. Müddətlərə riayət olunması barədə istifadəçi və nəzarət orqanları qarşısında hesabatlılıq.',
       ],
@@ -62,7 +62,7 @@ const privacy: LegalText = {
         '5.1. Müraciət operatorun məsuliyyət zonasından kənara ötürüldükdə əlaqəli təşkilatlar: resurs təchizatı təşkilatı, podrat təşkilatı, yerli özünüidarə orqanı, dövlət mənzil nəzarəti orqanı. Müraciətin mahiyyəti və obyektin ünvanı ötürülür.',
         '5.2. Ödəniş qoşulduqda ödəniş servisi: ödənişin məbləği və təyinatı.',
         '5.3. Operator tərəfindən qoşulduqda mətnin avtomatik təhlili xidməti: müraciətin və ya sualın mətni, habelə istifadəçi barədə məhsulun interfeysində ona əlçatan həcmdə məlumatlar. Digər şəxslərin məlumatları ötürülmür. Təhlilin nəticəsi köməkçi xarakter daşıyır, müraciət üzrə qərarları operator qəbul edir.',
-        '5.4. MAX platforması — mesajların çatdırılması üçün zəruri olan həcmdə.',
+        '5.4. MAX platforması: mesajların çatdırılması üçün zəruri olan həcmdə.',
         '5.5. Şəxsi məlumatların sərhədlərarası ötürülməsi həyata keçirilmir. Verilənlər bazaları № 152-ФЗ Federal Qanununun 18-ci maddəsinin 5-ci hissəsinə uyğun olaraq Rusiya Federasiyasının ərazisində yerləşdirilir.',
       ],
     },
@@ -128,7 +128,7 @@ const terms: LegalText = {
       heading: '3. Məhsulun funksiyaları',
       lines: [
         '3.1. Müraciətin qeydiyyatı, təşkilatın reqlamentinə və normativ hüquqi aktlara uyğun olaraq reaksiya müddətinin və icra müddətinin hesablanması, işlərin gedişinin və xronologiyanın əks etdirilməsi.',
-        '3.2. İstifadəçinin müraciətləri üzrə dəyişikliklər, binada aparılan işlər və sahiblərin ümumi yığıncaqlarının keçirilməsi barədə bildiriş.',
+        '3.2. İstifadəçinin müraciətləri üzrə dəyişikliklər, binada aparılan işlər və mülkiyyətçilərin ümumi yığıncaqlarının keçirilməsi barədə bildiriş.',
         '3.3. Uçot cihazlarının göstəricilərinin qəbulu, hesablanmış məbləğlərin əks etdirilməsi və ödəniş servisi qoşulduqda ödənişin həyata keçirilməsi.',
         '3.4. Binanın girişinə daxil olmanın idarə edilməsi və domofon avadanlığı qoşulduqda qonaq kodlarının verilməsi.',
       ],

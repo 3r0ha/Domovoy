@@ -314,7 +314,7 @@ describe('стартовый экран приложения', () => {
 
     const screen = await render(fetchStub);
 
-    assert.deepEqual(screen.tabs(), ['Наряды', 'Очередь', 'Дом', 'Новости', 'Ещё']);
+    assert.deepEqual(screen.tabs(), ['Наряды', 'Мой день', 'Очередь', 'Дом', 'Ещё']);
     assert.match(screen.text, /Ваши наряды|Нарядов нет/);
 
     await screen.unmount();
@@ -709,7 +709,7 @@ describe('язык мини-приложения', () => {
     assert.match(screen.text, /Код из квитанции/);
     assert.match(screen.text, /Язык/, 'до привязки язык тоже меняют');
 
-    await screen.act(() => tap(screen, 'Язык приложения'));
+    await screen.act(() => tap(screen, 'Интерфейс и сообщения от дома'));
 
     assert.match(screen.text, /Татарча/);
     assert.deepEqual(marked(screen), ['Русский'], 'текущий язык помечен');

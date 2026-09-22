@@ -10,9 +10,9 @@ export const when: Dictionary = {
   at: '{день}, saat {время}',
   weekdayDay: '{неделя}, {день}',
 
-  until: 'saat {время}-dək',
-  untilTomorrow: 'sabah saat {время}-dək',
-  untilDay: '{день}, saat {время}-dək',
+  until: '{время} saatına qədər',
+  untilTomorrow: 'sabah {время} saatına qədər',
+  untilDay: '{день}, {время} saatına qədər',
 
   'minutes.one': '{сколько} dəqiqə',
   'minutes.few': '{сколько} dəqiqə',

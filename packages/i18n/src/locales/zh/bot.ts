@@ -3,19 +3,12 @@ import type { Dictionary } from '../../translate.js';
 /** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
 export const bot: Dictionary = {
   'greeting.hello': '您好！',
-  'greeting.resident':
-    '我可以帮您处理楼里的事：报告损坏、发送表上的数字、\n' +
-    '查看账单、打开单元门。\n\n' +
-    '直接用文字说也可以：“水龙头漏水”“开门”“什么时候打扫单元”。',
+  'greeting.resident': '我可以帮您处理楼里的事。从菜单选择，或直接用文字说：“水龙头漏水”“开门”。',
   'start.code_unknown': '链接中的代码不匹配：楼里没有这个对象。',
 
   'lang.chosen': '语言：{язык}。',
 
-  'legal.ask':
-    'Domovoy受楼栋物业机构委托处理个人数据。\n' +
-    '处理政策和用户协议见下方按钮。\n' +
-    '点击“接受”即表示您同意。未获同意，我无法受理报修单，' +
-    '也无法保存读数。',
+  'legal.ask': 'Domovoy受物业公司委托处理个人数据。\n未获同意，我无法受理报修单，也无法保存读数。',
   'legal.accepted': '您已同意现行版本。\n完整文本可通过按钮打开。',
   'legal.thanks': '谢谢。需要什么帮助？',
 
@@ -23,9 +16,7 @@ export const bot: Dictionary = {
   'flat.unknown':
     '我还不知道您住在哪一套。\n' +
     '账单上地址旁边印有8位字符的代码。请用消息发送给我。',
-  'flat.bound':
-    '好了。现在我知道您住在{номер}室。\n' +
-    '可以发送表上的数字、查看账单，并在楼栋大会上投票。',
+  'flat.bound': '好了，{номер}室。',
   'flat.already': '您已经绑定了{номер}室。',
   'flat.already_yours': '{номер}室已经是您的了。',
   'flat.other_code': '您已经绑定了住宅。这个代码会绑定{номер}室。要绑定吗？',
@@ -83,6 +74,8 @@ export const bot: Dictionary = {
   'request.reply_ask': '请用一条消息写下回复，我就这张报修单转达。',
   'request.back_to_work': '报修单{номер}重新进入处理：我已把您的话转达给维修师傅。',
   'request.withdraw_ask':
+    '要撤销报修单吗？维修师傅不会再上门，撤销后无法恢复，需要另建新单。',
+  'request.withdraw_ask_number':
     '要撤销报修单{номер}吗？维修师傅不会再上门，撤销后无法恢复，需要另建新单。',
   'request.where_unknown': '{причина}。请扫描单元门上的代码，或打开应用在那里选择地址。',
   'request.where_skipped': '好的，地址由维修师傅现场确认。报修单已交给值班人员。',
@@ -162,7 +155,7 @@ export const bot: Dictionary = {
     '邻居暂时还没有反映任何事。\n' +
     '这里会出现邻居反映的单元和院落的损坏：您可以确认。',
   'neighbours.about':
-    '邻居反映了{сколько}。' +
+    '邻居反映的损坏：{сколько}。' +
     '在应用里可以看到内容和位置，也可以确认您家也是这样。',
 
   'vote.title': '业主大会',
@@ -180,7 +173,7 @@ export const bot: Dictionary = {
   'support.ask': '请用一条消息写下问题，我转达给物业公司。',
   'support.ask_more': '新问题请用一条消息写，旧问题请用按钮回复。',
   'support.taken': '问题已受理：“{тема}”。答复会发到这里。',
-  'support.sent': '已转达给物业机构。答复会发到这里。',
+  'support.sent': '已转达给物业公司。答复会发到这里。',
   'support.reply_ask': '请就这条咨询写一条消息。',
   'support.all': '这就是全部咨询。',
   'support.more': '更多咨询在下方。',
@@ -214,7 +207,7 @@ export const bot: Dictionary = {
   'visit.taken': '这个时段已被占用。请另选一个。',
   'visit.taken_none': '这个时段已被占用，暂时没有空闲的。',
 
-  'data.about': '{кто}。\n我保存您的以下信息：{что}。',
+  'data.about': '{кто}\n我保存您的以下信息：{что}。',
   'data.file': '您的数据以文件形式发送。{сводка}',
   'data.file_failed': '文件未能发送。相同的数据可以在应用里查看。',
   'forget.ask':
@@ -260,6 +253,7 @@ export const bot: Dictionary = {
   'command.unknown': '我没有这个命令。您可以用文字说明需要什么，我能理解。',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}：{адрес}',
   'menu.words': '可以用文字说：“开门”“要交多少钱”“水龙头漏水”。',
   'menu.in_chat': '菜单在与我的聊天中打开。',
   'menu.new': '✍️ 哪里坏了',
@@ -285,15 +279,11 @@ export const bot: Dictionary = {
   'menu.notices.about': '发送什么、不发送什么。电话和数据导出也在那里。',
   'menu.lang': '🌐 语言',
   'menu.group.money': '💳 费用与表',
-  'menu.group.money.about': '本月要交多少，以及表上的数字发往何处。',
   'menu.group.house': '📣 楼栋动态',
-  'menu.group.house.about': '物业公司的公告、邻居的大会以及楼栋的工作。',
   'menu.group.me': '☎️ 联系与资料',
-  'menu.group.me.about': '如何联系物业公司，以及产品掌握您的哪些信息。',
   'menu.demo': '👥 角色',
 
   'menu.group.home': '🏡 我的住宅',
-  'menu.group.home.about': '您自己住宅的账单、表和报修单。',
   'menu.group.bind.about': '如果您住在本楼，请用账单上的代码绑定住宅。',
   'menu.home.new': '✍️ 新建报修单',
   'menu.home.meters': '💧 读数',
@@ -303,11 +293,10 @@ export const bot: Dictionary = {
 
   'menu.contractor.my': '📋 工单',
   'menu.group.works': '🏢 楼栋事务',
-  'menu.group.contractor.about': '与物业公司的联系、公告和单元门。',
-  'menu.group.works.about': '楼栋的期限完成情况、欠费、大会和单元门。',
 
   'menu.staff.queue': '🗂 楼栋队列',
   'menu.staff.my': '📋 我的工单',
+  'menu.staff.day': '🗓 我的一天',
   'menu.staff.duty': '🌙 值班',
   'menu.staff.support': '💬 住户的问题',
   'menu.staff.visit': '🗓 住户接待',
@@ -336,13 +325,10 @@ export const bot: Dictionary = {
   'menu.staff.audit': '📜 操作日志',
   'menu.staff.audit.about': '谁在楼栋做了什么：报修单、角色、读数、群发。',
   'menu.group.people': '💬 住户',
-  'menu.group.people.about': '住户的问题、预约接待和发给楼栋的通知。',
-  'menu.group.staff_me.about': '作为住户的自有住宅、数据、通知以及与物业公司的联系。',
   'menu.group.app': '📱 在应用里',
-  'menu.group.app.about': '在聊天中不便阅读的界面：巡查、楼栋平面图、仪表。',
   'menu.group.manage': '🗄 楼栋管理',
-  'menu.group.manage.about': '费率、楼栋档案、物业地址和操作日志。',
 
+  'chat.answered_privately': '{кто}，我已私信回复您。',
   'topic.bill': '🧾 本月账单',
   'topic.request': '📋 报修单',
   'topic.news': '📣 公告',
@@ -439,4 +425,41 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ 都不是',
   'button.stale': '这个按钮已经失效',
   'button.stale_more': '这个按钮来自旧消息。这里是可以开始的地方。',
+  'button.visit_other': '🕘 换个时间',
+  'button.visit_drop': '🕘 改约时间',
+  'button.rename': '✏️ 修改姓名',
+  'button.complaint_edit': '✏️ 修改内容',
+  'button.not_my_flatmate': '🚫 这不是我的同住人',
+  'button.owner_yes': '✅ 我是产权人',
+  'button.owner_no': '👤 我住在这里，不是产权人',
+  'button.dispute': '📄 不同意拒绝理由',
+  'button.missed': '🚪 没能进门',
+  'button.connect': '🏢 这里没有我的楼栋',
+
+  'visit.set': '已记录：报修单{номер}的维修师傅将在{когда}上门。计划有变请告诉我。',
+  'visit.missed_noted': '报修单{номер}已记录：未能进入住宅。住户会另选时间。',
+  'visit.dropped': '报修单{номер}的时间已取消。请另选一个，我会通知维修师傅。',
+  'visit.not_understood': '所给时间里没有这个。请从中选一个。',
+
+  'name.ask': '我们该怎么称呼您？现在是：{имя}。请用一条消息写下姓名。',
+  'name.changed': '现在您是{имя}。维修师傅和物业公司会这样看到您。',
+
+  'gzhi.edit_ask': '请写明要改什么：“去掉关于单元的内容”“补上已经漏了三天”。',
+  'gzhi.edited': '已修改。请阅读，无误即可提交。',
+  'gzhi.not_edited': '我没明白要改什么。请换个说法，或者按原样提交。',
+
+  'request.dispute_ask': '请用一条消息写明您为什么不同意拒绝理由，我们会重新审核。',
+  'request.disputed': '报修单{номер}重新进入处理。物业公司会再次审核。',
+
+  'flat.owner_ask': '您是这套住宅的产权人吗？业主大会由房屋产权人投票，其余功能所有人都可以使用。',
+  'flat.owner_noted': '已记录：您是产权人。大会投票按您住宅的面积计算。',
+  'flat.tenant_noted': '已记录。报修单、读数和账单您都可以使用，但大会投票不行。',
+  'flat.neighbour_dropped': '已将此人从您的住宅移除。物业公司已知晓。',
+
+  'connect.ask': '看起来这里还没有您的楼栋。请用一条消息写下地址，我们会转交给您楼栋的物业公司。',
+  'connect.saved': '地址已记录。楼栋接入后我会通知您。',
+
+  'day.title': '派给您的工单：{сколько}，已约定上门时间的：{назначено}。',
+  'day.rest': '还有工单：{сколько}。整天的安排在应用里。',
+  'day.empty': '目前没有派给您的工单。',
 };

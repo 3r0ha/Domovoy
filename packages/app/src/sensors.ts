@@ -14,7 +14,7 @@ const ALARMS: Partial<Record<Device['kind'], { category: RequestCategory; what: 
 /** Срабатывание датчика всегда заводит аварийную заявку. */
 const ALARM_PRIORITY = 'emergency' as const;
 
-/** Автором заявки от датчика становится управляющая компания. */
+/** Автором заявки от датчика становится управляющая организация. */
 const authorFor = async (deps: AppDeps, buildingId: string): Promise<Resident> => {
   const staff = await deps.repository.listStaff(buildingId);
   const author = staff.find((person) => person.role === 'manager') ?? staff[0];

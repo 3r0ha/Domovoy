@@ -10,8 +10,8 @@ export const when: Dictionary = {
   at: '{день} {время}',
   weekdayDay: '{неделя}，{день}',
 
-  until: '截至 {время}',
-  untilTomorrow: '截至明天 {время}',
+  until: '截至{время}',
+  untilTomorrow: '截至明天{время}',
   untilDay: '截至{день} {время}',
 
   'minutes.one': '{сколько}分钟',

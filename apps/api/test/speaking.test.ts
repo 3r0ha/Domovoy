@@ -120,7 +120,10 @@ describe('сервер говорит с жильцом на его языке',
 
     assert.equal(zone.statusCode, 200, zone.body);
     assert.equal(zone.json().title, 'Management organisation');
-    assert.equal(zone.json().basis, 'This is common property of the house, maintained by the management organisation');
+    assert.equal(
+      zone.json().basis,
+      'The boundary runs along the first shut-off device: before it the management organisation is responsible, after it the owner',
+    );
 
     const forStaff = await app.inject({
       method: 'GET',

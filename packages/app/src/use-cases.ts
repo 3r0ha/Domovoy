@@ -28,7 +28,7 @@ export {
   type BroadcastTargets,
 } from './use-cases/broadcast.js';
 export { type AppDeps, type Lock, type RequestPage } from './use-cases/deps.js';
-export { describeContext, ensureResident, type ContextDescription } from './use-cases/entry.js';
+export { ANONYMOUS_NAME, describeContext, ensureResident, type ContextDescription } from './use-cases/entry.js';
 export {
   CLOSED_PAGE,
   commentRequest,

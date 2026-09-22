@@ -105,7 +105,7 @@ export const houseRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
     );
 
-    /** Как работает управляющая компания в доме жильца. */
+    /** Как работает управляющая организация в доме жильца. */
     scope.get<{ Querystring: { buildingId?: string } }>(
       '/api/quality',
       {

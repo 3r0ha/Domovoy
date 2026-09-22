@@ -79,7 +79,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
 
       await typed.reply(
         shorten(await pollProtocol(deps, resident, last.poll.id), t('vote.protocol_in_app')),
-        keyboardOf([...appRow(kit.miniAppUrl, t('button.polls_in_app'), 'polls', t)], typed, t),
+        keyboardOf([...appRow(kit.miniAppUrl, 'polls', t)], typed, t),
       );
       return;
     }
@@ -93,7 +93,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
       .filter(Boolean)
       .join(', ');
 
-    await inApp(kit, typed, `${strong(t('vote.title'))}\n${said}.`, 'polls', t('button.vote'), t);
+    await inApp(kit, typed, `${strong(t('vote.title'))}\n${said}.`, 'polls', t);
   },
 
   news: (typed) => showNews(kit, typed),
@@ -112,7 +112,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     try {
       const short = formatQualityShort(await houseQuality(deps, resident), t);
 
-      await inApp(kit, typed, short, 'quality', t('button.quality_in_app'), t);
+      await inApp(kit, typed, short, 'quality', t);
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
       await typed.reply(errorText(error, t), afterError(error, typed, t));
@@ -140,7 +140,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     }
   },
 
-  /** Поддержка: вопрос жильца и переписка с управляющей компанией. */
+  /** Поддержка: вопрос жильца и переписка с управляющей организацией. */
   support: async (typed) => {
     const resident = await residentOf(typed);
     const t = speak(resident);
@@ -151,7 +151,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     // задаёт отдельной кнопкой, чтобы он не смешался с чужими.
     if (isCompanyStaff(resident.role)) {
       if (apartmentsOf(resident).length > 0) {
-        await typed.reply('Свой вопрос в управляющую компанию задаётся отдельно.', oneKeyboard('✉️ Свой вопрос', 'support:own'));
+        await typed.reply('Свой вопрос в управляющую организацию задаётся отдельно.', oneKeyboard('✉️ Свой вопрос', 'support:own'));
       }
 
       return;
@@ -179,7 +179,7 @@ export const houseCommands = (kit: BotKit): Record<string, Handler> => {
     const own = mine.filter((request) => !isCompanyStaff(resident.role) || !served.has(request.buildingId));
 
     if (own.length === 0 && isCompanyStaff(resident.role)) {
-      await typed.reply('Обращение в жилищную инспекцию составляет заявитель, а не управляющая компания.', menuButton(typed));
+      await typed.reply('Обращение в жилищную инспекцию составляет заявитель, а не управляющая организация.', menuButton(typed));
       return;
     }
 

@@ -25,11 +25,10 @@ export const inApp = async (
   typed: BotContext,
   text: string,
   screen: string,
-  title?: string,
   t: Translate = RU,
 ): Promise<void> => {
   await typed.reply(
     kit.miniAppUrl ? text : `${text}\n${t('app.install')}`,
-    keyboardOf([...appRow(kit.miniAppUrl, title ?? t('button.in_app'), screen)], typed, t),
+    keyboardOf([...appRow(kit.miniAppUrl, screen, t)], typed, t),
   );
 };

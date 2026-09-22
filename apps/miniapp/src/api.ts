@@ -60,7 +60,11 @@ import type {
   TicketView,
   UnboundResidentView,
   VisitView,
+  VisitOfferView,
   VoteChoiceView,
+  WorkdayView,
+  FlatNeighbourView,
+  ConnectionView,
 } from './views.js';
 import { DEFAULT_LANGUAGE, translatorFor, type Language } from '@domovoy/i18n';
 import { say, spokenLanguage } from './i18n.js';
@@ -354,9 +358,92 @@ export class DomovoyApi {
     return this.read<ComplaintOffer>(`/api/requests/${encodeURIComponent(id)}/complaint`);
   }
 
-  /** Отправка обращения в надзор: только после согласия человека. */
-  sendComplaint(id: string): Promise<ComplaintSent> {
-    return this.send<ComplaintSent>(`/api/requests/${encodeURIComponent(id)}/complaint`, { method: 'POST' });
+  /**
+   * Отправка обращения в надзор: только после согласия человека. Текст идёт
+   * тот, который человек прочитал и поправил: письмо в орган власти пишет он.
+   */
+  sendComplaint(id: string, text?: string): Promise<ComplaintSent> {
+    return this.send<ComplaintSent>(`/api/requests/${encodeURIComponent(id)}/complaint`, {
+      method: 'POST',
+      body: JSON.stringify(text ? { text } : {}),
+    });
+  }
+
+  /** Своё имя вместо никнейма из профиля платформы. Пустое возвращает имя из профиля. */
+  rename(name?: string): Promise<{ displayName: string; own: boolean }> {
+    return this.send<{ displayName: string; own: boolean }>('/api/me/name', {
+      method: 'POST',
+      body: JSON.stringify(name ? { name } : {}),
+    });
+  }
+
+  /** Смена предлагает жильцу окна визита. */
+  offerVisit(id: string): Promise<VisitOfferView> {
+    return this.send<VisitOfferView>(`/api/requests/${encodeURIComponent(id)}/visit/offer`, { method: 'POST' });
+  }
+
+  /** Жилец выбирает время из предложенных. */
+  takeVisit(id: string, at: string): Promise<VisitOfferView> {
+    return this.send<VisitOfferView>(`/api/requests/${encodeURIComponent(id)}/visit`, {
+      method: 'POST',
+      body: JSON.stringify({ at }),
+    });
+  }
+
+  /** Жилец отменяет выбранное время: планы меняются. */
+  dropVisit(id: string): Promise<VisitOfferView> {
+    return this.send<VisitOfferView>(`/api/requests/${encodeURIComponent(id)}/visit`, { method: 'DELETE' });
+  }
+
+  /** Мастер приехал и не попал в квартиру. */
+  missedVisit(id: string, comment?: string): Promise<VisitOfferView> {
+    return this.send<VisitOfferView>(`/api/requests/${encodeURIComponent(id)}/visit/missed`, {
+      method: 'POST',
+      body: JSON.stringify(comment ? { comment } : {}),
+    });
+  }
+
+  /** Заявитель не согласен с отказом: заявка возвращается на пересмотр. */
+  disputeRequest(id: string, comment: string): Promise<{ requestId: string; status: string }> {
+    return this.send<{ requestId: string; status: string }>(`/api/requests/${encodeURIComponent(id)}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify({ comment }),
+    });
+  }
+
+  /** День исполнителя: наряды по порядку обхода. */
+  workday(): Promise<WorkdayView> {
+    return this.read<WorkdayView>('/api/workday');
+  }
+
+  /** Кто ещё привязан к моей квартире. */
+  flatNeighbours(): Promise<FlatNeighbourView[]> {
+    return this.read<FlatNeighbourView[]>('/api/flat/neighbours');
+  }
+
+  /** Убрать из своей квартиры чужого. */
+  dropNeighbour(id: string): Promise<FlatNeighbourView[]> {
+    return this.send<FlatNeighbourView[]>(`/api/flat/neighbours/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  /** Слова жильца о праве собственности: от них зависит голос на собрании. */
+  declareOwnership(owner: boolean): Promise<{ owner: boolean }> {
+    return this.send<{ owner: boolean }>('/api/flat/ownership', {
+      method: 'POST',
+      body: JSON.stringify({ owner }),
+    });
+  }
+
+  /** Просьба подключить дом, которого в продукте ещё нет. */
+  connection(): Promise<ConnectionView> {
+    return this.read<ConnectionView>('/api/connect');
+  }
+
+  askToConnect(address: string, company?: string): Promise<ConnectionView> {
+    return this.send<ConnectionView>('/api/connect', {
+      method: 'POST',
+      body: JSON.stringify(company ? { address, company } : { address }),
+    });
   }
 
   /** Уточняющий вопрос об адресе заявки и готовые варианты. */
@@ -396,10 +483,23 @@ export class DomovoyApi {
   }
 
   /** Помощник: короткий ответ и готовый переход в нужный раздел. */
-  assistant(question: string, history: readonly { asked: string; said: string }[] = []): Promise<AssistantView> {
+  /**
+   * Помощник. Вместе с вопросом уходит экран, на котором человек стоит: иначе
+   * в ответ на «как подать показание» он зовёт в раздел, где человек уже есть.
+   */
+  assistant(
+    question: string,
+    history: readonly { asked: string; said: string }[] = [],
+    at: { screen?: string; doing?: string } = {},
+  ): Promise<AssistantView> {
     return this.send<AssistantView>('/api/assistant', {
       method: 'POST',
-      body: JSON.stringify(history.length > 0 ? { question, history } : { question }),
+      body: JSON.stringify({
+        question,
+        ...(history.length > 0 ? { history } : {}),
+        ...(at.screen ? { screen: at.screen } : {}),
+        ...(at.doing ? { doing: at.doing } : {}),
+      }),
     });
   }
 
@@ -436,7 +536,7 @@ export class DomovoyApi {
     return this.read<{ digest?: string; basis?: string }>(this.at(path));
   }
 
-  /** Как работает управляющая компания в доме жильца. */
+  /** Как работает управляющая организация в доме жильца. */
   quality(): Promise<QualityView> {
     return this.read<QualityView>(this.at('/api/quality'));
   }
@@ -481,7 +581,7 @@ export class DomovoyApi {
     return this.read<StaffMemberView[]>(this.at('/api/staff'));
   }
 
-  /** Жильцы, которых управляющая компания ещё не связала с квартирой. */
+  /** Жильцы, которых управляющая организация ещё не связала с квартирой. */
   unboundResidents(): Promise<UnboundResidentView[]> {
     return this.read<UnboundResidentView[]>(this.at('/api/residents/unbound'));
   }
@@ -610,7 +710,7 @@ export class DomovoyApi {
     return this.send<InitiativeView>(`/api/initiatives/${encodeURIComponent(id)}/support`, { method: 'POST' });
   }
 
-  /** Созыв собрания по предложению жильцов: доступен управляющей компании. */
+  /** Созыв собрания по предложению жильцов: доступен управляющей организации. */
   callMeeting(id: string, days: number, kind: 'simple' | 'qualified'): Promise<PollView> {
     return this.send<PollView>(`/api/initiatives/${encodeURIComponent(id)}/meeting`, {
       method: 'POST',
@@ -747,6 +847,8 @@ export class DomovoyApi {
       rating?: number;
       /** Код с наклейки: им мастер подтверждает, что был у объекта. */
       provedBy?: string;
+      /** Что израсходовано на работы: списывается вместе со сдачей. */
+      materials?: { title: string; count: number; unit?: string }[];
     } = {},
   ): Promise<RequestView> {
     return this.send<RequestView>(`/api/requests/${encodeURIComponent(id)}/transition`, {
@@ -767,8 +869,12 @@ export class DomovoyApi {
     return this.read<ChargesView>('/api/charges');
   }
 
-  payCharges(): Promise<{ period: string; amount: number; at: string }> {
-    return this.send<{ period: string; amount: number; at: string }>('/api/charges/pay', { method: 'POST' });
+  /** Оплата начисленного. Без суммы платится весь остаток, с суммой, её часть. */
+  payCharges(amount?: number): Promise<{ period: string; amount: number; at: string; receiptNumber?: string }> {
+    return this.send<{ period: string; amount: number; at: string; receiptNumber?: string }>('/api/charges/pay', {
+      method: 'POST',
+      body: JSON.stringify(amount === undefined ? {} : { amount }),
+    });
   }
 
   /** Оборудование дома, доступное этому человеку. */
@@ -954,7 +1060,7 @@ export class DomovoyApi {
     return this.send(this.at('/api/import/equipment'), { method: 'POST', body: JSON.stringify({ csv }) });
   }
 
-  /** Заведение дома списком квартир из выгрузки управляющей компании. */
+  /** Заведение дома списком квартир из выгрузки управляющей организации. */
   importApartments(csv: string): Promise<ImportResultView> {
     return this.send<ImportResultView>(this.at('/api/import/apartments'), {
       method: 'POST',
@@ -1112,10 +1218,11 @@ export class DomovoyApi {
     });
   }
 
-  sendBroadcast(scope: BroadcastScopeView, text: string): Promise<BroadcastResultView> {
+  /** Ночью рассылка спрашивает подтверждение: `anyway` это согласие разбудить дом. */
+  sendBroadcast(scope: BroadcastScopeView, text: string, anyway?: boolean): Promise<BroadcastResultView> {
     return this.send<BroadcastResultView>(this.at('/api/broadcast'), {
       method: 'POST',
-      body: JSON.stringify({ ...scope, text }),
+      body: JSON.stringify({ ...scope, text, ...(anyway ? { anyway } : {}) }),
     });
   }
 

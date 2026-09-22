@@ -1,7 +1,9 @@
 import { dayIn, hourIn } from '@domovoy/domain';
 
+import { remindAboutVisits } from './appointments.js';
+import { deliverPendingAnnouncements } from './use-cases/announcements.js';
 import { importOutages } from './city.js';
-import { remindAboutDebt } from './debt.js';
+import { remindAboutDebt, remindBeforeDue } from './debt.js';
 import { sendMorningDigest } from './digest.js';
 import { remindAboutHouseMeters } from './house-meters.js';
 import {
@@ -12,6 +14,7 @@ import {
   warnAboutDeadlines,
 } from './incidents.js';
 import { planInspections } from './inspections.js';
+import { pushToRegistry } from './registry.js';
 import { remindAboutReadings } from './meters.js';
 import { closeDuePolls, remindAboutPolls } from './voting.js';
 
@@ -24,6 +27,8 @@ export interface SweepDays {
   polls?: string;
   debt?: string;
   digest?: string;
+  /** Напоминание о визитах этого дня. */
+  visits?: string;
 }
 
 /** Чем закончился предыдущий обход. */
@@ -58,6 +63,12 @@ export interface SweepReport {
   inspections: number;
   /** Отключения по данным города, объявленные домам за обход. */
   outages: number;
+  /** Объявления, придержанные на ночь и разосланные утром. */
+  pending: number;
+  /** Сколько записей приняли внешние реестры за обход. */
+  registry: number;
+  /** О скольких визитах напомнили в день визита. */
+  visits: number;
   /** Что не получилось за обход. */
   failures: { job: string; error: unknown }[];
 }
@@ -96,6 +107,9 @@ const empty = (): SweepReport => ({
   digests: 0,
   inspections: 0,
   outages: 0,
+  pending: 0,
+  registry: 0,
+  visits: 0,
   failures: [],
 });
 
@@ -170,6 +184,15 @@ export const createSweeper = (deps: AppDeps, options: SweepOptions = {}) => {
         if (ok && sent > 0) mark('readings');
       }
 
+      // Визиты дня: человек выбирал время три дня назад и мог забыть о нём.
+      if (done.visits !== today && daytime) {
+        const ok = await attempt('visits', async () => {
+          report.visits += (await remindAboutVisits(deps, house)).length;
+        });
+
+        if (ok) mark('visits');
+      }
+
       if (done.polls !== today && daytime) {
         const ok = await attempt('polls', async () => {
           report.pollReminders += (await remindAboutPolls(deps, house)).length;
@@ -180,11 +203,27 @@ export const createSweeper = (deps: AppDeps, options: SweepOptions = {}) => {
 
       if (done.debt !== today && daytime) {
         const ok = await attempt('debt', async () => {
+          // Сначала о подходящем сроке, потом о долге: в один день они
+          // не совпадают, десятое число разводит их само.
+          report.debtors += (await remindBeforeDue(deps, house)).length;
           report.debtors += (await remindAboutDebt(deps, house)).length;
         });
 
         if (ok) mark('debt');
       }
+
+      // Объявления, придержанные ночью: они ждут утра, а не следующих суток.
+      if (daytime) {
+        await attempt('news', async () => {
+          report.pending += await deliverPendingAnnouncements(deps, house);
+        });
+      }
+
+      // Изменения по заявкам уходят во внешний реестр: без обмена управляющая
+      // организация ведёт те же заявки второй раз в государственной системе.
+      await attempt('registry', async () => {
+        report.registry += await pushToRegistry(deps, house, since);
+      });
 
       if (done.digest !== today && hourIn(now, zone) >= digestHour) {
         const ok = await attempt('digest', async () => {

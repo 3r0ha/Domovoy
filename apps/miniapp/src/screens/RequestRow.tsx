@@ -2,7 +2,7 @@ import { CellSimple } from '@maxhub/max-ui';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { formatLeft, formatSince, tight, type RequestView } from '../api.js';
+import { dueNow, formatDayAt, formatLeft, formatSince, tight, type RequestView } from '../api.js';
 import { useT } from '../i18n.js';
 import { CategoryTile } from './CategoryTile.js';
 
@@ -60,9 +60,9 @@ export const RequestDue = ({ dueAt, overdue }: { dueAt: string; overdue: boolean
 
   if (overdue) return null;
 
-  const left = formatLeft(dueAt);
+  const left = dueNow(dueAt) ? t('request.due.soon') : formatLeft(dueAt);
 
-  return <span className="row-due">{`\u{a0}· ${left.startsWith('0 ') ? t('request.due.soon') : left}`}</span>;
+  return <span className="row-due">{` ·\u{a0}${left}`}</span>;
 };
 
 /** Состояние стоит под заголовком. */
@@ -87,6 +87,9 @@ export const RequestRow = ({
     <CellSimple
       className={[
         'request-row',
+        // Авария должна читаться до текста строки: в списке одинаковых карточек
+        // самое срочное иначе ничем не выделено.
+        request.priority === 'emergency' && !CLOSED.includes(request.status) ? 'request-row-alarm' : '',
         request.overdue ? 'request-row-overdue' : '',
         action ? 'request-row-acting' : '',
       ]
@@ -108,10 +111,17 @@ export const RequestRow = ({
             {/* Точка перед адресом рисуется стилем: в узкой строке рядом с кнопкой
                 адрес встаёт под состоянием целиком, без неё. */}
             <span className="row-target">{tight(request.target)}</span>
-            {staff ? <span className="row-number">{`\u{a0}· ${request.number}`}</span> : null}
+            {staff ? <span className="row-number">{` ·\u{a0}${request.number}`}</span> : null}
+
+            {/* Назначенное время визита важнее остатка срока: к нему ждут дома. */}
+            {request.appointment?.at ? (
+              <span className="row-visit">
+                {` ·\u{a0}${t('day.visitAt', { когда: formatDayAt(request.appointment.at) })}`}
+              </span>
+            ) : null}
 
             {request.machineTranslated ? (
-              <span className="row-machine">{`\u{a0}· ${t('translation.machine')}`}</span>
+              <span className="row-machine">{` ·\u{a0}${t('translation.machine')}`}</span>
             ) : null}
 
             {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы

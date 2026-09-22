@@ -28,6 +28,7 @@ const maria: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 const ivan: Resident = {
@@ -37,6 +38,7 @@ const ivan: Resident = {
   role: 'resident',
   apartmentId: 'apt-2',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-2', share: 1, basis: 'company' }],
 };
 
 /** Жилец без MAX: он числится в доме, но сообщение до него не дойдёт. */
@@ -92,7 +94,7 @@ const setup = async (): Promise<Deps> => {
 const gotBy = (deps: Deps, resident: Resident): string[] =>
   deps.notifier.sent.filter((item) => item.maxUserId === resident.maxUserId).map((item) => item.text);
 
-describe('рассылка управляющей компании', () => {
+describe('рассылка управляющей организации', () => {
   it('весь дом: считает и тех, до кого сообщение не дойдёт', async () => {
     const deps = await setup();
 
@@ -128,7 +130,7 @@ describe('рассылка управляющей компании', () => {
     assert.equal(result.sent, 1);
     assert.equal(gotBy(deps, maria).length, 0);
     assert.deepEqual(gotBy(deps, ivan), [
-      'Сообщение управляющей компании\n\nЗавтра с 9:00 до 13:00 нет горячей воды',
+      'Сообщение управляющей организации\n\nЗавтра с 9:00 до 13:00 нет горячей воды',
     ]);
   });
 
@@ -250,7 +252,7 @@ describe('рассылка управляющей компании', () => {
 
     await assert.rejects(
       sendBroadcast(deps, { actor: maria, scope: { kind: 'building' }, text: 'Всем привет' }),
-      /отправляет управляющая компания/,
+      /отправляет управляющая организация/,
     );
   });
 

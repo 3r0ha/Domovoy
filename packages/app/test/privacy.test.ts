@@ -34,6 +34,7 @@ const maria: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 const dispatcher: Resident = {
@@ -237,6 +238,6 @@ describe('удаление профиля', () => {
   it('профиль сотрудника так не снимают', async () => {
     const deps = await setup();
 
-    await assert.rejects(forgetResident(deps, dispatcher), /управляющая компания/);
+    await assert.rejects(forgetResident(deps, dispatcher), /управляющая организация/);
   });
 });

@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 
 import type { Language } from '@domovoy/i18n';
 
-import { DomovoyApi, browserCache, type DeviceView, type Profile, type RoleView } from './api.js';
+import {
+  DomovoyApi,
+  browserCache,
+  type DeviceView,
+  type DocumentStructure,
+  type Profile,
+  type RoleView,
+} from './api.js';
 import { useHaptics } from './haptics.js';
 import {
   isSectionParam,
@@ -55,6 +62,9 @@ const Shell = ({ children }: { children: ReactNode }) => (
 /** Сколько дел ждёт человека в каждом разделе: из этого рисуются значки. */
 export type Waiting = Partial<Record<Screen, number>>;
 
+/** Документ, открытый своим экраном. */
+export type OpenedDocument = DocumentStructure & { title: string; text: string };
+
 /** Что ждёт действия именно от этого человека и в каких разделах. */
 const useWaiting = (api: DomovoyApi, role: RoleView, version: number, enabled: boolean): Waiting => {
   const queue = role === 'dispatcher' || role === 'manager';
@@ -86,12 +96,20 @@ const useScrolled = (): boolean => {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = (): void => setScrolled(globalThis.scrollY > 4);
+    // Прокрутка идёт по окну, но событие слушают на перехвате: так же считается
+    // и прокрутка рабочей области, если она когда-нибудь станет своим слоем.
+    const onScroll = (event: Event): void => {
+      const node = event.target;
 
-    onScroll();
-    globalThis.addEventListener('scroll', onScroll, { passive: true });
+      if (node instanceof HTMLElement && node.tagName !== 'MAIN') return;
 
-    return () => globalThis.removeEventListener('scroll', onScroll);
+      setScrolled((node instanceof HTMLElement ? node.scrollTop : globalThis.scrollY) > 4);
+    };
+
+    onScroll(new Event('scroll'));
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
   }, []);
 
   return scrolled;
@@ -226,15 +244,24 @@ const Sheets = ({
   tip,
   onCloseTip,
   onGo,
+  at,
   ...first
 }: Parameters<typeof FirstRun>[0] & {
   tip: boolean;
   onCloseTip: () => void;
   onGo: (screen: string) => void;
+  /** Экран, с которого позвали помощника. */
+  at?: string;
 }) => (
   <>
     {tip ? (
-      <Assistant api={first.api} onLanguage={first.onLanguage} onClose={onCloseTip} onGo={onGo} />
+      <Assistant
+        api={first.api}
+        onLanguage={first.onLanguage}
+        onClose={onCloseTip}
+        onGo={onGo}
+        {...(at ? { at } : {})}
+      />
     ) : null}
 
     <FirstRun {...first} />
@@ -291,7 +318,7 @@ const screenContext = (input: {
   screens: Screens;
   goDeeper: (next: Screen) => void;
   openRequest: (id: string) => void;
-  openDocument: (title: string, text: string) => void;
+  openDocument: (title: string, text: string, structure?: DocumentStructure) => void;
   refreshSession: () => void;
   patchProfile: (update: (profile: Profile) => Profile) => void;
   setScanned: (code: string) => void;
@@ -385,7 +412,7 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
   const [objectTitle, setObjectTitle] = useState<string | null>(null);
   const [refreshed, setRefreshed] = useState(0);
   const [device, setDevice] = useState<DeviceView | null>(null);
-  const [document, setDocument] = useState<{ title: string; text: string } | null>(null);
+  const [document, setDocument] = useState<OpenedDocument | null>(null);
   const [changed, setChanged] = useState(0);
 
   const [building, setBuilding] = useState<{ id: string | null; version: number }>({ id: null, version: 0 });
@@ -456,8 +483,8 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
   };
 
   /** Длинный текст уходит на свой экран, откуда его копируют. */
-  const openDocument = (title: string, text: string): void => {
-    setDocument({ title, text });
+  const openDocument = (title: string, text: string, structure?: DocumentStructure): void => {
+    setDocument({ title, text, ...structure });
     goDeeper('document');
   };
 
@@ -550,6 +577,9 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
         onAgreed={() => setAgreed(true)}
         onTourDone={endTour}
         onCloseTip={() => setTip(false)}
+        // Экран, с которого позвали помощника: он помогает с делом здесь,
+        // а не отправляет в раздел, в котором человек уже стоит.
+        at={screen}
         // Тур не раздел: помощник его запускает, а не открывает.
         onGo={(target) =>
           target === 'tour' ? startTour() : target === 'new' ? goDeeper('new') : openTab(target as Screen)

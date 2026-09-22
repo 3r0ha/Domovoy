@@ -18,6 +18,11 @@ export interface AssistantProps {
   onGo: (screen: string) => void;
   /** Человек спросил на другом языке и выбрал перейти на него. */
   onLanguage: (language: Language) => void;
+  /**
+   * Откуда позвали помощника. Человек застревает на конкретном экране, и ответ
+   * «зайдите в раздел» тому, кто в разделе уже стоит, помощи не даёт.
+   */
+  at?: string;
   onClose: () => void;
 }
 
@@ -75,7 +80,7 @@ export const AssistantButton = ({ onOpen }: { onOpen: () => void }) => {
  * Ответ приходит с готовым переходом в раздел, а пока помощник думает,
  * это видно. Без модели отвечает подбором по разделам, поэтому есть всегда.
  */
-export const Assistant = ({ api, onGo, onLanguage, onClose }: AssistantProps) => {
+export const Assistant = ({ api, onGo, onLanguage, at, onClose }: AssistantProps) => {
   const t = useT();
   const [question, setQuestion] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
@@ -142,7 +147,7 @@ export const Assistant = ({ api, onGo, onLanguage, onClose }: AssistantProps) =>
     setFailed(null);
 
     try {
-      const answer = await api.assistant(text, pairs(lines));
+      const answer = await api.assistant(text, pairs(lines), at ? { screen: at } : {});
 
       setLines((said) => [
         ...said,
@@ -170,12 +175,11 @@ export const Assistant = ({ api, onGo, onLanguage, onClose }: AssistantProps) =>
 
       <section className="guide-sheet assistant" ref={sheet}>
         <header className="assistant-head">
-          <Domovoy mood="walking" />
+          {/* Портрет здесь значок собеседника, а не иллюстрация: в полный
+              размер он перевешивал и вопрос, и сам разговор. */}
+          <Domovoy mood="walking" size={48} />
 
-          <div>
-            <h2>{t('assistant.lead')}</h2>
-            <p className="hint">{t('assistant.hint')}</p>
-          </div>
+          <h2>{t('assistant.lead')}</h2>
 
           <button type="button" className="assistant-close" aria-label={t('assistant.close')} onClick={onClose}>
             ×

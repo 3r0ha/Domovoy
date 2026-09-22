@@ -38,7 +38,7 @@ const privacy: LegalText = {
       heading: '3. Qayta ishlanadigan maʼlumotlar tarkibi',
       lines: [
         '3.1. MAX profili maʼlumotlari: foydalanuvchi identifikatori, platforma uzatgan hajmdagi ism va familiya.',
-        '3.2. Manzil maʼlumotlari: uy, podyezd, umumiy quvur va foydalanuvchi bogʻlangan xonadon, xonadonni bogʻlash kodi.',
+        '3.2. Manzil maʼlumotlari: uy, podyezd, stoyak va foydalanuvchi bogʻlangan xonadon, xonadonni bogʻlash kodi.',
         '3.3. Murojaat maʼlumotlari: murojaat matni, ilova qilingan suratlar va ovozli xabarlar, ariza boʻyicha yozishmalar, bajarilgan ishlarga qoʻyilgan baho.',
         '3.4. Hisob-kitob maʼlumotlari: hisoblagichlar koʻrsatkichlari, hisoblangan summalar, toʻlovlar, qarzdorlik va penya.',
         '3.5. Uy toʻgʻrisidagi maʼlumotlar: mulkdorlarning umumiy yigʻilishida ovoz berish, qabulga yozilish, eshiklarning ochilish jurnali va berilgan mehmon kodlari.',

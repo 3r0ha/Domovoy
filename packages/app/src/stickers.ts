@@ -177,7 +177,7 @@ export const stickerSheet = async (
   buildingId?: string,
 ): Promise<{ html: string; address: string; count: number }> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Наклейки на весь дом печатает управляющая компания');
+    throw new DomainError('forbidden', 'Наклейки на весь дом печатает управляющая организация');
   }
 
   if (!deps.stickers?.sheet) throw new DomainError('stickers_unavailable', 'Рисование наклеек не настроено');

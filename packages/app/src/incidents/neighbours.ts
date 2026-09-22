@@ -3,12 +3,15 @@ import {
   DomainError,
   flatAbove,
   hasAnswered,
+  hasReported,
   isCompanyStaff,
   isFinal,
   isInAudience,
   isSharedInfrastructure,
   joinRequest,
+  leaveRequest,
   markUnaffected,
+  unaffected,
   promoteToShared,
   reporterIds,
   reportersCount,
@@ -140,15 +143,26 @@ export const answerAlert = async (deps: AppDeps, command: AlertAnswer): Promise<
     throw new DomainError('request_closed', `Заявка ${found.number} уже закрыта`);
   }
 
-  if (hasAnswered(found, command.resident.id)) return { request: found, counted: false };
-
   if (!(await wasAsked(deps, found, command.resident))) {
     throw new DomainError('forbidden', 'Об этой аварии вас не спрашивали');
   }
 
+  // Ответ меняется: человек нажал «работает», а через минуту увидел, что воды
+  // нет. Прежняя отметка снимается, иначе картина аварии врёт, а по ней смена
+  // и решает, искать причину в квартире или на стояке. Автор заявки от своего
+  // обращения не отказывается: его ответ это сама заявка.
+  const same = command.affected ? hasReported(found, command.resident.id) : unaffected(found, command.resident.id);
+
+  if (same) return { request: found, counted: false };
+
+  const before = hasAnswered(found, command.resident.id) ? leaveRequest(found, command.resident.id) : found;
+
+  // Автор от своей заявки не отказывается: его ответ это сама заявка.
+  if (hasReported(before, command.resident.id)) return { request: found, counted: false };
+
   if (command.affected) {
-    const audience = await locateTarget(deps, found.target);
-    const promoted = audience ? promoteToShared(found, audience) : found;
+    const audience = await locateTarget(deps, before.target);
+    const promoted = audience ? promoteToShared(before, audience) : before;
     const saved = await deps.repository.saveRequest(joinRequest(promoted, command.resident.id, deps.now()));
     const reporters = reportersCount(saved);
 
@@ -157,7 +171,7 @@ export const answerAlert = async (deps: AppDeps, command: AlertAnswer): Promise<
     return { request: saved, counted: true };
   }
 
-  const saved = await deps.repository.saveRequest(markUnaffected(found, command.resident.id, deps.now()));
+  const saved = await deps.repository.saveRequest(markUnaffected(before, command.resident.id, deps.now()));
 
   return { request: saved, counted: true };
 };

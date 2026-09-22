@@ -32,7 +32,7 @@ export const dueSoon = (health: readonly EquipmentHealth[]): EquipmentHealth[] =
 /** Здоровье оборудования дома. @throws {DomainError} если смотреть на чужой дом. */
 export const equipmentHealth = async (deps: AppDeps, resident: Resident): Promise<EquipmentHealth[]> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Обслуживание оборудования ведёт управляющая компания');
+    throw new DomainError('forbidden', 'Обслуживание оборудования ведёт управляющая организация');
   }
 
   return resident.buildingId ? equipmentHealthOf(deps, resident.buildingId) : [];

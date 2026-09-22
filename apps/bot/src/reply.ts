@@ -32,15 +32,16 @@ const answerPrivately = async (
 ): Promise<boolean> => {
   if (resident.maxUserId === undefined) return false;
 
+  const t = speak(resident);
   const keyboard = keyboardOf(
     section ? [[Keyboard.button.callback(section.title, `menu:${section.command}`)]] : [],
     PERSONAL,
-    speak(resident),
+    t,
   );
   const ready = shown(text, keyboard);
 
   await kit.bot.api.sendMessageToUser(resident.maxUserId, ready.text, ready.extra).catch(() => undefined);
-  await typed.reply(`${resident.displayName}, ответил вам лично.`);
+  await typed.reply(t('chat.answered_privately', { кто: resident.displayName }));
 
   return true;
 };

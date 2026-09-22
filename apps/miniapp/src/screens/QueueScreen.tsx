@@ -88,7 +88,9 @@ const summarize = (all: readonly RequestView[]): Summary => {
     }
   }
 
-  return { counts, categories: [...byCategory.values()] };
+  // Порядок отборов по названию: собранный по ходу очереди, он переставлялся
+  // на каждой новой заявке, и диспетчер каждый раз искал нужную кнопку заново.
+  return { counts, categories: [...byCategory.values()].sort((left, right) => left.title.localeCompare(right.title, 'ru')) };
 };
 
 /** Очередь дома: просроченное сверху, дальше по сроку. */
@@ -243,7 +245,23 @@ export const QueueScreen = ({ api, version, onOpen, onNewRequest, canAccept }: Q
 
       {failed ? <ErrorText>{failed}</ErrorText> : null}
 
-      {shown.length === 0 ? <p className="lead">Ничего не нашлось</p> : null}
+      {/* Заявки в очереди есть, их скрыл отбор: без этого пустой экран читается
+          как потерянная очередь. */}
+      {shown.length === 0 ? (
+        <div className="nothing">
+          <p className="lead">По этому отбору заявок нет, а в очереди их {all.length}</p>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              setQuery('');
+              choose({ kind: 'all' });
+            }}
+          >
+            Показать все
+          </button>
+        </div>
+      ) : null}
 
       {shown.length > 0 ? (
         <CellList mode="island">

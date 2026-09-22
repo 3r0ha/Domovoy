@@ -44,8 +44,11 @@
 
 ## Жилец <a id="resident"></a>
 
+- Оставить адрес дома, которого в продукте ещё нет: форма на экране «Квартира», кнопка `connect` в переписке, маршруты `GET/POST /api/connect`. Управляющая организация видит список тех, кого ждут. Файлы: `packages/app/src/connection.ts`, `apps/miniapp/src/screens/ConnectHouse.tsx`.
+- Скан наклейки на подъезде называет дом и до привязки квартиры: после него доступны объявления, контакты и аварии дома. Квитанция, показания и голос по-прежнему за кодом из квитанции. Файл: `packages/app/src/incidents/passport.ts`.
 - До привязки квартиры продукт отвечает только просьбой прислать код: меню бота из одного пункта, в приложении один экран «Квартира», маршруты API отдают 403 `apartment_required`. Исключения: выбор языка, документы, `/start`, `/help`, свои данные, удаление профиля, примерка ролей в режиме проверки. Файлы: `packages/app/src/buildings.ts`, `apps/bot/src/apartment.ts`, `apps/api/src/routes.ts`, `apps/miniapp/src/sections.ts`.
 - Сообщить о поломке словами: `/new` или любое сообщение боту, экран «Новая заявка». Файлы: `apps/bot/src/dialog.ts`, `apps/miniapp/src/screens/NewRequestScreen.tsx`, `packages/app/src/incidents/submit.ts`.
+- Названа вещь без беды («труба», «лифт»): заявки нет, продукт спрашивает, что случилось, и заводит её после ответа, дописав ответ к первому слову. Решает разбор моделью, а не список слов. Снимок отменяет вопрос: по нему смена видит поломку и без слов. Файлы: `packages/app/src/incidents/submit.ts`, `packages/app/src/reasoner.ts`, `apps/bot/src/reply.ts`.
 - Сообщить о поломке фотографией или файлом в переписке. Голосом диктуют в мини-приложении: платформа не доставляет боту голосовые из чата (`docs/max-platform.md`). Файлы: `apps/bot/src/dialog.ts`, `packages/app/src/incidents/attachments.ts`.
 - Снимок без подписи заявкой не становится: продукт спрашивает, что на нём, и прикладывает его к заявке после ответа. Файл: `apps/bot/src/dialog.ts`.
 - Приложить фото к заявке в приложении (уменьшается до 1600 точек, до 1,5 МБ). Файлы: `apps/miniapp/src/use-photos.ts`, `packages/app/src/files.ts`.
@@ -62,6 +65,12 @@
 - Смотреть свои заявки: `/my` (три карточки), экран «Заявки» с фильтром закрытых. Файлы: `apps/bot/src/pages.ts`, `apps/miniapp/src/screens/RequestListScreen.tsx`.
 - Открыть заявку по номеру, прислав его сообщением. Файлы: `apps/bot/src/dialog.ts`, `apps/bot/src/pages.ts`.
 - Писать по открытой заявке: кнопка `say`, экран заявки, маршрут `POST /api/requests/{id}/comment`. Файлы: `apps/bot/src/dialog.ts`, `packages/app/src/use-cases/requests.ts`.
+- Выбрать время визита мастера из предложенных окон: кнопка `slot` под уведомлением, карточка визита на экране заявки, маршрут `POST /api/requests/{id}/visit`. Окна предлагаются сами, как только заявка по квартире уходит в работу. Файлы: `packages/domain/src/appointment.ts`, `packages/app/src/appointments.ts`, `apps/miniapp/src/screens/VisitCard.tsx`.
+- Назвать время визита словами в переписке («давайте завтра утром») вместо кнопки: продукт сопоставляет сказанное с предложенными окнами, а при несовпадении называет свободные. Файлы: `packages/app/src/appointments.ts`, `apps/bot/src/dialog.ts`.
+- Отменить выбранное время визита: кнопка `drop`, карточка визита, маршрут `DELETE /api/requests/{id}/visit`. Окна остаются, выбрать можно заново. Файлы: `packages/app/src/appointments.ts`, `apps/miniapp/src/screens/VisitCard.tsx`.
+- Получить напоминание о визите утром того же дня: одно сообщение жильцу и одно исполнителю. Файл: `packages/app/src/appointments.ts`.
+- Узнать, что мастер приезжал и не попал в квартиру: заявка возвращается за новым временем, а срок выполнения сдвигается на сутки. Файлы: `packages/domain/src/appointment.ts`, `packages/app/src/appointments.ts`.
+- Вернуть отказ на пересмотр с объяснением, один раз в течение 30 дней: кнопка `dispute`, карточка на экране заявки, маршрут `POST /api/requests/{id}/dispute`. Повторный отказ становится основанием для жилинспекции. Файлы: `packages/domain/src/dispute.ts`, `packages/app/src/disputes.ts`, `apps/miniapp/src/screens/DisputeCard.tsx`.
 - Принять работу с оценкой 1..5 или без оценки: кнопки `req`, `rate`, экран заявки. Файлы: `apps/bot/src/buttons.ts`, `apps/miniapp/src/screens/RequestScreen.tsx`.
 - Вернуть работу в работу с объяснением: кнопка `ask`, экран заявки. Файлы: `apps/bot/src/dialog.ts`, `apps/miniapp/src/screens/RequestActions.tsx`.
 - Ответить на запрос уточнения (переход из `needs_info` в `in_progress`). Файл: `packages/domain/src/status.ts`.
@@ -69,6 +78,7 @@
 - Сказать дело словами: «всё сделали», «отзываю заявку»; продукт показывает, что понял, и ждёт кнопку. Файлы: `apps/bot/src/doing.ts`, `packages/app/src/doing.ts`.
 - Видеть в карточке зону ответственности с основанием и переданные обращения. Маршрут `GET /api/requests/{id}/responsibility`. Файлы: `apps/miniapp/src/screens/Responsibility.tsx`, `packages/app/src/handoff.ts`.
 - Составить и отправить обращение в жилищную инспекцию по просроченной заявке: `/gzhi`, кнопка `gzhi`, экран заявки, маршруты `GET/POST /api/requests/{id}/complaint`. Файлы: `apps/bot/src/commands/house.ts`, `packages/app/src/incidents/escalation.ts`, `packages/domain/src/escalation.ts`.
+- Поправить готовый текст обращения перед отправкой: в приложении полем, в переписке словами («допиши, что заливает соседей») кнопкой `gzhi:edit`. Поле `text` в `POST /api/requests/{id}/complaint`. Файлы: `apps/miniapp/src/screens/RequestScreen.tsx`, `apps/bot/src/buttons.ts`, `packages/app/src/reasoner.ts`.
 - Привязать квартиру кодом из квитанции: `/flat`, код сообщением, экран «Квартира», маршрут `POST /api/me/apartment`. Файлы: `apps/bot/src/dialog.ts`, `apps/miniapp/src/screens/BindApartmentScreen.tsx`, `packages/app/src/binding.ts`.
 - Привязать несколько квартир и переключать текущую: `/flat`, кнопка `flat`, переключатель в шапке приложения. Файлы: `apps/bot/src/commands/basic.ts`, `apps/miniapp/src/use-apartment.ts`, `packages/app/src/apartments.ts`.
 - Отвязать квартиру: кнопка `leave`, экран «Профиль». Файлы: `apps/bot/src/buttons.ts`, `apps/miniapp/src/screens/ProfileScreen.tsx`.
@@ -79,16 +89,19 @@
 - Видеть расход по месяцам столбиками и предупреждение о скачке или расходе выше соседского. Файлы: `apps/miniapp/src/screens/MetersScreen.tsx`, `packages/app/src/meters.ts`.
 - Видеть квитанцию: `/bill` (сумма, срок, долг), экран «Оплата» построчно с основанием расчёта, ОДН, пенями и историей платежей. Файлы: `apps/bot/src/commands/money.ts`, `apps/miniapp/src/screens/ChargesCard.tsx`, `packages/app/src/billing.ts`.
 - Оплатить месяц и погасить долг с подтверждением суммы: кнопки `pay`, `pay-debt`, экран «Оплата», маршруты `POST /api/charges/pay`, `POST /api/charges/debt/pay`. Только при подключённом шлюзе. Файлы: `apps/bot/src/buttons.ts`, `packages/app/src/billing.ts`, `packages/app/src/debt.ts`.
+- Заплатить часть суммы за месяц: поле рядом с кнопкой оплаты, тело `{"amount": …}` в `POST /api/charges/pay`. Номер кассового чека возвращает шлюз. Файлы: `packages/app/src/billing.ts`, `apps/miniapp/src/screens/ChargesCard.tsx`.
+- Получить напоминание о сроке оплаты за три дня до десятого числа, а не после него. Вид уведомления отключается. Файлы: `packages/app/src/debt.ts`, `packages/app/src/sweep.ts`.
 - Открыть домофон или шлагбаум, посмотреть кадр с камеры, выдать гостевой код на 15 минут, отозвать код: `/door`, кнопки `door`, `camera`, `guest`, экран «Дом», экраны камеры и гостя. Файлы: `apps/bot/src/commands/house.ts`, `apps/miniapp/src/screens/HomeScreen.tsx`, `packages/app/src/devices.ts`.
 - Получить уведомление, когда гость вошёл по коду. Файл: `packages/app/src/devices.ts`.
 - Читать объявления дома: `/news` страницами, экран «Новости»; переслать объявление средствами MAX. Файлы: `apps/bot/src/pages.ts`, `apps/miniapp/src/screens/AnnouncementsScreen.tsx`.
 - Видеть «Сейчас в доме» (аварии, идущие работы, настроение дома) и «Скоро в доме» (работы, собрания, обходы на неделю). Файлы: `apps/miniapp/src/screens/HouseNow.tsx`, `apps/miniapp/src/screens/HouseAhead.tsx`, `packages/app/src/now.ts`.
-- Голосовать на собрании (за, против, воздержался), видеть доли площади, кворум и недостающие метры, читать протокол. Кнопка `vote`, экран «Собрания», маршрут `POST /api/polls/{id}/vote`. Файлы: `apps/bot/src/buttons.ts`, `apps/miniapp/src/screens/PollsScreen.tsx`, `packages/app/src/voting.ts`.
-- Подтвердить замену голоса соседа по квартире (приложение). Файл: `apps/miniapp/src/screens/PollsScreen.tsx`.
+- Голосовать на собрании (за, против, воздержался), видеть доли площади, кворум и недостающие метры, читать протокол. Голосуют собственники помещений, сособственники, каждый своей долей. Кнопка `vote`, экран «Собрания», маршрут `POST /api/polls/{id}/vote`. Файлы: `apps/bot/src/buttons.ts`, `apps/miniapp/src/screens/PollsScreen.tsx`, `packages/app/src/voting.ts`.
+- Сказать, собственник ли ты этой квартиры: вопрос сразу после привязки, переключатель в профиле, маршрут `POST /api/flat/ownership`. Управляющая организация подтверждает право и долю. Файлы: `packages/app/src/binding.ts`, `apps/miniapp/src/screens/FlatPeople.tsx`.
+- Видеть, кто ещё привязан к квартире, и убрать чужого: раздел в профиле, кнопка `drop` под уведомлением о новой привязке, маршруты `GET/DELETE /api/flat/neighbours`. Собственника снимает собственник или управляющая организация. Файлы: `packages/app/src/binding.ts`, `apps/miniapp/src/screens/FlatPeople.tsx`.
 - Завести предложение соседям и подписать чужое: кнопка `sign`, экран «Собрания», маршруты `/api/initiatives`. Файлы: `packages/app/src/initiatives.ts`, `apps/miniapp/src/screens/PollsScreen.tsx`.
 - Смотреть работу компании по дому: `/house`, экран «Работа дома». Файлы: `apps/bot/src/commands/house.ts`, `packages/app/src/quality.ts`.
 - Смотреть капитальный ремонт дома: экран «Капремонт», маршрут `GET /api/capital-repair`. Файлы: `apps/miniapp/src/screens/CapitalRepairScreen.tsx`, `packages/app/src/capital.ts`.
-- Задать вопрос управляющей компании и продолжить переписку: `/support`, кнопка `ticket`, экран «Поддержка». Файлы: `apps/bot/src/commands/house.ts`, `apps/miniapp/src/screens/SupportScreen.tsx`, `packages/app/src/helpdesk.ts`.
+- Задать вопрос управляющей организации и продолжить переписку: `/support`, кнопка `ticket`, экран «Поддержка». Файлы: `apps/bot/src/commands/house.ts`, `apps/miniapp/src/screens/SupportScreen.tsx`, `packages/app/src/helpdesk.ts`.
 - Закрыть свой вопрос. Маршрут `POST /api/support/{id}/close`. Файл: `packages/app/src/helpdesk.ts`.
 - Видеть контакты дома: `/contacts`, экран «Поддержка» (аварийная служба, дежурный, ответственный, телефон и почта, приём). Файлы: `apps/bot/src/commands/house.ts`, `packages/app/src/buildings.ts`.
 - Записаться на приём в офис, отменить запись: `/visit` (своя запись и отмена в переписке, выбор часа в приложении), экран «Приём». Файлы: `apps/bot/src/commands/visits.ts`, `apps/miniapp/src/screens/VisitsScreen.tsx`, `packages/app/src/visits.ts`.
@@ -97,7 +110,9 @@
 - Поделиться телефоном из платформы и убрать его: экран «Профиль», маршруты `POST/DELETE /api/me/contact`. Файлы: `apps/miniapp/src/screens/ProfileScreen.tsx`, `packages/app/src/contact.ts`.
 - Выгрузить свои данные файлом и удалить профиль: `/mydata`, кнопки `mydata`, `forget`, экран «Профиль», маршруты `GET /api/me/data`, `DELETE /api/me`. Файлы: `packages/app/src/privacy.ts`.
 - Принять документы продукта (политика и соглашение) до первого действия; читать их в приложении и на сайте: `/legal`, кнопка `legal`, экран согласия. Файлы: `apps/bot/src/commands/legal.ts`, `apps/miniapp/src/screens/Consent.tsx`, `packages/domain/src/legal.ts`.
-- Спросить помощника словами: `/help`, кнопка в шапке приложения, готовые вопросы роли. Файлы: `apps/bot/src/talk.ts`, `apps/miniapp/src/screens/Assistant.tsx`, `packages/app/src/assistant.ts`.
+- Спросить помощника словами: `/help`, кнопка в шапке приложения, готовые вопросы роли. Помощник знает, на каком экране человек стоит, и подсказывает действие здесь, а не отправляет в этот же раздел. Поля `screen` и `doing` в `POST /api/me/assistant`. Файлы: `apps/bot/src/talk.ts`, `apps/miniapp/src/screens/Assistant.tsx`, `packages/app/src/assistant.ts`.
+- Быть понятым на своём языке и без модели: готовый вопрос роли и название раздела ищутся на языке человека, а не только по русским словам. Файл: `packages/app/src/assistant.ts`.
+- Задать себе имя вместо того, которое пришло из MAX: `/name`, экран «Профиль», маршрут `POST /api/me/name`. Имя из платформы подтягивается на каждом входе, но заданное самим человеком не перетирается. Файлы: `packages/app/src/naming.ts`, `packages/app/src/use-cases/entry.ts`.
 - Быть старшим по подъезду: принимать работу и писать в заявках по общему имуществу своего подъезда. Файл: `packages/app/src/use-cases/access.ts`.
 
 ## Диспетчер <a id="dispatcher"></a>
@@ -114,6 +129,7 @@
 - Передать обращение смежной организации (ресурсники, подрядчик, муниципальная служба, инспекция) и записать её ответ: кнопки `pass`, `pass-to`, `handoff`, экран заявки, маршруты `POST /api/requests/{id}/handoff`, `POST /api/handoffs/{id}/answer`. Файлы: `apps/bot/src/buttons.ts`, `packages/app/src/handoff.ts`.
 - Публиковать объявления и плановые работы адресату (дом, подъезд, стояк) с охватом: экран «Новости», маршрут `POST /api/announcements`. Файл: `packages/app/src/use-cases/announcements.ts`.
 - Рассылать сообщения в личные переписки: адресаты дом, подъезд, стояк, квартиры номерами, должники, не подавшие показания, не проголосовавшие, смена; охват до отправки. `/broadcast` открывает раздел, кнопка `cast` из долгов, экран «Рассылка». Файлы: `packages/app/src/use-cases/broadcast.ts`, `apps/miniapp/src/screens/BroadcastScreen.tsx`.
+- Не будить дом ночью: рассылка, отправленная в часы тишины, уходит утром. Авария идёт сразу. Файлы: `packages/app/src/quiet.ts`, `packages/app/src/use-cases/broadcast.ts`.
 - Отвечать на вопросы жильцов и закрывать обращения: `/support`, кнопка `ticket`, экран «Поддержка» со временем ожидания и отметкой просрочки. Файлы: `apps/bot/src/pages.ts`, `packages/app/src/helpdesk.ts`.
 - Видеть долги дома и напоминать одному должнику: `/debts`, экран «Долги», маршрут `POST /api/debtors/{id}/remind`. Файлы: `apps/bot/src/pages.ts`, `packages/app/src/collection.ts`.
 - Снимать показания узла учёта: экран «Узел учёта», маршрут `POST /api/house-meters/{id}/readings`. Файл: `packages/app/src/house-meters.ts`.
@@ -135,6 +151,9 @@
 ## Мастер <a id="technician"></a>
 
 - Видеть свои наряды: `/my` карточками, экран «Наряды» первым в панели. Файлы: `apps/bot/src/pages.ts`, `apps/miniapp/src/sections.ts`.
+- Видеть день целиком: `/day` и раздел «Мой день». Сначала наряды с назначенным временем визита, дальше по сроку, а внутри одного подъезда, подряд. Маршрут `GET /api/workday`. Файлы: `packages/app/src/workday.ts`, `apps/miniapp/src/screens/WorkdayScreen.tsx`.
+- Предложить жильцу окна визита и отметить неудачный выезд: карточка визита на экране заявки, кнопка `missed` в переписке, маршруты `POST /api/requests/{id}/visit/offer` и `/visit/missed`. Файлы: `packages/app/src/appointments.ts`, `apps/miniapp/src/screens/VisitCard.tsx`.
+- Списать израсходованные материалы вместе со сдачей работы: название, количество и единица, лишнее убирается до отправки; `materials` в теле перехода. Списанное остаётся в карточке заявки и в «Моём дне». Файлы: `packages/domain/src/status.ts`, `apps/miniapp/src/screens/RequestActions.tsx`.
 - Взять наряд в работу на себя (исполнитель не выбирается). Файл: `packages/domain/src/status.ts`.
 - Спросить уточнение у жильца с вопросом, сдать работу с отметкой о сделанном и фотографией результата. Кнопки `ask`, `req`, экран заявки. Файлы: `apps/bot/src/dialog.ts`, `apps/miniapp/src/screens/RequestActions.tsx`.
 - Подтвердить выезд сканом наклейки объекта (отметка `onSite` в истории): переход по коду в боте, кнопка «Сканировать код» в приложении, поле `provedBy`. Файлы: `apps/bot/src/greeting.ts`, `packages/app/src/use-cases/requests.ts`, `packages/domain/src/deep-link.ts`.
@@ -200,8 +219,9 @@
 - Язык человека хранится в его карточке и в сессии бота; миграция `061_resident_language.sql`. Файлы: `packages/app/src/language.ts`, `packages/storage/migrations/061_resident_language.sql`.
 - Документы на языке человека: ссылки бота ведут на страницу его языка, `GET /api/legal` отдаёт его редакцию, на сайте адреса `/<код>/privacy/` и `/<код>/terms/` с переключателем языка. Дата редакции по-русски словами, на остальных языках цифрами. Файлы: `packages/i18n/src/legal/`, `packages/domain/src/legal.ts`, `landing/vite.config.ts`.
 - Написанное жильцом не по-русски переводится для смены; под переводом идёт исходный текст с названием языка, а автор видит своё сообщение как написал. В карточке заявки смена видит оригинал и описания, и каждой реплики. По русскому тексту считаются категория, срок и поиск. Файлы: `packages/app/src/translation.ts`, `apps/domovoy/src/translator.ts`, `apps/miniapp/src/screens/RequestScreen.tsx`.
+- Отказ сервера приходит на языке человека: мини-приложение берёт строку словаря по коду отказа, а по-русски оставляет текст сервера, который подробнее. Файл: `apps/miniapp/src/api.ts`.
 - Ответ смены и уведомления по заявке переводятся обратно на язык жильца. Файлы: `packages/app/src/use-cases/requests.ts`, `packages/app/src/helpdesk.ts`.
-- Написанное одним человеком для многих переводит отдельная бесплатная служба, а не модель продукта: объявления управляющей компании, названия плановых работ, названия и вопросы собраний и предложений жильцов, суть и описание заявок соседей в ленте дома и в паспорте объекта. Служба выбирается `TRANSLATE_KIND` (`libre` или `mymemory`). Перевод идёт только жильцу с нерусским языком, пачкой и не дольше трёх секунд; отказ оставляет исходный текст. Файлы: `packages/app/src/machine-translation.ts`, `apps/domovoy/src/machine-translator.ts`.
+- Написанное одним человеком для многих переводит отдельная бесплатная служба, а не модель продукта: объявления управляющей организации, названия плановых работ, названия и вопросы собраний и предложений жильцов, суть и описание заявок соседей в ленте дома и в паспорте объекта. Служба выбирается `TRANSLATE_KIND` (`libre` или `mymemory`). Перевод идёт только жильцу с нерусским языком, пачкой и не дольше трёх секунд; отказ оставляет исходный текст. Файлы: `packages/app/src/machine-translation.ts`, `apps/domovoy/src/machine-translator.ts`.
 - Переводы хранятся по паре «отпечаток текста и язык», поэтому текст переводится один раз; отказ запоминается на десять минут. Миграция `063_translation.sql`. Файлы: `packages/app/src/memory-repository.ts`, `packages/storage/src/postgres-repository.ts`, `packages/storage/migrations/063_translation.sql`.
 - Машинный перевод отмечен: API отдаёт `machineTranslated`, мини-приложение ставит рядом пометку, бот помечает объявления одной строкой в конце сообщения. Файлы: `apps/api/src/serialize.ts`, `apps/miniapp/src/screens/MachineNote.tsx`, `apps/bot/src/pages.ts`.
 - Подписи кнопок под уведомлением идут на языке получателя: язык передаётся вместе с уведомлением. Файлы: `packages/app/src/notifier.ts`, `apps/bot/src/bot.ts`.
@@ -259,7 +279,7 @@
 - Сотрудник: «Очередь дома», «Мои наряды», «Дежурство»; группы «Жильцы», «Дела дома», «Связь и профиль», «В приложении» (осмотры, план, оборудование, узел учёта, люди, наклейки), «Управление домом» (тарифы, карточка, дома, журнал; только управляющему), «Моя квартира» (при привязке) или пункт привязки.
 - Подрядчик: «Наряды», «Мои данные»; группа «Дела дома».
 - «Долги дома» видят диспетчер и управляющий, «Рассылка» скрыта у мастера, «Двери и камеры» скрыты без домофонии, «Роль» добавляется в режиме проверки.
-- Пункт с признаком `app` рассказывает о разделе и открывает приложение через `?startapp=go-<раздел>`. Файлы: `apps/bot/src/buttons.ts`, `apps/bot/src/commands/in-app.ts`, `packages/domain/src/deep-link.ts`.
+- Пункт с признаком `app` рассказывает о разделе и открывает приложение ссылкой `?startapp=go-<раздел>`. Подпись кнопки раздела не обещает: клиент MAX открывает мини-приложение на стартовом экране и параметр запуска до него не доносит, поэтому кнопка подписана «Открыть приложение», а сам раздел назван в сообщении над ней. Параметр в ссылке остаётся: он сработает, когда платформа начнёт его передавать. Файлы: `apps/bot/src/buttons.ts`, `apps/bot/src/commands/in-app.ts`, `apps/bot/src/keyboards.ts`, `packages/domain/src/deep-link.ts`.
 - Экраны меню, группы и подсказки переписываются на месте, прежняя подсказка удаляется, ответ на подсказку убирается. Файл: `apps/bot/src/max.ts`.
 - Под ответом бота кнопки «Назад» и «Меню». Файл: `apps/bot/src/max.ts`.
 
@@ -629,11 +649,12 @@ Fastify, файлы `apps/api/src/routes.ts` и `apps/api/src/routes/*.ts`. 119 
 - `HANDOFF=mock`: подтверждение приёма и номер вида `РСО-0001`, `ГЖИ-0001`.
 - `MEETINGS=mock`: номера сообщения, решений и протокола.
 - `CAPITAL_REPAIR=mock`: типовой план с взносом и работами.
-- `CITY_FEED=mock`: завтрашнее отключение горячей воды по первому дому установки; `CITY_FEED_URL`: настоящий источник в формате продукта.
+- `REGISTRY=mock`: обмен с внешним реестром заявок, принимает записи и ведёт журнал; канал задаётся `REGISTRY_CHANNEL`. Файл: `apps/domovoy/src/registry-mock.ts`.
+- `CITY_FEED=mock`: завтрашнее отключение горячей воды по первому дому установки; `CITY_FEED_URL`: настоящий источник в формате продукта; `GRID_FEED_URL`: диспетчерская сетевой организации в её собственном формате.
 
 Хранилище и состояние:
 
-- Postgres через `DATABASE_URL`, 60 миграций при старте; без базы память и набор для показа. Файлы: `packages/storage/src/postgres-repository.ts`, `packages/storage/migrations/`, `packages/app/src/memory-repository.ts`, `apps/domovoy/src/main.ts`.
+- Postgres через `DATABASE_URL`, 64 миграции при старте; без базы память и набор для показа. Файлы: `packages/storage/src/postgres-repository.ts`, `packages/storage/migrations/`, `packages/app/src/memory-repository.ts`, `apps/domovoy/src/main.ts`.
 - Redis через `REDIS_URL`: состояние диалога, сессии, распределённая блокировка склейки, отметки обхода. Файлы: `apps/domovoy/src/main.ts`, `packages/sessions/src/`.
 - Позиция в потоке апдейтов в файле `MARKER_FILE`. Файлы: `apps/domovoy/src/main.ts`, `packages/runtime/src/marker-store.ts`.
 
@@ -675,9 +696,11 @@ Fastify, файлы `apps/api/src/routes.ts` и `apps/api/src/routes/*.ts`. 119 
 - Домофония, камеры, датчики, гостевые коды, журнал открытий: `HUB=mock`; кадр камеры рисуется. Файл: `packages/app/src/devices-mock.ts`.
 - Оплата и история платежей: `PAYMENTS=mock`. Файл: `packages/app/src/billing-mock.ts`.
 - Передача обращений смежным организациям и в инспекцию: `HANDOFF=mock` выдаёт номер, наружу не уходит; без переменной передача записывается как ручная. Файлы: `packages/app/src/handoff-mock.ts`, `packages/app/src/handoff.ts`.
+- Обмен с внешним реестром заявок (ГИС ЖКХ, учётная система организации): `REGISTRY=mock` принимает записи и ведёт журнал, наружу ничего не уходит; без переменной обмена нет, а выгрузка файлом остаётся. Файлы: `packages/app/src/registry.ts`, `apps/domovoy/src/registry-mock.ts`.
 - Система собраний (ГИС ЖКХ): `MEETINGS=mock` выдаёт номера; без переменной сроки закона не применяются. Файл: `packages/app/src/meetings.ts`.
 - Капитальный ремонт: `CAPITAL_REPAIR=mock` даёт типовой план; без переменной раздела нет. Файл: `packages/app/src/capital.ts`.
 - Перерасчёт за отключение дольше нормы: часы сверх допустимого перерыва по приложению 1 к Правилам № 354 снижают плату за ресурс на 0,15% за час отдельной строкой квитанции; перерывы берутся из объявленных отключений, касавшихся квартиры. Файлы: `packages/domain/src/outages.ts`, `packages/app/src/billing.ts`.
 - Отключения по данным города: `CITY_FEED_URL` читает события в общем формате продукта, `CITY_FEED=mock` показывает завтрашнее отключение; дома сверяются по адресу, событие становится объявлением о работах и уходит жильцам раз в обход. Файлы: `packages/app/src/city.ts`, `packages/app/src/sweep.ts`.
+- Диспетчерская сетевой организации напрямую: `GRID_FEED_URL` читает отключения электричества в формате АО «Сетевая компания» без посредника, запрос идёт названием улицы по каждому дому установки за ближайшие дни, дом отбирается на нашей стороне. Файл: `packages/app/src/grid-feed.ts`.
 - Обмена с ГИС ЖКХ и биллингом нет: данные заводятся импортом CSV и отдаются файлами. Файлы: `packages/app/src/import.ts`, `packages/app/src/export.ts`.
 - Демонстрационный дом и люди вымышленные. Файл: `apps/domovoy/src/demo.ts`.

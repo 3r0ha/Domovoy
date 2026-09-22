@@ -52,6 +52,7 @@ export const app: Dictionary = {
   'noticeKind.works': 'Planlı işlər',
   'noticeKind.polls': 'Mülkiyyətçilər yığıncaqları',
   'noticeKind.news': 'Ev elanları',
+  'noticeKind.debt': 'Ödəniş barədə xatırlatmalar',
 
   'charge.maintenance': 'Saxlama və cari təmir',
   'charge.common': '{ресурс}, evin ümumi ehtiyacları üçün',
@@ -186,6 +187,7 @@ export const app: Dictionary = {
   'notice.complaintSent': 'Şikayət göndərildi: {организация}.{номер}\nCavab 30 gün ərzində gəlir.',
   'notice.complaintNumber': '\nNömrə {номер}.',
   'notice.debt': '{долг}\n\nAşağıdakı düymə ilə ödəyə bilərsiniz.',
+  'notice.due': 'Ay üzrə hesablandı: {сумма}. Ayın {день} tarixinədək ödəyin, sonra faiz işləyir.',
 
   // Часы и дни словами: у каждого языка свой счёт, поэтому строка целиком.
   'hours.one': '{сколько} saat',
@@ -210,7 +212,7 @@ export const app: Dictionary = {
   'answer.houseAhead': 'Hazırda evdə heç nə kəsilməyib. Ən yaxını: {событие}, {когда}.',
   'answer.houseQuiet': 'Hazırda evdə heç nə kəsilməyib və qəza yoxdur.',
   'answer.billEmpty': 'Bu ay üçün hələ hesablama yoxdur.',
-  'answer.billLeft': 'Ödəniş {сумма}, ayın {число}-dək.',
+  'answer.billLeft': 'Ödəniləcək {сумма}, ayın {число} tarixinədək.',
   'answer.billPaid': 'Bu ay üçün hamısı ödənilib.',
   'answer.requestsEmpty': 'Sizin açıq müraciətiniz yoxdur.',
   'answer.requests': 'Müraciətləriniz:\n{строки}',
@@ -255,7 +257,7 @@ export const app: Dictionary = {
   'poll.started': '{вид}: {название}\n\n{вопрос}\n\n{порядок}',
   'poll.orderMeeting': '{правило}. Səsvermə {от} ilə {до} arasında gedir.',
   'poll.orderSurvey': '{до} tarixinədək cavab vermək olar. Sorğu mülkiyyətçilər yığıncağını əvəz etmir.',
-  'poll.remind': '«{название}» yığıncağı {до} bağlanır.\n{нехватка}',
+  'poll.remind': '«{название}» yığıncağı {до} tarixində bağlanır.\n{нехватка}',
   'poll.remindFew': 'Hamı səs verməyib: səs az olduqca qərar qəbul edilməyəcək.',
   'poll.remindArea':
     'Səs verən mülkiyyətçilərin sahəsi tam deyil: {площадь} m² çatmır. Səs az olduqca qərar qəbul edilməyəcək.',
@@ -270,7 +272,7 @@ export const app: Dictionary = {
   'poll.choice.against': 'əleyhinə',
   'poll.choice.abstain': 'bitərəf qaldı',
   'poll.elder':
-    'Qonşular sizi {подъезд} girişinin böyüyü seçdi.\n' +
+    'Qonşular sizi {подъезд} nömrəli girişin böyüyü seçdi.\n' +
     'Girişin ümumi əmlakı üzrə müraciətlər indi sizindir: onları siz görürsünüz və işi siz təhvil alırsınız.',
 
   'pollRule.simple': 'Sadə səs çoxluğu',
@@ -281,7 +283,7 @@ export const app: Dictionary = {
   'poll.tally.abstain': 'Bitərəf qaldı',
   'poll.base.participants': 'səs verənlərdən',
   'poll.base.building': 'bütün mülkiyyətçilərdən',
-  'poll.threshold.strict': '{доля} dan çox',
+  'poll.threshold.strict': '{доля} səviyyəsindən çox',
   'poll.threshold.plain': '{доля}',
 
   'poll.result.survey': 'Sakin sorğusu, yığıncaq qərarı deyil. Cavab verdilər: evin sahəsinin {участие}.',
@@ -308,14 +310,14 @@ export const app: Dictionary = {
   'protocol.counting': 'Səslərin sayılması',
   'protocol.totalArea': 'Sahələrin ümumi ölçüsü: {площадь} m²',
   'protocol.turnout': 'İştirak etdi: {площадь} m² ({доля})',
-  'protocol.quorumYes': 'Kvorum: var, {порог} dan çox tələb olunur',
+  'protocol.quorumYes': 'Kvorum: var, {порог} səviyyəsindən çox tələb olunur',
   'protocol.quorumUnknown': 'Kvorum: təsdiqlənmir, {сколько} sahənin ölçüsü qeydə alınmayıb',
   'protocol.quorumNo': 'Kvorum: yoxdur, {площадь} m² çatmır',
   'protocol.line': '{ответ}: {площадь} m² ({доля})',
   'protocol.decision': 'Qərar',
   'protocol.rule': '{правило}: {база} {набрано}, həddi {порог}.',
-  'protocol.moreThan': '{доля} dan çox',
-  'protocol.atLeast': '{доля} dan az olmayaraq',
+  'protocol.moreThan': '{доля} səviyyəsindən çox',
+  'protocol.atLeast': '{доля} səviyyəsindən az olmayaraq',
   'protocol.noQuorum': 'Yığıncaq baş tutmadı: kvorum yoxdur.',
   'protocol.formed': 'Protokol {дата} tərtib edildi',
   'protocol.surveyFormed': 'Nəticələr {дата} yekunlaşdırıldı',
@@ -334,6 +336,9 @@ export const app: Dictionary = {
   'binding.neighbour':
     '{квартира} nömrəli mənzilinizə daha bir sakin bağlandı: {кто}.\n' +
     'Əgər bu sizin qonşunuz deyilsə, idarəetmə şirkətinə bildirin.',
+  'binding.ownerClaimed':
+    '{кто} {квартира} nömrəli mənzilin mülkiyyətçisi olduğunu bildirdi.\n' +
+    'Əgər bu belə deyilsə, idarəetmə təşkilatına deyin: yığıncaqdakı səs bundan asılıdır.',
   'binding.bound':
     'İdarəetmə şirkəti sizi {квартира} nömrəli mənzilə bağladı.\n' +
     'İndi sayğac göstəriciləri və yığıncaqlarda səsvermə açıqdır.',
@@ -363,11 +368,29 @@ export const app: Dictionary = {
   'clarify.flat': '{номер} nömrəli mənzil',
   'clarify.entrance': '{номер} nömrəli giriş',
 
-  'device.snapshot': '{устройство}: {время} kadrı',
+  'device.snapshot': '{устройство}: {время} saatının kadrı',
 
   // Приём в управляющей организации.
   'visit.booked': 'İdarəetmə təşkilatı sizi qəbula yazdı: {когда}.\n{тема}',
-  'visit.cancelled': '{день} saat {время} qəbulu idarəetmə təşkilatı tərəfindən ləğv edildi.',
+  'visit.cancelled': '{день}, saat {время} qəbulu idarəetmə təşkilatı tərəfindən ləğv edildi.',
+
+  'visit.offer': 'Müraciət {номер}: usta gəlməyə hazırdır. Rahat vaxtı seçin.',
+  'visit.chosenForStaff': 'Müraciət {номер}: sakin {когда} gözləyir. {место}.',
+  'visit.missed':
+    'Usta {номер} müraciəti üzrə {когда} gəldi və mənzilə girə bilmədi. Başqa vaxt seçin, o yenidən gələcək.',
+  'visit.refused':
+    '{номер} müraciəti üzrə usta mənzilə {сколько} dəfə girə bilmədi. Müraciət açıq qalır, lakin işin vaxtını ' +
+    'indi idarəetmə təşkilatı razılaşdırır: onlara zəng edin.',
+  'visit.declined': 'Təklif olunanlardan heç biri uyğun gəlmir. İdarəetmə təşkilatı başqa vaxt təklif edəcək.',
+  'visit.dropped': 'Müraciət {номер}: sakin ziyarət vaxtını ləğv etdi və yenisini seçir.',
+  'visit.todayForResident':
+    'Bu gün saat {время} {номер} müraciəti üzrə usta gələcək. Planlar dəyişibsə, vaxtı ləğv edin.',
+  'visit.todayForStaff': 'Bu gün saat {время} {номер} müraciəti üzrə sizi gözləyirlər. {место}.',
+
+  'dispute.forStaff': 'Müraciət {номер}, {место}. Ərizəçi «{причина}» imtinası ilə razı deyil. O yazır: {что}',
+  'dispute.upheld':
+    '{номер} müraciəti üzrə imtina qüvvədə saxlanıldı. Razı deyilsinizsə, bunu mənzil müfəttişliyi araşdırır: ' +
+    'müraciət hazırdır, onu düymə ilə göndərmək olar.',
 
   // Помощник без модели.
   'assistant.offTopic':
@@ -467,13 +490,18 @@ export const app: Dictionary = {
   'responsible.owner': 'Sahənin mülkiyyətçisi',
 
   'zone.elevator': 'Liftə ixtisaslaşmış təşkilat xidmət göstərir',
-  'zone.insideFlat': 'Mənzil içindəki avadanlığı mülkiyyətçi təmir edir',
-  'zone.yard': 'Binanın həyətinə idarəetmə təşkilatı baxır',
-  'zone.common': 'Bu binanın ümumi mülkiyyətidir, ona idarəetmə təşkilatı baxır',
-  'zoneNext.elevator': 'Müraciəti idarəetmə təşkilatı aparır: o, bunu liftə xidmət edən şirkətə ötürür.',
+  'zone.insideFlat': 'Mənzilin içindəki avadanlığı mülkiyyətçi təmir edir',
+  'zone.flatBorder':
+    'Sərhəd ilk açıb-bağlayıcı qurğudan keçir: ona qədər idarəetmə təşkilatı, ondan sonra mülkiyyətçi cavabdehdir',
+  'zone.yard': 'Binanın həyətini idarəetmə təşkilatı saxlayır',
+  'zone.common': 'Bu binanın ümumi əmlakıdır, onu idarəetmə təşkilatı saxlayır',
+  'zoneNext.elevator':
+    'Müraciəti idarəetmə təşkilatı aparır: o, müraciəti liftlərə xidmət edən şirkətə ötürür.',
   'zoneNext.insideFlat':
-    'İdarəetmə təşkilatı belə işləri ayrıca müraciət üzrə, adətən ödənişli yerinə yetirir.',
-  'zoneNext.yard': 'Yer binanın torpaq sahəsindən kənardadırsa, müraciət bələdiyyə xidmətinə gedir.',
+    'İdarəetmə təşkilatı belə işləri ayrıca müraciət üzrə, adətən ödənişli görür.',
+  'zoneNext.flatBorder': 'Nasazlığın dəqiq harada olduğunu usta baxış zamanı müəyyən edir.',
+  'zoneNext.yard':
+    'Yer binanın torpaq sahəsinin hüdudlarından kənardadırsa, müraciət bələdiyyə xidmətinə gedir.',
 
   'ticketStatus.open': 'cavab gözləyir',
   'ticketStatus.answered': 'cavablandırılıb',
@@ -504,6 +532,7 @@ export const app: Dictionary = {
   'contacts.office': 'Qəbul: {где}',
   'contacts.person': 'Məsul: {кто}',
   'contacts.empty': 'Kontaktlar daxil edilməyib: dəstəyə yazın, növbə cavab verəcək.',
+  'privacy.summary': 'Müraciətlər {заявок}, göstəricilər {показаний}, səslər {голосов}, ödənişlər {платежей}',
 
   'role.removed': 'İdarəetmə şirkəti sizdən xidməti rolu götürdü. Müraciətlər və göstəricilər əlçatan qalır.',
   'role.given': 'İdarəetmə şirkəti sizə rol verdi: {роль}.\nYeni əmrləri görmək üçün /start yazın.',

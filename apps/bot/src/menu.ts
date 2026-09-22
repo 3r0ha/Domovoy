@@ -1,4 +1,4 @@
-import { apartmentsOf, needsApartment, type Resident } from '@domovoy/app';
+import { apartmentsOf, knowsHouse, needsApartment, type Resident } from '@domovoy/app';
 import type { Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
@@ -38,7 +38,6 @@ interface RoleMenu {
 const HOME_GROUP: MenuGroup = {
   key: 'home',
   title: 'menu.group.home',
-  about: 'menu.group.home.about',
   items: [
     { title: 'menu.home.new', command: 'new' },
     { title: 'menu.home.meters', command: 'meters' },
@@ -76,7 +75,6 @@ const RESIDENT: RoleMenu = {
     {
       key: 'money',
       title: 'menu.group.money',
-      about: 'menu.group.money.about',
       items: [
         { title: 'menu.bill', command: 'bill' },
         { title: 'menu.meters', command: 'meters' },
@@ -85,7 +83,6 @@ const RESIDENT: RoleMenu = {
     {
       key: 'house',
       title: 'menu.group.house',
-      about: 'menu.group.house.about',
       items: [
         { title: 'menu.news', command: 'news' },
         {
@@ -109,7 +106,6 @@ const RESIDENT: RoleMenu = {
     {
       key: 'me',
       title: 'menu.group.me',
-      about: 'menu.group.me.about',
       items: [
         { title: 'menu.support', command: 'support' },
         {
@@ -139,10 +135,9 @@ const CONTRACTOR: RoleMenu = {
   groups: [
     {
       // Подрядчик приходит в дом со стороны, но дела дома ему тоже доступны:
-      // спросить управляющую компанию, посмотреть объявления, открыть дверь.
+      // спросить управляющую организацию, посмотреть объявления, открыть дверь.
       key: 'house',
       title: 'menu.group.works',
-      about: 'menu.group.contractor.about',
       items: [
         { title: 'menu.support', command: 'support' },
         { title: 'menu.contacts', command: 'contacts' },
@@ -158,6 +153,7 @@ const CONTRACTOR: RoleMenu = {
 const STAFF: RoleMenu = {
   top: [
     { title: 'menu.staff.queue', command: 'queue' },
+    { title: 'menu.staff.day', command: 'day' },
     { title: 'menu.staff.my', command: 'my' },
     // Дежурство назначают диспетчер и управляющий, и управляющий тоже берёт
     // ночь на себя. Мастеру пункт не показывается: кнопка вела бы в отказ.
@@ -167,7 +163,6 @@ const STAFF: RoleMenu = {
     {
       key: 'people',
       title: 'menu.group.people',
-      about: 'menu.group.people.about',
       items: [
         { title: 'menu.staff.support', command: 'support' },
         {
@@ -182,7 +177,6 @@ const STAFF: RoleMenu = {
     {
       key: 'house',
       title: 'menu.group.works',
-      about: 'menu.group.works.about',
       items: [
         { title: 'menu.staff.report', command: 'report' },
         // Рассылку должникам делают диспетчер и управляющий: мастеру суммы дома
@@ -197,11 +191,10 @@ const STAFF: RoleMenu = {
       ],
     },
     {
-      // Сотрудник тоже живёт в квартире и сам пишет в управляющую компанию:
+      // Сотрудник тоже живёт в квартире и сам пишет в управляющую организацию:
       // без этих пунктов ему пришлось бы вспоминать команды.
       key: 'me',
       title: 'menu.group.me',
-      about: 'menu.group.staff_me.about',
       items: [
         // Сотрудник платит за свою квартиру так же, как жилец: без этих пунктов
         // помощник называл ему раздел, в который нечем перейти.
@@ -219,7 +212,6 @@ const STAFF: RoleMenu = {
     {
       key: 'app',
       title: 'menu.group.app',
-      about: 'menu.group.app.about',
       items: [
         {
           title: 'menu.staff.inspections',
@@ -252,7 +244,6 @@ const STAFF: RoleMenu = {
     {
       key: 'manage',
       title: 'menu.group.manage',
-      about: 'menu.group.manage.about',
       items: [
         {
           title: 'menu.staff.tariffs',
@@ -283,7 +274,7 @@ const STAFF: RoleMenu = {
   ],
 };
 
-/** Дела управляющей компании: мастеру и подрядчику они не поручены. */
+/** Дела управляющей организации: мастеру и подрядчику они не поручены. */
 const FOR_MANAGEMENT = new Set(['broadcast']);
 
 const roleMenu = (role: string): RoleMenu =>
@@ -303,6 +294,10 @@ const DEMO_ITEM: MenuItem = { title: 'menu.demo', command: 'demo' };
 /** Жильцу без квартиры остаётся одно дело: привязать её. */
 const BIND_ITEM: MenuItem = { title: 'menu.flat', command: 'flat' };
 
+/** Объявления и контакты дома открыты и без квартиры, когда дом уже известен. */
+const NEWS_ITEM: MenuItem = { title: 'menu.news', command: 'news' };
+const CONTACTS_ITEM: MenuItem = { title: 'menu.contacts', command: 'contacts' };
+
 /** Язык меняется и до привязки: с ним человек хотя бы прочтёт просьбу о коде. */
 const LANG_ITEM: MenuItem = { title: 'menu.lang', command: 'lang' };
 
@@ -320,7 +315,11 @@ export const menuFor = (resident: Resident, offer: MenuOffer = {}): RoleMenu => 
   const role = resident.role;
 
   if (needsApartment(resident)) {
-    const bind = [BIND_ITEM, LANG_ITEM];
+    // Дом человек мог назвать сканом наклейки на подъезде. Тогда объявления
+    // и контакты ему открыты: они принадлежат дому, а не помещению, и меню
+    // из одной кнопки было бы враньём.
+    const house = knowsHouse(resident) ? [NEWS_ITEM, CONTACTS_ITEM] : [];
+    const bind = [BIND_ITEM, ...house, LANG_ITEM];
 
     return { top: offer.demo === true ? [...bind, DEMO_ITEM] : bind, groups: [] };
   }

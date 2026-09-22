@@ -2,7 +2,7 @@ import { Button, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState, type ReactNode } from 'react';
 
-import { ApiError, formatPublished, hours, type DomovoyApi, type PeriodSummaryView } from '../api.js';
+import { ApiError, decimal, formatPublished, hours, type DomovoyApi, type PeriodSummaryView } from '../api.js';
 import { CategoryTile } from './CategoryTile.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
@@ -15,7 +15,11 @@ export interface ReportScreenProps {
   toChat?: boolean;
 }
 
-const percent = (share: number): string => `${Math.round(share * 100)}%`;
+/** Доля числом, без знака: знак ставится рядом отдельной частью. */
+const share = (value: number): string => String(Math.round(value * 100));
+
+/** Та же доля со знаком: для строки сравнения, где число идёт внутри фразы. */
+const percent = (value: number): string => `${share(value)}%`;
 
 /** За какие промежутки смотрят сводку: месяц работы, квартал и год. */
 const PERIODS: { days: number; title: string }[] = [
@@ -52,11 +56,14 @@ const Change = ({
 const Row = ({
   title,
   value,
+  unit,
   hint,
   before,
 }: {
   title: string;
   value: ReactNode;
+  /** Единица числа: стоит рядом с ним, а не внутри. */
+  unit?: string;
   hint?: ReactNode;
   before?: ReactNode;
 }) => (
@@ -64,7 +71,12 @@ const Row = ({
     {...(before ? { before } : {})}
     title={title}
     subtitle={hint}
-    after={<span className="report-value">{value}</span>}
+    after={
+      <span className="report-value">
+        {value}
+        <span className="report-unit">{unit ?? ''}</span>
+      </span>
+    }
     separator
     height="compact"
   />
@@ -114,7 +126,8 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     />
     <Row
       title="В срок"
-      value={period.closed === 0 ? 'нет данных' : percent(period.inTimeRate)}
+      value={period.closed === 0 ? 'нет данных' : share(period.inTimeRate)}
+      {...(period.closed === 0 ? {} : { unit: '%' })}
       hint={
         previous.closed > 0 && period.closed > 0 ? (
           <Change value={period.inTimeRate} before={previous.inTimeRate} better="more" format={percent} />
@@ -123,7 +136,8 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     />
     <Row
       title="Среднее время"
-      value={period.closed === 0 ? 'нет данных' : hours(period.averageHours)}
+      value={period.closed === 0 ? 'нет данных' : decimal(period.averageHours, 1)}
+      {...(period.closed === 0 ? {} : { unit: 'ч' })}
       hint={
         previous.averageHours > 0 && period.closed > 0 ? (
           <Change value={period.averageHours} before={previous.averageHours} better="less" format={hours} />
@@ -132,7 +146,8 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     />
     <Row
       title="Оценка жильцов"
-      value={period.rated ? `${period.averageRating} из 5` : 'не оценивали'}
+      value={period.rated ? period.averageRating : 'не оценивали'}
+      {...(period.rated ? { unit: 'из 5' } : {})}
       hint={period.rated ? `оценок ${period.rated}` : undefined}
     />
     <Row title="Склеено обращений" value={period.mergedReports} />
@@ -301,7 +316,8 @@ export const ReportScreen = ({ api, toChat }: ReportScreenProps) => {
               key={category.category}
               before={<CategoryTile category={category.category} />}
               title={category.title}
-              value={percent(category.overdueRate)}
+              value={share(category.overdueRate)}
+              unit="%"
               hint={`${category.overdue} из ${category.total}`}
             />
           ))}
@@ -314,7 +330,8 @@ export const ReportScreen = ({ api, toChat }: ReportScreenProps) => {
             <Row
               key={assignee.assigneeId}
               title={assignee.displayName}
-              value={percent(assignee.reopenRate)}
+              value={share(assignee.reopenRate)}
+              unit="%"
               hint={`${assignee.reopened} из ${assignee.completed}`}
             />
           ))}
@@ -329,7 +346,8 @@ export const ReportScreen = ({ api, toChat }: ReportScreenProps) => {
               <Row
                 key={assignee.assigneeId}
                 title={assignee.displayName}
-                value={percent(assignee.onSite / assignee.completed)}
+                value={share(assignee.onSite / assignee.completed)}
+                unit="%"
                 hint={`${assignee.onSite} из ${assignee.completed}`}
               />
             ))}
@@ -344,7 +362,8 @@ export const ReportScreen = ({ api, toChat }: ReportScreenProps) => {
               <Row
                 key={assignee.assigneeId}
                 title={assignee.displayName}
-                value={`${Math.round(assignee.averageRating * 10) / 10} из 5`}
+                value={Math.round(assignee.averageRating * 10) / 10}
+                unit="из 5"
                 hint={`оценок ${assignee.rated}`}
               />
             ))}

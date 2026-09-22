@@ -53,6 +53,7 @@ const tenant: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 /** Сосед из второй квартиры: чужие заявки он не видит, хотя дом тот же. */
@@ -63,6 +64,7 @@ const neighbourTenant: Resident = {
   role: 'resident',
   apartmentId: 'apt-2',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-2', share: 1, basis: 'company' }],
 };
 
 /** Пришедший из чата дома: дом известен, квартиры ещё нет. */
@@ -74,7 +76,8 @@ const newcomerInHouse: Resident = {
   buildingId: BUILDING_ID,
 };
 
-const initDataFor = (userId: number, name = 'Жилец'): Promise<string> =>
+/** Без имени платформа его не назвала: продукт оставляет то, которое знает. */
+const initDataFor = (userId: number, name = ''): Promise<string> =>
   signInitData(
     {
       auth_date: Math.floor(Date.now() / 1000),
@@ -90,7 +93,7 @@ interface Harness {
   login: (userId: number, name?: string) => Promise<string>;
 }
 
-const setup = async (residents: Resident[] = []): Promise<Harness> => {
+const setup = async (residents: Resident[] = [], clock?: () => Date): Promise<Harness> => {
   const repository = new InMemoryRepository({
     buildings: [{ id: BUILDING_ID, code: 'Д15' }],
     apartments: APARTMENTS,
@@ -103,6 +106,7 @@ const setup = async (residents: Resident[] = []): Promise<Harness> => {
     repository,
     defaultBuildingId: BUILDING_ID,
     createId: () => `id-${++counter}`,
+    ...(clock ? { now: clock } : {}),
   });
 
   const login = async (userId: number, name?: string): Promise<string> => {
@@ -340,6 +344,17 @@ describe('жилец без квартиры', () => {
       assert.equal(open.statusCode, 200, `${url}: ${open.body}`);
     }
 
+    // Язык выбирают на первом экране, до кода из квитанции: закрытый маршрут
+    // встречал человека красным отказом про квартиру ещё до всякого выбора.
+    const language = await app.inject({
+      method: 'POST',
+      url: '/api/me/language',
+      headers: authed(token),
+      payload: { language: 'en' },
+    });
+
+    assert.equal(language.statusCode, 200, language.body);
+
     assert.equal((await app.inject({ method: 'GET', url: '/api/legal' })).statusCode, 200);
 
     for (const check of CLOSED) {
@@ -545,7 +560,7 @@ describe('заявки', () => {
   });
 });
 
-describe('работа управляющей компании', () => {
+describe('работа управляющей организации', () => {
   const dispatcher: Resident = {
     id: 'disp-1',
     maxUserId: 5005,
@@ -1085,7 +1100,9 @@ describe('рассылка жильцам', () => {
   });
 
   it('отправка возвращает адресат и число ушедших сообщений', async () => {
-    const { app, login } = await setup(everyone);
+    // Часы дневные: по настоящим набор падал после десяти вечера, когда
+    // рассылка попадает в тихие часы и спрашивает подтверждение.
+    const { app, login } = await setup(everyone, () => new Date('2026-09-22T09:00:00Z'));
     const token = await login(5005);
 
     const response = await app.inject({
@@ -1098,6 +1115,30 @@ describe('рассылка жильцам', () => {
     assert.equal(response.statusCode, 201);
     assert.equal(response.json().audience, 'весь дом');
     assert.equal(response.json().sent, 2);
+
+    await app.close();
+  });
+
+  it('ночью рассылка спрашивает подтверждение, а со второго нажатия уходит', async () => {
+    const { app, login } = await setup(everyone, () => new Date('2026-09-22T20:00:00Z'));
+    const token = await login(5005);
+    const send = (anyway?: boolean) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/broadcast',
+        headers: authed(token),
+        payload: { kind: 'building', text: 'Завтра отключат воду', ...(anyway ? { anyway } : {}) },
+      });
+
+    const asked = await send();
+
+    assert.equal(asked.statusCode, 409, asked.body);
+    assert.equal(asked.json().error, 'quiet_hours');
+
+    const sent = await send(true);
+
+    assert.equal(sent.statusCode, 201, sent.body);
+    assert.equal(sent.json().sent, 2);
 
     await app.close();
   });
@@ -1214,8 +1255,16 @@ describe('выгрузка реестра', () => {
       role: 'resident',
       apartmentId: 'apt-1',
       buildingId: BUILDING_ID,
+      owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
     };
-    const petr: Resident = { ...maria, id: 'res-petr', maxUserId: 1002, displayName: 'Пётр', apartmentId: 'apt-2' };
+    const petr: Resident = {
+      ...maria,
+      id: 'res-petr',
+      maxUserId: 1002,
+      displayName: 'Пётр',
+      apartmentId: 'apt-2',
+      owned: [{ apartmentId: 'apt-2', share: 1, basis: 'company' }],
+    };
     const { app, login } = await setup([dispatcher, maria, petr]);
 
     const started = await app.inject({
@@ -1536,7 +1585,7 @@ describe('привязка жильцов', () => {
     await app.close();
   });
 
-  it('непривязанный жилец виден управляющей компании', async () => {
+  it('непривязанный жилец виден управляющей организации', async () => {
     const { app, login } = await setup([dispatcher, newcomerInHouse]);
 
     await login(1001, 'Мария');

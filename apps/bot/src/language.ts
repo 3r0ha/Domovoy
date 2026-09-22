@@ -16,8 +16,9 @@ import type { Extra, Handler, BotKit } from './kit.js';
  * прочитать вопрос хоть на одной из строк.
  */
 export const languageQuestion = (language?: Language): string => {
-  const lines = ['Выберите язык', 'Choose your language'];
-  const own = language ? translatorFor(language)('app.lang.ask') : undefined;
+  const asks = (code: Language): string => translatorFor(code)('app.lang.ask');
+  const lines = [asks('ru'), asks('en')];
+  const own = language ? asks(language) : undefined;
 
   return (own && !lines.includes(own) ? [...lines, own] : lines).join('\n');
 };

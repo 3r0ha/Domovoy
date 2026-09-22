@@ -1,4 +1,4 @@
-import { escalationFor, sendComplaint } from '@domovoy/app';
+import { COMPLAINT_MAX_LENGTH, escalationFor, sendComplaint } from '@domovoy/app';
 import type { FastifyPluginAsync } from 'fastify';
 
 import { idParamsSchema } from '../serialize.js';
@@ -52,11 +52,14 @@ export const complaintRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
    * Отправка обращения в надзор. Кнопка «пожаловаться» текст только готовит,
    * отправку человек подтверждает отдельно: это письмо в орган власти.
    */
-  scope.post<{ Params: { id: string } }>(
+  scope.post<{ Params: { id: string }; Body: { text?: string } }>(
     '/api/requests/:id/complaint',
     {
       schema: {
         params: idParamsSchema,
+        // Письмо в орган власти пишет человек: продукт собрал черновик,
+        // а отправляется тот текст, который человек прочитал и поправил.
+        body: { type: 'object', properties: { text: { type: 'string', maxLength: COMPLAINT_MAX_LENGTH } } },
         response: {
           200: {
             type: 'object',
@@ -73,7 +76,7 @@ export const complaintRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
     },
     async (request) => {
       const resident = await currentResident(request.max.userId);
-      const { handoff } = await sendComplaint(deps, resident, request.params.id);
+      const { handoff } = await sendComplaint(deps, resident, request.params.id, request.body.text);
 
       return {
         organization: handoff.organization,

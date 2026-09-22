@@ -11,7 +11,8 @@ import {
 } from '@domovoy/domain';
 
 import { apartmentsOf } from './apartments.js';
-import { speak } from './language.js';
+import { fieldText, sameAs } from './fields.js';
+import { languageHeard, speak } from './language.js';
 import { translateForReading } from './machine-translation.js';
 import type { Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
@@ -94,6 +95,15 @@ const shown = async (
   return options.map((option) => ({ ...option, label: machine.of(option.label) }));
 };
 
+/** Подпись из ответа модели, приведённая к настоящему объекту дома. */
+const matching = (label: unknown, candidates: readonly TargetOption[]): TargetOption | undefined => {
+  const said = sameAs(label);
+
+  if (!said) return undefined;
+
+  return candidates.find((option) => sameAs(option.label) === said);
+};
+
 /** Вид объекта из его названия: «Домофон, подъезд 1» это «домоф». */
 const kindOf = (label: string): string => (label.split(/[\s,]+/)[0] ?? '').toLowerCase().slice(0, 5);
 
@@ -165,21 +175,29 @@ export const clarifyTarget = async (
 
   const reasoner: Reasoner | undefined = deps.reasoner;
 
+  // Вопрос читает сам жилец: он идёт на его языке, а подписи кнопок продукт
+  // переводит отдельно, уже после выбора вариантов.
   const read = reasoner?.clarify
     ? await reasoner
-        .clarify({ description: request.description, candidates: candidates.map((option) => option.label) })
+        .clarify({
+          description: request.description,
+          candidates: candidates.map((option) => option.label),
+          language: languageHeard(resident, request.description),
+        })
         .catch(() => undefined)
     : undefined;
 
-  // Кнопкой становится только тот вариант, который в доме есть.
-  const chosen = (read?.choices ?? [])
-    .map((label) => candidates.find((option) => option.label === label))
+  // Кнопкой становится только тот вариант, который в доме есть. Подпись
+  // сверяется без кавычек, разметки и регистра: дословно модель их не держит.
+  const chosen = (Array.isArray(read?.choices) ? read.choices : [])
+    .map((label) => matching(label, candidates))
     .filter((option): option is TargetOption => option !== undefined)
     .slice(0, MAX_OPTIONS);
 
   const options = chosen.length > 0 ? chosen : candidates.slice(0, MAX_OPTIONS);
   const t = speak(resident);
-  const asked = read?.question?.trim() ? read.question.trim().slice(0, 200) : t('app.clarify.where');
+  const said = fieldText(read?.question);
+  const asked = said ? said.slice(0, 200) : t('app.clarify.where');
 
   // Смене вопрос задаёт сам продукт: список квартир модели не отдавали, и её
   // вопрос про подъезд разошёлся бы с кнопками.

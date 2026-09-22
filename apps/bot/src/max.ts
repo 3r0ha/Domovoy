@@ -1,3 +1,4 @@
+import { ANONYMOUS_NAME } from '@domovoy/app';
 import type { Attachment } from '@domovoy/domain';
 import { languageTitle, translatorFor, type Language, type Translate } from '@domovoy/i18n';
 
@@ -45,6 +46,13 @@ export type Awaiting =
   | { kind: 'visit'; at: string }
   | { kind: 'handoff'; handoffId: string }
   | { kind: 'code' }
+  | { kind: 'dispute'; requestId: string }
+  | { kind: 'connect' }
+  /** Ждём время визита: его называют и кнопкой, и словами. */
+  | { kind: 'slot'; requestId: string }
+  /** Ждём правку готового обращения в надзор словами. */
+  | { kind: 'complaint'; requestId: string; text: string }
+  | { kind: 'name' }
   | { kind: 'assistant' };
 
 /** Язык разговора по запомненному в сессии: человека здесь уже нет. */
@@ -559,5 +567,12 @@ export const toAttachments = (attachments: readonly MaxAttachment[] = []): Attac
   });
 
 export const nameOf = (user?: { first_name?: string; last_name?: string }): string =>
-  [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Жилец';
+  rawNameOf(user) || ANONYMOUS_NAME;
+
+/**
+ * Имя ровно так, как его назвала платформа. Пусто означает, что она его не
+ * назвала: подстановкой «Жилец» тогда перетиралось бы имя, уже известное продукту.
+ */
+export const rawNameOf = (user?: { first_name?: string; last_name?: string }): string =>
+  [user?.first_name, user?.last_name].filter(Boolean).join(' ');
 

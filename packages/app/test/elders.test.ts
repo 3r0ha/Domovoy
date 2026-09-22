@@ -38,6 +38,7 @@ const resident = (id: string, apartmentId: string, maxUserId: number): Resident 
   role: 'resident',
   apartmentId,
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId, share: 1, basis: 'company' }],
 });
 
 const maria = resident('res-1', 'apt-1', 1001);

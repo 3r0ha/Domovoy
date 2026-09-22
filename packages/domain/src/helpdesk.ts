@@ -19,7 +19,7 @@ export const TICKET_STATUS_TITLES: Record<TicketStatus, string> = {
 export const ticketStatusTitle = (status: TicketStatus, t: Translate = russian): string =>
   t(ticketStatusKey(status));
 
-/** Реплика в переписке с управляющей компанией. */
+/** Реплика в переписке с управляющей организацией. */
 export interface TicketMessage {
   at: Date;
   /** Кто написал: жилец или смена. */
@@ -33,7 +33,7 @@ export interface TicketMessage {
   original?: OriginalText;
 }
 
-/** Вопрос жильца управляющей компании и вся переписка по нему. */
+/** Вопрос жильца управляющей организации и вся переписка по нему. */
 export interface SupportTicket {
   id: string;
   buildingId: string;
@@ -53,7 +53,7 @@ const subjectOf = (text: string): string => {
   const line = text.trim().split('\n')[0] ?? '';
   const short = line.length > 60 ? `${line.slice(0, 57).trimEnd()}…` : line;
 
-  return short || 'Вопрос в управляющую компанию';
+  return short || 'Вопрос в управляющую организацию';
 };
 
 export interface OpenTicketInput {

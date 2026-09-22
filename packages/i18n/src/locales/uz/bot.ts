@@ -4,18 +4,14 @@ import type { Dictionary } from '../../translate.js';
 export const bot: Dictionary = {
   'greeting.hello': 'Assalomu alaykum!',
   'greeting.resident':
-    'Uy boʻyicha yordam beraman: nima buzilganini aytish, hisoblagich raqamlarini yuborish,\n' +
-    'hisobni koʻrish, podyezd eshigini ochish.\n\n' +
-    'Shunchaki soʻz bilan yozsangiz ham boʻladi: «joʻmrak oqyapti», «eshikni och», «podyezdni qachon tozalashadi».',
+    'Uy boʻyicha yordam beraman. Menyudan tanlang yoki yozing: «joʻmrak oqyapti», «eshikni och».',
   'start.code_unknown': 'Havoladagi kod toʻgʻri kelmadi: uyda bunday obyekt yoʻq.',
 
   'lang.chosen': 'Til: {язык}.',
 
   'legal.ask':
-    'Domovoy shaxsiy maʼlumotlarni uy boshqaruv tashkilotining topshirigʻi bilan qayta ishlaydi.\n' +
-    'Qayta ishlash siyosati va foydalanuvchi shartnomasi quyidagi tugmalarda.\n' +
-    'Siz «Qabul qilaman»ni bosib, ularga rozilik bildirasiz. Roziliksiz men arizani qabul qila olmayman ' +
-    'va koʻrsatkichni saqlay olmayman.',
+    'Domovoy shaxsiy maʼlumotlarni boshqaruv kompaniyasi topshirigʻi boʻyicha qayta ishlaydi.\n' +
+    'Roziliksiz arizani ham, koʻrsatkichni ham qabul qila olmayman.',
   'legal.accepted': 'Siz amaldagi tahrirga rozilik bildirdingiz.\nToʻliq matnlar tugmalar orqali ochiladi.',
   'legal.thanks': 'Rahmat. Nimada yordam beray?',
 
@@ -23,14 +19,12 @@ export const bot: Dictionary = {
   'flat.unknown':
     'Qaysi kvartirada ekaningizni hali bilmayman.\n' +
     'Kvitansiyada manzil yonida 8 ta belgidan iborat kod bosilgan. Uni xabar qilib yuboring.',
-  'flat.bound':
-    'Tayyor. Endi bilaman: siz {номер} kvartirada yashaysiz.\n' +
-    'Hisoblagich raqamlarini yuborish, hisobni koʻrish va uy yigʻilishlarida ovoz berish mumkin.',
-  'flat.already': 'Siz {номер} kvartiraga bogʻlangansiz.',
-  'flat.already_yours': '{номер} kvartira allaqachon sizniki.',
-  'flat.other_code': 'Kvartirangiz allaqachon bogʻlangan. Bu kod {номер} kvartirani bogʻlaydi. Bogʻlansinmi?',
-  'flat.title': '{номер} kvartira',
-  'flat.title_address': '{номер} kvartira, {адрес}',
+  'flat.bound': 'Tayyor, {номер}-kvartira.',
+  'flat.already': 'Siz {номер}-kvartiraga bogʻlangansiz.',
+  'flat.already_yours': '{номер}-kvartira allaqachon sizniki.',
+  'flat.other_code': 'Kvartirangiz allaqachon bogʻlangan. Bu kod {номер}-kvartirani bogʻlaydi. Bogʻlansinmi?',
+  'flat.title': '{номер}-kvartira',
+  'flat.title_address': '{номер}-kvartira, {адрес}',
   'flat.short': '{номер}-kv.',
   'flat.yours': 'Sizniki: {квартира}.',
   'flat.chosen': '{квартира} tanlandi: koʻrsatkich va kvitansiya shu boʻyicha boradi.',
@@ -88,17 +82,19 @@ export const bot: Dictionary = {
   'request.reply_ask': 'Javobni bitta xabarda yozing, shu ariza boʻyicha yetkazaman.',
   'request.back_to_work': 'Ariza {номер} yana ishda: soʻzlaringizni ustaga yetkazdim.',
   'request.withdraw_ask':
-    'Ariza{номер} qaytarib olinsinmi? Usta u boʻyicha kelmaydi, uni tiklab boʻlmaydi, yangisini rasmiylashtirishga toʻgʻri keladi.',
+    'Ariza qaytarib olinsinmi? Usta u boʻyicha kelmaydi, uni tiklab boʻlmaydi, yangisini rasmiylashtirishga toʻgʻri keladi.',
+  'request.withdraw_ask_number':
+    'Ariza {номер} qaytarib olinsinmi? Usta u boʻyicha kelmaydi, uni tiklab boʻlmaydi, yangisini rasmiylashtirishga toʻgʻri keladi.',
   'request.where_unknown':
     '{причина}. Podyezddagi kodni skanerlang yoki ilovani oching, u yerda manzilni tanlash mumkin.',
-  'request.where_skipped': 'Yaxshi, manzilni usta joyida aniqlaydi. Ariza navbatchi xodimlarda.',
-  'request.where_set': 'Yozib oldim: {где}. Ariza {номер} navbatchi xodimlarda.',
+  'request.where_skipped': 'Yaxshi, manzilni usta joyida aniqlaydi. Ariza smenada.',
+  'request.where_set': 'Yozib oldim: {где}. Ariza {номер} smenada.',
   'request.where_refused': 'Manzil aniqlanmadi',
   'request.same_here': 'Yozib oldim: sizda ham shunday. Ariza {номер}, oʻzgarishlar haqida xabar beraman.',
   'request.same_counted':
     'Yozib oldim: sizda ham shunday. Ariza {номер}, {сообщили}, oʻzgarishlar haqida xabar beraman.',
   'request.answered_already': 'Siz {номер} ariza boʻyicha javob bergansiz.',
-  'request.fine': 'Rahmat, yozib oldim: sabab umumiy quvurda emas, qoʻshnining kvartirasida.',
+  'request.fine': 'Rahmat, yozib oldim: sabab stoyakda emas, qoʻshnining kvartirasida.',
   'request.closed_already': 'Rahmat. Bu ariza boʻyicha ishlar tugagan.',
 
   'meters.prompt': '{прибор}, hisoblagich {номер}.',
@@ -141,7 +137,7 @@ export const bot: Dictionary = {
   'meters.which_value': '{значение} koʻrsatkichiga oʻxshaydi. Bu qaysi hisoblagichniki?',
 
   'bill.empty': 'Bu oy uchun hisob hali yoʻq.',
-  'bill.total': '{срок} gacha {сумма} toʻlang',
+  'bill.total': '{срок}gacha {сумма} toʻlang',
   'bill.paid': '{сумма} hisoblandi, bu oy uchun hammasi toʻlangan',
   'bill.where': 'Nimalardan tashkil topgani va nima uchun ekanini ilovada koʻring.',
   'pay.month_ask': 'Oy uchun {сумма} toʻlansinmi?',
@@ -172,7 +168,7 @@ export const bot: Dictionary = {
     'Qoʻshnilar hozircha hech narsa haqida xabar bermadi.\n' +
     'Bu yerda qoʻshnilar yozgan podyezd va hovlidagi nosozliklar chiqadi: ularni tasdiqlash mumkin.',
   'neighbours.about':
-    'Qoʻshnilar {сколько} haqida xabar berdi. ' +
+    'Qoʻshnilar xabar bergan nosozliklar: {сколько}. ' +
     'Ilovada nima va qayerda ekani koʻrinadi, sizda ham shundayligini tasdiqlash mumkin.',
 
   'vote.title': 'Mulkdorlar yigʻilishi',
@@ -216,7 +212,7 @@ export const bot: Dictionary = {
   'visit.not_cancelled': 'Navbat bekor boʻlmadi',
   'visit.not_opened': 'Navbat ochilmadi',
   'visit.no_reception':
-    'Navbat boʻyicha qabul yoʻq. Boshqaruv kompaniyasiga yozing, navbatchi xodimlar javob beradi.',
+    'Navbat boʻyicha qabul yoʻq. Boshqaruv kompaniyasiga yozing, smena javob beradi.',
   'visit.no_slots': 'Yaqin ikki haftada boʻsh soat yoʻq.',
   'visit.title': 'Navbat boʻyicha qabul',
   'visit.title_office': 'Qabul: {офис}',
@@ -225,7 +221,7 @@ export const bot: Dictionary = {
   'visit.taken': 'Bu soatni band qilishdi. Boshqasini tanlang.',
   'visit.taken_none': 'Bu soatni band qilishdi, hozircha boʻsh soat yoʻq.',
 
-  'data.about': '{кто}.\nMen siz haqingizda saqlayman: {что}.',
+  'data.about': '{кто}\nMen siz haqingizda saqlayman: {что}.',
   'data.file': 'Maʼlumotlaringiz fayl bilan. {сводка}',
   'data.file_failed': 'Faylni yuborib boʻlmadi. Oʻsha maʼlumotlar ilovada koʻrinadi.',
   'forget.ask':
@@ -273,6 +269,7 @@ export const bot: Dictionary = {
   'command.unknown': 'Menda bunday buyruq yoʻq. Nima kerakligini soʻz bilan yozsangiz, tushunaman.',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}: {адрес}',
   'menu.words': 'Soʻz bilan yozish mumkin: «eshikni och», «qancha toʻlash kerak», «joʻmrak oqyapti».',
   'menu.in_chat': 'Menyu men bilan yozishmada ochiladi.',
   'menu.new': '✍️ Nima buzildi',
@@ -299,15 +296,11 @@ export const bot: Dictionary = {
     'Nimani yuborish va nima haqida jim turish. Oʻsha yerda telefon va maʼlumotlarni yuklab olish.',
   'menu.lang': '🌐 Til',
   'menu.group.money': '💳 Pul va hisoblagichlar',
-  'menu.group.money.about': 'Bu oyda qancha toʻlash va hisoblagich raqamlarini qayerga yuborish.',
   'menu.group.house': '📣 Uy yangiliklari',
-  'menu.group.house.about': 'Boshqaruv kompaniyasi eʼlonlari, qoʻshnilar yigʻilishi va uy boʻyicha ishlar.',
   'menu.group.me': '☎️ Aloqa va profil',
-  'menu.group.me.about': 'Boshqaruv kompaniyasi bilan qanday bogʻlanish va mahsulot siz haqingizda nima bilishi.',
   'menu.demo': '👥 Rol',
 
   'menu.group.home': '🏡 Mening kvartiram',
-  'menu.group.home.about': 'Oʻz kvartirangiz boʻyicha hisoblar, hisoblagichlar va arizalar.',
   'menu.group.bind.about': 'Shu uyda yashasangiz, kvitansiyadagi kod bilan kvartirani bogʻlang.',
   'menu.home.new': '✍️ Yangi ariza',
   'menu.home.meters': '💧 Koʻrsatkichlar',
@@ -317,11 +310,10 @@ export const bot: Dictionary = {
 
   'menu.contractor.my': '📋 Topshiriqlar',
   'menu.group.works': '🏢 Uy ishlari',
-  'menu.group.contractor.about': 'Boshqaruv kompaniyasi bilan aloqa, eʼlonlar va podyezd eshiklari.',
-  'menu.group.works.about': 'Uy muddatlarni qanday bajarayotgani, qarzlar, yigʻilishlar va podyezd eshiklari.',
 
   'menu.staff.queue': '🗂 Uy navbati',
   'menu.staff.my': '📋 Mening topshiriqlarim',
+  'menu.staff.day': '🗓 Mening kunim',
   'menu.staff.duty': '🌙 Navbatchilik',
   'menu.staff.support': '💬 Yashovchilar savoli',
   'menu.staff.visit': '🗓 Yashovchilar qabuli',
@@ -335,7 +327,7 @@ export const bot: Dictionary = {
   'menu.staff.inspections.about':
     'Roʻyxat boʻyicha aylanib chiqish: bandlar joyida belgilanadi, topilgani darhol arizaga aylanadi.',
   'menu.staff.plan': '🗺 Uy rejasi',
-  'menu.staff.plan.about': 'Podyezdlar va umumiy quvurlar, muammo haqida xabar berilgan joylar belgisi bilan.',
+  'menu.staff.plan.about': 'Podyezdlar va stoyaklar, muammo haqida xabar berilgan joylar belgisi bilan.',
   'menu.staff.equipment': '🛗 Jihozlar',
   'menu.staff.equipment.about': 'Nima koʻproq ishdan chiqadi va nima yaqinda taʼmir talab qiladi.',
   'menu.staff.house_meters': '💧 Hisob tuguni',
@@ -352,14 +344,10 @@ export const bot: Dictionary = {
   'menu.staff.audit': '📜 Harakatlar jurnali',
   'menu.staff.audit.about': 'Uy boʻyicha kim nima qilgani: arizalar, rollar, koʻrsatkichlar, tarqatmalar.',
   'menu.group.people': '💬 Yashovchilar',
-  'menu.group.people.about': 'Yashovchilar savollari, navbat boʻyicha qabul va uyga xabarlar.',
-  'menu.group.staff_me.about':
-    'Oʻz kvartirangiz, maʼlumotlar, bildirishnomalar va yashovchi sifatida boshqaruv kompaniyasi bilan aloqa.',
   'menu.group.app': '📱 Ilovada',
-  'menu.group.app.about': 'Yozishmada oʻqilmaydigan ekranlar: koʻriklar, uy rejasi, asboblar.',
   'menu.group.manage': '🗄 Uyni boshqarish',
-  'menu.group.manage.about': 'Tariflar, uy kartochkasi, kompaniya manzillari va harakatlar jurnali.',
 
+  'chat.answered_privately': '{кто}, sizga shaxsiy xabarda javob berdim.',
   'topic.bill': '🧾 Oylik kvitansiya',
   'topic.request': '📋 Arizalar',
   'topic.news': '📣 Eʼlonlar',
@@ -456,4 +444,45 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ Hech qaysi boʻyicha',
   'button.stale': 'Bu tugma endi ishlamaydi',
   'button.stale_more': 'Bu tugma eski xabardan. Mana, nimadan boshlash mumkin.',
+  'button.visit_other': '🕘 Boshqa vaqt',
+  'button.visit_drop': '🕘 Koʻchirish',
+  'button.rename': '✏️ Ismni oʻzgartirish',
+  'button.complaint_edit': '✏️ Matnni tahrirlash',
+  'button.not_my_flatmate': '🚫 Bu mening qoʻshnim emas',
+  'button.owner_yes': '✅ Men mulkdorman',
+  'button.owner_no': '👤 Yashayman, mulkdor emasman',
+  'button.dispute': '📄 Rad javobiga qoʻshilmayman',
+  'button.missed': '🚪 Kvartiraga kira olmadim',
+  'button.connect': '🏢 Mening uyim bu yerda yoʻq',
+
+  'visit.set': 'Yozib oldim: {номер} arizasi boʻyicha usta {когда} keladi. Rejalar oʻzgarsa, yozing.',
+  'visit.missed_noted': '{номер} arizasi boʻyicha belgiladim: kvartiraga kirilmadi. Yashovchi boshqa vaqt tanlaydi.',
+  'visit.dropped': '{номер} arizasi boʻyicha vaqt bekor qilindi. Boshqasini tanlang, ustaga men aytaman.',
+  'visit.not_understood': 'Taklif qilinganlar orasida bunday vaqt yoʻq. Shulardan birini tanlang.',
+
+  'name.ask': 'Sizga qanday murojaat qilaylik? Hozir: {имя}. Ismni bitta xabarda yozing.',
+  'name.changed': 'Endi siz {имя}. Sizni usta va boshqaruv tashkiloti shunday koʻradi.',
+
+  'gzhi.edit_ask': 'Nimani toʻgʻrilashni yozing: «podyezd haqidagini olib tashla», «uch kundan beri oqayotganini qoʻsh».',
+  'gzhi.edited': 'Toʻgʻriladim. Oʻqing va hammasi joyida boʻlsa, yuboring.',
+  'gzhi.not_edited': 'Nimani toʻgʻrilashni tushunmadim. Boshqacha ayting yoki borligicha yuboring.',
+
+  'request.dispute_ask': 'Rad javobiga nega qoʻshilmasligingizni bitta xabarda yozing. Uni qayta koʻrib chiqishadi.',
+  'request.disputed': 'Ariza {номер} yana ishda. Boshqaruv tashkiloti uni qaytadan koʻrib chiqadi.',
+
+  'flat.owner_ask':
+    'Siz shu kvartiraning mulkdorimisiz? Yigʻilishlarda xonadon mulkdorlari ovoz beradi, ' +
+    'qolgan hamma narsa hammaga ochiq.',
+  'flat.owner_noted': 'Yozib oldim: siz mulkdorsiz. Yigʻilishdagi ovozingiz kvartirangiz maydoni boʻyicha hisoblanadi.',
+  'flat.tenant_noted': 'Yozib oldim. Arizalar, koʻrsatkichlar va kvitansiya sizga ochiq, yigʻilishdagi ovoz esa yoʻq.',
+  'flat.neighbour_dropped': 'Bu odamni kvartirangizdan olib tashladim. Boshqaruv tashkiloti bundan xabardor.',
+
+  'connect.ask':
+    'Koʻrinishidan uyingiz bu yerda hali yoʻq. Manzilni bitta xabarda yozing, biz uni uyingizning ' +
+    'boshqaruv tashkilotiga yetkazamiz.',
+  'connect.saved': 'Manzilni yozib oldim. Uy ulanishi bilan yozaman.',
+
+  'day.title': 'Sizdagi naryadlar: {сколько}, tashrif vaqti belgilangani: {назначено}.',
+  'day.rest': 'Yana naryadlar: {сколько}. Butun kun ilovada koʻrinadi.',
+  'day.empty': 'Hozir sizda naryad yoʻq.',
 };

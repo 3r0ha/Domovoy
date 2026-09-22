@@ -12,6 +12,7 @@ import {
 } from '@domovoy/app';
 import {
   formatMeterValue,
+  formatMoment,
   formatMoney,
   type MeterKind,
   DomainError,
@@ -86,6 +87,56 @@ export const doorKeyboard = (
   ],
 });
 
+/**
+ * Окна визита: каждое своей кнопкой, последним рядом «другое время». Без него
+ * человек, которому ничего не подходит, остаётся с тремя чужими часами.
+ */
+export const visitKeyboardFor = (requestId: string, slots: readonly string[], zone?: string, t: Translate = RU) => ({
+  attachments: [
+    Keyboard.inlineKeyboard([
+      ...pairs(
+        slots.map((slot) =>
+          Keyboard.button.callback(`🗓 ${formatMoment(new Date(slot), zone, t)}`, `slot:${requestId}:${slot}`),
+        ),
+      ),
+      [Keyboard.button.callback(t('button.visit_other'), `slot:${requestId}:none`)],
+    ]),
+  ],
+});
+
+/**
+ * Под готовым обращением в надзор: отправить как есть или поправить словами.
+ * Письмо пишет человек, продукт собрал только черновик.
+ */
+export const complaintKeyboard = (requestId: string, t: Translate = RU) =>
+  keyboardOf([
+    [Keyboard.button.callback(t('button.complaint'), `gzhi:${requestId}:send`)],
+    [Keyboard.button.callback(t('button.complaint_edit'), `gzhi:${requestId}:edit`)],
+  ]);
+
+/** Под подтверждением визита: время переносят до того, как мастер выехал. */
+export const visitChosenKeyboard = (requestId: string, t: Translate = RU) =>
+  keyboardOf([
+    [Keyboard.button.callback(t('button.visit_drop'), `slot:${requestId}:drop`)],
+    [Keyboard.button.callback(t('button.reply_request'), `say:${requestId}`)],
+  ]);
+
+/** «Это не мой сосед»: чужая привязка к квартире снимается из уведомления. */
+export const flatmateKeyboard = (residentId: string, t: Translate = RU) => ({
+  attachments: [
+    Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.not_my_flatmate'), `drop:${residentId}`)]]),
+  ],
+});
+
+/** Собственник или проживающий: спрашивается один раз, после привязки. */
+export const ownerKeyboard = (t: Translate = RU) =>
+  keyboardOf([
+    [
+      Keyboard.button.callback(t('button.owner_yes'), 'owner:yes'),
+      Keyboard.button.callback(t('button.owner_no'), 'owner:no'),
+    ],
+  ]);
+
 /** Обращение в поддержку: ответить можно прямо из уведомления. */
 export const supportKeyboard = (ticketId: string, t: Translate = RU) => ({
   attachments: [
@@ -124,7 +175,7 @@ export const visitKeyboard = (
   keyboardOf([
     ...pairs(slots.map((slot) => Keyboard.button.callback(`🗓 ${slot.title}`, `visit:${slot.at}`))),
     // Остальные дни открываются календарём: кнопками их два десятка.
-    ...appRow(miniAppUrl, t('button.other_days'), 'visits'),
+    ...appRow(miniAppUrl, 'visits', t),
     [Keyboard.button.callback(t('button.menu'), 'group:back')],
   ]);
 
@@ -156,15 +207,8 @@ export const keyboardOf = (rows: ButtonRows, where?: Parameters<typeof menuButto
  * и подпись «Квитанция в приложении» оказывалась неправдой. Сам раздел назван
  * в сообщении над кнопкой.
  */
-export const appRow = (
-  miniAppUrl: string | undefined,
-  title: string,
-  screen?: string,
-  t: Translate = RU,
-): ButtonRows => {
-  void title;
-
-  return miniAppUrl
+export const appRow = (miniAppUrl: string | undefined, screen?: string, t: Translate = RU): ButtonRows =>
+  miniAppUrl
     ? [
         [
           Keyboard.button.openApp(
@@ -174,7 +218,6 @@ export const appRow = (
         ],
       ]
     : [];
-};
 
 /** Кнопки в два столбца: так экран остаётся коротким. */
 const pairs = (
@@ -203,6 +246,7 @@ export const actionKeyboard = (
   assignTo?: string,
   passTo?: string,
   t: Translate = RU,
+  extra: { disputeFor?: string; missedFor?: string } = {},
 ) => {
   const buttons = actions.map((action) =>
     Keyboard.button.callback(
@@ -215,6 +259,10 @@ export const actionKeyboard = (
     buttons,
     ...(assignTo ? [[Keyboard.button.callback('👷 Назначить', `assign:${assignTo}`)]] : []),
     ...(passTo ? [[Keyboard.button.callback('📨 Передать', `pass:${passTo}`)]] : []),
+    // Мастер стоит у закрытой двери: отметка уходит отсюда, а не из приложения.
+    ...(extra.missedFor ? [[Keyboard.button.callback(t('button.missed'), `missed:${extra.missedFor}`)]] : []),
+    // Отказ, с которым человек не согласен, возвращается на пересмотр один раз.
+    ...(extra.disputeFor ? [[Keyboard.button.callback(t('button.dispute'), `dispute:${extra.disputeFor}`)]] : []),
     ...(replyTo ? [[Keyboard.button.callback(t('button.reply_request'), `say:${replyTo}`)]] : []),
   ]);
 };
@@ -274,7 +322,7 @@ export const assignKeyboard = (
         ),
       ]),
     // Шестого и дальше выбирают в очереди: кнопками они не помещаются.
-    ...(staff.length > ASSIGNEES_SHOWN ? appRow(miniAppUrl, 'Вся смена в приложении', 'queue') : []),
+    ...(staff.length > ASSIGNEES_SHOWN ? appRow(miniAppUrl, 'queue') : []),
     [Keyboard.button.callback('✖️ Отмена', 'cancel')],
   ]);
 
@@ -372,6 +420,9 @@ export const dataKeyboard = (
   screenOf(keyboardOf(
     [
       [Keyboard.button.callback(t('button.export'), 'mydata:file')],
+      // Имя приходит из профиля MAX, а там у людей никнеймы: мастеру идти
+      // к «xXx_kotik_xXx» некуда, поэтому имя задаётся своё.
+      [Keyboard.button.callback(t('button.rename'), 'mydata:name')],
       // Настройка уведомлений живёт здесь же по смыслу: «отпишите меня от
       // уведомлений» приводило на этот экран, а выключателя на нём не было.
       [Keyboard.button.callback(t('button.notices'), 'app:notices')],

@@ -73,7 +73,7 @@ export interface DeviceHub {
   activeCodes(residentId: string): Promise<GuestCode[]>;
   /** Погасить код досрочно, не дожидаясь истечения. */
   revokeCode(code: string): Promise<boolean>;
-  /** Что происходило с оборудованием дома: журнал для управляющей компании. */
+  /** Что происходило с оборудованием дома: журнал для управляющей организации. */
   journal(buildingId: string): Promise<DeviceEvent[]>;
 }
 

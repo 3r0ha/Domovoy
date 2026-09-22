@@ -1,5 +1,6 @@
 import {
   assertApartment,
+  knowsHouse,
   ensureResident,
   openByCode,
   raiseSensorAlarm,
@@ -14,11 +15,13 @@ import { broadcastRoutes } from './routes/broadcast.js';
 import { buildingRoutes } from './routes/buildings.js';
 import { deviceRoutes } from './routes/devices.js';
 import { capitalRoutes } from './routes/capital.js';
+import { appointmentRoutes } from './routes/appointments.js';
 import { complaintRoutes } from './routes/complaint.js';
+import { ownershipRoutes } from './routes/ownership.js';
 import { handoverRoutes } from './routes/handover.js';
 import { houseRoutes } from './routes/house.js';
-import { LEGAL_VERSION, formatLegal, legalDocuments } from '@domovoy/domain';
-import { legalLanguage, type Language } from '@domovoy/i18n';
+import { LEGAL_VERSION, formatLegal, legalDocuments, legalUpdated } from '@domovoy/domain';
+import { DEFAULT_LANGUAGE, legalLanguage, legalNotesFor, type Language } from '@domovoy/i18n';
 
 import { meRoutes } from './routes/me.js';
 import { meterRoutes } from './routes/meters.js';
@@ -36,8 +39,9 @@ import {
 } from './serialize.js';
 
 /**
- * Что открыто жильцу без квартиры: профиль, документы, привязка и режим
- * проверки. Остальные маршруты отвечают ему отказом `apartment_required`.
+ * Что открыто жильцу без квартиры: профиль, документы, привязка, просьба
+ * подключить дом и режим проверки. Остальные маршруты отвечают ему отказом
+ * `apartment_required`.
  */
 const WITHOUT_APARTMENT = new Set([
   '/api/me',
@@ -48,8 +52,27 @@ const WITHOUT_APARTMENT = new Set([
   '/api/me/data',
   '/api/me/notices',
   '/api/me/contact',
+  '/api/me/name',
+  // Язык спрашивают на первом экране, до кода из квитанции: без этого человек
+  // получал красный отказ про квартиру ещё до того, как что-то выбрал.
+  '/api/me/language',
   '/api/me/logout',
+  '/api/connect',
   '/api/demo',
+]);
+
+/**
+ * Открытые сведения дома. Их читает и тот, кто квартиру ещё не привязал, но
+ * дом уже назвал сканом наклейки на подъезде: объявления, контакты и то, что
+ * в доме происходит сейчас, принадлежат дому, а не помещению.
+ */
+const HOUSE_IS_ENOUGH = new Set([
+  '/api/announcements',
+  '/api/contacts',
+  '/api/now',
+  '/api/ahead',
+  '/api/context/:startParam',
+  '/api/objects/:startParam',
 ]);
 
 export interface RoutesOptions extends MeterVisionDeps {
@@ -89,7 +112,7 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
 
       const resident = await ensureResident(deps, {
         maxUserId: issued.session.userId,
-        displayName: [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'Жилец',
+        displayName: [user?.first_name, user?.last_name].filter(Boolean).join(' '),
       });
 
       return reply.send({ token: issued.token, expiresAt: issued.expiresAt, displayName: resident.displayName });
@@ -122,6 +145,7 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
    */
   fastify.get('/api/legal', { config: { open: true } }, async (request) => {
     const language = legalLanguage(await languageOfRequest(request));
+    const translated = language !== DEFAULT_LANGUAGE;
 
     return {
       version: LEGAL_VERSION,
@@ -131,6 +155,11 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
         title: document.title,
         short: document.short,
         about: document.about,
+        updated: legalUpdated(language),
+        // Оговорка о языке идёт только у перевода: силу имеет русская редакция.
+        ...(translated ? { prevails: legalNotesFor(language).prevails } : {}),
+        // Разделы для чтения с экрана, сплошной текст для копирования целиком.
+        parts: document.parts,
         text: formatLegal(document, language),
       })),
     };
@@ -203,11 +232,16 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
 
     /** Жилец без квартиры дальше профиля и привязки не проходит. */
     scope.addHook('preValidation', async (request) => {
-      if (WITHOUT_APARTMENT.has(request.routeOptions.url ?? '')) return;
+      const route = request.routeOptions.url ?? '';
+
+      if (WITHOUT_APARTMENT.has(route)) return;
 
       const resident = await deps.repository.findResidentByMaxUserId(request.max.userId);
 
-      if (resident) assertApartment(resident);
+      if (!resident) return;
+      if (HOUSE_IS_ENOUGH.has(route) && knowsHouse(resident)) return;
+
+      assertApartment(resident);
     });
 
     /** Выход: токен перестаёт работать сразу, а не через двенадцать часов. */
@@ -230,6 +264,8 @@ export const routes: FastifyPluginAsync<RoutesOptions> = async (fastify, options
       houseRoutes,
       capitalRoutes,
       complaintRoutes,
+      appointmentRoutes,
+      ownershipRoutes,
       handoverRoutes,
       stickerRoutes,
       supportRoutes,

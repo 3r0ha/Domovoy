@@ -116,7 +116,7 @@ export const assertMayTargetApartment = async (deps: AppDeps, command: CreateReq
   if (apartmentsOf(resident).includes(target.apartmentId)) return;
 
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Заявку по чужой квартире заводит управляющая компания этого дома');
+    throw new DomainError('forbidden', 'Заявку по чужой квартире заводит управляющая организация этого дома');
   }
 
   const apartment = await deps.repository.findApartment(target.apartmentId);

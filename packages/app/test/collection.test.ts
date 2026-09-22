@@ -134,8 +134,8 @@ describe('долги дома', () => {
   it('жильцу список должников не показывают', async () => {
     const { deps } = await setup();
 
-    await assert.rejects(houseDebt(deps, maria), /управляющая компания/);
-    await assert.rejects(remindDebtor(deps, maria, ivan.id), /управляющая компания/);
+    await assert.rejects(houseDebt(deps, maria), /управляющая организация/);
+    await assert.rejects(remindDebtor(deps, maria, ivan.id), /управляющая организация/);
   });
 
   it('напоминание уходит одному должнику и попадает в журнал', async () => {

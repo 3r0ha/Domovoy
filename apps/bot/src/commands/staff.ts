@@ -2,8 +2,11 @@ import {
   bindHouseChat,
   releaseHouseChat,
   buildingReport,
+  formatMomentAt,
   formatReportShort,
   listRequestsFor,
+  workdayFor,
+  zoneOf,
   queueLine,
   setDuty,
   summariseReport,
@@ -23,6 +26,9 @@ import type { BotKit, Handler } from '../kit.js';
 /** Сколько строк очереди читается в переписке: остальное листают на экране. */
 const QUEUE_LINES = 3;
 
+/** Сколько нарядов дня показывать в переписке. */
+const DAY_LINES = 5;
+
 /** Дела смены: сводка, долги дома и привязка чата. */
 export const staffCommands = (kit: BotKit): Record<string, Handler> => {
   const { bot, deps, residentOf, openApp } = kit;
@@ -32,6 +38,46 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
    * Очередь дома одной строкой. Листать её в переписке нечем и незачем:
    * сортировка по сроку, поиск и приём в работу живут на экране.
    */
+  /**
+   * Рабочий день исполнителя: наряды по порядку обхода. Наряды приходят
+   * по одному сообщением, а дня целиком мастер не видел.
+   */
+  day: async (typed) => {
+    const resident = await residentOf(typed);
+    const t = speak(resident);
+
+    try {
+      const day = await workdayFor(deps, resident);
+
+      if (day.items.length === 0) {
+        await typed.reply(t('day.empty'), menuButton(typed, t));
+
+        return;
+      }
+
+      const zone = await zoneOf(deps, resident.buildingId);
+      const lines = day.items
+        .slice(0, DAY_LINES)
+        .map(
+          (item) =>
+            `${item.visitAt ? `🗓 ${formatMomentAt(item.visitAt, zone)}` : `⏳ ${formatMomentAt(item.dueAt, zone)}`}` +
+            ` · ${item.number} · ${item.place}${item.overdue ? ' · просрочено' : ''}`,
+        );
+
+      const rest = day.items.length - lines.length;
+
+      await typed.reply(
+        `${t('day.title', { сколько: day.items.length, назначено: day.appointed })}\n${lines.join('\n')}` +
+          (rest > 0 ? `\n${t('day.rest', { сколько: rest })}` : ''),
+        keyboardOf([...appRow(kit.miniAppUrl, 'list', t), [Keyboard.button.callback(t('button.menu'), 'group:back')]]),
+      );
+    } catch (error) {
+      if (!(error instanceof DomainError)) throw error;
+
+      await typed.reply(errorText(error, t), menuButton(typed, t));
+    }
+  },
+
   queue: async (typed) => {
     const resident = await residentOf(typed);
 
@@ -42,7 +88,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
 
       await typed.reply(
         resident.role === 'contractor'
-          ? 'Очередь дома ведёт управляющая компания. Ваши наряды в разделе «Наряды».'
+          ? 'Очередь дома ведёт управляющая организация. Ваши наряды в разделе «Наряды».'
           : t('queue.resident'),
         oneKeyboard(t(resident.role === 'contractor' ? 'menu.contractor.my' : 'menu.my'), 'menu:my'),
       );
@@ -65,7 +111,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
           ? 'Открытых заявок нет.'
           : `Открыто заявок: ${open}${overdue > 0 ? `, просрочено ${overdue}` : ''}.` +
             (first.length > 0 ? `\n\n${first.join('\n')}` : ''),
-        keyboardOf([...appRow(kit.miniAppUrl, 'Очередь в приложении', 'queue')], typed),
+        keyboardOf([...appRow(kit.miniAppUrl, 'queue')], typed),
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;
@@ -93,8 +139,8 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
         keyboardOf(
           [
             ...(waiting > 0 ? [[Keyboard.button.callback('💬 Вопросы жильцов', 'menu:support')]] : []),
-            ...appRow(kit.miniAppUrl, 'В приложении', 'report'),
-            ...appRow(kit.miniAppUrl, 'Карта дома', 'plan'),
+            ...appRow(kit.miniAppUrl, 'report'),
+            ...appRow(kit.miniAppUrl, 'plan'),
           ],
           typed,
         ),
@@ -118,7 +164,7 @@ export const staffCommands = (kit: BotKit): Record<string, Handler> => {
     const resident = await residentOf(typed);
 
     if (!isCompanyStaff(resident.role)) {
-      await typed.reply('Дежурят сотрудники управляющей компании.', menuButton(typed));
+      await typed.reply('Дежурят сотрудники управляющей организации.', menuButton(typed));
       return;
     }
 

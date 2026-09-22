@@ -24,6 +24,7 @@ const { NewRequestScreen } = await import('../dist-test/screens/NewRequestScreen
 const { MetersScreen } = await import('../dist-test/screens/MetersScreen.js');
 const { DemoScreen } = await import('../dist-test/screens/DemoScreen.js');
 const { DocumentScreen } = await import('../dist-test/screens/DocumentScreen.js');
+const { PlanScreen } = await import('../dist-test/screens/PlanScreen.js');
 const { Tour } = await import('../dist-test/screens/Tour.js');
 const { Assistant } = await import('../dist-test/screens/Assistant.js');
 const { Consent } = await import('../dist-test/screens/Consent.js');
@@ -875,7 +876,7 @@ describe('список заявок', () => {
       bridge,
     );
 
-    assert.match(screen.text, /Открытых заявок нет/);
+    assert.match(screen.text, /Своих заявок нет/);
 
     await screen.act(() => screen.find<HTMLButtonElement>('.empty button').click());
 
@@ -1250,7 +1251,12 @@ describe('экран заявки', () => {
     assert.equal(opened.length, 0, 'текст сам по себе не открывается: человек решает, читать ли его');
 
     // Читать обращение необязательно, но возможность есть.
-    await screen.act(() => screen.findAll<HTMLButtonElement>('.complaint button').at(-1)?.click());
+    await screen.act(() =>
+      screen
+        .findAll<HTMLButtonElement>('.complaint button')
+        .find((button) => button.textContent?.includes('Прочитать'))
+        ?.click(),
+    );
 
     assert.equal(opened[0]?.title, 'Жалоба в жилинспекцию');
     assert.equal(opened[0]?.text.startsWith('В Государственную'), true);
@@ -1363,7 +1369,8 @@ describe('очередь сотрудника', () => {
     const screen = await render(createElement(QueueScreen as never, { api, onOpen: () => {} } as never), bridge);
 
     assert.deepEqual(
-      screen.findAll('.request-row .row-number').map((node) => (node.textContent ?? '').trim()),
+      // Неразрывный пробел держит номер при разделителе: сравниваем по обычному.
+      screen.findAll('.request-row .row-number').map((node) => (node.textContent ?? '').replace(/\s+/gu, ' ').trim()),
       ['· Д15-2', '· Д15-3', '· Д15-1'],
     );
 
@@ -1503,7 +1510,18 @@ describe('очередь сотрудника', () => {
 
     await screen.act(() => typeInto(screen.find<HTMLInputElement>('input[type="search"]'), 'ничего такого'));
 
-    assert.match(screen.text, /Ничего не нашлось/);
+    assert.match(screen.text, /в очереди их 1/);
+    assert.match(screen.text, /Показать все/);
+
+    // Выход из отбора возвращает очередь целиком, а не требует стирать поиск руками.
+    await screen.act(() =>
+      screen
+        .findAll<HTMLButtonElement>('button')
+        .find((button) => button.textContent === 'Показать все')
+        ?.click(),
+    );
+
+    assert.doesNotMatch(screen.text, /Показать все/);
 
     await screen.unmount();
   });
@@ -1820,7 +1838,7 @@ describe('собрания собственников', () => {
     await screen.unmount();
   });
 
-  it('созвать собрание по предложению может только управляющая компания', async () => {
+  it('созвать собрание по предложению может только управляющая организация', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({ '/api/polls': [], '/api/initiatives': [{ ...INITIATIVE, enough: true }] });
 
@@ -2295,7 +2313,8 @@ describe('сводка по дому', () => {
     assert.match(screen.text, /↓ было 9/);
     assert.match(screen.text, /75%/);
     assert.match(screen.text, /↑ было 50%/);
-    assert.match(screen.text, /18,5 ч/, 'дробь через запятую, как и суммы');
+    // Дробь через запятую, как и суммы, а единица стоит рядом отдельной частью.
+    assert.match(screen.text, /Среднее время18,5ч/);
     assert.match(screen.text, /Авария: несколько обращений/);
     assert.match(screen.text, /сообщили 3/);
     assert.match(screen.text, /Водоснабжение и канализация2 из 367%/);
@@ -2518,7 +2537,7 @@ describe('объявления', () => {
 
       if (init?.method === 'POST' && attempt > 0) {
         return Promise.resolve(
-          new Response(JSON.stringify({ error: 'forbidden', message: 'Объявления публикует управляющая компания' }), {
+          new Response(JSON.stringify({ error: 'forbidden', message: 'Объявления публикует управляющая организация' }), {
             status: 403,
             headers: { 'content-type': 'application/json' },
           }),
@@ -2541,7 +2560,7 @@ describe('объявления', () => {
     });
     await screen.act(() => screen.find<HTMLFormElement>('form').requestSubmit());
 
-    assert.match(screen.text, /Объявления публикует управляющая компания/);
+    assert.match(screen.text, /Объявления публикует управляющая организация/);
     assert.ok(calls.length > 0);
 
     await screen.unmount();
@@ -3341,7 +3360,7 @@ describe('отказ вместо пустоты', () => {
     const screen = await render(createElement(RequestScreen as never, { api, id: 'req-1' } as never), bridge);
 
     assert.match(screen.text, /Кто отвечает/);
-    assert.match(screen.text, /Это общее имущество дома/);
+    assert.match(screen.text, /Общее имущество дома/);
     assert.match(screen.text, /Водоканал/);
     assert.match(screen.text, /MOCK-0001/);
     assert.match(screen.text, /Правил № 354/);
@@ -3494,11 +3513,11 @@ describe('отказ вместо пустоты', () => {
 
   it('сводка: отказ по правам объясняется словами сервера', async () => {
     const { bridge } = createMockBridge();
-    const { api } = apiRefusing(403, 'forbidden', 'Сводка доступна управляющей компании');
+    const { api } = apiRefusing(403, 'forbidden', 'Сводка доступна управляющей организации');
 
     const screen = await render(createElement(ReportScreen as never, { api } as never), bridge);
 
-    assert.match(screen.text, /Сводка доступна управляющей компании/);
+    assert.match(screen.text, /Сводка доступна управляющей организации/);
 
     await screen.unmount();
   });
@@ -4129,7 +4148,7 @@ describe('тарифы дома', () => {
     },
   ];
 
-  it('умолчание отличается от заданного управляющей компанией', async () => {
+  it('умолчание отличается от заданного управляющей организацией', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({ '/api/tariffs': TARIFFS });
 
@@ -4596,6 +4615,66 @@ describe('профиль жильца', () => {
   });
 });
 
+describe('дом на схеме', () => {
+  /** Тихий дом: ни аварии, ни работ. */
+  const QUIET = {
+    entrances: [
+      {
+        entrance: 1,
+        risers: [{ riser: 1, flats: [{ number: 1, state: 'quiet' }, { number: 2, state: 'quiet' }], alerts: [] }],
+        alerts: [],
+      },
+    ],
+    house: [],
+  };
+
+  it('в легенде стоят только те цвета, которые на схеме есть', async () => {
+    const { bridge } = createMockBridge();
+    const { api } = apiWith({ '/api/plan': QUIET });
+
+    const screen = await render(createElement(PlanScreen as never, { api, onOpen: () => {} } as never), bridge);
+
+    assert.equal(screen.findAll('.legend > span').length, 1, 'в легенде цвета, которых на схеме нет');
+    assert.match(screen.text, /тихо/);
+    assert.doesNotMatch(screen.text, /авария/);
+    assert.doesNotMatch(screen.text, /отказ на стояке/, 'полосы на схеме нет, а в легенде она есть');
+
+    await screen.unmount();
+  });
+
+  it('авария и отказ стояка объясняются там же, в легенде', async () => {
+    const { bridge } = createMockBridge();
+    const alert = { id: 'r-1', title: 'Нет воды на стояке', emergency: true };
+
+    const { api } = apiWith({
+      '/api/plan': {
+        entrances: [
+          {
+            entrance: 1,
+            risers: [
+              {
+                riser: 1,
+                flats: [{ number: 1, state: 'emergency', requestId: 'r-1' }, { number: 2, state: 'quiet' }],
+                alerts: [alert],
+              },
+            ],
+            alerts: [],
+          },
+        ],
+        house: [],
+      },
+    });
+
+    const screen = await render(createElement(PlanScreen as never, { api, onOpen: () => {} } as never), bridge);
+
+    assert.equal(screen.findAll('.legend > span').length, 3, 'авария, тихо и полоса стояка');
+    assert.equal(screen.findAll('.legend-pipe').length, 1);
+    assert.match(screen.text, /авария/);
+
+    await screen.unmount();
+  });
+});
+
 describe('длинный текст отдельным экраном', () => {
   it('показывает документ целиком и уводит назад', async () => {
     const { bridge } = createMockBridge();
@@ -4618,6 +4697,27 @@ describe('длинный текст отдельным экраном', () => {
     await screen.act(() => (backButton as HTMLButtonElement).click());
 
     assert.equal(back, 1);
+
+    await screen.unmount();
+  });
+
+  it('документ с разделами показывается заголовками и абзацами, а не одной полосой', async () => {
+    const { bridge } = createMockBridge();
+
+    const screen = await render(
+      createElement(DocumentScreen as never, {
+        text: 'Политика\n\n1. Общие положения\n1.1. Первый пункт.\n1.2. Второй пункт.',
+        updated: 'Редакция от 17 сентября 2026',
+        parts: [{ heading: '1. Общие положения', lines: ['1.1. Первый пункт.', '1.2. Второй пункт.'] }],
+        onBack: () => {},
+      } as never),
+      bridge,
+    );
+
+    assert.match(screen.text, /Редакция от 17 сентября 2026/);
+    assert.equal(screen.findAll('h2').length, 1, 'раздел без заголовка');
+    assert.equal(screen.findAll('.document-line').length, 2, 'пункты не стали абзацами');
+    assert.equal(screen.findAll('pre').length, 0, 'разделы есть, а текст всё равно сплошной');
 
     await screen.unmount();
   });
@@ -5084,7 +5184,7 @@ describe('поддержка', () => {
     await screen.unmount();
   });
 
-  it('написанный вопрос уходит в управляющую компанию', async () => {
+  it('написанный вопрос уходит в управляющую организацию', async () => {
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({
       'GET /api/support': [],
@@ -5873,7 +5973,7 @@ describe('согласие с документами', () => {
     );
 
     assert.match(screen.text, /Политика обработки данных/);
-    assert.match(screen.text, /по поручению управляющей компании/);
+    assert.match(screen.text, /по поручению управляющей организации/);
 
     await screen.act(() => tap(screen, 'Политика обработки данных'));
 

@@ -133,7 +133,7 @@ export const moneyCommands = (kit: BotKit): Record<string, Handler> => {
               deps.payments && arrears.total + arrears.penalty > 0 ? arrears.total + arrears.penalty : undefined,
               t,
             ),
-            ...appRow(kit.miniAppUrl, t('button.bill_in_app'), 'meters', t),
+            ...appRow(kit.miniAppUrl, 'meters', t),
           ],
           typed,
           t,

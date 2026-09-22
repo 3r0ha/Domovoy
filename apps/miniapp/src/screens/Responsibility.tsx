@@ -190,13 +190,15 @@ export const Responsibility = ({
   return (
     <Group title={t('responsibility.title')}>
       <div className="block">
-        <p className="request-title">{organization ? `${zone}: ${organization}` : zone}</p>
+        {/* Зона ответственности это справка, а не заголовок экрана: в размер
+            заголовка заявки она перевешивала саму суть обращения. */}
+        <p className="zone-title">{organization ? `${zone}: ${organization}` : zone}</p>
         <p className="hint">{plain ? t(`responsibility.plain.${plain}`) : basis}</p>
         {next ? <p className="hint">{advice}</p> : null}
 
         {handoffs.map((handoff) => (
           <div key={handoff.id} className="passed">
-            <p className="request-title">{handoff.organization}</p>
+            <p className="zone-title">{handoff.organization}</p>
             <p className={handoff.overdue ? 'hint overdue' : 'hint'}>{line(t, handoff)}</p>
             <p className="hint aside">{handoff.basis}</p>
             {handoff.answer ? <p className="description">{handoff.answer}</p> : null}

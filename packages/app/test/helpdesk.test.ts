@@ -92,7 +92,7 @@ const setup = () => {
   return { deps, notifier };
 };
 
-describe('вопрос в управляющую компанию', () => {
+describe('вопрос в управляющую организацию', () => {
   it('вопрос жильца доходит до смены и ждёт ответа', async () => {
     const { deps, notifier } = setup();
 
@@ -125,7 +125,7 @@ describe('вопрос в управляющую компанию', () => {
     const toResident = notifier.sent.find((message) => message.maxUserId === maria.maxUserId);
 
     assert.match(toResident?.text ?? '', /Подадим тепло 25 сентября/);
-    assert.match(toResident?.text ?? '', /^Ольга Титова, управляющая компания/, 'ответ подписан сотрудником');
+    assert.match(toResident?.text ?? '', /^Ольга Титова, управляющая организация/, 'ответ подписан сотрудником');
   });
 
   it('жилец продолжает ту же переписку, и вопрос снова ждёт ответа', async () => {
@@ -183,7 +183,7 @@ describe('вопрос в управляющую компанию', () => {
 
     await assert.rejects(
       answerSupport(deps, { staff: ivan, ticketId: asked.id, text: 'Я знаю ответ' }),
-      /управляющая компания/,
+      /управляющая организация/,
     );
   });
 

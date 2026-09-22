@@ -55,7 +55,7 @@ const offerFor = async (deps: AppDeps, resident: Resident, request: ServiceReque
   if (isCompanyStaff(resident.role) && servedBy(resident, deps).includes(request.buildingId)) {
     return {
       possible: false,
-      reason: 'обращение в жилищную инспекцию составляет заявитель, а не управляющая компания',
+      reason: 'обращение в жилищную инспекцию составляет заявитель, а не управляющая организация',
     };
   }
 
@@ -150,6 +150,12 @@ export const sendComplaint = async (
   deps: AppDeps,
   resident: Resident,
   requestId: string,
+  /**
+   * Свой текст обращения. Продукт собирает черновик, но письмо в орган власти
+   * пишет человек: он знает подробности, которых в заявке нет, и вправе убрать
+   * то, что считает лишним.
+   */
+  own?: string,
 ): Promise<{ handoff: Handoff; complaint: string }> => {
   const request = await requestOf(deps, requestId);
   const offer = await offerFor(deps, resident, request);
@@ -160,7 +166,8 @@ export const sendComplaint = async (
 
   if (offer.sent) throw new DomainError('complaint_exists', 'Обращение по этой заявке уже отправлено');
 
-  const handoff = await sendToInspection(deps, request, offer.complaint);
+  const complaint = checkComplaint(own) ?? offer.complaint;
+  const handoff = await sendToInspection(deps, request, complaint);
 
   // Смена видит обращение в той же заявке: надзор запросит у неё объяснение.
   await deps.repository.saveRequest(
@@ -187,5 +194,21 @@ export const sendComplaint = async (
     }),
   );
 
-  return { handoff, complaint: offer.complaint };
+  return { handoff, complaint };
+};
+
+/** Сколько знаков помещается в обращение. */
+export const COMPLAINT_MAX_LENGTH = 8000;
+
+/** Свой текст обращения: пустой означает, что человек текст не менял. @throws {DomainError} */
+const checkComplaint = (own: string | undefined): string | undefined => {
+  if (own === undefined) return undefined;
+
+  const said = own.trim().slice(0, COMPLAINT_MAX_LENGTH);
+
+  // Пустое письмо в орган власти не отправляется: обращение без текста
+  // надзор вернёт, а человек будет считать, что пожаловался.
+  if (said.length < 40) throw new DomainError('text_empty', 'В обращении должен остаться текст');
+
+  return said;
 };

@@ -68,31 +68,35 @@ export const PlanScreen = ({ api, onOpen }: PlanScreenProps) => {
     return <Empty icon={<IconHome />} title="Квартир нет" hint="Дом заводится вместе со списком помещений" />;
   }
 
+  const risers = entrances.flatMap((entrance) => entrance.risers);
+  // Легенда показывает те цвета, которые на плане есть. Полный список цветов
+  // при тихом доме читался как обещание найти на схеме аварию.
+  const shown = new Set(risers.flatMap((riser) => riser.flats).map((flat) => flat.state));
+  const states = (['emergency', 'open', 'fine', 'quiet'] as const).filter((state) => shown.has(state));
+  const piped = risers.some((riser) => riser.alerts.length > 0);
+
   return (
     <div className="list">
       {/* Легенда стоит до плана: без неё цвета квартир читать нечем. */}
       <p className="legend hint">
-        <span>
-          <span className="flat flat-emergency" aria-hidden="true" /> авария
-        </span>
-        <span>
-          <span className="flat flat-open" aria-hidden="true" /> в работе
-        </span>
-        <span>
-          <span className="flat flat-fine" aria-hidden="true" /> работает
-        </span>
-        <span>
-          <span className="flat" aria-hidden="true" /> нет обращений
-        </span>
+        {states.map((state) => (
+          <span key={state}>
+            <span className={state === 'quiet' ? 'flat' : `flat flat-${state}`} aria-hidden="true" /> {TITLES[state]}
+          </span>
+        ))}
+
+        {piped ? (
+          <span>
+            <span className="legend-pipe" aria-hidden="true" /> отказ на стояке
+          </span>
+        ) : null}
       </p>
 
-      <p className="aside hint">Красная полоса: отказ на стояке</p>
+      <p className="aside hint">Квартиры по стоякам, первый этаж внизу</p>
 
       {entrances.map((entrance) => (
         <section key={entrance.entrance} className="block">
           <h2>Подъезд {entrance.entrance}</h2>
-
-          <p className="hint">Квартиры по стоякам, первый этаж внизу</p>
 
           <div className="cut">
             {/* Стояк без помещений рисовать нечем: пустая колонка читается как потерянные квартиры. */}

@@ -2,7 +2,7 @@ import type { Dictionary } from '../../translate.js';
 
 /** Даты, сроки и числа. Порядок частей и разделители задаёт сам язык. */
 export const when: Dictionary = {
-  locale: 'en-US',
+  locale: 'en-GB',
   monthCase: 'name',
 
   day: '{день} {месяц}',

@@ -81,12 +81,13 @@ export const Tour = ({ steps, onDone }: TourProps) => {
     measure();
 
     globalThis.addEventListener('resize', measure);
-    // Подсветка держится за элементом: страница под ней прокручивается.
-    globalThis.addEventListener('scroll', measure, { passive: true });
+    // Подсветка держится за элементом, а прокручивается рабочая область, а не
+    // окно. Событие прокрутки не всплывает, поэтому его слушают на перехвате.
+    document.addEventListener('scroll', measure, { capture: true, passive: true });
 
     return () => {
       globalThis.removeEventListener('resize', measure);
-      globalThis.removeEventListener('scroll', measure);
+      document.removeEventListener('scroll', measure, { capture: true });
     };
   }, [anchor]);
 

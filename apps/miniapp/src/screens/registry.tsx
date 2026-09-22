@@ -4,7 +4,8 @@ import { lazy, Suspense, type ReactNode } from 'react';
 import { type DomovoyApi, type DeviceView, type Profile } from '../api.js';
 import { say } from '../i18n.js';
 import { type Screen } from '../navigation.js';
-import type { Waiting } from '../App.js';
+import type { OpenedDocument, Waiting } from '../App.js';
+import type { DocumentStructure } from '../views.js';
 import { type Section } from '../sections.js';
 import { AnnouncementsScreen } from './AnnouncementsScreen.js';
 import { BindApartmentScreen } from './BindApartmentScreen.js';
@@ -45,6 +46,7 @@ const ImportScreen = lazy(async () => ({ default: (await import('./ImportScreen.
 const InspectionsScreen = lazy(async () => ({ default: (await import('./InspectionsScreen.js')).InspectionsScreen }));
 const PlanScreen = lazy(async () => ({ default: (await import('./PlanScreen.js')).PlanScreen }));
 const QueueScreen = lazy(async () => ({ default: (await import('./QueueScreen.js')).QueueScreen }));
+const WorkdayScreen = lazy(async () => ({ default: (await import('./WorkdayScreen.js')).WorkdayScreen }));
 const ReportScreen = lazy(async () => ({ default: (await import('./ReportScreen.js')).ReportScreen }));
 const ResidentsScreen = lazy(async () => ({ default: (await import('./ResidentsScreen.js')).ResidentsScreen }));
 const TariffsScreen = lazy(async () => ({ default: (await import('./TariffsScreen.js')).TariffsScreen }));
@@ -60,7 +62,7 @@ export interface ScreenContext {
   /** Заявка, открытая на своём экране. */
   opened: string | null;
   device: DeviceView | null;
-  document: { title: string; text: string } | null;
+  document: OpenedDocument | null;
   /** Разделы, не поместившиеся в панель: их показывает «Ещё». */
   hidden: readonly Section[];
   /** Сколько дел ждёт человека по разделам. */
@@ -77,7 +79,7 @@ export interface ScreenContext {
   goDeeper: (screen: Screen) => void;
   back: () => void;
   openRequest: (id: string) => void;
-  openDocument: (title: string, text: string) => void;
+  openDocument: (title: string, text: string, structure?: DocumentStructure) => void;
   /** Отсканированный код объекта ведёт на его паспорт. */
   openScanned: (code: string) => void;
   openDevice: (device: DeviceView, screen: 'camera' | 'guest') => void;
@@ -264,6 +266,7 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       onForgotten={context.refreshSession}
       onUnbound={context.refreshSession}
       onPhone={(phone) => context.patchProfile((profile) => ({ ...profile, phone: phone || undefined }))}
+      onName={(displayName) => context.patchProfile((profile) => ({ ...profile, displayName }))}
     />
   ),
 
@@ -306,7 +309,15 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
   quality: (context) => <QualityScreen api={context.api} />,
 
   document: (context) =>
-    context.document ? <DocumentScreen text={context.document.text} onBack={context.back} /> : null,
+    context.document ? (
+      <DocumentScreen
+        text={context.document.text}
+        {...(context.document.parts ? { parts: context.document.parts } : {})}
+        {...(context.document.updated ? { updated: context.document.updated } : {})}
+        {...(context.document.prevails ? { prevails: context.document.prevails } : {})}
+        onBack={context.back}
+      />
+    ) : null,
 
   queue: forCompany((context) => (
     <QueueScreen
@@ -316,6 +327,9 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
       onOpen={context.openRequest}
       onNewRequest={() => context.goDeeper('new')}
     />
+  )),
+  workday: forStaff((context) => (
+    <WorkdayScreen api={context.api} onOpen={context.openRequest} onOrders={() => context.open('list')} />
   )),
   report: forCompany((context) => <ReportScreen api={context.api} toChat={context.profile.files !== false} />),
   plan: forCompany((context) => <PlanScreen api={context.api} onOpen={context.openRequest} />),

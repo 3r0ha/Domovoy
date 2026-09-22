@@ -6,6 +6,7 @@ import {
   DomainError,
   FINAL_STATUSES,
   type Attachment,
+  type Material,
   type OriginalText,
   type RequestEvent,
   type RequestStatus,
@@ -82,7 +83,7 @@ export const AUTO_CONFIRM_AFTER_HOURS = 72;
 export const statusChanges = (request: ServiceRequest): RequestEvent[] =>
   request.history.filter((event) => event.kind !== 'message');
 
-/** Когда управляющая компания отчиталась о выполнении в последний раз. */
+/** Когда управляющая организация отчиталась о выполнении в последний раз. */
 export const reportedDoneAt = (request: ServiceRequest): Date | undefined =>
   request.status === 'done' ? statusChanges(request).findLast((event) => event.status === 'done')?.at : undefined;
 
@@ -186,7 +187,31 @@ export interface ApplyTransitionInput {
   rating?: number;
   /** Мастер отсканировал наклейку объекта: он был на месте. */
   onSite?: boolean;
+  /** Что израсходовано на работы. Списывается вместе со сдачей. */
+  materials?: Material[];
 }
+
+/** Сколько знаков помещается в название материала. */
+export const MATERIAL_TITLE_LENGTH = 80;
+
+/** Материалы, списанные со сдачей работы. @throws {DomainError} */
+export const checkMaterials = (materials: readonly Material[], to: RequestStatus): Material[] => {
+  if (to !== 'done') {
+    throw new DomainError('materials_not_allowed', 'Материалы списываются вместе со сдачей работы');
+  }
+
+  return materials.map((item) => {
+    const title = item.title.trim().slice(0, MATERIAL_TITLE_LENGTH);
+
+    if (!title) throw new DomainError('material_invalid', 'У материала должно быть название');
+
+    if (!Number.isFinite(item.count) || item.count <= 0) {
+      throw new DomainError('material_invalid', `Количество материала «${title}» должно быть больше нуля`);
+    }
+
+    return { title, count: item.count, ...(item.unit?.trim() ? { unit: item.unit.trim() } : {}) };
+  });
+};
 
 /** Границы оценки. */
 export const RATING_RANGE = { min: 1, max: 5 } as const;
@@ -249,16 +274,14 @@ const checkComment = (transition: Transition, input: ApplyTransitionInput): void
   }
 };
 
-/** Выполняет переход и дописывает историю. @throws {DomainError} */
-export const applyTransition = (request: ServiceRequest, input: ApplyTransitionInput): ServiceRequest => {
+/** Переход, который этой роли доступен из этого состояния. @throws {DomainError} */
+const transitionFor = (request: ServiceRequest, input: ApplyTransitionInput): Transition => {
   if (isFinal(request.status)) {
     throw new DomainError(
       'request_closed',
       `Заявка ${request.number} уже закрыта: ${STATUS_TITLES[request.status]}`,
     );
   }
-
-  checkOrder(request, input.at);
 
   const transition = findTransition(request.status, input.to, input.role);
 
@@ -280,9 +303,19 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
     throw new DomainError('role_not_allowed', 'Взять можно только заявку, записанную на вас: остальные принимает диспетчер');
   }
 
+  return transition;
+};
+
+/** Выполняет переход и дописывает историю. @throws {DomainError} */
+export const applyTransition = (request: ServiceRequest, input: ApplyTransitionInput): ServiceRequest => {
+  const transition = transitionFor(request, input);
+
+  checkOrder(request, input.at);
   checkComment(transition, input);
 
   if (input.rating !== undefined) checkRating(input.rating, input.to);
+
+  const materials = input.materials?.length ? checkMaterials(input.materials, input.to) : undefined;
 
   const assigneeId = assigneeFor(request, input);
 
@@ -306,6 +339,7 @@ export const applyTransition = (request: ServiceRequest, input: ApplyTransitionI
     status: input.to,
     ...(assigneeId ? { assigneeId } : {}),
     ...(input.rating === undefined ? {} : { rating: input.rating }),
+    ...(materials ? { materials: [...(request.materials ?? []), ...materials] } : {}),
     history: [...request.history, event],
     reopenCount: request.reopenCount + (reopened ? 1 : 0),
   };

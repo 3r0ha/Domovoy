@@ -7,7 +7,7 @@ import { crossedIn } from './numbers.js';
 import { CATEGORY_RULES } from './sla.js';
 import { DEFAULT_TIME_ZONE, type AnnouncementAudience, type RequestCategory } from './types.js';
 
-/** Плановые работы: отключение, о котором управляющая компания предупредила заранее. */
+/** Плановые работы: отключение, о котором управляющая организация предупредила заранее. */
 export interface PlannedWork {
   id: string;
   title: string;

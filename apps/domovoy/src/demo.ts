@@ -182,6 +182,10 @@ export const demoData = (): DemoData => ({
       apartmentIds: ['apt-1', 'apt-17-4'],
       buildingId: BUILDING_ID,
       language: 'ru',
+      owned: [
+        { apartmentId: 'apt-1', share: 1, basis: 'company' },
+        { apartmentId: 'apt-17-4', share: 1, basis: 'company' },
+      ],
     },
     {
       id: 'res-ivan',
@@ -191,6 +195,7 @@ export const demoData = (): DemoData => ({
       apartmentId: 'apt-2',
       buildingId: BUILDING_ID,
       language: 'ru',
+      owned: [{ apartmentId: 'apt-2', share: 1, basis: 'company' }],
     },
     {
       id: 'staff-dispatcher',
@@ -201,6 +206,7 @@ export const demoData = (): DemoData => ({
       apartmentIds: ['apt-17-8'],
       buildingId: BUILDING_ID,
       language: 'ru',
+      owned: [{ apartmentId: 'apt-17-8', share: 1, basis: 'company' }],
     },
     {
       id: 'staff-technician',
@@ -234,6 +240,7 @@ export const demoData = (): DemoData => ({
       apartmentId: 'apt-3',
       buildingId: BUILDING_ID,
       language: 'ru',
+      owned: [{ apartmentId: 'apt-3', share: 1, basis: 'company' }],
     },
     {
       id: 'res-petr',
@@ -243,6 +250,7 @@ export const demoData = (): DemoData => ({
       apartmentId: 'apt-6',
       buildingId: BUILDING_ID,
       language: 'ru',
+      owned: [{ apartmentId: 'apt-6', share: 1, basis: 'company' }],
     },
   ],
 });
@@ -300,7 +308,7 @@ export const seedReadings = async (deps: AppDeps, data: DemoData): Promise<void>
   const { repository } = deps;
 
   // Своё показание жилец подаёт сам, поэтому последнее из заведённых за прошлый
-  // период. Узел учёта снимает управляющая компания, у неё текущий период закрыт.
+  // период. Узел учёта снимает управляющая организация, у неё текущий период закрыт.
   const months = monthsOf(deps.now(), 1);
   const houseMonths = monthsOf(deps.now(), 0);
 

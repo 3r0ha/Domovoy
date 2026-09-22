@@ -19,6 +19,7 @@ import {
   suggestPriority,
   type Apartment,
   type Attachment,
+  type Material,
   type OriginalText,
   type Priority,
   type RequestCategory,
@@ -30,7 +31,9 @@ import {
 import type { Translate } from '@domovoy/i18n';
 
 import { locateTarget } from '../apartments.js';
+import { offerVisitOnStart } from '../appointments.js';
 import { recordAction } from '../audit.js';
+import { tellRejectionUpheld } from '../disputes.js';
 import { announceResolved } from '../broadcast.js';
 import { assertApartment } from '../buildings.js';
 import { counted, speak, speakDefault } from '../language.js';
@@ -183,6 +186,8 @@ export interface TransitionCommand {
   rating?: number;
   /** Код с наклейки объекта: им мастер подтверждает, что был на месте. */
   provedBy?: string;
+  /** Что израсходовано на работы: списывается вместе со сдачей. */
+  materials?: Material[];
   /**
    * Промежуточный шаг, о котором никого не извещают: заявку принимают только
    * затем, чтобы тут же поручить, и жильцу нужно одно сообщение, а не два.
@@ -190,7 +195,8 @@ export interface TransitionCommand {
   quiet?: boolean;
 }
 
-export const transitionRequest = async (deps: AppDeps, command: TransitionCommand): Promise<ServiceRequest> => {
+/** Заявка, которую этот человек вправе перевести прямо сейчас. @throws {DomainError} */
+const allowedRequest = async (deps: AppDeps, command: TransitionCommand): Promise<ServiceRequest> => {
   const found = await deps.repository.findRequest(command.requestId);
   if (!found) throw new DomainError('request_not_found', 'Заявка не найдена');
 
@@ -208,6 +214,12 @@ export const transitionRequest = async (deps: AppDeps, command: TransitionComman
     throw new DomainError('forbidden', 'Снять заявку может только тот, кто её подал');
   }
 
+  return found;
+};
+
+export const transitionRequest = async (deps: AppDeps, command: TransitionCommand): Promise<ServiceRequest> => {
+  const found = await allowedRequest(deps, command);
+
   const updated = applyTransition(found, {
     to: command.to,
     role: command.resident.role,
@@ -218,6 +230,7 @@ export const transitionRequest = async (deps: AppDeps, command: TransitionComman
     ...(command.attachments?.length ? { attachments: command.attachments } : {}),
     ...(command.rating === undefined ? {} : { rating: command.rating }),
     ...(command.provedBy ? { onSite: true } : {}),
+    ...(command.materials?.length ? { materials: command.materials } : {}),
   });
 
   const saved = await deps.repository.saveRequest(updated);
@@ -232,8 +245,20 @@ export const transitionRequest = async (deps: AppDeps, command: TransitionComman
     await askNeighbours(deps, saved);
   }
 
+  // Работы в квартире начинаются с того, что дома кто-то есть: как только
+  // заявка ушла в работу, жилец выбирает время визита.
+  if (found.status !== 'in_progress' && saved.status === 'in_progress') {
+    await offerVisitOnStart(deps, saved, command.resident);
+  }
+
   if (!isFinal(found.status) && isFinal(saved.status)) {
     await announceResolved(deps, saved);
+  }
+
+  // Отказ по заявке, которую жилец уже оспорил, спорит с ним второй раз:
+  // дальше это разбирает надзор, и продукт сразу даёт готовое обращение.
+  if (saved.status === 'rejected' && saved.disputedAt) {
+    await tellRejectionUpheld(deps, saved);
   }
 
   return saved;

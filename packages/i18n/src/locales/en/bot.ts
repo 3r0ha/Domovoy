@@ -4,18 +4,14 @@ import type { Dictionary } from '../../translate.js';
 export const bot: Dictionary = {
   'greeting.hello': 'Hello!',
   'greeting.resident':
-    'I will help with the house: report a breakdown, send the figures from the meters,\n' +
-    'look at the bill, open the entrance door.\n\n' +
-    'You can simply write in words: "the tap is leaking", "open the door", "when will the entrance be cleaned".',
+    'I will help with the house. Pick from the menu or write in words: "the tap is leaking", "open the door".',
   'start.code_unknown': 'The code from the link did not fit: there is no such object in the house.',
 
   'lang.chosen': 'Language: {язык}.',
 
   'legal.ask':
-    'Domovoy processes personal data on behalf of the management organisation of the house.\n' +
-    'The processing policy and the user agreement are under the buttons below.\n' +
-    'By pressing "I accept" you agree with them. Without consent I cannot accept a request ' +
-    'and save readings.',
+    'Domovoy processes personal data on behalf of the management company.\n' +
+    'Without consent I cannot accept a request or save readings.',
   'legal.accepted': 'You have agreed with the current version.\nThe full texts open under the buttons.',
   'legal.thanks': 'Thank you. How can I help?',
 
@@ -23,9 +19,7 @@ export const bot: Dictionary = {
   'flat.unknown':
     'I do not know yet which apartment you are in.\n' +
     'A code of 8 characters is printed in the bill next to the address. Send it in a message.',
-  'flat.bound':
-    'Done. Now I know that you are in apartment {номер}.\n' +
-    'You can send the figures from the meters, look at the bill and vote at the house meetings.',
+  'flat.bound': 'Done, apartment {номер}.',
   'flat.already': 'You are already linked to apartment {номер}.',
   'flat.already_yours': 'Apartment {номер} is already yours.',
   'flat.other_code':
@@ -66,7 +60,7 @@ export const bot: Dictionary = {
   'request.fix': 'It will be fixed by {срок}.',
   'request.same': 'This is the same request {номер}, I am not opening a new one.',
   'request.joined': 'Such a problem has already been reported: request {номер}, {состояние}.',
-  'request.joined_you': 'You are the {который}th who wrote about it. It will be fixed by {срок}.',
+  'request.joined_you': 'You are number {который} to write about it. It will be fixed by {срок}.',
   'request.notify': 'I will report the changes.',
   'request.planned': 'A request is not needed if the matter is in these works.',
   'request.optional': 'You may not answer, the request is already accepted.',
@@ -80,7 +74,7 @@ export const bot: Dictionary = {
   'request.not_found': 'You have no request {номер}. Write what happened and I will open a new one.',
   'request.due': 'Deadline: by {срок}',
   'request.worker': 'The work is done by {кто}',
-  'request.answers': 'Answers: {кто}',
+  'request.answers': 'Answered by {кто}',
   'request.state': 'Request {номер}: {состояние}',
   'request.rating': ', your rating {оценка}',
   'request.rate_ask': 'How did you accept the work?',
@@ -89,12 +83,14 @@ export const bot: Dictionary = {
   'request.reply_ask': 'Write the answer in one message, I will pass it on for this request.',
   'request.back_to_work': 'Request {номер} is in progress again: I passed your words to the technician.',
   'request.withdraw_ask':
-    'Withdraw request{номер}? The technician will not come for it, it cannot be brought back, a new one will have to be opened.',
+    'Withdraw the request? The technician will not come for it, it cannot be brought back, a new one will have to be opened.',
+  'request.withdraw_ask_number':
+    'Withdraw request {номер}? The technician will not come for it, it cannot be brought back, a new one will have to be opened.',
   'request.where_unknown':
     '{причина}. Scan the code on the entrance or open the app, there you can choose the address.',
   'request.where_skipped':
-    'All right, the technician will clarify the address on the spot. The request is already with the staff on duty.',
-  'request.where_set': 'Noted: {где}. Request {номер} is already with the staff on duty.',
+    'All right, the technician will clarify the address on the spot. The request is already with the duty team.',
+  'request.where_set': 'Noted: {где}. Request {номер} is already with the duty team.',
   'request.where_refused': 'The address was not clarified',
   'request.same_here': 'Noted: it is the same for you. Request {номер}, I will report the changes.',
   'request.same_counted':
@@ -104,7 +100,7 @@ export const bot: Dictionary = {
   'request.closed_already': 'Thank you. The works on this request are already finished.',
 
   'meters.prompt': '{прибор}, meter {номер}.',
-  'meters.previous': 'Previous reading: {значение} of {дата}',
+  'meters.previous': 'Previous reading: {значение} from {дата}',
   'meters.send_number': 'Send the reading as a number.',
   'meters.none':
     'No meters are recorded for your apartment. If there are any, tell the management company about it.',
@@ -119,7 +115,7 @@ export const bot: Dictionary = {
   'meters.consumption': 'Consumption for the period: {расход}.',
   'meters.refused': 'The reading is not accepted: {причина}',
   'meters.retry': 'Send the number once more.',
-  'meters.next_window': 'We will accept the next reading from the {день}th.',
+  'meters.next_window': 'We will accept the next reading from day {день} of the month.',
   'meters.not_number': 'This does not look like a number. Send the reading in digits, for example 123,456',
   'meters.not_reading':
     'This does not look like a reading. Send the number from the display or press "Cancel".',
@@ -173,12 +169,12 @@ export const bot: Dictionary = {
   'news.underway': 'under way now',
   'news.rest_in_app': 'Read the rest in the app.',
 
-  'neighbours.title': 'Requests of the neighbours',
+  'neighbours.title': 'Neighbour requests',
   'neighbours.empty':
     'The neighbours have not reported anything yet.\n' +
     'Breakdowns in the entrance and in the yard reported by the neighbours will appear here: they can be confirmed.',
   'neighbours.about':
-    'The neighbours have reported {сколько}. ' +
+    'Breakdowns reported by the neighbours: {сколько}. ' +
     'In the app you can see what and where, and confirm that it is the same for you.',
 
   'vote.title': 'Owners meetings',
@@ -198,9 +194,9 @@ export const bot: Dictionary = {
     'Write a new question in one message, and answer the previous one with the button.',
   'support.taken': 'The question is accepted: "{тема}". The answer will come here.',
   'support.sent': 'Passed to the management organisation. The answer will come here.',
-  'support.reply_ask': 'Write a message on this enquiry.',
-  'support.all': 'These are all the enquiries.',
-  'support.more': 'More enquiries below.',
+  'support.reply_ask': 'Write a message on this question.',
+  'support.all': 'These are all the questions.',
+  'support.more': 'More questions below.',
   'contacts.tail': 'The other contacts are in the app.',
 
   'gzhi.none': 'There are no missed deadlines on your requests, there is nothing to complain about.',
@@ -224,7 +220,7 @@ export const bot: Dictionary = {
   'visit.not_cancelled': 'The booking was not cancelled',
   'visit.not_opened': 'The booking did not open',
   'visit.no_reception':
-    'Appointments by booking are not held. Write to the management company, the staff on duty will answer.',
+    'Appointments by booking are not held. Write to the management company, the duty team will answer.',
   'visit.no_slots': 'There are no free hours for the next two weeks.',
   'visit.title': 'Appointment by booking',
   'visit.title_office': 'Appointment: {офис}',
@@ -233,7 +229,7 @@ export const bot: Dictionary = {
   'visit.taken': 'This hour is taken. Choose another one.',
   'visit.taken_none': 'This hour is taken, there are no free ones yet.',
 
-  'data.about': '{кто}.\nI keep about you: {что}.',
+  'data.about': '{кто}\nI keep about you: {что}.',
   'data.file': 'Your data as a file. {сводка}',
   'data.file_failed': 'The file could not be sent. The same data is visible in the app.',
   'forget.ask':
@@ -281,6 +277,7 @@ export const bot: Dictionary = {
   'command.unknown': 'I have no such command. You can write in words what you need, I will make it out.',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}: {адрес}',
   'menu.words': 'You can write in words: "open the door", "how much to pay", "the tap is leaking".',
   'menu.in_chat': 'The menu opens in the chat with me.',
   'menu.new': '✍️ What broke',
@@ -292,15 +289,15 @@ export const bot: Dictionary = {
   'menu.vote': '🗳 Meetings',
   'menu.vote.about':
     'A vote on every question, counting by area shares and the minutes on the results.',
-  'menu.neighbours': '👥 Requests of neighbours',
+  'menu.neighbours': '👥 Neighbour requests',
   'menu.neighbours.about':
     'What the neighbours have already reported: you can confirm that it is the same for you.',
   'menu.house': '📊 Work of the company',
   'menu.capital': '🏗 Capital repairs',
   'menu.capital.about':
     'The contribution, what the house has saved and the years of works under the regional programme.',
-  'menu.support': '✉️ Question to the company',
-  'menu.visit': '🗓 Appointment at the office',
+  'menu.support': '✉️ Ask the company',
+  'menu.visit': '🗓 Office appointment',
   'menu.visit.about': 'Free hours two weeks ahead, your own booking and its cancellation.',
   'menu.contacts': '☎️ Contacts',
   'menu.flat': '🏢 Apartment',
@@ -310,17 +307,11 @@ export const bot: Dictionary = {
     'What to send and what to keep quiet about. The phone and the export of your data are there too.',
   'menu.lang': '🌐 Language',
   'menu.group.money': '💳 Money and meters',
-  'menu.group.money.about':
-    'How much to pay this month and where to send the figures from the meters.',
   'menu.group.house': '📣 House news',
-  'menu.group.house.about':
-    'Announcements of the management company, meetings of the neighbours and work on the house.',
   'menu.group.me': '☎️ Contact and profile',
-  'menu.group.me.about': 'How to reach the management company and what the product knows about you.',
   'menu.demo': '👥 Role',
 
   'menu.group.home': '🏡 My apartment',
-  'menu.group.home.about': 'Your bills, meters and requests on your own apartment.',
   'menu.group.bind.about':
     'If you live in this house, link the apartment by the code from the bill.',
   'menu.home.new': '✍️ New request',
@@ -331,15 +322,13 @@ export const bot: Dictionary = {
 
   'menu.contractor.my': '📋 Work orders',
   'menu.group.works': '🏢 House affairs',
-  'menu.group.contractor.about':
-    'Contact with the management company, announcements and entrance doors.',
-  'menu.group.works.about': 'How the house meets deadlines, debts, meetings and entrance doors.',
 
   'menu.staff.queue': '🗂 House queue',
   'menu.staff.my': '📋 My work orders',
+  'menu.staff.day': '🗓 My day',
   'menu.staff.duty': '🌙 Duty',
-  'menu.staff.support': '💬 Questions of residents',
-  'menu.staff.visit': '🗓 Reception of residents',
+  'menu.staff.support': '💬 Resident questions',
+  'menu.staff.visit': '🗓 Resident reception',
   'menu.staff.visit.about':
     'Reception hours, resident bookings, the attendance mark and booking a walk-in.',
   'menu.staff.broadcast': '✉️ Broadcast',
@@ -359,7 +348,7 @@ export const bot: Dictionary = {
     'The common house consumption by months, the readings are entered there too.',
   'menu.staff.residents': '👥 People of the house',
   'menu.staff.residents.about':
-    'Who is on duty in the shift, who is on call, who has which role, linking an apartment to a resident.',
+    'Who is in the duty team, who is on call, who has which role, linking an apartment to a resident.',
   'menu.staff.stickers': '🏷 Stickers',
   'menu.staff.tariffs': '💵 Tariffs',
   'menu.staff.tariffs.about': 'The rates the house bill adds up from.',
@@ -371,21 +360,16 @@ export const bot: Dictionary = {
   'menu.staff.audit.about':
     'Who did what on the house: requests, roles, readings, broadcasts.',
   'menu.group.people': '💬 Residents',
-  'menu.group.people.about': 'Questions of residents, appointments by booking and messages to the house.',
-  'menu.group.staff_me.about':
-    'Your own apartment, data, notifications and contact with the management company as a resident.',
   'menu.group.app': '📱 In the app',
-  'menu.group.app.about':
-    'Screens that are not readable in a chat: walk-rounds, the house plan, the meters.',
   'menu.group.manage': '🗄 House management',
-  'menu.group.manage.about': 'Tariffs, the house card, the company addresses and the action log.',
 
+  'chat.answered_privately': '{кто}, I have replied to you privately.',
   'topic.bill': '🧾 Bill for the month',
   'topic.request': '📋 Requests',
   'topic.news': '📣 Announcements',
 
   'action.accepted': '✅ Take',
-  'action.in_progress': '🔧 To work',
+  'action.in_progress': '🔧 Take into work',
   'action.needs_info': '❓ Clarify',
   'action.done': '🏁 Hand over the work',
   'action.confirmed': '✅ All done, thank you',
@@ -431,7 +415,7 @@ export const bot: Dictionary = {
   'button.more_news': '⬇️ More announcements',
   'button.new_request': '✍️ Open a request',
   'button.also_me': '🙋 Same here',
-  'button.works': '👌 All works',
+  'button.works': '👌 Everything works',
   'button.accept_legal': '✅ I accept',
   'button.legal_in_app': 'Documents in the app',
   'button.flat': '🏢 Apartment',
@@ -453,7 +437,7 @@ export const bot: Dictionary = {
   'button.guest_code': '🔑 Code for a guest',
   'button.copy_code': 'Copy the code',
   'button.reply_request': '💬 Write on the request',
-  'button.answer_ticket': '💬 Answer on the enquiry',
+  'button.answer_ticket': '💬 Answer the question',
   'button.unbind': '🏢 Unlink the apartment',
   'button.unbind_yes': '🚪 Yes, unlink',
   'button.bind_yes': '🏢 Yes, link',
@@ -477,4 +461,45 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ None of them',
   'button.stale': 'This button no longer works',
   'button.stale_more': 'This button is from an old message. Here is where you can start.',
+  'button.visit_other': '🕘 Another time',
+  'button.visit_drop': '🕘 Reschedule',
+  'button.rename': '✏️ Change the name',
+  'button.complaint_edit': '✏️ Edit the text',
+  'button.not_my_flatmate': '🚫 Not my flatmate',
+  'button.owner_yes': '✅ I am the owner',
+  'button.owner_no': '👤 I live here, not the owner',
+  'button.dispute': '📄 Disagree with refusal',
+  'button.missed': '🚪 Could not get in',
+  'button.connect': '🏢 My house is not here',
+
+  'visit.set': 'Noted: for request {номер} the technician will come {когда}. Write if your plans change.',
+  'visit.missed_noted': 'Noted for request {номер}: the apartment was closed. The resident will choose another time.',
+  'visit.dropped': 'The time for request {номер} is cancelled. Choose another one, I will tell the technician.',
+  'visit.not_understood': 'There is no such time among the offered ones. Choose one of these.',
+
+  'name.ask': 'How should we address you? Now: {имя}. Write the name in one message.',
+  'name.changed': 'Now you are {имя}. This is how the technician and the management organisation will see you.',
+
+  'gzhi.edit_ask': 'Write what to change: "remove the part about the entrance", "add that it has been leaking for three days".',
+  'gzhi.edited': 'Corrected. Read it and send if everything is right.',
+  'gzhi.not_edited': 'I did not understand what to change. Say it differently or send it as it is.',
+
+  'request.dispute_ask': 'Write in one message why you disagree with the refusal. It will be reviewed again.',
+  'request.disputed': 'Request {номер} is back in progress. The management organisation will review it again.',
+
+  'flat.owner_ask':
+    'Are you the owner of this apartment? Owners of premises vote at the meetings, ' +
+    'everything else is available to everyone.',
+  'flat.owner_noted': 'Noted: you are the owner. Your vote at the meetings counts by the area of your apartment.',
+  'flat.tenant_noted': 'Noted. Requests, readings and the bill are available to you, the vote at a meeting is not.',
+  'flat.neighbour_dropped': 'I removed this person from your apartment. The management organisation knows about it.',
+
+  'connect.ask':
+    'It looks like your house is not here yet. Write the address in one message, and we will pass it ' +
+    'to the management organisation of your house.',
+  'connect.saved': 'The address is noted. As soon as the house is connected, I will write.',
+
+  'day.title': 'Jobs on you: {сколько}, with an agreed visit time: {назначено}.',
+  'day.rest': 'More jobs: {сколько}. The whole day is visible in the app.',
+  'day.empty': 'There are no jobs on you right now.',
 };

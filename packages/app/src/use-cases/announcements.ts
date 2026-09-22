@@ -4,6 +4,7 @@ import {
   isCompanyStaff,
   selectAudience,
   type AnnouncementAudience,
+  type Apartment,
   type MeterKind,
   type RequestCategory,
   type Role,
@@ -14,7 +15,9 @@ import { postToChat } from '../broadcast.js';
 import { assertServes, homeOf, houseHintFor } from '../buildings.js';
 import { wanting } from '../notices.js';
 import { formatAnnouncement, noopNotifier, notifyAbout } from '../notifier.js';
-import { type Announcement, type Resident } from '../repository.js';
+import { isQuiet, nextMorning, wakesHouse } from '../quiet.js';
+import { announcementAudience, type Announcement, type Resident } from '../repository.js';
+import { zoneOf } from '../zone.js';
 import { type AppDeps, type RequestPage } from './deps.js';
 
 export interface AnnouncementCommand {
@@ -36,6 +39,8 @@ export interface HouseNotice {
   entrance?: number;
   riser?: number;
   works?: { category: RequestCategory; from: Date; until: Date; resource?: MeterKind };
+  /** Заявка, из-за которой объявление и появилось: такое будит дом и ночью. */
+  requestId?: string;
 }
 
 /** Объявление дому от продукта: так же, как от смены, но без проверки прав. */
@@ -54,6 +59,12 @@ export const announceToHouse = async (
 
   const apartments = await deps.repository.listApartments(buildingId);
   const recipients = selectAudience(apartments, audience);
+  const now = deps.now();
+
+  // Ночью дом не будят: объявление сохраняется и видно в приложении сразу,
+  // а рассылка уходит утром. Аварию и начавшиеся работы это не задерживает.
+  const zone = await zoneOf(deps, buildingId);
+  const waits = isQuiet(now, zone) && !wakesHouse(notice, now);
 
   const announcement = await deps.repository.saveAnnouncement({
     id: deps.createId(),
@@ -65,30 +76,73 @@ export const announceToHouse = async (
     },
     title: notice.title,
     body: notice.body,
-    createdAt: deps.now(),
+    createdAt: now,
     recipientIds: recipients.map((apartment) => apartment.id),
     ...(notice.works ? { works: notice.works } : {}),
+    ...(notice.requestId ? { requestId: notice.requestId } : {}),
+    ...(waits ? { deliverAt: nextMorning(now, zone) } : {}),
   });
 
-  const notifier = deps.notifier ?? noopNotifier;
-  const residents = await deps.repository.listResidentsByApartments(announcement.recipientIds);
-  const text = formatAnnouncement(notice.title, notice.body);
+  if (waits) return { announcement, audience, notified: 0 };
 
-  const wants = wanting(residents, notice.works ? 'works' : 'news');
+  const notified = await deliverAnnouncement(deps, announcement, audience, apartments);
+
+  return { announcement, audience, notified };
+};
+
+/**
+ * Рассылка объявления: уведомления жильцам и сообщение в чат дома. Вызывается
+ * сразу при публикации, а у ночных объявлений, утром обходом.
+ */
+export const deliverAnnouncement = async (
+  deps: AppDeps,
+  announcement: Announcement,
+  audience: AnnouncementAudience,
+  known?: readonly Apartment[],
+): Promise<number> => {
+  const notifier = deps.notifier ?? noopNotifier;
+  const apartments = known ?? (await deps.repository.listApartments(announcement.buildingId));
+  const residents = await deps.repository.listResidentsByApartments(announcement.recipientIds);
+  const text = formatAnnouncement(announcement.title, announcement.body);
+
+  const wants = wanting(residents, announcement.works ? 'works' : 'news');
   const hintOf = houseHintFor(deps, announcement.buildingId, apartments);
 
   for (const resident of wants) {
     const house = await hintOf(resident);
 
-    await notifyAbout(notifier, resident, house ? formatAnnouncement(notice.title, notice.body, house) : text, {
-      section: 'news',
-      mutable: notice.works ? 'works' : 'news',
-    });
+    await notifyAbout(
+      notifier,
+      resident,
+      house ? formatAnnouncement(announcement.title, announcement.body, house) : text,
+      {
+        section: 'news',
+        mutable: announcement.works ? 'works' : 'news',
+      },
+    );
   }
 
   await postToChat(deps, announcement, audience);
 
-  return { announcement, audience, notified: wants.length };
+  return wants.length;
+};
+
+/** Ночные объявления, которым пора уйти. Возвращает, скольким людям ушло. */
+export const deliverPendingAnnouncements = async (deps: AppDeps, buildingId: string): Promise<number> => {
+  const now = deps.now();
+  const waiting = (await deps.repository.listAnnouncements(buildingId)).filter(
+    (item) => item.deliverAt !== undefined && item.deliverAt.getTime() <= now.getTime(),
+  );
+
+  let notified = 0;
+
+  for (const announcement of waiting) {
+    const sent = await deps.repository.saveAnnouncement({ ...announcement, deliverAt: undefined });
+
+    notified += await deliverAnnouncement(deps, sent, announcementAudience(sent));
+  }
+
+  return notified;
 };
 
 /** Публикация объявления. */
@@ -103,7 +157,7 @@ export const publishAnnouncement = async (
   notified: number;
 }> => {
   if (!CAN_PUBLISH.includes(command.resident.role)) {
-    throw new DomainError('forbidden', 'Объявления публикует управляющая компания');
+    throw new DomainError('forbidden', 'Объявления публикует управляющая организация');
   }
 
   const buildingId = command.resident.buildingId ?? deps.defaultBuildingId;

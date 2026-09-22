@@ -10,18 +10,19 @@ export type Role = 'resident' | 'dispatcher' | 'technician' | 'manager' | 'contr
 export const ROLES: readonly Role[] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
 
 /** Что можно отключить. Аварии и свои заявки отключить нельзя. */
-export type NoticeKind = 'meters' | 'works' | 'polls' | 'news';
+export type NoticeKind = 'meters' | 'works' | 'polls' | 'news' | 'debt';
 
-export const NOTICE_KINDS: readonly NoticeKind[] = ['meters', 'works', 'polls', 'news'];
+export const NOTICE_KINDS: readonly NoticeKind[] = ['meters', 'works', 'polls', 'news', 'debt'];
 
 export const NOTICE_TITLES: Readonly<Record<NoticeKind, string>> = {
   meters: 'Показания счётчиков',
   works: 'Плановые работы',
   polls: 'Собрания собственников',
   news: 'Объявления дома',
+  debt: 'Напоминания об оплате',
 };
 
-/** Свои сотрудники управляющей компании: подрядчик в них не входит. */
+/** Свои сотрудники управляющей организации: подрядчик в них не входит. */
 export const COMPANY_ROLES: readonly Role[] = ['dispatcher', 'technician', 'manager'];
 
 /** Подрядчик видит только порученные ему наряды. */
@@ -148,6 +149,29 @@ export interface ServiceRequest {
   reopenCount: number;
   /** Оценка работы жильцом, 1…5. */
   rating?: number;
+  /** Согласование визита в квартиру: предложенные окна, выбранное и неудачные выезды. */
+  appointment?: Appointment;
+  /** Что израсходовано на работы: смена списывает материалы вместе со сдачей. */
+  materials?: Material[];
+  /** Отказ, с которым жилец не согласился: заявка вернулась на пересмотр. */
+  disputedAt?: Date;
+}
+
+/** Окна визита в квартиру. Подробности в `appointment.ts`. */
+export interface Appointment {
+  slots: Date[];
+  minutes: number;
+  offeredAt: Date;
+  at?: Date;
+  missed: { at: Date; actorId: string }[];
+}
+
+/** Материал, израсходованный на заявке. */
+export interface Material {
+  title: string;
+  count: number;
+  /** Единица: штуки, метры, литры. */
+  unit?: string;
 }
 
 /** Кому адресовано объявление. Совпадает по смыслу с адресом заявки, но без квартиры. */
@@ -201,6 +225,8 @@ export type ErrorCode =
   | 'buildings_for_staff_only'
   | 'duty_for_staff_only'
   | 'forbidden'
+  | 'materials_not_allowed'
+  | 'not_an_owner'
   | 'rating_not_allowed'
   | 'role_not_allowed'
   | 'role_self_change'
@@ -231,6 +257,14 @@ export type ErrorCode =
   | 'complaint_exists'
   | 'escalation_not_possible'
   | 'slot_taken'
+  | 'quiet_hours'
+  | 'dispute_not_allowed'
+  | 'visit_not_needed'
+  | 'visit_no_slots'
+  | 'visit_not_offered'
+  | 'visit_not_set'
+  | 'visit_slot_wrong'
+  | 'visit_slot_past'
   // слишком много или слишком велико
   | 'file_too_large'
   | 'message_too_long'
@@ -263,7 +297,11 @@ export type ErrorCode =
   | 'file_type_not_allowed'
   | 'initiative_empty'
   | 'initiative_too_long'
+  | 'amount_invalid'
   | 'invalid_identifier'
+  | 'material_invalid'
+  | 'name_invalid'
+  | 'share_invalid'
   | 'message_empty'
   | 'no_upstairs'
   | 'phone_invalid'

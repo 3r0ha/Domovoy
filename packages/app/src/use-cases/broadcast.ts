@@ -18,7 +18,9 @@ import { speak } from '../language.js';
 import { pendingReadings } from '../meters.js';
 import { wanting } from '../notices.js';
 import { formatBroadcast, noopNotifier, notifyAbout } from '../notifier.js';
+import { isQuiet } from '../quiet.js';
 import type { Resident } from '../repository.js';
+import { zoneOf } from '../zone.js';
 import type { AppDeps } from './deps.js';
 
 /** Кто вправе писать жильцам от имени дома. */
@@ -29,6 +31,8 @@ export interface BroadcastCommand {
   scope: BroadcastScope;
   text: string;
   buildingId?: string;
+  /** Отправить в тихие часы: смена подтвердила, что дом стоит разбудить. */
+  anyway?: boolean;
 }
 
 export interface BroadcastAim {
@@ -72,7 +76,7 @@ export interface BroadcastTargets {
 
 const assertMayBroadcast = (actor: Resident): void => {
   if (!CAN_BROADCAST.includes(actor.role)) {
-    throw new DomainError('forbidden', 'Рассылку отправляет управляющая компания');
+    throw new DomainError('forbidden', 'Рассылку отправляет управляющая организация');
   }
 };
 
@@ -226,6 +230,16 @@ export const sendBroadcast = async (deps: AppDeps, command: BroadcastCommand): P
 
   if (recipients.length === 0) {
     throw new DomainError('nothing_to_send', 'Под этот адресат никто не подходит');
+  }
+
+  // Ночью рассылка будит дом. Придержать её продукт не может: смена пишет
+  // своими словами и ждёт, что письмо уйдёт. Поэтому он предупреждает, а решает
+  // человек: со второго нажатия сообщение уходит.
+  if (isQuiet(deps.now(), await zoneOf(deps, house)) && !command.anyway) {
+    throw new DomainError(
+      'quiet_hours',
+      `Сейчас ночь по времени дома, сообщение разбудит ${recipients.length} человек. Отправить всё равно?`,
+    );
   }
 
   const notifier = deps.notifier ?? noopNotifier;

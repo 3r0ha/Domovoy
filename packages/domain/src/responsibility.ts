@@ -66,14 +66,28 @@ export const responsibilityFor = (
     };
   }
 
-  if (target.kind === 'apartment' && INSIDE_FLAT_CATEGORIES.includes(category) && spreading === 'local') {
-    return {
-      kind: 'owner',
-      title: t(responsibleKey('owner')),
-      basis: INSIDE_FLAT,
-      plain: t(zoneKey('insideFlat')),
-      next: t(zoneNextKey('insideFlat')),
-    };
+  if (target.kind === 'apartment' && INSIDE_FLAT_CATEGORIES.includes(category)) {
+    if (spreading === 'local') {
+      return {
+        kind: 'owner',
+        title: t(responsibleKey('owner')),
+        basis: INSIDE_FLAT,
+        plain: t(zoneKey('insideFlat')),
+        next: t(zoneNextKey('insideFlat')),
+      };
+    }
+
+    // Пока неизвестно, где именно течёт, зоной дома это называть нельзя:
+    // человек прочитает, что чинят ему, а потом получит отказ по той же заявке.
+    if (spreading === 'unknown') {
+      return {
+        kind: 'management',
+        title: t(responsibleKey('management')),
+        basis: INSIDE_FLAT,
+        plain: t(zoneKey('flatBorder')),
+        next: t(zoneNextKey('flatBorder')),
+      };
+    }
   }
 
   if (category === 'yard') {

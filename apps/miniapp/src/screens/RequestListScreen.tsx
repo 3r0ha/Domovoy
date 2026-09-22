@@ -172,7 +172,10 @@ export const RequestListScreen = ({
         <Rows
           requests={active}
           staff={staff}
-          title={staff ? 'Ваши наряды' : t('requests.mine')}
+          // У смены заголовок экрана уже «Наряды»: подпись «Ваши наряды» над
+          // тем же списком ничего не добавляла. У жильца выше стоят заявки
+          // соседей, и там разделение нужно.
+          {...(staff ? {} : { title: t('requests.mine') })}
           {...(staff ? { starting, onStart: (id: string, to: 'accepted' | 'in_progress') => void start(id, to) } : {})}
           onOpen={onOpen}
         />

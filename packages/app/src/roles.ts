@@ -54,7 +54,7 @@ const flatOf = (person: Resident, flats: ReadonlyMap<string, Apartment>): Apartm
 /** Люди дома: жильцы и сотрудники. */
 export const listPeople = async (deps: AppDeps, staff: Resident): Promise<Person[]> => {
   if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Список людей дома доступен управляющей компании');
+    throw new DomainError('forbidden', 'Список людей дома доступен управляющей организации');
   }
 
   const buildingId = staff.buildingId ?? deps.defaultBuildingId;

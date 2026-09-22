@@ -20,7 +20,7 @@ import {
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
 
-/** Поддержка: вопрос жильца управляющей компании и ответ смены. */
+/** Поддержка: вопрос жильца управляющей организации и ответ смены. */
 export const supportRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
   const currentResident = residentReader(deps);
 

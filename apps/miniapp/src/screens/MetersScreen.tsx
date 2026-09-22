@@ -115,12 +115,15 @@ const MeterCard = ({
   api,
   meter,
   photoSupported,
+  explain,
   version,
   onSubmitted,
 }: {
   api: DomovoyApi;
   meter: MeterView;
   photoSupported?: boolean;
+  /** Что вводить, объясняется один раз на экран, а не под каждым счётчиком. */
+  explain?: boolean;
   version: number;
   onSubmitted: () => void;
 }) => {
@@ -264,8 +267,9 @@ const MeterCard = ({
       {sent || expired ? null : (
         <>
           {/* Подпись видимая, а не только для голосового помощника: по одному
-              полю человек не понимает, какие именно цифры от него ждут. */}
-          <p className="hint inset">{t('meters.input.hint')}</p>
+              полю человек не понимает, какие именно цифры от него ждут. Но
+              под каждым счётчиком это была стена из трёх одинаковых абзацев. */}
+          {explain ? <p className="hint inset">{t('meters.input.hint')}</p> : null}
 
           <CellInput
             className="field-row"
@@ -331,7 +335,9 @@ const Together = ({ api, version }: { api: DomovoyApi; version: number }) => {
   const total = progress.data?.total ?? 0;
   const submitted = progress.data?.submitted ?? 0;
 
-  if (total < 2) return null;
+  // Полоса нужна, только когда подталкивает: «не передали 12 из 12» жильцу
+  // ничего не сообщает, а пустая шкала читается как сломанный элемент.
+  if (total < 2 || submitted === 0) return null;
 
   const left = total - submitted;
 
@@ -392,12 +398,13 @@ export const MetersScreen = ({
 
       <Together api={api} version={submitted} />
 
-      {meters.data?.map((meter) => (
+      {meters.data?.map((meter, index) => (
         <MeterCard
           key={meter.id}
           api={api}
           meter={meter}
           {...(photoSupported ? { photoSupported } : {})}
+          {...(index === 0 ? { explain: true } : {})}
           version={submitted}
           onSubmitted={() => {
             meters.reload();

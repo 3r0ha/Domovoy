@@ -54,7 +54,10 @@ import {
   emergencyHint,
   OPEN_STATUSES,
   isConfirmedIncident,
+  canDispute,
+  rejectionReason,
   isOverdue,
+  needsAccess,
   isReactionOverdue,
   reportedDoneAt,
   reportersCount,
@@ -183,6 +186,33 @@ export const serializeRequest = (
   return serializedRequest(request, now, t, names, viewer, machine);
 };
 
+/**
+ * Согласование визита, израсходованные материалы и право оспорить отказ.
+ * Отдельной сборкой: в самой карточке этих полей четыре, и каждое условное.
+ */
+const visitAndDispute = (request: ServiceRequest, now: Date, viewer: Resident | undefined) => ({
+  // Время визита согласуется там, где работы идут в квартире и есть кому
+  // ехать: в общий подъезд мастер попадает без жильца, а ничей наряд никто
+  // не выполняет.
+  ...(needsAccess(request) && request.assigneeId ? { needsVisit: true } : {}),
+  ...(request.appointment
+    ? {
+        appointment: {
+          slots: request.appointment.slots.map((slot) => slot.toISOString()),
+          ...(request.appointment.at ? { at: request.appointment.at.toISOString() } : {}),
+          missed: request.appointment.missed.length,
+        },
+      }
+    : {}),
+  ...(request.materials?.length ? { materials: request.materials } : {}),
+  // Основание отказа отдельным полем: в истории оно идёт без подписи, и карточка
+  // закрытой заявки читается как пустая.
+  ...(rejectionReason(request) ? { rejectionReason: rejectionReason(request) } : {}),
+  // Отказ, который заявитель ещё вправе вернуть на пересмотр.
+  ...(viewer && canDispute(request, viewer.id, now).possible ? { disputable: true } : {}),
+  ...(request.disputedAt ? { disputedAt: request.disputedAt.toISOString() } : {}),
+});
+
 const serializedRequest = (
   request: ServiceRequest,
   now: Date,
@@ -235,6 +265,7 @@ const serializedRequest = (
     ? { workerNote: BASIS.workerAtHome }
     : {}),
   reopenCount: request.reopenCount,
+  ...visitAndDispute(request, now, viewer),
   ...(request.assigneeId ? { assigneeId: request.assigneeId } : {}),
   ...(request.assigneeId && names?.get(request.assigneeId)
     ? { assigneeName: names.get(request.assigneeId) }
@@ -712,6 +743,27 @@ export const requestSchema = {
     incident: { type: 'boolean' },
     reopenCount: { type: 'integer' },
     rating: { type: 'integer' },
+    appointment: {
+      type: 'object',
+      required: ['slots', 'missed'],
+      properties: {
+        slots: { type: 'array', items: { type: 'string' } },
+        at: { type: 'string' },
+        missed: { type: 'integer' },
+      },
+    },
+    materials: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['title', 'count'],
+        properties: { title: { type: 'string' }, count: { type: 'number' }, unit: { type: 'string' } },
+      },
+    },
+    rejectionReason: { type: 'string' },
+    disputable: { type: 'boolean' },
+    disputedAt: { type: 'string' },
+    needsVisit: { type: 'boolean' },
     attachments: {
       type: 'array',
       items: {

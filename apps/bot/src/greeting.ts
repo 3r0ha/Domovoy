@@ -6,6 +6,7 @@ import {
   listRequestsFor,
   needsApartment,
   objectPassport,
+  rememberHouseFromObject,
   type BindResult,
   type Building,
   type ContextDescription,
@@ -25,7 +26,14 @@ import type { Translate } from '@domovoy/i18n';
 
 import { askApartment } from './apartment.js';
 import { speak } from './i18n.js';
-import { actionKeyboard, bindIfApartment, cancelKeyboard, errorText, replyIfOpen } from './keyboards.js';
+import {
+  actionKeyboard,
+  bindIfApartment,
+  cancelKeyboard,
+  errorText,
+  ownerKeyboard,
+  replyIfOpen,
+} from './keyboards.js';
 import { askLanguage } from './language.js';
 import { expect, inChat, strong, type BotContext } from './max.js';
 import { askLegal } from './commands/legal.js';
@@ -75,6 +83,10 @@ export const sayBound = async (kit: BotKit, typed: BotContext, flat: BindResult)
       : t('flat.bound', { номер: flat.apartment.number }),
     kit.menuKeyboard(resident),
   );
+
+  // Собственник или проживающий: спрашивается один раз, сразу после привязки.
+  // От ответа зависит голос на собрании, и позже об этом никто не вспомнит.
+  if (!flat.alreadyBound) await typed.reply(t('flat.owner_ask'), ownerKeyboard(t));
 
   await continueWithObject(kit, typed, flat);
 };
@@ -129,7 +141,9 @@ const ownOrder = async (kit: BotKit, typed: BotContext, payload: string, residen
 
 /** Код с наклейки: бот ждёт описания того, что с объектом не так. */
 const aboutObject = async (kit: BotKit, typed: BotContext, payload: string): Promise<boolean> => {
-  const resident = await kit.residentOf(typed);
+  // Наклейка называет дом. До привязки квартиры продукт не знал, где человек
+  // живёт, и не показывал ему ни объявлений, ни контактов: скан это отвечает.
+  const resident = await rememberHouseFromObject(kit.deps, await kit.residentOf(typed), payload);
   const described = await describeContext(kit.deps, payload, speak(resident), resident);
 
   if (!described) return false;

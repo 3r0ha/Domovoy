@@ -29,7 +29,7 @@ export const contactForRequest = async (
   staff: Resident,
   requestId: string,
 ): Promise<{ displayName: string; phone?: string }> => {
-  if (!isCompanyStaff(staff.role)) throw new DomainError('forbidden', 'Телефон жильца видит управляющая компания');
+  if (!isCompanyStaff(staff.role)) throw new DomainError('forbidden', 'Телефон жильца видит управляющая организация');
 
   const request = await deps.repository.findRequest(requestId);
 

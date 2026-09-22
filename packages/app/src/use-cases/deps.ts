@@ -5,6 +5,7 @@ import type { CapitalRepairDirectory } from '../capital.js';
 import type { CityFeed } from '../city.js';
 import type { MachineTranslator } from '../machine-translation.js';
 import type { MeetingRegistry } from '../meetings.js';
+import type { RegistryGateway } from '../registry.js';
 import type { Notifier } from '../notifier.js';
 import type { Reasoner } from '../reasoner.js';
 import type { Repository } from '../repository.js';
@@ -52,6 +53,11 @@ export interface AppDeps {
   capitalRepair?: CapitalRepairDirectory;
   /** Отключения по данным города. Без источника о работах объявляет только смена. */
   city?: CityFeed;
+  /**
+   * Внешний реестр заявок: ГИС ЖКХ или учётная система организации. Без него
+   * обмена нет, а выгрузка файлом остаётся.
+   */
+  registry?: RegistryGateway;
 }
 
 /** Блокировка по ключу на время работы. */

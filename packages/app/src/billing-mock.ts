@@ -21,7 +21,14 @@ export const createMockPayments = (options: MockPaymentsOptions): MockPayments =
     model: true,
 
     async pay({ apartmentId, period, amount }) {
-      const receipt: Receipt = { period, amount, at: options.now() };
+      // Номер чека выдаёт шлюз: по 54-ФЗ он возвращается вместе с платежом.
+      // Подключение модельное, поэтому номер считается по порядку.
+      const receipt: Receipt = {
+        period,
+        amount,
+        at: options.now(),
+        receiptNumber: `Ч-${String(receipts.length + 1).padStart(6, '0')}`,
+      };
 
       totals.set(key(apartmentId, period), (totals.get(key(apartmentId, period)) ?? 0) + amount);
       owners.set(receipt, apartmentId);

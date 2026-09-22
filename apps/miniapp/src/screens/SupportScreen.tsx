@@ -244,7 +244,7 @@ const Thread = ({
               disabled={busy}
               onClick={() => void run(() => api.closeSupport(ticket.id))}
             >
-              {staff ? 'Закрыть вопрос' : t('support.close')}
+              {t('support.close')}
             </button>
           ) : null}
 
@@ -266,7 +266,7 @@ const Thread = ({
   );
 };
 
-/** Новый вопрос в управляющую компанию. */
+/** Новый вопрос в управляющую организацию. */
 const Ask = ({
   api,
   onAsked,
@@ -334,7 +334,7 @@ const Ask = ({
   );
 };
 
-/** Поддержка: контакты дома и переписка с управляющей компанией. */
+/** Поддержка: контакты дома и переписка с управляющей организацией. */
 export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: SupportScreenProps) => {
   const t = useT();
   const contacts = useBridgeRequest((alive) => api.until(alive).houseContacts(), [api]);
@@ -417,7 +417,8 @@ export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: Supp
         />
       ) : (
         <Group
-          title={staff ? 'Вопросы жильцов' : t('support.yours')}
+          // Заголовок экрана у смены уже «Поддержка», и подпись его повторяла.
+          {...(staff ? {} : { title: t('support.yours') })}
           {...(staff && waiting > 0 ? { aside: `${plural(waiting, 'ждёт', 'ждут', 'ждут')} ответа` } : {})}
         >
           {merged.map((ticket, index) => (

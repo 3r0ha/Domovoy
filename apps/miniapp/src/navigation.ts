@@ -26,6 +26,7 @@ export type Screen =
   | 'debtors'
   | 'import'
   | 'queue'
+  | 'workday'
   | 'report'
   | 'bind'
   | 'residents'

@@ -78,7 +78,7 @@ export const plainBasisKey = (key: BasisKey): string => `${NAMESPACE}.plain.${ke
 export const responsibleKey = (kind: ResponsibleKind): string => `${NAMESPACE}.responsible.${kind}`;
 
 /** Зона ответственности, из которой следует граница. */
-export type ZoneName = 'elevator' | 'insideFlat' | 'yard' | 'common';
+export type ZoneName = 'elevator' | 'insideFlat' | 'flatBorder' | 'yard' | 'common';
 
 /** Кто чинит, словами жильца. */
 export const zoneKey = (name: ZoneName): string => `${NAMESPACE}.zone.${name}`;

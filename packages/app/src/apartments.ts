@@ -31,6 +31,30 @@ export const apartmentsOf = (resident: Pick<Resident, 'apartmentId' | 'apartment
   ...new Set([...(resident.apartmentId ? [resident.apartmentId] : []), ...(resident.apartmentIds ?? [])]),
 ];
 
+/** Собственник ли человек этого помещения. */
+export const ownsApartment = (resident: Pick<Resident, 'owned'>, apartmentId: string): boolean =>
+  (resident.owned ?? []).some((item) => item.apartmentId === apartmentId);
+
+/** Доля человека в помещении, 0…1. Ноль означает, что он не собственник. */
+export const shareIn = (resident: Pick<Resident, 'owned'>, apartmentId: string): number =>
+  (resident.owned ?? []).find((item) => item.apartmentId === apartmentId)?.share ?? 0;
+
+/** Запоминает право собственности. Повторная запись меняет долю, а не копит записи. */
+export const withOwnership = (resident: Resident, apartmentId: string, share: number, basis: 'stated' | 'company'): Resident => ({
+  ...resident,
+  owned: [
+    ...(resident.owned ?? []).filter((item) => item.apartmentId !== apartmentId),
+    { apartmentId, share, basis },
+  ],
+});
+
+/** Снимает право собственности: помещение продали или запись была ошибкой. */
+export const withoutOwnership = (resident: Resident, apartmentId: string): Resident => {
+  const left = (resident.owned ?? []).filter((item) => item.apartmentId !== apartmentId);
+
+  return left.length > 0 ? { ...resident, owned: left } : { ...resident, owned: undefined };
+};
+
 /** Квартира человека в этом доме, если она там есть. */
 export const apartmentIn = async (
   deps: AppDeps,

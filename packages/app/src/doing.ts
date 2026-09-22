@@ -11,6 +11,7 @@ import {
   type ServiceRequest,
 } from '@domovoy/domain';
 
+import { fieldCode, sameAs } from './fields.js';
 import { speak } from './language.js';
 import { listAssignable, type StaffMember } from './report.js';
 import { listRequestsFor } from './use-cases/requests.js';
@@ -333,13 +334,16 @@ const asked = async (
     })
     .catch(() => undefined);
 
-  const deed = read?.deed ? DEEDS[read.deed] : undefined;
+  // Имя дела приходит и в кавычках, и с чужим регистром: «**done**» это done.
+  const name = fieldCode(read?.deed);
+  const deed = name !== undefined && Object.hasOwn(DEEDS, name) ? DEEDS[name] : undefined;
 
-  if (!deed || !deeds.some((item) => item.deed === read?.deed)) return undefined;
+  if (!deed || !deeds.some((item) => item.deed === name)) return undefined;
 
   // Номер принимается только из переданного списка: чужую заявку модель назвать
   // не сможет, а выдуманный номер продукт пропустит мимо.
-  const number = open.find((request) => request.number === read?.number)?.number;
+  const told = sameAs(read?.number)?.replace(/^№\s*/u, '');
+  const number = open.find((request) => request.number.toLowerCase() === told)?.number;
 
   return {
     to: deed.to,

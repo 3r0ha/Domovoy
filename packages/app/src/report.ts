@@ -93,14 +93,14 @@ export interface BuildingReport {
 /** Сколько суток попадает в отчёт, если период не задан: календарный месяц работы. */
 export const DEFAULT_REPORT_DAYS = 30;
 
-/** Сводка по дому для управляющей компании. */
+/** Сводка по дому для управляющей организации. */
 export const buildingReport = async (
   deps: AppDeps,
   resident: Resident,
   days: number = DEFAULT_REPORT_DAYS,
 ): Promise<BuildingReport> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Сводка доступна сотрудникам управляющей компании');
+    throw new DomainError('forbidden', 'Сводка доступна сотрудникам управляющей организации');
   }
 
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;
@@ -149,7 +149,7 @@ export interface StaffMember {
 /** Кому можно поручить работу. */
 export const listAssignable = async (deps: AppDeps, resident: Resident): Promise<StaffMember[]> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Назначать исполнителя может только управляющая компания');
+    throw new DomainError('forbidden', 'Назначать исполнителя может только управляющая организация');
   }
 
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;
@@ -199,7 +199,7 @@ export const requestsTable = async (
   range: number | ExportPeriod = DEFAULT_REPORT_DAYS,
 ): Promise<Table> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Выгрузка доступна сотрудникам управляющей компании');
+    throw new DomainError('forbidden', 'Выгрузка доступна сотрудникам управляющей организации');
   }
 
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;

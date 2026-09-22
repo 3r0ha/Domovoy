@@ -169,7 +169,7 @@ export const warningCrossedIn = (
   return within(warningPoint(request.createdAt, request.resolutionDueAt)) ? 'resolution' : null;
 };
 
-/** Когда управляющая компания впервые ответила: любой переход из «новой». */
+/** Когда управляющая организация впервые ответила: любой переход из «новой». */
 export const reactedAt = (request: ServiceRequest): Date | undefined =>
   statusChanges(request).find((event) => event.status !== 'new')?.at;
 

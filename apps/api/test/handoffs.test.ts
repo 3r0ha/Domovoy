@@ -104,8 +104,9 @@ describe('передача обращения по HTTP', () => {
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.json().kind, 'management');
-    // Жильцу идёт короткая строка: номер статьи ему ничего не решает.
-    assert.match(response.json().basis, /общее имущество дома/i);
+    // Жильцу идёт короткая строка: номер статьи ему ничего не решает. Пока
+    // неизвестно, где именно течёт, называется граница, а не готовый ответ.
+    assert.match(response.json().basis, /первому отключающему устройству/i);
     assert.deepEqual(response.json().targets, [], 'жильцу список адресатов не нужен');
 
     await app.close();

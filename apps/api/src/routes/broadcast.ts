@@ -71,7 +71,7 @@ const scopeFrom = (body: ScopeBody): BroadcastScope => {
   }
 };
 
-/** Рассылка управляющей компании по личным перепискам. */
+/** Рассылка управляющей организации по личным перепискам. */
 export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
   const currentResident = residentReader(deps);
 
@@ -140,7 +140,7 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
     },
   );
 
-  scope.post<{ Querystring: { buildingId?: string }; Body: ScopeBody & { text: string } }>(
+  scope.post<{ Querystring: { buildingId?: string }; Body: ScopeBody & { text: string; anyway?: boolean } }>(
     '/api/broadcast',
     {
       schema: {
@@ -149,7 +149,13 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
           type: 'object',
           required: ['kind', 'text'],
           additionalProperties: false,
-          properties: { ...scopeSchema, text: { type: 'string', minLength: 1, maxLength: BROADCAST_MAX_LENGTH } },
+          properties: {
+            ...scopeSchema,
+            text: { type: 'string', minLength: 1, maxLength: BROADCAST_MAX_LENGTH },
+            // Согласие отправить ночью: без него предупреждение о тихих часах
+            // было тупиком, и рассылка не уходила вообще.
+            anyway: { type: 'boolean' },
+          },
         },
         response: {
           201: {
@@ -172,6 +178,7 @@ export const broadcastRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, dep
         actor: resident,
         scope: scopeFrom(request.body),
         text: request.body.text,
+        ...(request.body.anyway ? { anyway: true } : {}),
         ...(request.query.buildingId ? { buildingId: request.query.buildingId } : {}),
       });
 

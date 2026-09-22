@@ -340,7 +340,7 @@ const exportCsv = async (kind: 'readings' | 'requests'): Promise<void> => {
     const [staff] = (await deps.repository.listStaff(building.id)).filter((person) => person.role !== 'resident');
 
     if (kind === 'requests' && !staff) {
-      console.warn('В доме нет сотрудников: реестр заявок выгружает управляющая компания');
+      console.warn('В доме нет сотрудников: реестр заявок выгружает управляющая организация');
       return;
     }
 

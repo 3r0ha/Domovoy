@@ -93,6 +93,40 @@ describe('документы по языку жильца', () => {
     await app.close();
   });
 
+  it('документ приходит и разделами, и сплошным текстом', async () => {
+    const { app } = await setup();
+
+    const body = (await app.inject({ method: 'GET', url: '/api/legal' })).json<{
+      documents: { updated?: string; prevails?: string; parts?: { heading: string; lines: string[] }[] }[];
+    }>();
+
+    const privacy = body.documents[0];
+
+    assert.ok(privacy?.parts && privacy.parts.length > 0, 'разделов нет: документ остался сплошным текстом');
+    assert.ok(privacy.parts[0]?.heading, 'раздел без заголовка');
+    assert.ok((privacy.parts[0]?.lines.length ?? 0) > 0, 'раздел без пунктов');
+    assert.match(privacy.updated ?? '', /Редакция от/u);
+    // Русская редакция исходная: оговорки о языке при ней нет.
+    assert.equal(privacy.prevails, undefined);
+
+    await app.close();
+  });
+
+  it('у перевода стоит оговорка о языке, а у русской редакции нет', async () => {
+    const { app, login } = await setup();
+    const token = await login(SPEAKER_ID);
+
+    const body = (
+      await app.inject({ method: 'GET', url: '/api/legal', headers: { authorization: `Bearer ${token}` } })
+    ).json<{ language: string; documents: { prevails?: string }[] }>();
+
+    if (body.language === 'ru') return void (await app.close());
+
+    assert.ok(body.documents[0]?.prevails, 'перевод без оговорки о языке');
+
+    await app.close();
+  });
+
   it('жильцу приходит его язык, а без перевода, русская редакция', async () => {
     const { app, login } = await setup();
     const token = await login(SPEAKER_ID);

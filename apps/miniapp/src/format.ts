@@ -1,13 +1,19 @@
 /** Числа, сроки и даты на языке человека. */
 
-import { translatorFor, type Translate } from '@domovoy/i18n';
+import { clockIn, dayIn, localeOf, partsIn, translatorFor, type Translate } from '@domovoy/i18n';
 
 import { say, spokenLanguage } from './i18n.js';
+
+/** Перевод без приставки области: даты, единицы и разделители лежат в разделе `when`. */
+const when: Translate = (key, values) => translatorFor(spokenLanguage())(key, values);
+
+/** Пояс телефона: приложение показывает время так же, как его показывает сам телефон. */
+const zone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Состояния, которые продукт называет сам. Чужое приходит с сервера как есть. */
 const STATUSES = ['new', 'accepted', 'in_progress', 'needs_info', 'done', 'confirmed', 'rejected', 'withdrawn'];
 
-/** Те же состояния глазами управляющей компании. Смена работает по-русски. */
+/** Те же состояния глазами управляющей организации. Смена работает по-русски. */
 const STAFF_STATUS_TITLES: Record<string, string> = {
   new: 'Новая',
   accepted: 'Принята, ждёт назначения',
@@ -27,7 +33,7 @@ export const statusTitle = (status: string, staff = false, sent?: string): strin
 export const actionTitle = (action: string): string => say(`action.${action}`);
 
 /** Форма слова по числу: у каждого языка свой набор форм. */
-const form = (count: number): string => new Intl.PluralRules(spokenLanguage()).select(count);
+const form = (count: number): string => new Intl.PluralRules(localeOf(when)).select(count);
 
 /** Число со словом в нужной форме: ключ хранит все формы языка. */
 export const counted = (key: string, count: number): string => say(`${key}.${form(count)}`, { число: count });
@@ -61,6 +67,13 @@ export const formatLeft = (isoDate: string, now: Date = new Date()): string => {
   const due = at(isoDate);
 
   return Number.isNaN(due) ? '' : spanWords(minutesBetween(now.getTime(), due));
+};
+
+/** Срок вот-вот: минут не осталось. Считается по времени, а не по виду строки. */
+export const dueNow = (isoDate: string, now: Date = new Date()): boolean => {
+  const due = at(isoDate);
+
+  return !Number.isNaN(due) && minutesBetween(now.getTime(), due) === 0;
 };
 
 /** Номер не отрывается от слова: «подъезд 1» переносится целиком. */
@@ -104,8 +117,7 @@ export const formatDeadline = (isoDate: string, now: Date = new Date()): string 
 };
 
 /** Часы и минуты: гостевой код живёт минуты, и «через 15 мин» стареет на глазах. */
-export const formatTime = (isoDate: string): string =>
-  new Date(isoDate).toLocaleTimeString(spokenLanguage(), { hour: '2-digit', minute: '2-digit' });
+export const formatTime = (isoDate: string): string => clockIn(when, new Date(isoDate), zone());
 
 const MONTHS = 12;
 
@@ -115,9 +127,6 @@ export const monthName = (index: number): string =>
 
 /** Месяц тремя буквами: подпись под столбиком графика. */
 export const monthShort = (index: number): string => monthName(index).slice(0, 3);
-
-/** Перевод без приставки области: даты, единицы и разделители лежат в разделе `when`. */
-const when: Translate = (key, values) => translatorFor(spokenLanguage())(key, values);
 
 /** Сумма без знака валюты: «1 234,50», «1,234.50». Валюта остаётся рублём. */
 export const money = (amount: number): string =>
@@ -149,14 +158,15 @@ export const initial = (name: string): string => name.trim().slice(0, 1).toUpper
 /** Дата без времени. */
 export const formatDay = (isoDate: string, now: Date = new Date()): string => {
   const date = new Date(isoDate);
-  const sameYear = date.getFullYear() === now.getFullYear();
+  const timeZone = zone();
+  const sameYear = partsIn(date, timeZone).year === partsIn(now, timeZone).year;
 
-  return date.toLocaleDateString(spokenLanguage(), {
-    day: 'numeric',
-    month: 'long',
-    ...(sameYear ? {} : { year: 'numeric' }),
-  });
+  return dayIn(when, date, timeZone, !sameYear);
 };
+
+/** День и час: «18 сентября в 14:30». Порядок частей задаёт язык, а не код. */
+export const formatDayAt = (isoDate: string, now: Date = new Date()): string =>
+  when('when.at', { день: formatDay(isoDate, now), время: formatTime(isoDate) });
 
 /** Полночь этого дня: по ней считается, сегодня срок или завтра. */
 const midnight = (date: Date): number => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();

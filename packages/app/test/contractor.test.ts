@@ -140,9 +140,9 @@ describe('подрядчик', () => {
   it('внутренние инструменты компании ему закрыты', async () => {
     const deps = setup();
 
-    await assert.rejects(housePlan(deps, lifts), /управляющая компания/);
-    await assert.rejects(buildingReport(deps, lifts), /управляющей компании/);
-    await assert.rejects(listAssignable(deps, lifts), /управляющая компания/);
+    await assert.rejects(housePlan(deps, lifts), /управляющая организация/);
+    await assert.rejects(buildingReport(deps, lifts), /управляющей организации/);
+    await assert.rejects(listAssignable(deps, lifts), /управляющая организация/);
   });
 
   it('двери и журнал дома ему не принадлежат', async () => {

@@ -144,7 +144,7 @@ describe('общедомовой узел учёта', () => {
     );
   });
 
-  it('прибор заводит управляющая компания, и второй такой же не заводится', async () => {
+  it('прибор заводит управляющая организация, и второй такой же не заводится', async () => {
     const { deps } = setup();
 
     const meter = await addHouseMeter(deps, nina, { kind: 'cold_water', serial: 'ОДПУ-1' });
@@ -158,7 +158,7 @@ describe('общедомовой узел учёта', () => {
     const { deps } = setup();
 
     await assert.rejects(addHouseMeter(deps, maria, { kind: 'cold_water', serial: 'ОДПУ-1' }), /управляющий/);
-    await assert.rejects(houseMetersFor(deps, maria), /управляющая компания/);
+    await assert.rejects(houseMetersFor(deps, maria), /управляющая организация/);
   });
 
   it('прибор заводит управляющий, а показание снимает вся смена', async () => {
@@ -222,7 +222,7 @@ describe('общедомовой узел учёта', () => {
     assert.equal(state?.last?.value, 1010);
   });
 
-  it('расход узла учёта виден управляющей компании', async () => {
+  it('расход узла учёта виден управляющей организации', async () => {
     const { deps, repository } = setup();
 
     await withMeters(repository);

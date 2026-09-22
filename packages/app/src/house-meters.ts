@@ -32,7 +32,7 @@ export type HouseMeterState = ReadingState<HouseMeter>;
 
 const onlyStaff = (actor: Resident): void => {
   if (!isCompanyStaff(actor.role)) {
-    throw new DomainError('forbidden', 'Узел учёта ведёт управляющая компания');
+    throw new DomainError('forbidden', 'Узел учёта ведёт управляющая организация');
   }
 };
 

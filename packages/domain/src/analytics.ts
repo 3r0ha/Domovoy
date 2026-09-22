@@ -100,7 +100,7 @@ export interface PeriodSummary {
   closed: number;
   /** Из закрытых, принято жильцом. */
   confirmed: number;
-  /** Из закрытых, отклонено управляющей компанией. */
+  /** Из закрытых, отклонено управляющей организацией. */
   rejected: number;
   /** Обращений, склеенных с уже открытыми заявками. */
   mergedReports: number;
@@ -316,7 +316,7 @@ export interface CategoryLoad {
   overdueRate: number;
 }
 
-/** Где именно управляющая компания не укладывается в норматив. */
+/** Где именно управляющая организация не укладывается в норматив. */
 export const categoryLoad = (requests: readonly ServiceRequest[], now: Date): CategoryLoad[] => {
   const grouped = new Map<RequestCategory, { total: number; overdue: number }>();
 

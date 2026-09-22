@@ -7,6 +7,11 @@ import { ErrorText } from './ErrorText.js';
 
 export interface DocumentScreenProps {
   text: string;
+  /** Разделы документа: с ними он читается, без них остаётся сплошным текстом. */
+  parts?: { heading: string; lines: string[] }[];
+  /** Подпись редакции и оговорка о языке: они стоят до текста. */
+  updated?: string;
+  prevails?: string;
   onBack: () => void;
 }
 
@@ -40,9 +45,11 @@ const legacyCopy = (text: string): boolean => {
 };
 
 /**
- * Длинный текст отдельным экраном: с него копируют целиком.
+ * Документ отдельным экраном. Разделы стоят своими заголовками, а пункты
+ * абзацами: сплошной полосой текста документ пролистывают, не читая.
+ * Копируется он целиком, тем же текстом, что уходит в переписку и в файл.
  */
-export const DocumentScreen = ({ text, onBack }: DocumentScreenProps) => {
+export const DocumentScreen = ({ text, parts, updated, prevails, onBack }: DocumentScreenProps) => {
   const t = useT();
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -60,10 +67,26 @@ export const DocumentScreen = ({ text, onBack }: DocumentScreenProps) => {
 
   return (
     <div className="list">
+      {updated ? <p className="hint aside">{updated}</p> : null}
+      {prevails ? <p className="hint aside">{prevails}</p> : null}
 
-      <section className="block">
-        <pre className="document">{text}</pre>
-      </section>
+      {parts && parts.length > 0 ? (
+        parts.map((part) => (
+          <section key={part.heading} className="block document-part">
+            <h2>{part.heading}</h2>
+
+            {part.lines.map((line) => (
+              <p key={line} className="document-line">
+                {line}
+              </p>
+            ))}
+          </section>
+        ))
+      ) : (
+        <section className="block">
+          <pre className="document">{text}</pre>
+        </section>
+      )}
 
       <div className="actions">
         <Button type="button" stretched size="large" onClick={() => void copy()}>

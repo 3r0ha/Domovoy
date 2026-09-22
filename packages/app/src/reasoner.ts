@@ -2,6 +2,8 @@ import { CATEGORY_RULES, suggestCategory, suggestPriority, type Priority, type R
 
 import type { Language } from '@domovoy/i18n';
 
+import { fieldBy, fieldCode, fieldFlag, fieldText, sameAs } from './fields.js';
+
 /** Часть дома, о которой написал человек. */
 export type Place = 'apartment' | 'entrance' | 'house';
 
@@ -67,6 +69,12 @@ export interface AssistInput {
    * и «сколько это стоит»: без них второй вопрос подряд теряет смысл.
    */
   history?: { asked: string; said: string }[];
+  /**
+   * Где человек находится прямо сейчас: экран приложения и, если он что-то
+   * начал, незаконченное дело. Без этого помощник отвечает «зайдите в раздел»
+   * тому, кто в этом разделе уже стоит.
+   */
+  where?: { screen: string; title: string; about: string; doing?: string };
 }
 
 /** Ответ модели помощнику: любое поле может отсутствовать. */
@@ -82,6 +90,8 @@ export interface ClarifyInput {
   description: string;
   /** Подписи настоящих объектов дома: выбирать можно только из них. */
   candidates: string[];
+  /** Язык жильца: вопрос читает он сам, поэтому идёт на его языке. */
+  language?: Language;
 }
 
 /** Уточняющий вопрос от модели: сам вопрос и подписи кнопок. */
@@ -118,6 +128,34 @@ export interface Reasoner {
    * выбирает из переданных списков, поэтому прав она не добавляет.
    */
   doing?(input: DoingInput): Promise<DoingFields | undefined>;
+  /**
+   * Правка готового текста словами человека: «убери про подъезд», «добавь, что
+   * течёт третий день». Модель возвращает текст целиком. Пусто означает, что
+   * править нечем и человек правит руками.
+   */
+  edit?(input: EditInput): Promise<string | undefined>;
+  /**
+   * Что человек назвал временем: «завтра утром», «в среду после обеда». Модель
+   * выбирает из предложенных окон, поэтому новых времён не выдумывает. Пусто
+   * означает, что ни одно окно не подошло.
+   */
+  pickTime?(input: PickTimeInput): Promise<string | undefined>;
+}
+
+/** Правка готового текста словами. */
+export interface EditInput {
+  /** Что правим: обращение в надзор, объявление, письмо. */
+  about: string;
+  text: string;
+  /** Что человек просит изменить. */
+  said: string;
+}
+
+/** Выбор времени словами из предложенных окон. */
+export interface PickTimeInput {
+  said: string;
+  /** Окна на выбор: ключ для ответа и то, как окно называется человеку. */
+  slots: { key: string; title: string }[];
 }
 
 /** Что модель знает, когда разбирает дело по заявке. */
@@ -176,6 +214,21 @@ const TOPIC_WORDS: readonly { topic: QuestionTopic; words: RegExp }[] = [
   { topic: 'works', words: /отключ|плановы|отоплен|лифт|(?<![а-яё])(свет|газ|вод[аыуе])(?![а-яё])/i },
 ];
 
+/** Намерение чужими словами: модель отвечает то ключом, то переводом ключа. */
+const INTENT_WORDS: readonly { value: Intent; words: RegExp }[] = [
+  { value: 'question', words: /question|вопрос|спрашива/u },
+  { value: 'request', words: /request|заявк|поломк|обращени|просьб/u },
+];
+
+/** То же для темы вопроса: ответ «начисления» значит bill. */
+const TOPIC_SAID: readonly { value: QuestionTopic; words: RegExp }[] = [
+  { value: 'incident', words: /incident|авари|прорыв/u },
+  { value: 'bill', words: /bill|квитанц|начислен|оплат|долг/u },
+  { value: 'request', words: /request|заявк|наряд/u },
+  { value: 'works', words: /works|работ|отключ/u },
+  { value: 'unknown', words: /unknown|друг|неизвестн/u },
+];
+
 /** Вопрос это или сообщение о поломке. Без модели разбор идёт по ключевым словам. */
 export const classifyIntent = async (
   text: string,
@@ -189,10 +242,46 @@ export const classifyIntent = async (
 
   if (!read) return plain;
 
-  const intent: Intent = read.intent === 'question' ? 'question' : read.intent === 'request' ? 'request' : plain.intent;
-  const topic = TOPICS.find((known) => known === read.topic) ?? plain.topic;
+  const said = fieldCode(read.intent);
+  const named: Intent | undefined = said === 'question' || said === 'request' ? said : fieldBy(read.intent, INTENT_WORDS);
+  const intent = named ?? plain.intent;
+
+  const code = fieldCode(read.topic);
+  const topic = TOPICS.find((known) => known === code) ?? fieldBy(read.topic, TOPIC_SAID) ?? plain.topic;
 
   return { intent, topic: intent === 'question' ? topic : 'unknown' };
+};
+
+/**
+ * Правка готового текста словами. Пусто означает, что править нечем: тогда
+ * человек правит руками, а продукт не делает вид, что понял.
+ */
+export const editByWords = async (
+  reasoner: Reasoner | undefined,
+  input: EditInput,
+): Promise<string | undefined> => {
+  if (!reasoner?.edit) return undefined;
+
+  const said = fieldText(await reasoner.edit(input).catch(() => undefined));
+
+  // Ответ короче трети исходного это не правка, а потеря текста: письмо
+  // в орган власти так отправлять нельзя.
+  return said && said.length >= input.text.length / 3 ? said : undefined;
+};
+
+/**
+ * Время, названное словами: «завтра утром», «в среду после обеда». Выбор идёт
+ * из предложенных окон, поэтому новых времён модель не выдумывает.
+ */
+export const pickTimeByWords = async (
+  reasoner: Reasoner | undefined,
+  input: PickTimeInput,
+): Promise<string | undefined> => {
+  if (!reasoner?.pickTime || input.slots.length === 0) return undefined;
+
+  const said = fieldCode(await reasoner.pickTime(input).catch(() => undefined));
+
+  return input.slots.find((slot) => slot.key === said)?.key;
 };
 
 const guessIntent = (text: string): { intent: Intent; topic: QuestionTopic } => {
@@ -207,6 +296,20 @@ const guessIntent = (text: string): { intent: Intent; topic: QuestionTopic } => 
 const PRIORITIES: readonly string[] = ['planned', 'normal', 'emergency'];
 
 const PLACES: readonly Place[] = ['apartment', 'entrance', 'house'];
+
+/** Срочность чужими словами: «аварийная», «urgent», «высокий». */
+const PRIORITY_SAID: readonly { value: Priority; words: RegExp }[] = [
+  { value: 'emergency', words: /emergency|urgent|critical|high|авари|срочн|высок/u },
+  { value: 'planned', words: /planned|low|планов|низк/u },
+  { value: 'normal', words: /normal|medium|обычн|средн/u },
+];
+
+/** Часть дома чужими словами: «квартира», «flat», «подъезд». */
+const PLACE_SAID: readonly { value: Place; words: RegExp }[] = [
+  { value: 'apartment', words: /apartment|flat|кварти|жиль/u },
+  { value: 'entrance', words: /entrance|подъезд|лестниц|площадк|тамбур/u },
+  { value: 'house', words: /house|building|yard|дом|двор|подвал|крыш/u },
+];
 
 const TITLE_MAX = 80;
 const QUESTION_MAX = 120;
@@ -233,11 +336,27 @@ const grounded = (title: string, description: string): boolean => {
   return unknown.length <= FREE_WORDS && numbers(title).every((digits) => said.has(digits));
 };
 
-/** Слишком длинный заголовок от модели не берётся. */
-const phrase = (value: string | undefined, limit: number): string | undefined => {
-  const text = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+/** Слишком длинный заголовок от модели не берётся, разметка из него снимается. */
+const phrase = (value: unknown, limit: number): string | undefined => {
+  const text = fieldText(value)?.replace(/\s+/gu, ' ') ?? '';
 
   return text.length > 0 && text.length <= limit ? text : undefined;
+};
+
+/**
+ * Код оборудования из ответа модели. Кроме кода она дописывает название,
+ * поэтому сверяется и всё значение целиком, и его начало до знака.
+ */
+const equipmentOf = (value: unknown, house: HouseContext | undefined): string | undefined => {
+  const marked = sameAs(value);
+
+  if (!marked || !house?.equipment?.length) return undefined;
+
+  return house.equipment.find((item) => {
+    const code = item.code.toLowerCase();
+
+    return marked === code || marked.startsWith(`${code} `) || marked.startsWith(`${code},`);
+  })?.code;
 };
 
 export const understandRequest = async (
@@ -254,24 +373,25 @@ export const understandRequest = async (
 
   if (!read) return plain;
 
-  const category =
-    read.category && Object.hasOwn(CATEGORY_RULES, read.category)
-      ? (read.category as RequestCategory)
-      : plain.category;
+  const said = fieldCode(read.category);
+  const category = said && Object.hasOwn(CATEGORY_RULES, said) ? (said as RequestCategory) : plain.category;
 
-  const named = read.priority && PRIORITIES.includes(read.priority) ? (read.priority as Priority) : undefined;
+  const code = fieldCode(read.priority);
+  const named = code && PRIORITIES.includes(code) ? (code as Priority) : fieldBy(read.priority, PRIORITY_SAID);
   const chosen = named ?? suggestPriority(description, category);
   const offered = phrase(read.title, TITLE_MAX);
   const title = offered && grounded(offered, description) ? offered : undefined;
   const question = phrase(read.question, QUESTION_MAX);
 
   // Оборудование берётся только из списка дома: выдуманный код приведёт в никуда.
-  const equipment = house?.equipment?.find((item) => item.code === read.equipment)?.code;
-  const place = PLACES.find((known) => known === read.place);
+  const equipment = equipmentOf(read.equipment, house);
+
+  const where = fieldCode(read.place);
+  const place = PLACES.find((known) => known === where) ?? fieldBy(read.place, PLACE_SAID);
 
   // Названа вещь без беды: «труба», «лифт». Заявку по такому не заводят, пока
   // человек не скажет, что случилось, иначе мастер едет в никуда.
-  const unclear = read.enough === false && question !== undefined;
+  const unclear = fieldFlag(read.enough) === false && question !== undefined;
 
   return {
     category,

@@ -248,7 +248,7 @@ describe('оборудование дома', () => {
     await assert.rejects(openByCode(deps, '000000'), /не подходит/);
   });
 
-  it('журнал открытий видит управляющая компания, а не сосед', async () => {
+  it('журнал открытий видит управляющая организация, а не сосед', async () => {
     const { deps } = setup();
 
     await openDevice(deps, resident(), 'intercom-1');

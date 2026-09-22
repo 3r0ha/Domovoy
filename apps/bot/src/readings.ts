@@ -132,7 +132,7 @@ export const takeReading = async (
       error.code === 'reading_duplicate' ? `\n${t('meters.next_window', { день: READING_WINDOW.fromDay })}` : '';
 
     await typed.reply(
-      `${t('meters.refused', { причина: `${commas(errorText(error, t))}.` })}${next}`,
+      `${t('meters.refused', { причина: commas(errorText(error, t)) })}${next}`,
       afterError(error, typed, t),
     );
   }

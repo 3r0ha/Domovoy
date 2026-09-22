@@ -99,6 +99,27 @@ const canSeeObject = async (
   return target.kind !== 'apartment' || own.includes(target.apartmentId);
 };
 
+/**
+ * Наклейка называет дом. Человек, который ещё не привязал квартиру, до сих пор
+ * не видел ни объявлений, ни контактов, ни аварий: продукт не знал, где он
+ * живёт. Скан кода это и отвечает, поэтому дом запоминается. Квартиру он
+ * не даёт: квитанция, показания и голос по-прежнему за кодом из квитанции.
+ */
+export const rememberHouseFromObject = async (
+  deps: AppDeps,
+  resident: Resident,
+  startParam: string,
+): Promise<Resident> => {
+  if (resident.role !== 'resident' || resident.buildingId || apartmentsOf(resident).length > 0) return resident;
+
+  const target = decodeTarget(startParam);
+  const audience = target ? await locateTarget(deps, target) : null;
+
+  if (!audience) return resident;
+
+  return deps.repository.saveResident({ ...resident, buildingId: audience.buildingId });
+};
+
 /** Паспорт объекта: открытые заявки и история поломок. @throws {DomainError} */
 export const objectPassport = async (
   deps: AppDeps,

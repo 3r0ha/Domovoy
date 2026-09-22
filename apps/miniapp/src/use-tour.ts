@@ -2,6 +2,7 @@ import { useBridge } from '@maxkit/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { say } from './i18n.js';
+import type { Screen } from './navigation.js';
 import type { TourStep } from './screens/Tour.js';
 import type { Section } from './sections.js';
 
@@ -28,12 +29,26 @@ const remember = (): void => {
   }
 };
 
+/**
+ * Что в разделе можно сделать. Тур показывал подпись раздела, а она уже стоит
+ * под тем же значком, и шаг ничего не добавлял. Разделы смены подписаны
+ * по-русски там же, где и сами разделы: рабочее меню на другие языки не идёт.
+ */
+const TOUR_TEXTS: Partial<Record<Screen, () => string>> = {
+  list: () => say('tour.section.list'),
+  home: () => say('tour.section.home'),
+  meters: () => say('tour.section.meters'),
+  news: () => say('tour.section.news'),
+  queue: () => 'Все заявки дома: принять в работу и назначить исполнителя.',
+  workday: () => 'Наряды смены по порядку обхода, с адресами и временем.',
+};
+
 /** Шаги тура собираются из тех разделов, которые у человека на панели. */
 const tourSteps = (sections: readonly Section[], demo = false): TourStep[] => [
   ...sections.slice(0, 3).map((section) => ({
     anchor: `tab-${section.screen}`,
     title: section.title,
-    text: section.hint,
+    text: TOUR_TEXTS[section.screen]?.() ?? section.hint,
   })),
   {
     anchor: 'assistant',

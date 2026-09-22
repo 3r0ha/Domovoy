@@ -156,3 +156,175 @@ describe('разбор обращения внешней моделью', () => 
     assert.equal(await reasoner.digest?.('Сейчас: открыто 3'), undefined);
   });
 });
+
+/** Служба, которая не отвечает: ответ приходит только по отмене запроса. */
+const silent = () => {
+  const calls: Call[] = [];
+
+  const fetchStub = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    calls.push({ url: typeof input === 'string' ? input : input instanceof URL ? input.href : input.url });
+
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(Object.assign(new Error('прервано'), { name: 'AbortError' })));
+    });
+  };
+
+  return { calls, fetch: fetchStub };
+};
+
+describe('разбор при неровной работе службы', () => {
+  it('молчание службы заканчивается таймаутом, а не ожиданием', async () => {
+    const { calls, fetch } = silent();
+    const failures: unknown[] = [];
+    const reasoner = createHttpReasoner({
+      endpoint: 'https://model.test/v1/chat',
+      fetch,
+      timeoutMs: 20,
+      onError: (error) => failures.push(error),
+    });
+
+    assert.equal(await reasoner.understand('Течёт труба'), undefined);
+    assert.equal(calls.length, 1, 'после своего же таймаута службу спросили заново');
+    assert.equal(failures.length, 1);
+  });
+
+  it('обрыв связи проходит со второго раза', async () => {
+    let attempt = 0;
+
+    const fetchStub = (): Promise<Response> => {
+      attempt += 1;
+
+      if (attempt === 1) return Promise.reject(new Error('сеть недоступна'));
+
+      return Promise.resolve(
+        new Response(JSON.stringify(chat('{"category":"heating"}')), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    };
+
+    const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch: fetchStub });
+
+    assert.deepEqual(await reasoner.understand('Холодные батареи'), { category: 'heating' });
+    assert.equal(attempt, 2);
+  });
+
+  it('пустой ответ службы разбором не считается', async () => {
+    const { fetch } = stub({ body: chat('') });
+    const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });
+
+    assert.equal(await reasoner.understand('Течёт труба'), undefined);
+    assert.equal(await reasoner.onTopic?.('Течёт труба'), undefined);
+  });
+
+  it('ответ не в том виде разбором не считается', async () => {
+    const { fetch } = stub({ body: { unexpected: true } });
+    const reasoner = createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch });
+
+    assert.equal(await reasoner.understand('Течёт труба'), undefined);
+  });
+});
+
+describe('неровный ответ службы разбирается', () => {
+  const reasonerWith = (content: string) =>
+    createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch: stub({ body: chat(content) }).fetch });
+
+  it('пояснение после объекта разбору не мешает', async () => {
+    const reasoner = reasonerWith('{"category":"plumbing"}\n\nНадеюсь, это то, что нужно {ещё}.');
+
+    assert.deepEqual(await reasoner.understand('Течёт труба'), { category: 'plumbing' });
+  });
+
+  it('одинарные кавычки и лишняя запятая чинятся', async () => {
+    const reasoner = reasonerWith("{'category': 'plumbing', 'priority': 'normal',}");
+
+    assert.deepEqual(await reasoner.understand('Течёт труба'), { category: 'plumbing', priority: 'normal' });
+  });
+
+  it('вложенный объект скобками не обрывается', async () => {
+    const reasoner = reasonerWith('```json\n{"category":"other","where":{"place":"house"}}\n```');
+
+    assert.deepEqual(await reasoner.understand('Во дворе яма'), {
+      category: 'other',
+      where: { place: 'house' },
+    });
+  });
+
+  it('объект внутри списка всё равно находится', async () => {
+    const reasoner = reasonerWith('[{"category":"plumbing"}]');
+
+    assert.deepEqual(await reasoner.understand('Течёт труба'), { category: 'plumbing' });
+  });
+
+  it('ответ без объекта разбором не считается', async () => {
+    const reasoner = reasonerWith('Затрудняюсь ответить, напишите подробнее.');
+
+    assert.equal(await reasoner.understand('Течёт труба'), undefined);
+  });
+
+  it('«да» и «нет» читаются с разметкой и на русском', async () => {
+    assert.equal(await reasonerWith('**true**').onTopic?.('капремонт'), true);
+    assert.equal(await reasonerWith('"Нет."').onTopic?.('свари борщ'), false);
+    assert.equal(await reasonerWith('затрудняюсь').onTopic?.('капремонт'), undefined);
+    assert.equal(await reasonerWith('не true').onTopic?.('капремонт'), undefined);
+  });
+});
+
+describe('правила, которые уходят модели', () => {
+  const askedWith = async (run: (reasoner: ReturnType<typeof createHttpReasoner>) => Promise<unknown>) => {
+    const { calls, fetch } = stub({ body: chat('{}') });
+
+    await run(createHttpReasoner({ endpoint: 'https://model.test/v1/chat', fetch }));
+
+    return String(calls[0]?.body);
+  };
+
+  it('короткое сообщение и просьба разбираются наравне с жалобой', async () => {
+    const body = await askedWith((reasoner) => reasoner.understand('труба'));
+
+    assert.match(body, /одно слово это полноценное обращение/u);
+    assert.match(body, /Просьба это то же обращение/u);
+  });
+
+  it('название языка это вопрос по делу', async () => {
+    const body = await askedWith((reasoner) => reasoner.onTopic?.('татарча') ?? Promise.resolve(undefined));
+
+    assert.match(body, /татарча/u);
+  });
+
+  it('просьба на чужом языке относится к разделу, а не к поломке', async () => {
+    const body = await askedWith(
+      (reasoner) =>
+        reasoner.route?.({ text: 'I want to open the door', sections: [{ screen: 'home', title: 'Дом', about: 'двери' }] }) ??
+        Promise.resolve(undefined),
+    );
+
+    assert.match(body, /eshikni oching/u);
+    assert.match(body, /I want to open the door/u);
+  });
+
+  it('уточняющий вопрос просят на языке жильца', async () => {
+    const body = await askedWith(
+      (reasoner) =>
+        reasoner.clarify?.({ description: 'Лифт не работает', candidates: ['Лифт, подъезд 2'], language: 'tt' }) ??
+        Promise.resolve(undefined),
+    );
+
+    assert.match(body, /Поле question напиши на языке: Татарча/u);
+    assert.match(body, /Лифт, подъезд 2/u);
+  });
+
+  it('помощника просят ответить на языке вопроса', async () => {
+    const body = await askedWith(
+      (reasoner) =>
+        reasoner.assist?.({
+          question: 'I want to open the door',
+          facts: 'Квартира: 1',
+          sections: [{ screen: 'home', title: 'Дом', about: 'двери' }],
+        }) ?? Promise.resolve(undefined),
+    );
+
+    assert.match(body, /Отвечай на том языке, на котором задан вопрос/u);
+  });
+});

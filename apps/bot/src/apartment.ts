@@ -1,4 +1,4 @@
-import { needsApartment, type Resident } from '@domovoy/app';
+import { knowsHouse, needsApartment, type Resident } from '@domovoy/app';
 
 import { speak } from './i18n.js';
 import { APARTMENT_CODE_LENGTH, isApartmentCode, normalizeApartmentCode } from '@domovoy/domain';
@@ -45,10 +45,19 @@ export const askApartment = async (
  * получает просьбу о коде. Сам код проходит: набранный отдельно, внутри фразы
  * или в ответ на уже заданный вопрос о нём.
  */
-export const needsFlat = async (kit: BotKit, typed: BotContext, text?: string): Promise<boolean> => {
+export const needsFlat = async (
+  kit: BotKit,
+  typed: BotContext,
+  text?: string,
+  houseIsEnough = false,
+): Promise<boolean> => {
   const resident = await kit.residentOf(typed);
 
   if (!needsApartment(resident)) return false;
+
+  // Объявления и контакты принадлежат дому: человеку, назвавшему дом сканом
+  // наклейки, они открыты и без квартиры.
+  if (houseIsEnough && knowsHouse(resident)) return false;
 
   if (text && (typed.session?.awaiting?.kind === 'code' || codeIn(text) !== undefined)) return false;
 

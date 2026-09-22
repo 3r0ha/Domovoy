@@ -25,6 +25,7 @@ const maria: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 const dispatcher: Resident = {
@@ -67,7 +68,7 @@ describe('настройки уведомлений', () => {
   it('по умолчанию включено всё', () => {
     assert.deepEqual(
       listNotices(maria).map((notice) => notice.on),
-      [true, true, true, true],
+      [true, true, true, true, true],
     );
   });
 

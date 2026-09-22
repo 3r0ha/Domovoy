@@ -3,19 +3,14 @@ import type { Dictionary } from '../../translate.js';
 /** Строки, которые продукт показывает человеку. Ключ не переводится, переводится значение. */
 export const bot: Dictionary = {
   'greeting.hello': 'Salam!',
-  'greeting.resident':
-    'Men jaý boýunça kömek ederin: döwük barada habar bermek, hasaplaýjylardaky sanlary ibermek,\n' +
-    'hasaby görmek, girelgäniň gapysyny açmak.\n\n' +
-    'Diňe söz bilen ýazyp bolýar: «kran akýar», «gapyny aç», «girelge haçan ýygnalar».',
+  'greeting.resident': 'Jaý boýunça kömek ederin. Menýudan saýlaň ýa-da ýazyň: «kran akýar», «gapyny aç».',
   'start.code_unknown': 'Salgydaky kod gabat gelmedi: jaýda beýle obýekt ýok.',
 
   'lang.chosen': 'Dil: {язык}.',
 
   'legal.ask':
-    'Domovoy şahsy maglumatlary jaýyň dolandyryjy guramasynyň tabşyrygy boýunça işleýär.\n' +
-    'Işleýiş syýasaty we ulanyjy ylalaşygy aşakdaky düwmelerde.\n' +
-    '«Kabul edýärin» düwmesine basmak bilen siz olar bilen ylalaşýarsyňyz. Razylyk bolmasa, men arza ' +
-    'kabul edip we görkezijileri saklap bilmerin.',
+    'Domovoy şahsy maglumatlary dolandyryjy kompaniýanyň tabşyrygy boýunça işleýär.\n' +
+    'Razylyk bolmasa, ne arzany, ne görkezijileri kabul edip bilerin.',
   'legal.accepted': 'Siz häzirki redaksiýa bilen ylalaşdyňyz.\nDoly tekstler düwmeler arkaly açylýar.',
   'legal.thanks': 'Sag boluň. Näme kömek gerek?',
 
@@ -23,9 +18,7 @@ export const bot: Dictionary = {
   'flat.unknown':
     'Men siziň haýsy kwartiradadygyňyzy heniz bilemok.\n' +
     'Kwitansiýada salgynyň ýanynda 8 belgili kod çap edilen. Ony habar bilen iberiň.',
-  'flat.bound':
-    'Taýýar. Indi siziň {номер} kwartirada ýaşaýandygyňyzy bilýärin.\n' +
-    'Hasaplaýjylardaky sanlary iberip, hasaby görüp we jaýyň ýygnaklarynda ses berip bolýar.',
+  'flat.bound': 'Taýýar, {номер} kwartira.',
   'flat.already': 'Siz eýýäm {номер} kwartira birikdirilen.',
   'flat.already_yours': '{номер} kwartira eýýäm siziňki.',
   'flat.other_code':
@@ -62,11 +55,12 @@ export const bot: Dictionary = {
     'Surat iberip bolýar.',
   'request.accepted': 'Arza {номер} kabul edildi.',
   'request.what': 'Näme: {что}, {где}.',
-  'request.react': '{срок} çenli jogap bereris.',
-  'request.fix': '{срок} çenli bejererler.',
+  'request.react': '{срок} möhletine çenli jogap bereris.',
+  'request.fix': '{срок} möhletine çenli bejererler.',
   'request.same': 'Bu şol bir arza {номер}, täzesini açamok.',
   'request.joined': 'Beýle mesele barada eýýäm habar berildi: arza {номер}, {состояние}.',
-  'request.joined_you': 'Bu barada ýazanlaryň {который}-njisi siz. {срок} çenli bejererler.',
+  'request.joined_you':
+    'Bu barada eýýäm {который} adam ýazdy, olaryň biri siz. {срок} möhletine çenli bejererler.',
   'request.notify': 'Üýtgeşmeler barada habar bererin.',
   'request.planned': 'Şu işler sebäpli bolsa, arza gerek däl.',
   'request.optional': 'Jogap bermeseňiz hem bolýar, arza eýýäm kabul edildi.',
@@ -78,7 +72,7 @@ export const bot: Dictionary = {
   'request.rest': 'Ýene arzalar: {сколько}. Sanaw goşundyda.',
   'request.all_open': 'Işde şular bar. Ýapylan arzalar goşundyda dur.',
   'request.not_found': 'Sizde {номер} arza ýok. Näme bolanyny ýazyň, täzesini resmileşdirerin.',
-  'request.due': 'Möhleti: {срок} çenli',
+  'request.due': 'Möhleti: {срок}',
   'request.worker': 'Işi {кто} alyp barýar',
   'request.answers': 'Jogap berýän: {кто}',
   'request.state': 'Arza {номер}: {состояние}',
@@ -89,7 +83,9 @@ export const bot: Dictionary = {
   'request.reply_ask': 'Jogaby bir habarda ýazyň, şu arza boýunça ýetirerin.',
   'request.back_to_work': 'Arza {номер} ýene işde: siziň sözleriňizi ussa ýetirdim.',
   'request.withdraw_ask':
-    'Arzany{номер} yzyna almalymy? Ussa onuň boýunça gelmez, ony gaýtaryp bolmaz, täzesini resmileşdirmeli bolar.',
+    'Arzany yzyna almalymy? Ussa onuň boýunça gelmez, ony gaýtaryp bolmaz, täzesini resmileşdirmeli bolar.',
+  'request.withdraw_ask_number':
+    'Arzany {номер} yzyna almalymy? Ussa onuň boýunça gelmez, ony gaýtaryp bolmaz, täzesini resmileşdirmeli bolar.',
   'request.where_unknown':
     '{причина}. Girelgedäki kody skanirläň ýa-da goşundyny açyň, ol ýerde salgyny saýlap bolýar.',
   'request.where_skipped': 'Bolýar, salgyny ussa ýerinde takyklar. Arza eýýäm nobatçy toparda.',
@@ -148,7 +144,7 @@ export const bot: Dictionary = {
   'meters.which_value': '{значение} görkezijä meňzeýär. Bu haýsy hasaplaýjynyňky?',
 
   'bill.empty': 'Bu aý üçin hasaplama heniz ýok.',
-  'bill.total': '{срок} çenli {сумма} tölemeli',
+  'bill.total': '{срок} möhletine çenli {сумма} tölemeli',
   'bill.paid': 'Hasaplandy {сумма}, bu aý üçin hemmesi tölendi',
   'bill.where': 'Nämeden düzülenini we näme üçindigini goşundyda görüň.',
   'pay.month_ask': 'Aý üçin {сумма} tölemelimi?',
@@ -164,7 +160,7 @@ export const bot: Dictionary = {
   'door.no_snapshot': 'Şekil gelmedi',
   'door.guest_code':
     'Myhman üçin kod: {код}\n' +
-    'Goý, ony girelgedäki domofonda ýygsyn. Kod şu gün {время} çenli işleýär.',
+    'Goý, ony girelgedäki domofonda ýygsyn. Kod şu gün {время} sagadyna çenli işleýär.',
 
   'news.title': 'Dolandyryjy kompaniýanyň bildirişleri:',
   'news.empty':
@@ -179,7 +175,7 @@ export const bot: Dictionary = {
     'Goňşular heniz hiç zat habar bermedi.\n' +
     'Bu ýerde girelgedäki we howludaky döwükler peýda bolar: olary tassyklap bolýar.',
   'neighbours.about':
-    'Goňşular {сколько} habar berdi. ' +
+    'Goňşularyň habar beren döwükleri: {сколько}. ' +
     'Goşundyda nämedigi we nirededigi görünýär, sizde-de şonuň ýalydygyny tassyklap bolýar.',
 
   'vote.title': 'Eýeleriň ýygnaklary',
@@ -232,7 +228,7 @@ export const bot: Dictionary = {
   'visit.taken': 'Bu sagat eýelenildi. Başgasyny saýlaň.',
   'visit.taken_none': 'Bu sagat eýelenildi, boş sagat häzirlikçe ýok.',
 
-  'data.about': '{кто}.\nSiz barada saklaýanym: {что}.',
+  'data.about': '{кто}\nSiz barada saklaýanym: {что}.',
   'data.file': 'Siziň maglumatlaryňyz faýl görnüşinde. {сводка}',
   'data.file_failed': 'Faýly ibermek başartmady. Şol bir maglumatlar goşundyda görünýär.',
   'forget.ask':
@@ -281,6 +277,7 @@ export const bot: Dictionary = {
   'command.unknown': 'Mende beýle buýruk ýok. Nämäniň gerekdigini söz bilen ýazyp bolýar, düşünerin.',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}: {адрес}',
   'menu.words': 'Söz bilen ýazyp bolýar: «gapyny aç», «näçe tölemeli», «kran akýar».',
   'menu.in_chat': 'Menýu meniň bilen ýazyşykda açylýar.',
   'menu.new': '✍️ Näme döwüldi',
@@ -308,16 +305,11 @@ export const bot: Dictionary = {
     'Nämäni ibermeli we näme barada dymmaly. Şol ýerde telefon we öz maglumatlaryňy ýüklemek.',
   'menu.lang': '🌐 Dil',
   'menu.group.money': '💳 Pul we hasaplaýjylar',
-  'menu.group.money.about': 'Bu aý näçe tölemeli we hasaplaýjylardaky sanlary nirä ibermeli.',
   'menu.group.house': '📣 Jaýyň habarlary',
-  'menu.group.house.about':
-    'Dolandyryjy kompaniýanyň bildirişleri, goňşularyň ýygnaklary we jaý boýunça iş.',
   'menu.group.me': '☎️ Aragatnaşyk we profil',
-  'menu.group.me.about': 'Dolandyryjy kompaniýa bilen nädip habarlaşmaly we önüm siz barada näme bilýär.',
   'menu.demo': '👥 Rol',
 
   'menu.group.home': '🏡 Meniň kwartiram',
-  'menu.group.home.about': 'Siziň hasaplaryňyz, hasaplaýjylar we öz kwartiraňyz boýunça arzalar.',
   'menu.group.bind.about':
     'Siz şu jaýda ýaşaýan bolsaňyz, kwartirany kwitansiýadaky kod boýunça birikdiriň.',
   'menu.home.new': '✍️ Täze arza',
@@ -328,15 +320,13 @@ export const bot: Dictionary = {
 
   'menu.contractor.my': '📋 Iş tabşyryklary',
   'menu.group.works': '🏢 Jaýyň işleri',
-  'menu.group.contractor.about':
-    'Dolandyryjy kompaniýa bilen aragatnaşyk, bildirişler we girelgeleriň gapylary.',
-  'menu.group.works.about': 'Jaý möhletleri nähili ýapýar, bergiler, ýygnaklar we girelgeleriň gapylary.',
 
   'menu.staff.queue': '🗂 Jaýyň nobaty',
   'menu.staff.my': '📋 Meniň tabşyryklarym',
+  'menu.staff.day': '🗓 Meniň günüm',
   'menu.staff.duty': '🌙 Nobatçylyk',
-  'menu.staff.support': '💬 Ýaşaýjylaryň soraglary',
-  'menu.staff.visit': '🗓 Ýaşaýjylary kabul ediş',
+  'menu.staff.support': '💬 Ýaşaýjy soraglary',
+  'menu.staff.visit': '🗓 Ýaşaýjylary kabul',
   'menu.staff.visit.about':
     'Kabul ediş sagatlary, ýaşaýjylaryň ýazgylary, kabul ediş belligi we ýazgysyz geleni ýazmak.',
   'menu.staff.broadcast': '✉️ Habar ýaýratmak',
@@ -367,14 +357,10 @@ export const bot: Dictionary = {
   'menu.staff.audit': '📜 Hereketler žurnaly',
   'menu.staff.audit.about': 'Jaý boýunça kim näme etdi: arzalar, roller, görkezijiler, ýaýratmalar.',
   'menu.group.people': '💬 Ýaşaýjylar',
-  'menu.group.people.about': 'Ýaşaýjylaryň soraglary, ýazgy boýunça kabul ediş we jaýa habarlar.',
-  'menu.group.staff_me.about':
-    'Öz kwartiraň, maglumatlar, habarnamalar we ýaşaýjy hökmünde dolandyryjy kompaniýa bilen aragatnaşyk.',
   'menu.group.app': '📱 Goşundyda',
-  'menu.group.app.about': 'Ýazyşykda okalmaýan ekranlar: aýlawlar, jaýyň meýilnamasy, enjamlar.',
   'menu.group.manage': '🗄 Jaýy dolandyrmak',
-  'menu.group.manage.about': 'Nyrhlar, jaýyň kartoçkasy, kompaniýanyň salgylary we hereketler žurnaly.',
 
+  'chat.answered_privately': '{кто}, size şahsy ýazyşmada jogap berdim.',
   'topic.bill': '🧾 Aýlyk kwitansiýa',
   'topic.request': '📋 Arzalar',
   'topic.news': '📣 Bildirişler',
@@ -471,4 +457,43 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ Hiç haýsy boýunça',
   'button.stale': 'Bu düwme indi işlemeýär',
   'button.stale_more': 'Bu düwme köne habardan. Ine, nireden başlap bolýar.',
+  'button.visit_other': '🕘 Başga wagt',
+  'button.visit_drop': '🕘 Wagty üýtget',
+  'button.rename': '✏️ Ady üýtget',
+  'button.complaint_edit': '✏️ Teksti düzet',
+  'button.not_my_flatmate': '🚫 Bu meniň goňşym däl',
+  'button.owner_yes': '✅ Men eýesi',
+  'button.owner_no': '👤 Ýaşaýaryn, emma eýesi däl',
+  'button.dispute': '📄 Ret ediş bilen ylalaşamok',
+  'button.missed': '🚪 Kwartira girip bilmedim',
+  'button.connect': '🏢 Meniň jaýym bu ýerde ýok',
+
+  'visit.set': 'Ýazdym: {номер} arzasy boýunça ussa {когда} geler. Meýilnamalar üýtgese, ýazyň.',
+  'visit.missed_noted': '{номер} arzasy boýunça bellik etdim: kwartira girilmedi. Ýaşaýjy başga wagt saýlar.',
+  'visit.dropped': '{номер} arzasy boýunça wagt aýryldy. Başgasyny saýlaň, ussa men habar bererin.',
+  'visit.not_understood': 'Teklip edilenleriň arasynda beýle wagt ýok. Şulardan birini saýlaň.',
+
+  'name.ask': 'Size nähili ýüzleneli? Häzir: {имя}. Ady bir habarda ýazyň.',
+  'name.changed': 'Indi siz {имя}. Sizi ussa we dolandyryjy gurama şeýle görer.',
+
+  'gzhi.edit_ask': 'Nämäni düzetmelidigini ýazyň: «girelge baradakyny aýyr», «üçünji gün akýandygyny goş».',
+  'gzhi.edited': 'Düzetdim. Okaň we ähli zat dogry bolsa, iberiň.',
+  'gzhi.not_edited': 'Nämäni düzetmelidigine düşünmedim. Başgaça aýdyň ýa-da şu durkuna iberiň.',
+
+  'request.dispute_ask': 'Ret ediş bilen näme üçin ylalaşmaýandygyňyzy bir habarda ýazyň. Oňa täzeden serederler.',
+  'request.disputed': 'Arza {номер} ýene işde. Dolandyryjy gurama ony täzeden serediär.',
+
+  'flat.owner_ask':
+    'Siz şu kwartiranyň eýesimi? Ýygnaklarda jaýlaryň eýeleri ses berýär, galan zatlar hemmä açyk.',
+  'flat.owner_noted': 'Ýazdym: siz eýesi. Ýygnakdaky sesiňiz kwartiraňyzyň meýdany boýunça hasaplanýar.',
+  'flat.tenant_noted': 'Ýazdym. Arzalar, görkezijiler we kwitansiýa size açyk, ýygnakdaky ses bolsa ýok.',
+  'flat.neighbour_dropped': 'Bu adamy kwartiraňyzdan aýyrdym. Dolandyryjy gurama bu barada bilýär.',
+
+  'connect.ask':
+    'Öýüňiz bu ýerde heniz ýok ýaly. Salgyny bir habarda ýazyň, biz ony jaýyňyzyň dolandyryjy guramasyna ýetireris.',
+  'connect.saved': 'Salgyny ýazdym. Jaý birikdirilen badyna ýazaryn.',
+
+  'day.title': 'Sizdäki tabşyryklar: {сколько}, baryş wagty bellenenler: {назначено}.',
+  'day.rest': 'Ýene tabşyryklar: {сколько}. Tutuş gün goşundyda görünýär.',
+  'day.empty': 'Häzir sizde tabşyryk ýok.',
 };

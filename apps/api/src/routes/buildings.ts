@@ -229,6 +229,7 @@ export const buildingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps
                   created: { type: 'integer' },
                   inTimeRate: { type: 'number' },
                   averageRating: { type: 'number' },
+                  current: { type: 'boolean' },
                 },
               },
             },

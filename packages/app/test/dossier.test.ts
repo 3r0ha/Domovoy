@@ -22,6 +22,7 @@ const maria: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 const ivan: Resident = {

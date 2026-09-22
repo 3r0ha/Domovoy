@@ -60,7 +60,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         })),
         debt: debt.total,
         ...(debt.penalty > 0 ? { penalty: debt.penalty } : {}),
-        ...(debtRange(debt) ? { debtFor: debtRange(debt) } : {}),
+        ...(debtRange(debt, t) ? { debtFor: debtRange(debt, t) } : {}),
         ...(bases.length > 0 ? { bases } : {}),
       };
     });
@@ -90,30 +90,51 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
+        const t = speak(resident);
+
         return (await paymentHistory(deps, resident)).map((receipt) => ({
           period: receipt.period,
-          periodTitle: periodTitle(receipt.period),
+          periodTitle: periodTitle(receipt.period, t),
           amount: receipt.amount,
           at: receipt.at.toISOString(),
         }));
       },
     );
 
-    scope.post('/api/charges/pay', async (request) => {
-      const resident = await currentResident(request.max.userId);
-      const receipt = await payCharges(deps, resident);
+    /**
+     * Оплата начисленного. Сумма задаётся, когда человек платит часть: денег
+     * бывает не на весь счёт, и частичный платёж лучше неоплаченного счёта.
+     */
+    scope.post<{ Body: { amount?: number } }>(
+      '/api/charges/pay',
+      {
+        schema: {
+          body: { type: 'object', properties: { amount: { type: 'number', exclusiveMinimum: 0 } } },
+        },
+      },
+      async (request) => {
+        const resident = await currentResident(request.max.userId);
+        const receipt = await payCharges(deps, resident, request.body.amount);
 
-      return { period: receipt.period, amount: receipt.amount, at: receipt.at.toISOString() };
-    });
+        return {
+          period: receipt.period,
+          amount: receipt.amount,
+          at: receipt.at.toISOString(),
+          ...(receipt.receiptNumber ? { receiptNumber: receipt.receiptNumber } : {}),
+          ...(receipt.receiptUrl ? { receiptUrl: receipt.receiptUrl } : {}),
+        };
+      },
+    );
 
     /** Оплата долга: каждый прошлый месяц закрывается своим платежом. */
     scope.post('/api/charges/debt/pay', async (request) => {
       const resident = await currentResident(request.max.userId);
       const receipts = await payArrears(deps, resident);
+      const t = speak(resident);
 
       return {
         paid: roundMoney(receipts.reduce((sum, receipt) => sum + receipt.amount, 0)),
-        periods: receipts.map((receipt) => periodTitle(receipt.period)),
+        periods: receipts.map((receipt) => periodTitle(receipt.period, t)),
       };
     });
 
@@ -188,7 +209,7 @@ export const billingRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps)
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
         if (resident.role === 'resident') {
-          throw new DomainError('forbidden', 'Тарифы дома ведёт управляющая компания');
+          throw new DomainError('forbidden', 'Тарифы дома ведёт управляющая организация');
         }
 
         return (await listTariffs(deps, resident)).map(serializeTariff);

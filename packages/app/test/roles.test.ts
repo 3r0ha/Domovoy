@@ -63,7 +63,7 @@ const setup = (residents: Resident[] = [maria, manager, dispatcher]): AppDeps & 
   };
 };
 
-describe('роли в управляющей компании', () => {
+describe('роли в управляющей организации', () => {
   it('управляющий назначает жильца мастером', async () => {
     const deps = setup();
 
@@ -255,7 +255,7 @@ describe('роли в управляющей компании', () => {
   it('жильцу список людей дома закрыт', async () => {
     const deps = setup();
 
-    await assert.rejects(listPeople(deps, maria), /доступен управляющей компании/);
+    await assert.rejects(listPeople(deps, maria), /доступен управляющей организации/);
   });
 });
 

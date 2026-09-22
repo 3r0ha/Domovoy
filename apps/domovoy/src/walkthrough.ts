@@ -249,7 +249,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say(
       '',
       `В очереди по-прежнему одна заявка ${request!.number}. Подтвердили ${surveyed?.joinedBy.length ?? 0}, ` +
-        `у ${surveyed?.notAffected.length ?? 0} всё работает, управляющая компания видит границу аварии, ` +
+        `у ${surveyed?.notAffected.length ?? 0} всё работает, управляющая организация видит границу аварии, ` +
         'не обходя подъезд',
     );
 
@@ -471,7 +471,7 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     say('', 'Сосед вводит код из своей квитанции');
     say('Сосед в чате дома', flatCode);
     platform.userSends(flatCode, { userId: NEWCOMER.maxUserId, chatId: NEWCOMER.maxUserId, firstName: 'Пётр' });
-    await expect(NEWCOMER, /вы в квартире/);
+    await expect(NEWCOMER, /Готово, квартира/);
 
     say('', 'Код у каждой квартиры свой, промахи ограничены');
     say('Сосед в чате дома', 'WXYWXY33');
@@ -612,15 +612,18 @@ export const runWalkthrough = async (options: WalkthroughOptions = {}): Promise<
     platform.userSends('/broadcast', { userId: DISPATCHER.maxUserId, chatId: DISPATCHER.maxUserId });
     await expect(DISPATCHER, /Рассылка собирается в приложении/);
 
+    // Прогон идёт в любое время суток, в том числе ночью: без согласия продукт
+    // сначала предупредил бы, что сообщение разбудит дом, и сценарий встал бы.
     const sent = await sendBroadcast(bot.deps, {
       actor: expectResident(await bot.deps.repository.findResidentByMaxUserId(DISPATCHER.maxUserId)),
       scope: { kind: 'riser', entrance: 1, riser: 2 },
       text: 'Завтра с 9:00 до 14:00 перекроем стояк: меняем участок трубы.',
+      anyway: true,
     });
 
     say('', `Отправлено из приложения: ${sent.description}, получателей ${sent.recipients}`);
 
-    await expect(IVAN, /Сообщение управляющей компании/);
+    await expect(IVAN, /Сообщение управляющей организации/);
 
     say('', 'Приёмных часов на две недели десятки: календарь открывается в приложении');
     say(IVAN.name, '/visit');

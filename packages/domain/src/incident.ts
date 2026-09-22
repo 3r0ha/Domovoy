@@ -117,6 +117,10 @@ export const joinRequest = (request: ServiceRequest, residentId: string, at: Dat
 export const hasAnswered = (request: ServiceRequest, residentId: string): boolean =>
   hasReported(request, residentId) || request.notAffected.some((check) => check.residentId === residentId);
 
+/** Сказал ли сосед, что у него всё работает. */
+export const unaffected = (request: ServiceRequest, residentId: string): boolean =>
+  request.notAffected.some((check) => check.residentId === residentId);
+
 /** Отмечает, что у соседа всё работает. */
 export const markUnaffected = (request: ServiceRequest, residentId: string, at: Date): ServiceRequest => {
   if (hasAnswered(request, residentId)) return request;
@@ -156,7 +160,7 @@ export const CONFIRMED_INCIDENT_REPORTERS = 3;
 export const isConfirmedIncident = (request: ServiceRequest): boolean =>
   reportersCount(request) >= CONFIRMED_INCIDENT_REPORTERS;
 
-/** Со скольких поддержавших управляющая компания узнаёт об этом отдельно. */
+/** Со скольких поддержавших управляющая организация узнаёт об этом отдельно. */
 export const SUPPORT_NOTICE_AT = 5;
 
 /** Что показал опрос соседей. */

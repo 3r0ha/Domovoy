@@ -263,7 +263,7 @@ export const renderSheet = (
   </head>
   <body>
     <h1>${escapeXml(address)}</h1>
-    <p class="no-print">Наведите камеру на код, откроется чат с управляющей компанией, объект уже будет известен.</p>
+    <p class="no-print">Наведите камеру на код, откроется чат с управляющей организацией, объект уже будет известен.</p>
     <div class="grid">
       ${stickers
         .map(

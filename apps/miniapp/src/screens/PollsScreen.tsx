@@ -390,7 +390,7 @@ const InitiativeCard = ({
   );
 };
 
-/** Предложение соседям: собрание объявляет управляющая компания, вопрос ставит дом. */
+/** Предложение соседям: собрание объявляет управляющая организация, вопрос ставит дом. */
 const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => void }) => {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -465,7 +465,7 @@ const InitiativeComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: ()
   );
 };
 
-/** Объявление собрания: доступно только управляющей компании. */
+/** Объявление собрания: доступно только управляющей организации. */
 const PollComposer = ({ api, onStarted }: { api: DomovoyApi; onStarted: () => void }) => {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');

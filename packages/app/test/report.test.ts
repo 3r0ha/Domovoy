@@ -94,7 +94,7 @@ const untilDone = async (deps: Deps, id: string): Promise<void> => {
   await transitionRequest(deps, { resident: technician, requestId: id, to: 'done', comment: 'Работа сдана' });
 };
 
-describe('сводка для управляющей компании', () => {
+describe('сводка для управляющей организации', () => {
   it('жильцу не показывается', async () => {
     const deps = setup();
 
@@ -204,7 +204,7 @@ describe('сводка для управляющей компании', () => {
   it('жилец список исполнителей не получает', async () => {
     const deps = setup();
 
-    await assert.rejects(listAssignable(deps, maria), /только управляющая компания/);
+    await assert.rejects(listAssignable(deps, maria), /только управляющая организация/);
   });
 
   it('текст для чата начинается с того, что горит', async () => {

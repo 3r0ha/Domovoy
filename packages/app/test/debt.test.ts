@@ -217,7 +217,7 @@ describe('пени на долг', () => {
     assert.equal(debt.penalty > 0, true);
   });
 
-  it('ставку меняет управляющая компания, и пени идут по ней', async () => {
+  it('ставку меняет управляющая организация, и пени идут по ней', async () => {
     const deps = await setup(new Date('2026-09-15T10:00:00Z'));
     const before = (await arrearsFor(deps, maria)).penalty;
 

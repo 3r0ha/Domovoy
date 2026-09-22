@@ -49,7 +49,7 @@ const privacy: LegalText = {
     {
       heading: '5. Recipients of the data',
       lines: [
-        '5.1. Adjacent organisations where a request is transferred outside the area of responsibility of the operator: the resource supplying organisation, the contractor organisation, the local self-government body, the state housing supervision body. The substance of the request and the address of the object are transferred.',
+        '5.1. Adjacent organisations where a request is transferred outside the area of responsibility of the operator: the utility supplier, the contractor organisation, the local self-government body, the state housing supervision body. The substance of the request and the address of the object are transferred.',
         '5.2. The payment service where payment is connected: the amount and the purpose of the payment.',
         '5.3. The automatic text analysis service where it is connected by the operator: the text of the request or of the question and information about the user to the extent available to the user in the interface of the product. The data of other persons is not transferred. The result of the analysis is of an auxiliary nature; decisions on a request are taken by the operator.',
         '5.4. The MAX platform to the extent necessary for the delivery of messages.',

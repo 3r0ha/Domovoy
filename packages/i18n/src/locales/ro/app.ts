@@ -51,10 +51,11 @@ export const app: Dictionary = {
   'noticeKind.works': 'Lucrări planificate',
   'noticeKind.polls': 'Adunările proprietarilor',
   'noticeKind.news': 'Anunțurile blocului',
+  'noticeKind.debt': 'Amintiri despre plată',
 
   'charge.maintenance': 'Întreținere și reparații curente',
   'charge.common': '{ресурс} pentru necesitățile comune ale blocului',
-  'charge.recalculation': 'Recalculare: {ресурс} a fost oprit mai mult decât norma',
+  'charge.recalculation': 'Recalculare: oprire peste normă la {ресурс}',
 
   'chargeDetail.rate': '{расход} {единица} × {тариф} ₽',
   'chargeDetail.area': '{площадь} m² × {тариф} ₽',
@@ -185,6 +186,7 @@ export const app: Dictionary = {
     'Plângerea a fost trimisă: {организация}.{номер}\nRăspunsul vine în termen de 30 de zile.',
   'notice.complaintNumber': '\nNumărul {номер}.',
   'notice.debt': '{долг}\n\nPuteți achita cu butonul de mai jos.',
+  'notice.due': 'Calculat pe lună: {сумма}. Achitați până în data de {день}, după aceea încep penalitățile.',
 
   'hours.one': '{сколько} oră',
   'hours.few': '{сколько} ore',
@@ -223,7 +225,7 @@ export const app: Dictionary = {
     'A expirat verificarea: {приборы}.\nPână la verificarea nouă calculul se face după norma de consum.',
   'meters.name': '{прибор} ({номер})',
   'meters.spike':
-    'Consumul la contorul «{прибор}» pe perioadă: {расход} {единица}, este vizibil mai mare decât de obicei.\n' +
+    'Consumul la contorul „{прибор}” pe perioadă: {расход} {единица}, este vizibil mai mare decât de obicei.\n' +
     'Dacă nu ați consumat mai mult decât de obicei, verificați robinetele și rezervorul.',
   'meters.aboveNeighbours':
     'Consumul la contorul {номер} este mai mare decât la vecini: {расход} {единица} față de {соседи} {единица} la apartamente asemănătoare.\n' +
@@ -240,7 +242,7 @@ export const app: Dictionary = {
   'debt.period': '{месяц} {год}',
 
   'support.answered':
-    '{сотрудник}, administrația blocului, răspunde la întrebarea «{тема}»:\n{текст}',
+    '{сотрудник}, administrația blocului, răspunde la întrebarea „{тема}”:\n{текст}',
   'support.waiting': 'Așteaptă răspunsul administrației blocului.',
   'support.earlier': 'Mai devreme sunt încă {сколько}, integral în aplicație.',
   'support.you': 'Dumneavoastră',
@@ -250,10 +252,10 @@ export const app: Dictionary = {
   'poll.meeting': 'Adunarea proprietarilor',
   'poll.survey': 'Sondaj printre locatari',
   'poll.started': '{вид}: {название}\n\n{вопрос}\n\n{порядок}',
-  'poll.orderMeeting': '{правило}. Votarea are loc din {от} până în {до}.',
+  'poll.orderMeeting': '{правило}. Votarea are loc de la {от} până la {до}.',
   'poll.orderSurvey':
     'Puteți răspunde până la {до}. Sondajul nu înlocuiește adunarea proprietarilor.',
-  'poll.remind': 'Adunarea «{название}» se închide {до}.\n{нехватка}',
+  'poll.remind': 'Adunarea „{название}” se închide pe {до}.\n{нехватка}',
   'poll.remindFew': 'Nu au votat toți: cât timp sunt puține voturi, decizia nu se ia.',
   'poll.remindArea':
     'Nu au votat proprietarii întregii suprafețe: lipsesc {площадь} m². Cât timp sunt puține voturi, decizia nu se ia.',
@@ -263,7 +265,7 @@ export const app: Dictionary = {
   'poll.passed': 'Decizia este adoptată.',
   'poll.failed': 'Decizia nu este adoptată.',
   'poll.voteReplaced':
-    'Votul apartamentului {квартира} la adunarea «{название}» a fost schimbat de {кто}: {ответ}.\n' +
+    'Votul apartamentului {квартира} la adunarea „{название}” a fost schimbat de {кто}: {ответ}.\n' +
     'Locuința are un singur vot, se ia în calcul ultimul.',
   'poll.choice.for': 'pentru',
   'poll.choice.against': 'împotrivă',
@@ -296,14 +298,14 @@ export const app: Dictionary = {
   'protocol.title': 'Procesul-verbal al adunării generale a proprietarilor',
   'protocol.surveyTitle': 'Rezultatele sondajului printre locatari',
   'protocol.number': 'Nr. {номер}',
-  'protocol.company': 'Administrația blocului: {название}',
+  'protocol.company': 'Organizația de administrare: {название}',
   'protocol.form': 'Forma: vot prin corespondență în sistem',
   'protocol.surveyForm': 'Sondaj al organizației de administrare: nu este o decizie a adunării generale',
   'protocol.notice': 'Anunțul despre adunare: {номер}',
   'protocol.initiator': 'Inițiator: {кто}',
   'protocol.surveyBy': 'Realizat de: {кто}',
   'protocol.administrator': 'Administratorul adunării: {кто}',
-  'protocol.voting': 'Votare: din {от} până în {до}',
+  'protocol.voting': 'Votare: de la {от} până la {до}',
   'protocol.agenda': 'Punctul de pe ordinea de zi',
   'protocol.counting': 'Numărarea voturilor',
   'protocol.totalArea': 'Suprafața totală a spațiilor: {площадь} m²',
@@ -335,6 +337,9 @@ export const app: Dictionary = {
   'binding.neighbour':
     'De apartamentul dumneavoastră {квартира} s-a mai asociat un locatar: {кто}.\n' +
     'Dacă acesta nu este vecinul dumneavoastră, anunțați administrația blocului.',
+  'binding.ownerClaimed':
+    '{кто} a indicat că este proprietarul apartamentului {квартира}.\n' +
+    'Dacă nu este așa, spuneți organizației de administrare: de asta depinde votul la adunare.',
   'binding.bound':
     'Administrația blocului v-a asociat apartamentului {квартира}.\n' +
     'Acum sunt disponibile indicațiile contoarelor și votul la adunări.',
@@ -347,9 +352,9 @@ export const app: Dictionary = {
 
   'quality.short': 'Sesizări deschise acum: {открыто}{просрочено}{срок}.',
   'quality.overdueShort': ', depășite {сколько}',
-  'quality.rateShort': ', în termen {доля} în {дни}',
-  'quality.title': 'Cum lucrează administrația blocului în {дни}:',
-  'quality.titleAt': 'Cum lucrează administrația blocului în {дни}, {адрес}:',
+  'quality.rateShort': ', în termen {доля} pe {дни}',
+  'quality.title': 'Cum lucrează administrația blocului pe {дни}:',
+  'quality.titleAt': 'Cum lucrează administrația blocului pe {дни}, {адрес}:',
   'quality.created': '  Sesizări depuse: {сколько}',
   'quality.closed': '  Închise: {сколько}',
   'quality.inTime': '  În termen: {доля}',
@@ -368,6 +373,25 @@ export const app: Dictionary = {
 
   'visit.booked': 'Organizația de administrare v-a programat la audiență: {когда}.\n{тема}',
   'visit.cancelled': 'Audiența din {день} la ora {время} a fost anulată de organizația de administrare.',
+
+  'visit.offer': 'Sesizarea {номер}: tehnicianul este gata să vină. Alegeți ora potrivită.',
+  'visit.chosenForStaff': 'Sesizarea {номер}: locatarul așteaptă {когда}. {место}.',
+  'visit.missed':
+    'Tehnicianul a venit {когда} pentru sesizarea {номер} și nu a putut intra în apartament. ' +
+    'Alegeți altă oră și el va veni din nou.',
+  'visit.refused':
+    'La sesizarea {номер} tehnicianul nu a putut intra în apartament de {сколько} ori. Sesizarea rămâne ' +
+    'deschisă, dar ora lucrărilor o stabilește acum organizația de administrare: sunați-i.',
+  'visit.declined': 'Niciuna dintre orele propuse nu se potrivește. Organizația de administrare va propune alta.',
+  'visit.dropped': 'Sesizarea {номер}: locatarul a anulat ora vizitei și alege alta.',
+  'visit.todayForResident':
+    'Astăzi la {время} vine tehnicianul pentru sesizarea {номер}. Dacă planurile s-au schimbat, anulați ora.',
+  'visit.todayForStaff': 'Astăzi la {время} sunteți așteptat pentru sesizarea {номер}. {место}.',
+
+  'dispute.forStaff': 'Sesizarea {номер}, {место}. Solicitantul nu este de acord cu refuzul „{причина}”. El scrie: {что}',
+  'dispute.upheld':
+    'La sesizarea {номер} refuzul a fost menținut. Dacă nu sunteți de acord, mai departe se ocupă inspecția ' +
+    'de locuințe: sesizarea este gata, o puteți trimite cu butonul.',
 
   'assistant.offTopic':
     'Ajut doar cu blocul și cu această aplicație: sesizări, contoare, factura, adunări, ' +
@@ -442,14 +466,14 @@ export const app: Dictionary = {
 
   'scope.apartments': 'apartamentele {номера}',
   'scope.debtors': 'datornicii blocului',
-  'scope.meters': 'nu au transmis indexurile',
+  'scope.meters': 'nu au transmis indicațiile',
   'scope.poll': 'nu au votat: {название}',
   'scope.pollAny': 'nu au votat',
   'scope.staff': 'tura blocului',
 
-  'reporters.one': '{сколько} a semnalat',
-  'reporters.few': '{сколько} au semnalat',
-  'reporters.many': '{сколько} au semnalat',
+  'reporters.one': '{сколько} a anunțat',
+  'reporters.few': '{сколько} au anunțat',
+  'reporters.many': '{сколько} au anunțat',
 
   'hint.plumbing': 'Dacă puteți, închideți apa până vine meșterul.',
   'hint.electricity': 'Nu atingeți firele și tabloul: așteptați meșterul.',
@@ -459,14 +483,14 @@ export const app: Dictionary = {
 
   'plain.supportAnswer': 'Răspundem în cel mult 10 zile lucrătoare',
   'plain.disclosureAnswer': 'Informațiile despre bloc le dăm cel târziu a doua zi',
-  'plain.readingWindow': 'Indexurile se primesc până pe 26',
+  'plain.readingWindow': 'Indicațiile se primesc până pe 26',
   'plain.quorum': 'Hotărârea se ia dacă a votat mai mult de jumătate din suprafața blocului',
   'plain.qualified': 'La această întrebare sunt necesare două treimi din voturi',
   'plain.initiative': 'Adunarea este convocată de proprietarii care dețin împreună a zecea parte din voturi',
   'plain.share': 'Votul se socotește după suprafața apartamentului',
   'plain.penalty': 'Penalitățile încep din ziua 31 de întârziere, iar din ziua 91 cresc',
   'plain.workerAtHome': 'Meșterul arată legitimația și pune botoși',
-  'plain.norm': 'Fără indexuri calculăm după norma de consum',
+  'plain.norm': 'Fără indicații calculăm după norma de consum',
   'plain.typicalNorm': 'Norma este una tipică: pe a sa o stabilește organizația',
   'plain.wearForecast': 'Aceasta este o prognoză după defecțiunile trecute, nu un regulament',
 
@@ -478,12 +502,15 @@ export const app: Dictionary = {
 
   'zone.elevator': 'Liftul este întreținut de o organizație specializată',
   'zone.insideFlat': 'Echipamentul din interiorul apartamentului îl repară proprietarul',
+  'zone.flatBorder':
+    'Limita trece prin primul dispozitiv de închidere: înainte de el răspunde organizația de administrare, după el proprietarul',
   'zone.yard': 'Curtea blocului este întreținută de organizația de administrare',
   'zone.common': 'Aceasta este proprietatea comună a blocului, întreținută de organizația de administrare',
   'zoneNext.elevator':
     'Sesizarea este condusă de organizația de administrare: ea o transmite firmei care întreține liftul.',
   'zoneNext.insideFlat':
     'Organizația de administrare face astfel de lucrări pe o sesizare separată, de regulă contra cost.',
+  'zoneNext.flatBorder': 'Unde anume este defecțiunea stabilește tehnicianul la inspecție.',
   'zoneNext.yard': 'Dacă locul este în afara terenului blocului, sesizarea merge la serviciul municipal.',
 
   'ticketStatus.open': 'așteaptă răspuns',
@@ -515,9 +542,12 @@ export const app: Dictionary = {
   'contacts.office': 'Audiențe: {где}',
   'contacts.person': 'Responsabil: {кто}',
   'contacts.empty': 'Contactele nu sunt completate: scrieți la asistență, tura vă va răspunde.',
+  'privacy.summary': 'Sesizări {заявок}, indicații {показаний}, voturi {голосов}, plăți {платежей}',
 
-  'role.removed': 'Administrația v-a retras rolul de serviciu. Sesizările și indexurile rămân disponibile.',
-  'role.given': 'Administrația v-a acordat rolul: {роль}.\nTastați /start pentru a vedea comenzile noi.',
+  'role.removed':
+    'Administrația blocului v-a retras rolul de serviciu. Sesizările și indicațiile rămân disponibile.',
+  'role.given':
+    'Administrația blocului v-a acordat rolul: {роль}.\nTastați /start pentru a vedea comenzile noi.',
 
   'error.message_too_long': 'Mesajul este prea lung',
   'error.apartment_unknown': 'Codul nu se potrivește, verificați-l pe factură',
@@ -534,12 +564,12 @@ export const app: Dictionary = {
   'error.file_too_large': 'Fișierul este prea mare',
   'error.file_broken': 'Fișierul nu s-a deschis',
   'error.file_not_found': 'Fișierul nu a fost găsit',
-  'error.vision_unavailable': 'Recunoașterea nu a răspuns, introduceți indexul în cifre',
+  'error.vision_unavailable': 'Recunoașterea nu a răspuns, introduceți indicația în cifre',
   'error.initiative_empty': 'Scrieți ce propuneți',
   'error.initiative_too_long': 'Propunerea este prea lungă',
 
   'starter.break': 'Cum anunț o defecțiune?',
-  'starter.readings': 'Unde transmit indexurile?',
+  'starter.readings': 'Unde transmit indicațiile?',
   'starter.request': 'Ce se întâmplă cu sesizarea mea?',
   'starter.door': 'Cum deschid ușa de la scară?',
   'starter.queue': 'Ce este urgent în coadă?',

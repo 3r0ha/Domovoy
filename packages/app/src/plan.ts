@@ -174,7 +174,7 @@ const alertsByPlace = (ordered: readonly ServiceRequest[]): PlanAlerts => {
 /** План дома с обстановкой на нём. @throws {DomainError} */
 export const housePlan = async (deps: AppDeps, resident: Resident): Promise<HousePlan> => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'План дома ведёт управляющая компания');
+    throw new DomainError('forbidden', 'План дома ведёт управляющая организация');
   }
 
   const buildingId = resident.buildingId ?? deps.defaultBuildingId;

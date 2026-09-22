@@ -119,6 +119,12 @@ export interface Vote {
   at: Date;
   /** Кто проголосовал: собственник помещения. */
   residentId: string;
+  /**
+   * Доля этого собственника в помещении, 0…1. У единственного собственника
+   * это единица. Сособственники голосуют каждый своей долей и вправе
+   * разойтись во мнении.
+   */
+  share?: number;
 }
 
 export const isOpen = (poll: Poll, at: Date): boolean =>
@@ -134,7 +140,22 @@ export interface CastVoteInput {
   residentId: string;
   choice: VoteChoice;
   at: Date;
+  /** Голосующий собственник этого помещения. Наниматель голоса не имеет. */
+  owner: boolean;
+  /** Его доля в помещении, 0…1. Без доли считается, что помещение целиком его. */
+  share?: number;
 }
+
+/** Доля собственника: больше нуля и не больше единицы. @throws {DomainError} */
+export const checkShare = (share: number | undefined): number => {
+  if (share === undefined) return 1;
+
+  if (!Number.isFinite(share) || share <= 0 || share > 1) {
+    throw new DomainError('share_invalid', 'Доля в помещении задаётся числом от 0 до 1');
+  }
+
+  return share;
+};
 
 /** Принимает голос. @throws {DomainError} */
 export const castVote = (input: CastVoteInput): Vote => {
@@ -154,12 +175,21 @@ export const castVote = (input: CastVoteInput): Vote => {
     throw new DomainError('forbidden', 'Голосуют собственники помещений этого дома');
   }
 
+  // Голос на общем собрании принадлежит собственнику, а не тому, кто живёт
+  // в помещении: ч. 3 ст. 48 ЖК РФ. Наниматель и член семьи не голосуют.
+  if (!input.owner) {
+    throw new DomainError('not_an_owner', 'Голосуют собственники помещений. Если помещение ваше, скажите об этом управляющей организации');
+  }
+
+  const share = checkShare(input.share);
+
   return {
     pollId: input.poll.id,
     apartmentId: input.apartment.id,
     choice: input.choice,
     at: input.at,
     residentId: input.residentId,
+    ...(share === 1 ? {} : { share }),
   };
 };
 
@@ -203,22 +233,37 @@ export const countVotes = (
   const shares: Record<VoteChoice, number> = { for: 0, against: 0, abstain: 0 };
   let votedArea = 0;
 
+  // Свой голос каждый собственник меняет сам, и чужой этим не перебивается:
+  // последним считается последний голос этого человека по этому помещению.
   const latest = new Map<string, Vote>();
 
   for (const vote of votes) {
     if (vote.pollId !== poll.id) continue;
 
-    const known = latest.get(vote.apartmentId);
+    const key = `${vote.apartmentId} ${vote.residentId}`;
+    const known = latest.get(key);
 
-    if (!known || vote.at.getTime() >= known.at.getTime()) latest.set(vote.apartmentId, vote);
+    if (!known || vote.at.getTime() >= known.at.getTime()) latest.set(key, vote);
   }
 
-  for (const vote of latest.values()) {
+  // Доли сособственников складываются, но больше целого помещения дать не могут:
+  // завышенная доля не должна раздувать явку.
+  const taken = new Map<string, number>();
+  const ordered = [...latest.values()].sort((one, other) => one.at.getTime() - other.at.getTime());
+
+  for (const vote of ordered) {
     const apartment = byId.get(vote.apartmentId);
 
     if (!apartment) continue;
 
-    const area = weightOf(apartment);
+    const left = Math.max(0, 1 - (taken.get(vote.apartmentId) ?? 0));
+    const part = Math.min(vote.share ?? 1, left);
+
+    if (part <= 0) continue;
+
+    taken.set(vote.apartmentId, (taken.get(vote.apartmentId) ?? 0) + part);
+
+    const area = weightOf(apartment) * part;
 
     votedArea += area;
     shares[vote.choice] += area;
@@ -300,6 +345,8 @@ export interface Signature {
   residentId: string;
   apartmentId: string;
   at: Date;
+  /** Доля подписавшегося в помещении, 0…1. */
+  share?: number;
 }
 
 /** Предложение жильца, которое собирает подписи соседей. */
@@ -332,14 +379,23 @@ export const standingOf = (
 ): InitiativeStanding => {
   const byId = new Map(apartments.map((apartment) => [apartment.id, apartment]));
   const totalArea = apartments.reduce((sum, apartment) => sum + areaOf(apartment), 0);
-  const signed = new Set(initiative.signatures.map((signature) => signature.apartmentId));
+  const taken = new Map<string, number>();
 
   let area = 0;
 
-  for (const id of signed) {
-    const apartment = byId.get(id);
+  for (const signature of initiative.signatures) {
+    const apartment = byId.get(signature.apartmentId);
 
-    if (apartment) area += areaOf(apartment);
+    if (!apartment) continue;
+
+    const left = Math.max(0, 1 - (taken.get(signature.apartmentId) ?? 0));
+    const part = Math.min(signature.share ?? 1, left);
+
+    if (part <= 0) continue;
+
+    taken.set(signature.apartmentId, (taken.get(signature.apartmentId) ?? 0) + part);
+
+    area += areaOf(apartment) * part;
   }
 
   const needed = INITIATIVE_SHARE * totalArea;
@@ -356,6 +412,9 @@ export interface SignInput {
   apartment: Apartment;
   residentId: string;
   at: Date;
+  /** Подписывается собственник: требовать собрания вправе только он. */
+  owner: boolean;
+  share?: number;
 }
 
 /** Подписывает инициативу. @throws {DomainError} */
@@ -368,7 +427,13 @@ export const sign = (input: SignInput): Initiative => {
     throw new DomainError('forbidden', 'Подписываются собственники помещений этого дома');
   }
 
-  if (input.initiative.signatures.some((signature) => signature.apartmentId === input.apartment.id)) {
+  if (!input.owner) {
+    throw new DomainError('not_an_owner', 'Требовать собрания вправе собственники помещений');
+  }
+
+  const share = checkShare(input.share);
+
+  if (input.initiative.signatures.some((signature) => signature.residentId === input.residentId)) {
     return input.initiative;
   }
 
@@ -376,7 +441,12 @@ export const sign = (input: SignInput): Initiative => {
     ...input.initiative,
     signatures: [
       ...input.initiative.signatures,
-      { residentId: input.residentId, apartmentId: input.apartment.id, at: input.at },
+      {
+        residentId: input.residentId,
+        apartmentId: input.apartment.id,
+        at: input.at,
+        ...(share === 1 ? {} : { share }),
+      },
     ],
   };
 };

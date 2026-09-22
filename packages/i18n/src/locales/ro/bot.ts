@@ -4,18 +4,14 @@ import type { Dictionary } from '../../translate.js';
 export const bot: Dictionary = {
   'greeting.hello': 'Bună ziua!',
   'greeting.resident':
-    'Vă ajut cu blocul: să anunțați o defecțiune, să trimiteți cifrele de pe contoare,\n' +
-    'să vedeți factura, să deschideți ușa de la scară.\n\n' +
-    'Puteți scrie pur și simplu în cuvinte: «curge robinetul», «deschide ușa», «când se face curat la scară».',
+    'Vă ajut cu blocul. Alegeți din meniu sau scrieți în cuvinte: „curge robinetul”, „deschide ușa”.',
   'start.code_unknown': 'Codul din link nu s-a potrivit: în bloc nu există un astfel de obiect.',
 
   'lang.chosen': 'Limba: {язык}.',
 
   'legal.ask':
-    'Domovoy prelucrează datele cu caracter personal la cererea organizației de administrare a blocului.\n' +
-    'Politica de prelucrare și acordul de utilizare, pe butoanele de mai jos.\n' +
-    'Apăsând «Accept», sunteți de acord cu ele. Fără acord nu pot primi o sesizare ' +
-    'și nu pot salva indicațiile.',
+    'Domovoy prelucrează datele cu caracter personal la cererea administrației blocului.\n' +
+    'Fără acord nu pot primi nici sesizarea, nici indicațiile.',
   'legal.accepted':
     'Ați acceptat redacția în vigoare.\nTextele complete se deschid pe butoane.',
   'legal.thanks': 'Mulțumesc. Cu ce vă ajut?',
@@ -24,9 +20,7 @@ export const bot: Dictionary = {
   'flat.unknown':
     'Încă nu știu în ce apartament sunteți.\n' +
     'În factură este tipărit un cod din 8 semne lângă adresă. Trimiteți-l într-un mesaj.',
-  'flat.bound':
-    'Gata. Acum știu că sunteți în apartamentul {номер}.\n' +
-    'Puteți trimite cifrele de pe contoare, vedea factura și vota la adunările blocului.',
+  'flat.bound': 'Gata, apartamentul {номер}.',
   'flat.already': 'Sunteți deja asociat apartamentului {номер}.',
   'flat.already_yours': 'Apartamentul {номер} este deja al dumneavoastră.',
   'flat.other_code':
@@ -34,7 +28,7 @@ export const bot: Dictionary = {
   'flat.title': 'apartamentul {номер}',
   'flat.title_address': 'apartamentul {номер}, {адрес}',
   'flat.short': 'ap. {номер}',
-  'flat.yours': '{квартира} dumneavoastră.',
+  'flat.yours': 'Aveți {квартира}.',
   'flat.chosen': 'Este ales {квартира}: pe el merg indicațiile și factura.',
   'flat.used': 'Indicații și factură: {квартира}',
   'flat.used_plain': 'Apartament ales',
@@ -77,7 +71,7 @@ export const bot: Dictionary = {
   'request.optional': 'Puteți să nu răspundeți, sesizarea este deja primită.',
   'request.none': 'Deocamdată nu sunt sesizări.',
   'queue.resident':
-    'Coada blocului este ținută de administrația blocului. Sesizările dumneavoastră sunt în secțiunea «Sesizările mele».',
+    'Coada blocului este ținută de administrația blocului. Sesizările dumneavoastră sunt în secțiunea „Sesizările mele”.',
   'request.mine_count': 'Sesizările dumneavoastră în lucru: {сколько}',
   'request.late': ', depășite {сколько}',
   'request.rest': 'Alte sesizări: {сколько}. Lista este în aplicație.',
@@ -91,14 +85,16 @@ export const bot: Dictionary = {
   'request.state': 'Sesizarea {номер}: {состояние}',
   'request.rating': ', nota dumneavoastră {оценка}',
   'request.rate_ask': 'Cum ați recepționat lucrarea?',
-  'request.comment_sent': 'Am transmis pe sesizarea {номер}.',
+  'request.comment_sent': 'Am transmis la sesizarea {номер}.',
   'request.answer_sent':
-    'Am transmis pe sesizarea {номер}: tehnicianul va vedea răspunsul dumneavoastră.',
-  'request.reply_ask': 'Scrieți răspunsul într-un singur mesaj, îl transmit pe această sesizare.',
+    'Am transmis la sesizarea {номер}: tehnicianul va vedea răspunsul dumneavoastră.',
+  'request.reply_ask': 'Scrieți răspunsul într-un singur mesaj, îl transmit la această sesizare.',
   'request.back_to_work':
     'Sesizarea {номер} este din nou în lucru: am transmis cuvintele dumneavoastră tehnicianului.',
   'request.withdraw_ask':
-    'Retragem sesizarea{номер}? Tehnicianul nu va veni pe ea, nu va putea fi readusă, va trebui întocmită una nouă.',
+    'Retragem sesizarea? Tehnicianul nu va veni pe ea, nu va putea fi readusă, va trebui întocmită una nouă.',
+  'request.withdraw_ask_number':
+    'Retragem sesizarea {номер}? Tehnicianul nu va veni pe ea, nu va putea fi readusă, va trebui întocmită una nouă.',
   'request.where_unknown':
     '{причина}. Scanați codul de la scară sau deschideți aplicația, acolo puteți alege adresa.',
   'request.where_skipped':
@@ -109,7 +105,7 @@ export const bot: Dictionary = {
     'Am notat: la dumneavoastră este la fel. Sesizarea {номер}, vă anunț despre schimbări.',
   'request.same_counted':
     'Am notat: la dumneavoastră este la fel. Sesizarea {номер}, {сообщили}, vă anunț despre schimbări.',
-  'request.answered_already': 'Ați răspuns deja pe sesizarea {номер}.',
+  'request.answered_already': 'Ați răspuns deja la sesizarea {номер}.',
   'request.fine':
     'Mulțumesc, am notat: cauza nu este în coloana comună, ci în apartamentul vecinului.',
   'request.closed_already': 'Mulțumesc. Pe această sesizare lucrările sunt deja încheiate.',
@@ -130,11 +126,11 @@ export const bot: Dictionary = {
   'meters.consumption': 'Consumul pe perioadă: {расход}.',
   'meters.refused': 'Indicația nu este primită: {причина}',
   'meters.retry': 'Trimiteți numărul încă o dată.',
-  'meters.next_window': 'Următoarea indicație o primim de pe {день}.',
+  'meters.next_window': 'Următoarea indicație o primim din data de {день}.',
   'meters.not_number':
     'Nu seamănă cu un număr. Trimiteți indicația în cifre, de exemplu 123,456',
   'meters.not_reading':
-    'Aceasta nu seamănă cu o indicație. Trimiteți numărul de pe afișaj sau apăsați «Anulare».',
+    'Aceasta nu seamănă cu o indicație. Trimiteți numărul de pe afișaj sau apăsați „Anulare”.',
   'meters.heard':
     'Am auzit indicația {значение}. O transmitem?\nDacă nu este așa, trimiteți numărul în cifre.',
   'meters.from_photo':
@@ -150,7 +146,7 @@ export const bot: Dictionary = {
     'sau trimiteți indicația ca număr, de exemplu 123,456',
   'meters.no_others': 'Nu mai sunt alte contoare fără indicații.',
   'meters.exact':
-    'Indicația trebuie să fie exactă: «aproximativ» și «circa» nu sunt bune pentru calcul. ' +
+    'Indicația trebuie să fie exactă: „aproximativ” și „circa” nu sunt bune pentru calcul. ' +
     'Uitați-vă pe afișaj, alegeți contorul și trimiteți numărul întreg, de exemplu 123,456',
   'meters.no_such':
     'Pe apartamentul dumneavoastră nu este înregistrat un contor de acest fel. Lista contoarelor se deschide cu butonul de mai jos.',
@@ -193,7 +189,7 @@ export const bot: Dictionary = {
     'Vecinii nu au anunțat încă nimic.\n' +
     'Aici vor apărea defecțiunile de la scară și din curte despre care au scris vecinii: pot fi confirmate.',
   'neighbours.about':
-    'Vecinii au anunțat despre {сколько}. ' +
+    'Defecțiuni anunțate de vecini: {сколько}. ' +
     'În aplicație se vede ce și unde și puteți confirma că la dumneavoastră este la fel.',
 
   'vote.title': 'Adunările proprietarilor',
@@ -204,7 +200,7 @@ export const bot: Dictionary = {
   'vote.initiatives': 'propuneri ale vecinilor: {сколько}',
   'vote.protocol_in_app': 'Procesul-verbal integral este în aplicație.',
   'vote.abstain': 'Nu vreau să decid',
-  'vote.counted': 'Adunarea «{собрание}». Votul apartamentului: {ответ}.',
+  'vote.counted': 'Adunarea „{собрание}”. Votul apartamentului: {ответ}.',
   'vote.refused': 'Votul nu este primit',
   'sign.refused': 'Semnătura nu este primită',
 
@@ -212,9 +208,9 @@ export const bot: Dictionary = {
     'Scrieți întrebarea într-un singur mesaj, o transmit administrației blocului.',
   'support.ask_more':
     'Întrebarea nouă scrieți-o într-un singur mesaj, iar la cea veche răspundeți cu butonul.',
-  'support.taken': 'Întrebarea este primită: «{тема}». Răspunsul vine aici.',
+  'support.taken': 'Întrebarea este primită: „{тема}”. Răspunsul vine aici.',
   'support.sent': 'Am transmis organizației de administrare. Răspunsul vine aici.',
-  'support.reply_ask': 'Scrieți un mesaj pe această solicitare.',
+  'support.reply_ask': 'Scrieți un mesaj la această solicitare.',
   'support.all': 'Acestea sunt toate solicitările.',
   'support.more': 'Alte solicitări mai jos.',
   'contacts.tail': 'Celelalte contacte sunt în aplicație.',
@@ -251,7 +247,7 @@ export const bot: Dictionary = {
   'visit.taken': 'Această oră a fost ocupată. Alegeți alta.',
   'visit.taken_none': 'Această oră a fost ocupată, libere deocamdată nu sunt.',
 
-  'data.about': '{кто}.\nPăstrez despre dumneavoastră: {что}.',
+  'data.about': '{кто}\nPăstrez despre dumneavoastră: {что}.',
   'data.file': 'Datele dumneavoastră ca fișier. {сводка}',
   'data.file_failed':
     'Fișierul nu a putut fi trimis. Aceleași date se văd în aplicație.',
@@ -280,7 +276,7 @@ export const bot: Dictionary = {
     'Un astfel de atașament nu îl pot desluși. Scrieți în cuvinte sau trimiteți o fotografie ori un fișier.',
   'dialog.need_text': 'Aici este nevoie de text: scrieți răspunsul într-un mesaj.',
   'dialog.forgot':
-    'Nu îmi amintesc despre ce era solicitarea. Scrieți încă o dată ce s-a întâmplat.',
+    'Nu îmi amintesc despre ce era sesizarea. Scrieți încă o dată ce s-a întâmplat.',
   'dialog.cancelled': 'Am anulat. Ce trebuie făcut?',
   'dialog.cancelled_toast': 'Am anulat',
 
@@ -294,7 +290,7 @@ export const bot: Dictionary = {
   'thinking.photo': 'Mă uit la imagine…',
 
   'emergency.call': 'Dacă este o avarie, sunați non-stop: {телефон}.',
-  'app.install': 'Deschideți mini-aplicația «Domovoy» în MAX.',
+  'app.install': 'Deschideți mini-aplicația „Domovoy” în MAX.',
 
   'error.retry': 'Nu a reușit. Apăsați încă o dată sau alegeți din meniu.',
   'error.message': 'Mesajul nu a putut fi prelucrat. Încercați din nou sau alegeți din meniu.',
@@ -305,8 +301,9 @@ export const bot: Dictionary = {
     'Nu am o astfel de comandă. Puteți scrie în cuvinte ce vă trebuie, înțeleg.',
 
   'menu.title': 'Domovoy',
+  'menu.titleAt': '{название}: {адрес}',
   'menu.words':
-    'Puteți scrie în cuvinte: «deschide ușa», «cât am de plată», «curge robinetul».',
+    'Puteți scrie în cuvinte: „deschide ușa”, „cât am de plată”, „curge robinetul”.',
   'menu.in_chat': 'Meniul se deschide în corespondența cu mine.',
   'menu.new': '✍️ Ce s-a stricat',
   'menu.my': '📋 Sesizările mele',
@@ -324,7 +321,7 @@ export const bot: Dictionary = {
   'menu.capital': '🏗 Reparație capitală',
   'menu.capital.about':
     'Contribuția, suma acumulată de bloc și anii lucrărilor din programul regional.',
-  'menu.support': '✉️ Întrebare administrației',
+  'menu.support': '✉️ Întrebare la admin',
   'menu.visit': '🗓 Audiență la birou',
   'menu.visit.about':
     'Ore libere cu două săptămâni înainte, programarea proprie și anularea ei.',
@@ -336,19 +333,11 @@ export const bot: Dictionary = {
     'Ce să trimit și despre ce să tac. Tot acolo sunt telefonul și descărcarea datelor proprii.',
   'menu.lang': '🌐 Limba',
   'menu.group.money': '💳 Bani și contoare',
-  'menu.group.money.about':
-    'Cât aveți de plată luna aceasta și unde să trimiteți cifrele de pe contoare.',
   'menu.group.house': '📣 Noutățile blocului',
-  'menu.group.house.about':
-    'Anunțurile administrației blocului, adunările vecinilor și lucrul pe bloc.',
   'menu.group.me': '☎️ Legătură și profil',
-  'menu.group.me.about':
-    'Cum luați legătura cu administrația blocului și ce știe produsul despre dumneavoastră.',
   'menu.demo': '👥 Rol',
 
   'menu.group.home': '🏡 Apartamentul meu',
-  'menu.group.home.about':
-    'Facturile, contoarele și sesizările dumneavoastră pe apartamentul propriu.',
   'menu.group.bind.about':
     'Dacă locuiți în acest bloc, asociați apartamentul cu codul din factură.',
   'menu.home.new': '✍️ Sesizare nouă',
@@ -357,17 +346,14 @@ export const bot: Dictionary = {
   'menu.home.flat': '🏢 Apartamentul meu',
   'menu.home.visit.about': 'Ore libere, programarea proprie și anularea ei.',
 
-  'menu.contractor.my': '📋 Comenzi de lucru',
+  'menu.contractor.my': '📋 Comenzi',
   'menu.group.works': '🏢 Treburile blocului',
-  'menu.group.contractor.about':
-    'Legătura cu administrația blocului, anunțurile și ușile de la scări.',
-  'menu.group.works.about':
-    'Cum respectă blocul termenele, datoriile, adunările și ușile de la scări.',
 
   'menu.staff.queue': '🗂 Coada blocului',
   'menu.staff.my': '📋 Comenzile mele',
+  'menu.staff.day': '🗓 Ziua mea',
   'menu.staff.duty': '🌙 Serviciu',
-  'menu.staff.support': '💬 Întrebările locatarilor',
+  'menu.staff.support': '💬 Întrebări locatari',
   'menu.staff.visit': '🗓 Audiența locatarilor',
   'menu.staff.visit.about':
     'Orele de audiență, programările locatarilor, marcarea prezenței și programarea celui venit fără programare.',
@@ -396,31 +382,24 @@ export const bot: Dictionary = {
   'menu.staff.card': '🏠 Fișa blocului',
   'menu.staff.card.about':
     'Contacte, ore de audiență, apartamente și echipamentele blocului.',
-  'menu.staff.buildings': '🏘 Blocurile administrației',
+  'menu.staff.buildings': '🏘 Blocurile firmei',
   'menu.staff.buildings.about':
     'Toate adresele administrației: comutați sau adăugați una nouă.',
   'menu.staff.audit': '📜 Jurnalul acțiunilor',
   'menu.staff.audit.about':
     'Cine și ce a făcut pe bloc: sesizări, roluri, indicații, difuzări.',
   'menu.group.people': '💬 Locatari',
-  'menu.group.people.about':
-    'Întrebările locatarilor, audiența cu programare și mesajele către bloc.',
-  'menu.group.staff_me.about':
-    'Apartamentul propriu, datele, notificările și legătura cu administrația blocului ca locatar.',
   'menu.group.app': '📱 În aplicație',
-  'menu.group.app.about':
-    'Ecrane care nu se citesc în corespondență: ronduri, planul blocului, aparate.',
-  'menu.group.manage': '🗄 Administrarea blocului',
-  'menu.group.manage.about':
-    'Tarife, fișa blocului, adresele administrației și jurnalul acțiunilor.',
+  'menu.group.manage': '🗄 Administrare bloc',
 
+  'chat.answered_privately': '{кто}, v-am răspuns în privat.',
   'topic.bill': '🧾 Factura lunii',
   'topic.request': '📋 Sesizări',
   'topic.news': '📣 Anunțuri',
 
   'action.accepted': '✅ Preiau',
   'action.in_progress': '🔧 În lucru',
-  'action.needs_info': '❓ De precizat',
+  'action.needs_info': '❓ Cer precizări',
   'action.done': '🏁 Predau lucrarea',
   'action.confirmed': '✅ Totul e făcut, mulțumesc',
   'action.rejected': '⛔ Resping',
@@ -442,12 +421,12 @@ export const bot: Dictionary = {
   'doing.understood': 'Am înțeles: {что}',
   'doing.which': 'Pe care sesizare?',
   'doing.confirm': 'Facem?',
-  'doing.write_as': 'Notăm ca «{что}»?',
+  'doing.write_as': 'Notăm ca „{что}”?',
   'doing.written': 'Am notat: {что}',
   'doing.gone': 'Această treabă este deja făcută sau anulată.',
-  'doing.assign': 'repartizarea comenzii de lucru',
+  'doing.assign': 'repartizarea comenzii',
   'doing.accepted': 'preluarea sesizării în lucru',
-  'doing.in_progress': 'luarea comenzii de lucru în lucru',
+  'doing.in_progress': 'preluarea comenzii în lucru',
   'doing.return': 'întoarcerea lucrării la tehnician',
   'doing.needs_info': 'cererea unei precizări de la locatar',
   'doing.done': 'predarea lucrării',
@@ -488,8 +467,8 @@ export const bot: Dictionary = {
   'button.pay_debt_yes': '💰 Da, sting {сумма}',
   'button.guest_code': '🔑 Cod pentru oaspete',
   'button.copy_code': 'Copiez codul',
-  'button.reply_request': '💬 Scriu pe sesizare',
-  'button.answer_ticket': '💬 Răspund pe solicitare',
+  'button.reply_request': '💬 Scriu la sesizare',
+  'button.answer_ticket': '💬 Răspund la solicitare',
   'button.unbind': '🏢 Dezasociez apartamentul',
   'button.unbind_yes': '🚪 Da, dezasociez',
   'button.bind_yes': '🏢 Da, asociez',
@@ -513,4 +492,45 @@ export const bot: Dictionary = {
   'button.none_of': '✖️ Pe niciuna',
   'button.stale': 'Acest buton nu mai funcționează',
   'button.stale_more': 'Acest buton este dintr-un mesaj vechi. Iată de unde puteți începe.',
+  'button.visit_other': '🕘 Altă oră',
+  'button.visit_drop': '🕘 Reprogramează',
+  'button.rename': '✏️ Schimbă numele',
+  'button.complaint_edit': '✏️ Modifică textul',
+  'button.not_my_flatmate': '🚫 Nu este vecinul meu',
+  'button.owner_yes': '✅ Sunt proprietar',
+  'button.owner_no': '👤 Locuiesc, dar nu sunt proprietar',
+  'button.dispute': '📄 Nu sunt de acord cu refuzul',
+  'button.missed': '🚪 Nu am putut intra',
+  'button.connect': '🏢 Blocul meu nu este aici',
+
+  'visit.set': 'Am notat: la sesizarea {номер} tehnicianul vine {когда}. Dacă se schimbă planurile, scrieți-mi.',
+  'visit.missed_noted': 'Am notat la sesizarea {номер}: nu s-a putut intra în apartament. Locatarul va alege altă oră.',
+  'visit.dropped': 'Ora pentru sesizarea {номер} este anulată. Alegeți alta, îi spun eu tehnicianului.',
+  'visit.not_understood': 'Printre orele propuse nu există aceasta. Alegeți una dintre ele.',
+
+  'name.ask': 'Cum să vă spunem? Acum: {имя}. Scrieți numele într-un singur mesaj.',
+  'name.changed': 'Acum sunteți {имя}. Așa vă vor vedea tehnicianul și organizația de administrare.',
+
+  'gzhi.edit_ask': 'Scrieți ce să modific: „scoate partea despre scară”, „adaugă că curge de trei zile”.',
+  'gzhi.edited': 'Am modificat. Citiți și trimiteți dacă totul este corect.',
+  'gzhi.not_edited': 'Nu am înțeles ce să modific. Spuneți altfel sau trimiteți așa cum este.',
+
+  'request.dispute_ask': 'Scrieți într-un singur mesaj de ce nu sunteți de acord cu refuzul. Va fi reexaminat.',
+  'request.disputed': 'Sesizarea {номер} este din nou în lucru. Organizația de administrare o va reexamina.',
+
+  'flat.owner_ask':
+    'Sunteți proprietarul acestui apartament? La adunări votează proprietarii de spații, ' +
+    'restul este disponibil pentru toți.',
+  'flat.owner_noted': 'Am notat: sunteți proprietar. Votul la adunări se socotește după suprafața apartamentului.',
+  'flat.tenant_noted': 'Am notat. Sesizările, indicațiile și factura vă sunt disponibile, votul la adunare, nu.',
+  'flat.neighbour_dropped': 'Am scos această persoană din apartamentul dumneavoastră. Administrația știe despre asta.',
+
+  'connect.ask':
+    'Se pare că blocul dumneavoastră nu este încă aici. Scrieți adresa într-un singur mesaj și o vom transmite ' +
+    'organizației care administrează blocul.',
+  'connect.saved': 'Am notat adresa. De îndată ce blocul este conectat, vă scriu.',
+
+  'day.title': 'Lucrări pe dumneavoastră: {сколько}, cu ora vizitei stabilită: {назначено}.',
+  'day.rest': 'Alte lucrări: {сколько}. Toată ziua se vede în aplicație.',
+  'day.empty': 'Acum nu aveți lucrări.',
 };

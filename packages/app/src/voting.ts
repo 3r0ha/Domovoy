@@ -24,7 +24,7 @@ import {
 
 import { numberIn, type Translate } from '@domovoy/i18n';
 
-import { apartmentIn, apartmentsOf } from './apartments.js';
+import { apartmentIn, apartmentsOf, ownsApartment, shareIn } from './apartments.js';
 import { recordAction } from './audit.js';
 import { assertServes, houseHintFor, housesOf, type HouseHint } from './buildings.js';
 import { speak, speakDefault } from './language.js';
@@ -54,7 +54,7 @@ export interface StartPollCommand {
 /** Объявляет собрание собственников. */
 export const startPoll = async (deps: AppDeps, command: StartPollCommand): Promise<Poll> => {
   if (!CAN_START.includes(command.resident.role)) {
-    throw new DomainError('forbidden', 'Собрание объявляет управляющая компания');
+    throw new DomainError('forbidden', 'Собрание объявляет управляющая организация');
   }
 
   if (command.days <= 0) {
@@ -301,13 +301,8 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
     );
   }
 
-  // Голос у помещения один: новый заменяет прежний, и тот, чей голос заменили,
-  // узнаёт об этом. Иначе жильцы одной квартиры молча перебивают друг друга.
-  const before = (await deps.repository.listVotes(poll.id))
-    .filter((item) => item.apartmentId === apartment.id)
-    .sort((left, right) => left.at.getTime() - right.at.getTime())
-    .at(-1);
-
+  // Свой голос каждый собственник меняет сам: голос соседа по квартире им
+  // не перебивается, а сособственники вправе разойтись во мнении.
   await deps.repository.saveVote(
     castVote({
       poll,
@@ -315,6 +310,8 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
       residentId: command.resident.id,
       choice: command.choice,
       at: deps.now(),
+      owner: ownsApartment(command.resident, apartment.id),
+      share: shareIn(command.resident, apartment.id) || undefined,
     }),
   );
 
@@ -323,23 +320,6 @@ export const vote = async (deps: AppDeps, command: VoteCommand): Promise<PollVie
     await deps.meetings
       .submitDecision({ poll, apartmentId: apartment.id, choice: command.choice, at: deps.now() })
       .catch(() => undefined);
-  }
-
-  if (before && before.residentId !== command.resident.id) {
-    const notifier = deps.notifier ?? noopNotifier;
-    const replaced = await deps.repository.findResident(before.residentId);
-    const t = speak(replaced);
-
-    await notifyResident(
-      notifier,
-      replaced,
-      t('app.poll.voteReplaced', {
-        квартира: apartment.number,
-        название: poll.title,
-        кто: command.resident.displayName,
-        ответ: t(`app.poll.choice.${command.choice}`),
-      }),
-    );
   }
 
   return describePoll(deps, poll, command.resident);
@@ -577,7 +557,10 @@ export const formatProtocol = async (
 
   const lines = [
     ...head(t, poll, survey, building, initiator?.displayName),
-    t('app.protocol.voting', { от: formatDate(poll.opensAt, timeZone), до: formatDate(poll.closesAt, timeZone) }),
+    t('app.protocol.voting', {
+      от: formatDate(poll.opensAt, timeZone, t),
+      до: formatDate(poll.closesAt, timeZone, t),
+    }),
     '',
     t('app.protocol.agenda'),
     poll.title,
@@ -601,7 +584,7 @@ export const formatProtocol = async (
   ];
 
   if (poll.closedAt) {
-    const дата = formatDate(poll.closedAt, timeZone);
+    const дата = formatDate(poll.closedAt, timeZone, t);
 
     lines.push('', t(survey ? 'app.protocol.surveyFormed' : 'app.protocol.formed', { дата }));
   }

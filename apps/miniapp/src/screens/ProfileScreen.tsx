@@ -2,10 +2,20 @@ import { Avatar, CellAction, CellList, CellSimple, Switch } from '@maxhub/max-ui
 import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
-import { ApiError, formatDay, formatPhone, initial, type DomovoyApi, type NoticeView } from '../api.js';
+import {
+  ApiError,
+  formatDay,
+  formatPhone,
+  initial,
+  type DocumentStructure,
+  type DomovoyApi,
+  type NoticeView,
+} from '../api.js';
 import { useT } from '../i18n.js';
+import { structureOf } from '../views.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
+import { FlatPeople } from './FlatPeople.js';
 import { Group } from './Group.js';
 
 export interface ProfileScreenProps {
@@ -24,12 +34,14 @@ export interface ProfileScreenProps {
   /** Своя квартира: её отвязывают, когда переехали или продали. */
   flat?: { residentId: string; apartmentId: string; title: string };
   /** Открыть длинный текст своим экраном. */
-  onDocument: (title: string, text: string) => void;
+  onDocument: (title: string, text: string, structure?: DocumentStructure) => void;
   onForgotten: () => void;
   /** Квартира отвязана: сессию нужно перечитать. */
   onUnbound?: () => void;
   /** Телефон сохранён или убран: профиль в сессии узнаёт об этом сразу. */
   onPhone?: (phone: string) => void;
+  /** Имя изменилось: профиль в сессии узнаёт об этом сразу. */
+  onName?: (name: string) => void;
 }
 
 /** Профиль: данные человека, настройки уведомлений и удаление профиля. */
@@ -46,6 +58,7 @@ export const ProfileScreen = ({
   onForgotten,
   onUnbound,
   onPhone,
+  onName,
 }: ProfileScreenProps) => {
   const t = useT();
   const bridge = useBridge();
@@ -58,6 +71,8 @@ export const ProfileScreen = ({
   const [savedPhone, setSavedPhone] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const [named, setNamed] = useState('');
   const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +142,16 @@ export const ProfileScreen = ({
       onPhone?.('');
     });
 
+  /** Своё имя. Пустое поле возвращает имя из профиля платформы. */
+  const rename = (): Promise<void> =>
+    run(async () => {
+      const saved = await api.rename(named.trim() || undefined);
+
+      setNaming(false);
+      setNamed('');
+      onName?.(saved.displayName);
+    });
+
   const unbind = (): Promise<void> =>
     run(async () => {
       if (!flat) return;
@@ -144,7 +169,7 @@ export const ProfileScreen = ({
     run(async () => {
       const found = (legal.data?.documents ?? []).find((document) => document.slug === slug);
 
-      if (found) onDocument(found.title, found.text);
+      if (found) onDocument(found.title, found.text, structureOf(found));
     });
 
   const forget = (): Promise<void> =>
@@ -194,11 +219,23 @@ export const ProfileScreen = ({
       ) : null}
 
       <CellList mode="island">
+        {/* Имя приходит из профиля MAX, а там у людей никнеймы: мастер читает,
+            к кому идёт, поэтому имя задаётся своё. */}
+        <CellSimple
+          className="row-split"
+          title={t('profile.name')}
+          subtitle={t('profile.name.hint')}
+          separator={false}
+          showChevron
+          onClick={() => setNaming(true)}
+        />
+
         {canShareContact ? (
           <CellSimple
             title={t('profile.phone')}
             subtitle={number ? formatPhone(number) : t('profile.phone.empty')}
             showChevron={!number}
+            separator
             {...(number ? {} : { onClick: () => void share() })}
           />
         ) : null}
@@ -244,6 +281,10 @@ export const ProfileScreen = ({
 
       {notices.error ? <ErrorText>{t('profile.notices.failed')}</ErrorText> : null}
 
+      {/* Кто ещё привязан к квартире и кто её собственник: код из квитанции
+          открывает и деньги, и домофон, и голос на собрании. */}
+      {flat ? <FlatPeople api={api} /> : null}
+
       {flat ? (
         <CellList mode="island">
           <CellSimple
@@ -253,6 +294,29 @@ export const ProfileScreen = ({
             onClick={() => setLeaving(true)}
           />
         </CellList>
+      ) : null}
+
+      {naming ? (
+        <Confirm
+          title={t('profile.name.ask')}
+          text={t('profile.name.about')}
+          confirmLabel={t('profile.name.save')}
+          busyLabel={t('profile.name.saving')}
+          busy={working}
+          field={{
+            value: named,
+            label: t('profile.name'),
+            placeholder: displayName,
+            // Имя это одна строка: в три человек видел пустую область под текст.
+            rows: 1,
+            onChange: setNamed,
+          }}
+          onConfirm={() => void rename()}
+          onCancel={() => {
+            setNaming(false);
+            setNamed('');
+          }}
+        />
       ) : null}
 
       {flat && leaving ? (

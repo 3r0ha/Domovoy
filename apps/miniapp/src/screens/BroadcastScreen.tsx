@@ -121,6 +121,8 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
   const [aimError, setAimError] = useState<string | null>(null);
   const [counting, setCounting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  /** Согласие разбудить дом: ставится после предупреждения о тихих часах. */
+  const [night, setNight] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const say = useToast();
@@ -246,14 +248,26 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
     setError(null);
 
     try {
-      const result = await api.sendBroadcast(scope, text.trim());
+      const result = await api.sendBroadcast(scope, text.trim(), night);
 
       haptics.done();
       say(`Отправлено: ${result.audience} ·\u00a0${people(result.sent)}`);
       setText('');
       setConfirming(false);
+      setNight(false);
     } catch (reason) {
       haptics.failed();
+
+      // Ночью сервер сначала предупреждает, что сообщение разбудит дом.
+      // Без согласия со второго нажатия рассылка не ушла бы никогда.
+      if (reason instanceof ApiError && reason.code === 'quiet_hours') {
+        setNight(true);
+        setConfirming(true);
+        setError(reason.message);
+
+        return;
+      }
+
       setError(reason instanceof ApiError ? reason.message : 'Рассылка не ушла');
     } finally {
       setSending(false);
@@ -374,12 +388,16 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
 
       {confirming ? (
         <Confirm
-          title="Отправить рассылку?"
-          text={reach()}
-          confirmLabel="Отправить"
+          title={night ? 'Сейчас ночь по времени дома' : 'Отправить рассылку?'}
+          text={night ? 'Сообщение разбудит людей. Отправить всё равно?' : reach()}
+          confirmLabel={night ? 'Разбудить и отправить' : 'Отправить'}
           busy={sending}
+          danger={night}
           onConfirm={() => void send()}
-          onCancel={() => setConfirming(false)}
+          onCancel={() => {
+            setConfirming(false);
+            setNight(false);
+          }}
         />
       ) : null}
     </div>

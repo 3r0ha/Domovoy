@@ -21,11 +21,12 @@ import {
   type Transcriber,
 } from '@domovoy/app';
 import { DomainError, LEGAL_VERSION, apartmentKeyParam, encodeTarget } from '@domovoy/domain';
+import { LANGUAGES } from '@domovoy/i18n';
 import { type MockPlatform, type SentMessage, startMockPlatform } from '@maxkit/platform-mock';
 import { MemoryMarkerStore, type MarkerStore } from '@maxkit/runtime';
 
 import { createDomovoyBot } from '../dist/index.js';
-import { RU } from '../dist/i18n.js';
+import { RU, speakLanguage } from '../dist/i18n.js';
 import { menuFor } from '../dist/menu.js';
 
 const MINI_APP = 'https://domovoy.homes/app';
@@ -65,6 +66,7 @@ const RESIDENT_WITH_FLAT: Resident = {
   role: 'resident',
   apartmentId: 'apt-1',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-1', share: 1, basis: 'company' }],
 };
 
 /** Сосед из второй квартиры: он привязан, поэтому по наклейке сразу к делу. */
@@ -75,6 +77,7 @@ const NEIGHBOUR_WITH_FLAT: Resident = {
   role: 'resident',
   apartmentId: 'apt-2',
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId: 'apt-2', share: 1, basis: 'company' }],
 };
 
 /** Жилец без квартиры, документы уже принял: продукт ждёт от него только код. */
@@ -85,7 +88,7 @@ const UNBOUND_RESIDENT: Resident = {
   role: 'resident',
 };
 
-describe('чат-бот управляющей компании', () => {
+describe('чат-бот управляющей организации', () => {
   let platform: MockPlatform;
 
   before(async () => {
@@ -622,8 +625,12 @@ describe('чат-бот управляющей компании', () => {
     // Код внутри фразы привязывает, и меню становится обычным.
     platform.forgetOutgoing();
     platform.userSends(`мой код ${FLAT_CODE}`, where);
-    await waitForMessage(3011, /вы в квартире 1/);
-    assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /Что сломалось/);
+    await waitForMessage(3011, /Готово, квартира 1/);
+    assert.match(JSON.stringify(platform.outgoing.slice(-2)), /Что сломалось/);
+
+    // Сразу после привязки продукт спрашивает о праве собственности: голосуют
+    // собственники, и позже об этом никто не вспомнит.
+    await waitForMessage(3011, /собственник этой квартиры/);
 
     await bot.stop();
   });
@@ -935,7 +942,7 @@ describe('чат-бот управляющей компании', () => {
 
     const offered = await waitForMessage(3004, /Заявки соседей/);
 
-    assert.match(offered, /Соседи сообщили о 1 проблеме/);
+    assert.match(offered, /Соседи сообщили о поломках: 1/);
     assert.match(JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []), /startapp=go-list/);
 
     // Подтвердить, что то же самое, можно из уведомления и из приложения.
@@ -1794,7 +1801,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
 
-    assert.match(await waitForMessage(4009, /Теперь я знаю, что вы в квартире/), /квартире 1/);
+    assert.match(await waitForMessage(4009, /Готово, квартира/), /квартира 1/);
 
     const resident = await bot.deps.repository.findResidentByMaxUserId(4009);
 
@@ -3337,7 +3344,7 @@ describe('чат-бот управляющей компании', () => {
     assert.equal((await bot.deps.repository.findResident('res-1'))?.apartmentId, 'apt-1');
 
     platform.userPressesButton('bind:LMNPRT47', { userId: 3003, chatId: 3003 });
-    await waitForMessage(3003, /квартире 2/);
+    await waitForMessage(3003, /Готово, квартира 2/);
 
     assert.equal((await bot.deps.repository.findResident('res-1'))?.apartmentId, 'apt-2');
 
@@ -3944,7 +3951,7 @@ describe('чат-бот управляющей компании', () => {
     const asked = await waitForMessage(9010, /по поручению управляющей организации/);
     const buttons = JSON.stringify(platform.outgoing.at(-1)?.attachments ?? []);
 
-    assert.match(asked, /Нажимая «Принимаю»/);
+    assert.match(asked, /Без согласия/);
     assert.match(buttons, /Принимаю/);
     assert.match(buttons, /privacy/, 'ссылки на политику нет');
     assert.match(buttons, /terms/, 'ссылки на соглашение нет');
@@ -3962,7 +3969,7 @@ describe('чат-бот управляющей компании', () => {
 
     platform.userSends('/meters', { userId: 3003, chatId: 3003 });
 
-    assert.match(await waitForMessage(3003, /счётчиков не записано/), /Написать в компанию|управляющей компании/);
+    assert.match(await waitForMessage(3003, /счётчиков не записано/), /Написать в компанию|управляющей организации/);
 
     await bot.stop();
   });
@@ -4057,10 +4064,9 @@ describe('чат-бот управляющей компании', () => {
 
     await chooseLanguage(4005, 4005);
 
-    const greeting = await waitForMessage(4005, /Теперь я знаю, что вы в квартире/);
+    const greeting = await waitForMessage(4005, /Готово, квартира/);
 
-    assert.match(greeting, /квартире 1/);
-    assert.match(greeting, /цифры со счётчиков/);
+    assert.match(greeting, /квартира 1/);
 
     const resident = await bot.deps.repository.findResidentByMaxUserId(4005);
 
@@ -4390,7 +4396,7 @@ describe('чат-бот управляющей компании', () => {
     });
   });
 
-  describe('вопрос в управляющую компанию', () => {
+  describe('вопрос в управляющую организацию', () => {
     const DISPATCHER: Resident = {
       id: 'disp-support',
       maxUserId: 6006,
@@ -4423,9 +4429,11 @@ describe('чат-бот управляющей компании', () => {
     it('смена видит вопросы дома, а жилец только свои', async () => {
       const bot = await start([RESIDENT_WITH_FLAT, DISPATCHER]);
 
-      platform.userSends('/support', { userId: 3003, chatId: 3003 });
+      // Имя приходит из MAX на каждом сообщении: смена видит то, которым
+      // человек назван в платформе.
+      platform.userSends('/support', { userId: 3003, chatId: 3003, firstName: 'Мария' });
       await waitForMessage(3003, /Напишите вопрос/);
-      platform.userSends('Кто меняет лампочку в подъезде?', { userId: 3003, chatId: 3003 });
+      platform.userSends('Кто меняет лампочку в подъезде?', { userId: 3003, chatId: 3003, firstName: 'Мария' });
       await waitForMessage(6006, /Вопрос в поддержку/);
 
       platform.userSends('/support', { userId: 6006, chatId: 6006 });
@@ -4697,7 +4705,7 @@ describe('чат-бот управляющей компании', () => {
     });
   });
 
-  describe('рассылка управляющей компании', () => {
+  describe('рассылка управляющей организации', () => {
     const dispatcher: Resident = {
       id: 'disp-cast',
       maxUserId: 5005,
@@ -4780,7 +4788,7 @@ describe('чат-бот управляющей компании', () => {
       await waitForMessage(3010, /Код не подошёл/);
 
       platform.userSends(FLAT_CODE, { userId: 3010, chatId: 3010 });
-      await waitForMessage(3010, /вы в квартире 1/);
+      await waitForMessage(3010, /Готово, квартира 1/);
 
       assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'ввод кода стал заявкой');
 
@@ -5196,18 +5204,42 @@ describe('названия в меню', () => {
   /** Значок считается одним знаком: селектор начертания в ширину не идёт. */
   const width = (title: string): number => [...title.replace(/️/gu, '')].length;
 
+  const roles: Resident['role'][] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
+
+  /** Все подписи меню роли: первый экран, названия групп и их пункты. */
+  const titles = (role: Resident['role']): string[] => {
+    const menu = menuFor(
+      { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, apartmentId: 'apt-1', buildingId: BUILDING_ID },
+      { demo: true },
+    );
+
+    return [...menu.top, ...menu.groups.flatMap((group) => [{ title: group.title }, ...group.items])].map(
+      (item) => item.title,
+    );
+  };
+
   it('умещаются в кнопку на телефоне', () => {
-    const roles: Resident['role'][] = ['resident', 'dispatcher', 'technician', 'manager', 'contractor'];
+    const long = roles.flatMap((role) =>
+      titles(role)
+        .map((title) => RU(title))
+        .filter((title) => width(title) > LIMIT),
+    );
 
-    const long = roles.flatMap((role) => {
-      const menu = menuFor(
-        { id: `who-${role}`, maxUserId: 1, displayName: 'Кто-то', role, apartmentId: 'apt-1', buildingId: BUILDING_ID },
-        { demo: true },
+    assert.deepEqual([...new Set(long)], []);
+  });
+
+  // Перевод длиннее исходной строки: подпись, которая по-русски помещалась,
+  // на другом языке переносится и съезжает со значком.
+  it('умещаются на каждом языке продукта', () => {
+    const long = LANGUAGES.flatMap(({ code }) => {
+      const t = speakLanguage(code);
+
+      return roles.flatMap((role) =>
+        titles(role)
+          .map((title) => t(title))
+          .filter((title) => width(title) > LIMIT)
+          .map((title) => `${code}: ${title}`),
       );
-
-      return [...menu.top, ...menu.groups.flatMap((group) => [{ title: group.title }, ...group.items])]
-        .map((item) => RU(item.title))
-        .filter((title) => width(title) > LIMIT);
     });
 
     assert.deepEqual([...new Set(long)], []);

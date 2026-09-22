@@ -19,6 +19,12 @@ const hours = (value: number): string =>
 interface Line {
   title: string;
   value: string;
+  /**
+   * Единица рядом с числом. Задаётся только там, где она не часть языка:
+   * знак процента один на все языки, а «часа» и «из 5» склоняются вместе
+   * с числом и остаются внутри перевода.
+   */
+  unit?: string;
   hint?: string;
 }
 
@@ -34,7 +40,8 @@ const lines = (t: Translate, quality: QualityView): Line[] => {
 
     own.push({
       title: t('quality.inTime'),
-      value: `${Math.round(quality.inTimeRate * 100)}%`,
+      value: String(Math.round(quality.inTimeRate * 100)),
+      unit: '%',
       ...(was === undefined ? {} : { hint: t('quality.before', { было: `${Math.round(was * 100)}%` }) }),
     });
   }
@@ -62,7 +69,7 @@ const lines = (t: Translate, quality: QualityView): Line[] => {
   return own;
 };
 
-/** Как работает управляющая компания в доме жильца. */
+/** Как работает управляющая организация в доме жильца. */
 export const QualityScreen = ({ api }: QualityScreenProps) => {
   const t = useT();
   const quality = useBridgeRequest((alive) => api.until(alive).quality(), [api]);
@@ -106,7 +113,12 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
             key={line.title}
             title={line.title}
             {...(line.hint ? { subtitle: line.hint } : {})}
-            after={<span className="report-value">{line.value}</span>}
+            after={
+              <span className="report-value">
+                {line.value}
+                <span className="report-unit">{line.unit ?? ''}</span>
+              </span>
+            }
             separator={index > 0}
             height="compact"
           />

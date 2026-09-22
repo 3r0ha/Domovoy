@@ -294,7 +294,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
         if (resident.role === 'resident') {
-          throw new DomainError('forbidden', 'Выгрузку делает управляющая компания');
+          throw new DomainError('forbidden', 'Выгрузку делает управляющая организация');
         }
 
         const buildingId = resident.buildingId ?? deps.defaultBuildingId;
@@ -341,7 +341,7 @@ export const meterRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
         const resident = await currentResident(request.max.userId, request.query.buildingId);
 
         if (resident.role === 'resident') {
-          throw new DomainError('forbidden', 'Выгрузку делает управляющая компания');
+          throw new DomainError('forbidden', 'Выгрузку делает управляющая организация');
         }
 
         const buildingId = resident.buildingId ?? deps.defaultBuildingId;

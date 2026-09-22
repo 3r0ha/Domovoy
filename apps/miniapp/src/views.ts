@@ -20,8 +20,41 @@ export interface ClarifyView {
 /** Документы продукта: те же тексты, что на сайте. */
 export interface LegalView {
   version: string;
-  documents: { slug: string; title: string; short: string; about: string; text: string }[];
+  documents: LegalDocumentView[];
 }
+
+/**
+ * Разбор длинного документа: разделы и подписи вокруг них. Есть он не у всякого
+ * текста: выгрузка своих данных и протокол собрания приходят одной строкой.
+ */
+export interface DocumentStructure {
+  parts?: { heading: string; lines: string[] }[];
+  /** Подпись редакции и, у перевода, оговорка о языке. */
+  updated?: string;
+  prevails?: string;
+}
+
+/**
+ * Документ продукта. Текст приходит и разделами, и сплошной строкой: разделы
+ * читают с экрана, строку кладут в буфер обмена целиком.
+ */
+export interface LegalDocumentView extends DocumentStructure {
+  slug: string;
+  title: string;
+  short: string;
+  about: string;
+  text: string;
+}
+
+/**
+ * Разбор документа отдельно от его текста. Пустые поля не переносятся: экран
+ * различает «раздела нет» и «раздел пустой».
+ */
+export const structureOf = (document: LegalDocumentView): DocumentStructure => ({
+  ...(document.parts && document.parts.length > 0 ? { parts: document.parts } : {}),
+  ...(document.updated ? { updated: document.updated } : {}),
+  ...(document.prevails ? { prevails: document.prevails } : {}),
+});
 
 /** Ответ помощника: что делать и куда идти. */
 export interface AssistantView {
@@ -110,6 +143,21 @@ export interface RequestView {
   deadlineBasis?: string;
   /** Что мастер обязан предъявить, когда работает в квартире. */
   workerNote?: string;
+  /**
+   * Работы идут в квартире и есть кому ехать: только тогда время визита
+   * и согласуется. Общее имущество открывают без жильца.
+   */
+  needsVisit?: boolean;
+  /** Согласование визита в квартиру: окна на выбор, выбранное и неудачные выезды. */
+  appointment?: { slots: string[]; at?: string; missed: number };
+  /** Что израсходовано на работы. */
+  materials?: { title: string; count: number; unit?: string }[];
+  /** Чем объяснён отказ: в истории это строка без подписи. */
+  rejectionReason?: string;
+  /** Отказ ещё можно вернуть на пересмотр. */
+  disputable?: boolean;
+  /** Отказ уже оспаривали: второй раз заявку на пересмотр не вернуть. */
+  disputedAt?: string;
   /** Когда работу закроют без ответа жильца. Есть только у сданной работы. */
   autoConfirmAt?: string;
   /** Сколько жильцов сообщили об одном и том же. */
@@ -216,7 +264,7 @@ export interface TariffView {
   title: string;
   unit: string;
   value: number;
-  /** Тариф задан управляющей компанией. */
+  /** Тариф задан управляющей организацией. */
   own: boolean;
   since?: string;
   /** Откуда значение: умолчание продукта или данные организации. */
@@ -276,6 +324,49 @@ export interface ComplaintSent {
   dueAt: string;
   /** Канал модельный: настоящего обмена за ним нет. */
   model?: boolean;
+}
+
+/** Окна визита мастера: предложенные и выбранное. */
+export interface VisitOfferView {
+  requestId: string;
+  slots: string[];
+  at?: string;
+}
+
+/** Наряд в дне исполнителя. */
+export interface WorkdayItemView {
+  requestId: string;
+  number: string;
+  title: string;
+  place: string;
+  entrance?: number;
+  status: string;
+  priority?: string;
+  visitAt?: string;
+  dueAt: string;
+  overdue: boolean;
+  materials?: { title: string; count: number; unit?: string }[];
+}
+
+export interface WorkdayView {
+  items: WorkdayItemView[];
+  appointed: number;
+  overdue: number;
+}
+
+/** Кто ещё привязан к квартире. */
+export interface FlatNeighbourView {
+  id: string;
+  displayName: string;
+  owner: boolean;
+  self: boolean;
+}
+
+/** Просьба подключить дом, которого в продукте ещё нет. */
+export interface ConnectionView {
+  address?: string;
+  company?: string;
+  at?: string;
 }
 
 export type VoteChoiceView = 'for' | 'against' | 'abstain';
@@ -480,7 +571,7 @@ export interface HouseEventView {
   where: string;
 }
 
-/** Работа управляющей компании за месяц в том виде, в каком её видит жилец. */
+/** Работа управляющей организации за месяц в том виде, в каком её видит жилец. */
 export interface QualityView {
   buildingId: string;
   /** Адрес дома: у сотрудника это его собственный дом, а не дом смены. */
@@ -601,6 +692,8 @@ export interface BuildingLineView {
   created: number;
   inTimeRate?: number;
   averageRating?: number;
+  /** Дом, в котором сотрудник работает сейчас. */
+  current?: boolean;
 }
 
 export interface PlanAlertView {
@@ -702,7 +795,7 @@ export interface DemoRoleView {
   current: boolean;
 }
 
-/** Реплика в переписке с управляющей компанией. */
+/** Реплика в переписке с управляющей организацией. */
 export interface TicketMessageView {
   at: string;
   /** Кто написал: жилец или смена. */
@@ -741,7 +834,7 @@ export interface TicketView {
   messages: TicketMessageView[];
 }
 
-/** Ответственный по дому от управляющей компании. */
+/** Ответственный по дому от управляющей организации. */
 export interface HouseContactView {
   name: string;
   /** Должность: «старший инженер». */
@@ -886,7 +979,7 @@ export interface BroadcastScopeView {
   pollId?: string;
 }
 
-/** Из чего управляющая компания собирает адресат рассылки. */
+/** Из чего управляющая организация собирает адресат рассылки. */
 export interface BroadcastTargetsView {
   entrances: { entrance: number; flats: number; risers: { riser: number; flats: number }[] }[];
   flats: number;

@@ -230,7 +230,7 @@ describe('наклейки с кодами объектов', () => {
 
     deps.stickers = { ...deps.stickers!, sheet: () => '<html></html>' };
 
-    await assert.rejects(sendStickerSheet(deps, maria), /управляющая компания/);
+    await assert.rejects(sendStickerSheet(deps, maria), /управляющая организация/);
   });
 
   it('без настроенного рисования наклейка не делается, но и не ломает продукт', async () => {

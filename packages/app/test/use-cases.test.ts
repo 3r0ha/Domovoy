@@ -15,6 +15,7 @@ import {
   listAnnouncementsFor,
   listRequestsFor,
   publishAnnouncement,
+  renameSelf,
   submitProblem,
   transitionRequest,
   type AppDeps,
@@ -63,7 +64,18 @@ describe('профиль жильца', () => {
     const second = await ensureResident(deps, { maxUserId: 1001, displayName: 'Мария Иванова' });
 
     assert.equal(first.id, second.id);
-    assert.equal(second.displayName, 'Мария', 'имя из первого входа не перетирается молча');
+    assert.equal(second.displayName, 'Мария Иванова', 'имя подтягивается из MAX на каждом входе');
+  });
+
+  it('имя, заданное самим человеком, новым входом не перетирается', async () => {
+    const deps = setup();
+
+    await ensureResident(deps, { maxUserId: 1001, displayName: 'Мария' });
+    await renameSelf(deps, await ensureResident(deps, { maxUserId: 1001, displayName: 'Мария' }), 'Маша');
+
+    const again = await ensureResident(deps, { maxUserId: 1001, displayName: 'Мария Иванова' });
+
+    assert.equal(again.displayName, 'Маша');
   });
 
   it('новому человеку дом не подставляется даже в установке с одним домом', async () => {
@@ -134,7 +146,7 @@ describe('адрес заявки', () => {
 
     await assert.rejects(
       createServiceRequest(deps, { resident: resident(), description: 'Течёт кран', apartmentId: 'apt-2' }),
-      /управляющая компания этого дома/,
+      /управляющая организация этого дома/,
     );
   });
 
@@ -358,7 +370,7 @@ describe('переписка по заявке', () => {
     );
   });
 
-  it('ответ управляющей компании получают все, кто сообщал', async () => {
+  it('ответ управляющей организации получают все, кто сообщал', async () => {
     const neighbour = resident({ id: 'res-2', maxUserId: 2002, apartmentId: 'apt-2' });
     const { deps, sent } = withNotifier([resident(), neighbour, dispatcher]);
     const riser = { startParam: 'rsr_b1_1_1' };
@@ -381,7 +393,7 @@ describe('переписка по заявке', () => {
     );
   });
 
-  it('на общей заявке соседи слышат друг друга, а не только управляющую компанию', async () => {
+  it('на общей заявке соседи слышат друг друга, а не только управляющую организацию', async () => {
     const neighbour = resident({ id: 'res-2', maxUserId: 2002, apartmentId: 'apt-2' });
     const { deps, sent } = withNotifier([resident(), neighbour, dispatcher]);
     const riser = { startParam: 'rsr_b1_1_1' };
@@ -457,7 +469,7 @@ describe('объявления', () => {
         title: 'Тест',
         body: 'Текст',
       }),
-      /управляющая компания/,
+      /управляющая организация/,
     );
   });
 });

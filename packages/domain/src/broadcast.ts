@@ -5,7 +5,7 @@ import { russian } from './moment.js';
 import { MESSAGE_MAX_LENGTH } from './status.js';
 import { DomainError, type AnnouncementAudience, type NoticeKind } from './types.js';
 
-/** Кому управляющая компания пишет в личную переписку. */
+/** Кому управляющая организация пишет в личную переписку. */
 export type BroadcastScope =
   | { kind: 'building' }
   | { kind: 'entrance'; entrance: number }

@@ -30,7 +30,6 @@ export const broadcastCommands = (kit: BotKit): Record<string, Handler> => ({
         typed,
         'Рассылка собирается в приложении.',
         'broadcast',
-        'Рассылка в приложении',
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;

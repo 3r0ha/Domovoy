@@ -1,4 +1,4 @@
-import type { MachineTranslator } from '@domovoy/app';
+import type { MachineTranslator, TextTranslator } from '@domovoy/app';
 import type { Language } from '@domovoy/i18n';
 
 /** Сколько ждём службу на один текст. */
@@ -150,3 +150,13 @@ export const machineTranslatorFromEnv = (
 
   return undefined;
 };
+
+/**
+ * Перевод моделью там, где службы нет. Без него объявления, собрания, капремонт
+ * и названия оборудования остаются русскими у всех, кто выбрал другой язык.
+ * Каждый текст переводится один раз и дальше читается из хранилища.
+ */
+export const machineFromText = (
+  translator: TextTranslator,
+  onError?: (error: unknown) => void,
+): MachineTranslator => batching((text, to, from) => translator.translate(text, to, from), onError);

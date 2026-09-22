@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { ApiError, type DomovoyApi, type HouseContactsView } from '../api.js';
 import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
+import { ConnectHouse } from './ConnectHouse.js';
 import { ErrorText } from './ErrorText.js';
 import { Group } from './Group.js';
 import { IconChat, IconDocument, IconGlobe, IconPeople, IconPerson } from './icons.js';
@@ -248,6 +249,10 @@ export const BindApartmentScreen = ({
           {busy ? t('bind.checking') : t('bind.do')}
         </Button>
       </section>
+
+      {/* Дома в продукте может и не быть: без этой формы человеку здесь
+          нечего делать, и он уходит, не оставив даже адреса. */}
+      <ConnectHouse api={api} />
 
       <Help contacts={contacts.data ?? null} {...(onSupport ? { onSupport } : {})} />
 

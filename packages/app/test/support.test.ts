@@ -99,7 +99,7 @@ describe('поддержать заявку соседа', () => {
     assert.deepEqual(await supportableFor(deps, ivan), [], 'поддержанное больше не предлагают');
   });
 
-  it('о пятой подписи управляющая компания узнаёт отдельно', async () => {
+  it('о пятой подписи управляющая организация узнаёт отдельно', async () => {
     const { deps, notifier } = setup();
 
     const request = await aboutEntrance(deps);

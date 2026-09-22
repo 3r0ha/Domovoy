@@ -27,6 +27,7 @@ import type {
   AuditEntry,
   BindAttempt,
   Building,
+  ConnectionRequest,
   Equipment,
   HandoffFilter,
   Repository,
@@ -96,6 +97,7 @@ export class InMemoryRepository implements Repository {
   private readonly audit: AuditEntry[] = [];
   private readonly tariffs: TariffRecord[] = [];
   private readonly bindAttempts: BindAttempt[] = [];
+  private readonly connectionRequests = new Map<string, ConnectionRequest>();
   private readonly tickets = new Map<string, SupportTicket>();
   private readonly visits = new Map<string, Visit>();
   private readonly handoffs = new Map<string, Handoff>();
@@ -472,6 +474,21 @@ export class InMemoryRepository implements Repository {
     return this.bindAttempts.filter(
       (attempt) => attempt.residentId === residentId && !attempt.ok && attempt.at.getTime() >= since.getTime(),
     ).length;
+  }
+
+  async saveConnectionRequest(request: ConnectionRequest): Promise<ConnectionRequest> {
+    this.connectionRequests.set(request.id, request);
+    return request;
+  }
+
+  async listConnectionRequests(limit = 50): Promise<ConnectionRequest[]> {
+    return [...this.connectionRequests.values()]
+      .sort((one, other) => other.at.getTime() - one.at.getTime())
+      .slice(0, limit);
+  }
+
+  async findConnectionRequest(residentId: string): Promise<ConnectionRequest | undefined> {
+    return [...this.connectionRequests.values()].find((item) => item.residentId === residentId);
   }
 
   async saveHandoff(handoff: Handoff): Promise<Handoff> {

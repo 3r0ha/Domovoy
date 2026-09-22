@@ -12,7 +12,7 @@ import {
 
 import type { Translate } from '@domovoy/i18n';
 
-import { apartmentIn, apartmentsOf } from './apartments.js';
+import { apartmentIn, apartmentsOf, ownsApartment, shareIn } from './apartments.js';
 import { assertServes, homeBuildingOf, housesOf } from './buildings.js';
 import { speak } from './language.js';
 import { wanting } from './notices.js';
@@ -175,7 +175,14 @@ export const supportInitiative = async (deps: AppDeps, command: SignCommand): Pr
   const before = standingOf(found, apartments);
 
   const saved = await deps.repository.saveInitiative(
-    sign({ initiative: found, apartment, residentId: command.resident.id, at: deps.now() }),
+    sign({
+      initiative: found,
+      apartment,
+      residentId: command.resident.id,
+      at: deps.now(),
+      owner: ownsApartment(command.resident, apartment.id),
+      share: shareIn(command.resident, apartment.id) || undefined,
+    }),
   );
 
   const view = await describe(deps, saved, command.resident, apartments);

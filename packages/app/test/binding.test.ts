@@ -154,7 +154,7 @@ describe('привязка к квартире по коду', () => {
 });
 
 describe('привязка сотрудником', () => {
-  it('управляющая компания вносит жильца сама', async () => {
+  it('управляющая организация вносит жильца сама', async () => {
     const deps = setup([newcomer, manager]);
 
     const bound = await bindApartmentByStaff(deps, manager, {
@@ -171,7 +171,7 @@ describe('привязка сотрудником', () => {
 
     await assert.rejects(
       bindApartmentByStaff(deps, newcomer, { residentId: roommate.id, apartmentId: 'apt-2' }),
-      /может управляющая компания/,
+      /может управляющая организация/,
     );
   });
 
@@ -263,8 +263,8 @@ describe('список жильцов без квартиры', () => {
   it('жильцу список закрыт', async () => {
     const deps = setup([newcomer, manager]);
 
-    await assert.rejects(listUnbound(deps, newcomer), /доступен управляющей компании/);
-    await assert.rejects(listApartmentsFor(deps, newcomer), /доступен управляющей компании/);
+    await assert.rejects(listUnbound(deps, newcomer), /доступен управляющей организации/);
+    await assert.rejects(listApartmentsFor(deps, newcomer), /доступен управляющей организации/);
   });
 
   it('перебор кодов останавливается на шестой попытке', async () => {
@@ -298,7 +298,7 @@ describe('список жильцов без квартиры', () => {
 });
 
 describe('жилец съехал', () => {
-  it('управляющая компания освобождает квартиру, а история дома остаётся', async () => {
+  it('управляющая организация освобождает квартиру, а история дома остаётся', async () => {
     const deps = setup([newcomer, roommate, manager]);
     const bound = await bindApartment(deps, newcomer, CODE);
 
@@ -329,7 +329,7 @@ describe('жилец съехал', () => {
 
     await bindApartment(deps, newcomer, CODE);
 
-    await assert.rejects(unbindApartment(deps, roommate, newcomer.id), /он сам или управляющая компания/);
+    await assert.rejects(unbindApartment(deps, roommate, newcomer.id), /он сам или управляющая организация/);
   });
 
   it('освободившаяся квартира достаётся новому жильцу без соседства', async () => {

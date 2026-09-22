@@ -32,6 +32,7 @@ const resident = (id: string, apartmentId: string, maxUserId: number): Resident 
   role: 'resident',
   apartmentId,
   buildingId: BUILDING_ID,
+  owned: [{ apartmentId, share: 1, basis: 'company' }],
 });
 
 const maria = resident('res-1', 'apt-1', 1001);
@@ -114,7 +115,7 @@ describe('инициатива жильцов', () => {
     assert.equal(twice.signatures, 2);
   });
 
-  it('управляющая компания узнаёт один раз, когда подписей стало достаточно', async () => {
+  it('управляющая организация узнаёт один раз, когда подписей стало достаточно', async () => {
     const deps = setup();
     const initiative = await propose(deps);
 
@@ -143,7 +144,7 @@ describe('инициатива жильцов', () => {
     await assert.rejects(propose(deps), /уже собирает подписи/);
   });
 
-  it('собрание по инициативе объявляет управляющая компания, автор об этом узнаёт', async () => {
+  it('собрание по инициативе объявляет управляющая организация, автор об этом узнаёт', async () => {
     const deps = setup();
     const initiative = await propose(deps);
 

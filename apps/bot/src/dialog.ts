@@ -13,6 +13,13 @@ import {
   meterNamedIn,
   metersFor,
   aboutHouse,
+  askToConnect,
+  disputeRequest,
+  editByWords,
+  formatMomentAt,
+  renameSelf,
+  takeVisitSlot,
+  visitByWords,
   findCapability,
   offTopicFor,
   readingInWords,
@@ -60,8 +67,11 @@ import {
   oneKeyboard,
   readingKeyboard,
   replyIfOpen,
+  complaintKeyboard,
   visitCancelKeyboard,
+  visitChosenKeyboard,
   visitKeyboard,
+  visitKeyboardFor,
 } from './keyboards.js';
 import { offerDoing } from './doing.js';
 import { answerFromAssistant } from './talk.js';
@@ -73,6 +83,7 @@ import {
   expect,
   forget,
   isChatter,
+  plain,
   QUIT,
   speaking,
   strong,
@@ -346,7 +357,7 @@ const doneByWords = async (
 
   // Раздел, которого в переписке нет: «капитальный ремонт», «план дома». Раньше
   // такие слова уходили в заявку и упирались в отказ «напишите словами».
-  await inApp(kit, typed, `${strong(to.title)}\n${to.about}.`, to.screen, t('button.show'), t);
+  await inApp(kit, typed, `${strong(to.title)}\n${to.about}.`, to.screen, t);
 
   return true;
 };
@@ -448,7 +459,7 @@ const describeProblem = async (
   }
 };
 
-/** Вопрос в управляющую компанию или реплика в открытом обращении. */
+/** Вопрос в управляющую организацию или реплика в открытом обращении. */
 const askSupportFrom = async (
   kit: BotKit,
   typed: BotContext,
@@ -708,7 +719,7 @@ const notAboutHouse = async (kit: BotKit, typed: BotContext, text: string): Prom
 
   // Слова продукта перевешивают отказ модели: «сменить язык» и «открыть дверь»
   // это дела продукта, чем бы модель их ни посчитала.
-  if (findCapability(text, resident.role)) return false;
+  if (findCapability(text, resident.role, speak(resident))) return false;
 
   const about = await reasoner.onTopic(text, isCompanyStaff(resident.role)).catch(() => undefined);
 
@@ -751,6 +762,7 @@ const heard = async (kit: BotKit, typed: BotContext, said: Said): Promise<void> 
   const waiting = words ? thinking(kit, typed, speaking(typed)('thinking.default')) : undefined;
 
   try {
+    if (words && (await answeredVisit(kit, typed, words))) return;
     if (words && (await doneBySaying(kit, typed, words, byVoice(said)))) return;
     if (words && (await notAboutHouse(kit, typed, words))) return;
     if (words && (await answeredClarification(kit, typed, words))) return;
@@ -775,6 +787,176 @@ const recordAnswerFrom = async (kit: BotKit, typed: BotContext, handoffId: strin
     if (!(error instanceof DomainError)) throw error;
 
     await typed.reply(`Не записал: ${errorText(error)}`, afterError(error, typed));
+  }
+};
+
+/** Несогласие с отказом словами: заявка возвращается на пересмотр. */
+const disputeFrom = async (kit: BotKit, typed: BotContext, requestId: string, comment: string): Promise<void> => {
+  forget(typed);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  try {
+    const updated = await disputeRequest(kit.deps, { resident, requestId, comment });
+
+    await typed.reply(
+      t('request.disputed', { номер: strong(updated.number) }),
+      actionKeyboard([], replyIfOpen(updated), undefined, undefined, t),
+    );
+  } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
+
+    await typed.reply(errorText(error, t), afterError(error, typed, t));
+  }
+};
+
+/**
+ * Человек называет время визита словами, не нажимая кнопку. Кнопки видят
+ * не все, и пожилой человек пишет так, как сказал бы по телефону. Продукт сам
+ * находит заявку, по которой ждут ответа о времени: сессия к этому моменту
+ * могла и потеряться.
+ */
+const answeredVisit = async (kit: BotKit, typed: BotContext, text: string): Promise<boolean> => {
+  const resident = await kit.residentOf(typed);
+
+  if (isCompanyStaff(resident.role)) return false;
+
+  const waiting = (await listRequestsFor(kit.deps, resident, 'mine').catch(() => [])).filter(
+    (request) => (request.appointment?.slots.length ?? 0) > 0 && !request.appointment?.at,
+  );
+
+  // Заявок, ждущих времени, может не быть или быть несколько: во втором случае
+  // угадывать нельзя, человек выберет кнопкой под нужным уведомлением.
+  if (waiting.length !== 1) return false;
+
+  const request = waiting[0]!;
+  const t = speak(resident);
+  const at = await visitByWords(kit.deps, request, text, t);
+
+  if (!at) return false;
+
+  const zone = await zoneOf(kit.deps, request.buildingId);
+  const updated = await takeVisitSlot(kit.deps, { resident, requestId: request.id, at });
+
+  await typed.reply(
+    t('visit.set', { номер: strong(updated.number), когда: formatMomentAt(at, zone) }),
+    visitChosenKeyboard(updated.id, t),
+  );
+
+  return true;
+};
+
+/**
+ * Время визита, названное словами в ответ на прямой вопрос. Если из
+ * предложенного ничего не подходит, продукт так и говорит, а не молчит.
+ */
+const visitFromWords = async (kit: BotKit, typed: BotContext, requestId: string, said: string): Promise<void> => {
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+  const request = await kit.deps.repository.findRequest(requestId);
+
+  if (!request) {
+    forget(typed);
+
+    await typed.reply(t('request.not_found', { номер: '' }), menuButton(typed, t));
+
+    return;
+  }
+
+  const at = await visitByWords(kit.deps, request, said, t);
+  const slots = (request.appointment?.slots ?? []).map((slot) => slot.toISOString());
+  const zone = await zoneOf(kit.deps, request.buildingId);
+
+  if (!at) {
+    await typed.reply(
+      t('visit.not_understood'),
+      slots.length > 0 ? visitKeyboardFor(request.id, slots, zone, t) : menuButton(typed, t),
+    );
+
+    return;
+  }
+
+  forget(typed);
+
+  try {
+    const updated = await takeVisitSlot(kit.deps, { resident, requestId, at });
+
+    await typed.reply(
+      t('visit.set', { номер: strong(updated.number), когда: formatMomentAt(at, zone) }),
+      visitChosenKeyboard(updated.id, t),
+    );
+  } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
+
+    await typed.reply(errorText(error, t), visitKeyboardFor(request.id, slots, zone, t));
+  }
+};
+
+/**
+ * Правка готового обращения в надзор словами: «убери про подъезд». Текст
+ * письма в орган власти человек вправе поменять, а переписывать его целиком
+ * в переписке неудобно.
+ */
+const complaintFromWords = async (
+  kit: BotKit,
+  typed: BotContext,
+  waiting: Extract<Awaiting, { kind: 'complaint' }>,
+  said: string,
+): Promise<void> => {
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  const edited = await editByWords(kit.deps.reasoner, {
+    about: 'обращение в жилищную инспекцию',
+    text: waiting.text,
+    said,
+  });
+
+  if (!edited) {
+    await typed.reply(t('gzhi.not_edited'), complaintKeyboard(waiting.requestId, t));
+
+    return;
+  }
+
+  expect(typed, { kind: 'complaint', requestId: waiting.requestId, text: edited });
+
+  await typed.reply(`${plain(edited)}\n\n${t('gzhi.edited')}`, complaintKeyboard(waiting.requestId, t));
+};
+
+/** Своё имя вместо никнейма из профиля платформы. */
+const renameFrom = async (kit: BotKit, typed: BotContext, said: string): Promise<void> => {
+  forget(typed);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  try {
+    const saved = await renameSelf(kit.deps, resident, said);
+
+    await typed.reply(t('name.changed', { имя: plain(saved.displayName) }), kit.menuKeyboard(saved));
+  } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
+
+    await typed.reply(errorText(error, t), cancelKeyboard(t));
+  }
+};
+
+/** Адрес дома, которого в продукте ещё нет. */
+const connectFrom = async (kit: BotKit, typed: BotContext, address: string): Promise<void> => {
+  forget(typed);
+
+  const resident = await kit.residentOf(typed);
+  const t = speak(resident);
+
+  try {
+    await askToConnect(kit.deps, { resident, address });
+
+    await typed.reply(t('connect.saved'), kit.menuKeyboard(resident));
+  } catch (error) {
+    if (!(error instanceof DomainError)) throw error;
+
+    await typed.reply(errorText(error, t), cancelKeyboard(t));
   }
 };
 
@@ -917,18 +1099,35 @@ export const continueDialog = async (kit: BotKit, typed: BotContext, original: S
     await typed.reply(t('dialog.need_text'), cancelKeyboard(t));
     return;
   }
-  if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, said.text);
-  if (waiting.kind === 'handoff') return recordAnswerFrom(kit, typed, waiting.handoffId, said.text);
-  if (waiting.kind === 'code') return takeCode(kit, typed, codeIn(said.text) ?? said.text);
+  return continueWithText(kit, typed, waiting, said, said.text);
+};
+
+/** Ожидания, которым нужен именно текст: снимок к ним ничего не добавляет. */
+const continueWithText = async (
+  kit: BotKit,
+  typed: BotContext,
+  waiting: Awaiting,
+  said: Said,
+  text: string,
+): Promise<void> => {
+  if (waiting.kind === 'visit') return bookVisitFrom(kit, typed, waiting.at, text);
+  if (waiting.kind === 'handoff') return recordAnswerFrom(kit, typed, waiting.handoffId, text);
+  if (waiting.kind === 'code') return takeCode(kit, typed, codeIn(text) ?? text);
+  if (waiting.kind === 'dispute') return disputeFrom(kit, typed, waiting.requestId, text);
+  if (waiting.kind === 'connect') return connectFrom(kit, typed, text);
+  if (waiting.kind === 'slot') return visitFromWords(kit, typed, waiting.requestId, text);
+  if (waiting.kind === 'complaint') return complaintFromWords(kit, typed, waiting, text);
+  if (waiting.kind === 'name') return renameFrom(kit, typed, text);
+
   // Разговор с помощником не съедает рассказ о поломке: человек пришёл спросить,
   // а по дороге увидел течь, и заявка ему нужнее продолжения разговора.
   if (waiting.kind === 'assistant') {
-    if (suggestCategory(said.text) !== 'other' && !ASKING.test(said.text)) {
+    if (suggestCategory(text) !== 'other' && !ASKING.test(text)) {
       return describeProblem(kit, typed, undefined, said);
     }
 
-    return answerFromAssistant(kit, typed, said.text);
+    return answerFromAssistant(kit, typed, text);
   }
 
-  return explainTransition(kit, typed, waiting, said.text, said);
+  if (waiting.kind === 'comment') return explainTransition(kit, typed, waiting, text, said);
 };

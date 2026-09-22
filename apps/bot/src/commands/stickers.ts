@@ -27,7 +27,6 @@ export const stickerCommands = (kit: BotKit): Record<string, Handler> => ({
         typed,
         `Объектов с кодами: ${objects.length}. Наклейка выбирается в приложении, а готовая придёт сюда файлом.`,
         'stickers',
-        'Наклейки в приложении',
       );
     } catch (error) {
       if (!(error instanceof DomainError)) throw error;

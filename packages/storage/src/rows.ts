@@ -1,9 +1,11 @@
-import type { Announcement, Building, Resident } from '@domovoy/app';
+import type { Announcement, Building, OwnedApartment, Resident } from '@domovoy/app';
 import { isLanguage } from '@domovoy/i18n';
 import type {
   Apartment,
+  Appointment,
   Attachment,
   Handoff,
+  Material,
   MeterKind,
   OriginalText,
   RequestCategory,
@@ -30,6 +32,8 @@ export interface ResidentRow {
   legal_version: string | null;
   legal_at: Date | null;
   language: string | null;
+  owned: OwnedApartment[] | null;
+  name_by_user: boolean | null;
 }
 
 export interface RequestRow {
@@ -58,7 +62,30 @@ export interface RequestRow {
   title: string;
   original_text: string | null;
   original_language: string | null;
+  appointment: StoredAppointment | null;
+  materials: Material[] | null;
+  disputed_at: Date | null;
 }
+
+/** Окна визита приходят из jsonb строками: даты собираются при чтении. */
+interface StoredAppointment {
+  slots: string[];
+  minutes: number;
+  offeredAt: string;
+  at?: string;
+  missed: { at: string; actorId: string }[];
+}
+
+const toAppointment = (stored: StoredAppointment | null): Appointment | undefined =>
+  stored
+    ? {
+        slots: stored.slots.map((slot) => new Date(slot)),
+        minutes: stored.minutes,
+        offeredAt: new Date(stored.offeredAt),
+        ...(stored.at ? { at: new Date(stored.at) } : {}),
+        missed: stored.missed.map((item) => ({ at: new Date(item.at), actorId: item.actorId })),
+      }
+    : undefined;
 
 export interface ApartmentRow {
   id: string;
@@ -127,6 +154,8 @@ export const toResident = (row: ResidentRow): Resident => ({
   ...(row.legal_version ? { legalVersion: row.legal_version } : {}),
   ...(row.legal_at ? { legalAt: row.legal_at } : {}),
   ...(row.language && isLanguage(row.language) ? { language: row.language } : {}),
+  ...(row.owned && row.owned.length > 0 ? { owned: row.owned } : {}),
+  ...(row.name_by_user === true ? { nameByUser: true } : {}),
 });
 
 export const toTarget = (row: RequestRow): RequestTarget => {
@@ -200,6 +229,9 @@ export const toRequest = (
   reopenCount: row.reopen_count ?? 0,
   ...(row.rating === null ? {} : { rating: row.rating }),
   ...(row.knocked_at ? { knockedAt: row.knocked_at } : {}),
+  ...(toAppointment(row.appointment) ? { appointment: toAppointment(row.appointment) } : {}),
+  ...(row.materials && row.materials.length > 0 ? { materials: row.materials } : {}),
+  ...(row.disputed_at ? { disputedAt: row.disputed_at } : {}),
 });
 
 export interface BuildingRow {
@@ -345,6 +377,7 @@ export interface AnnouncementRow {
   works_until: Date | null;
   works_resource: MeterKind | null;
   request_id: string | null;
+  deliver_at: Date | null;
 }
 
 export const toAnnouncement = (row: AnnouncementRow): Announcement => ({
@@ -370,4 +403,5 @@ export const toAnnouncement = (row: AnnouncementRow): Announcement => ({
       }
     : {}),
   ...(row.request_id === null ? {} : { requestId: row.request_id }),
+  ...(row.deliver_at === null ? {} : { deliverAt: row.deliver_at }),
 });

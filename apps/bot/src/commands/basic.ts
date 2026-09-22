@@ -54,7 +54,7 @@ export const basicCommands = (kit: BotKit): Record<string, Handler> => ({
       .join(', ');
 
     await typed.reply(
-      t('data.about', { кто: who, что: personalDataSummary(data) }),
+      t('data.about', { кто: who, что: personalDataSummary(data, t) }),
       dataKeyboard(apartmentsOf(resident).length > 0, typed, t),
     );
   },

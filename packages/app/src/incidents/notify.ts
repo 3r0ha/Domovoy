@@ -50,7 +50,7 @@ export const confirmIncident = async (
   await announceIncident(deps, request);
 };
 
-/** Кому в управляющей компании адресовано сообщение о заявке. */
+/** Кому в управляющей организации адресовано сообщение о заявке. */
 export const notifyResponsible = async (deps: AppDeps, request: ServiceRequest, text: string): Promise<void> => {
   const notifier = deps.notifier ?? noopNotifier;
   const replyTo = OPEN_STATUSES.includes(request.status) ? request.id : undefined;

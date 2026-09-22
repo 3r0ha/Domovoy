@@ -6,13 +6,13 @@ export const when: Dictionary = {
   monthCase: 'name',
 
   day: '{день} {месяц}',
-  dayYear: '{год}-nji ýylyň {день} {месяц}',
+  dayYear: '{день} {месяц} {год} ý.',
   at: '{день}, sagat {время}',
   weekdayDay: '{неделя}, {день}',
 
-  until: 'sagat {время}-a çenli',
-  untilTomorrow: 'ertir sagat {время}-a çenli',
-  untilDay: '{день}, sagat {время}-a çenli',
+  until: '{время} sagadyna çenli',
+  untilTomorrow: 'ertir {время} sagadyna çenli',
+  untilDay: '{день}, {время} sagadyna çenli',
 
   'minutes.one': '{сколько} minut',
   'minutes.few': '{сколько} minut',

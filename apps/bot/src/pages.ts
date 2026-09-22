@@ -3,6 +3,7 @@ import {
   announcementAudience,
   describePlace,
   describeTickets,
+  disputable,
   formatHandoff,
   formatTicket,
   handoffsOf,
@@ -28,11 +29,10 @@ import {
   formatMoment,
   isCompanyStaff,
   isUnderway,
-  plural,
   reportersCount,
   statusTitle,
 } from '@domovoy/domain';
-import type { Translate } from '@domovoy/i18n';
+import { counted, type Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
 import { speak } from './i18n.js';
@@ -133,11 +133,7 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
         '.',
       keyboardOf(
         [
-          ...appRow(
-            kit.miniAppUrl,
-            forStaff ? 'Очередь в приложении' : t('button.requests_in_app'),
-            forStaff ? 'queue' : 'list',
-          ),
+          ...appRow(kit.miniAppUrl, forStaff ? 'queue' : 'list', t),
         ],
         typed,
         t,
@@ -181,11 +177,7 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
         : t('request.rest', { сколько: rest }),
       keyboardOf(
         [
-          ...appRow(
-            kit.miniAppUrl,
-            forStaff ? 'Очередь в приложении' : t('button.requests_in_app'),
-            forStaff ? 'queue' : 'list',
-          ),
+          ...appRow(kit.miniAppUrl, forStaff ? 'queue' : 'list', t),
         ],
         typed,
         t,
@@ -202,7 +194,7 @@ export const showRequests = async (kit: BotKit, typed: BotContext): Promise<void
 
   await typed.reply(
     t('request.all_open'),
-    keyboardOf([...appRow(kit.miniAppUrl, t('button.requests_in_app'), 'list', t)], typed, t),
+    keyboardOf([...appRow(kit.miniAppUrl, 'list', t)], typed, t),
   );
 };
 
@@ -249,6 +241,10 @@ export const showRequestByNumber = async (kit: BotKit, typed: BotContext, number
       assignable(found, resident.role),
       isCompanyStaff(resident.role) && (view?.targets.length ?? 0) > 0 ? found.id : undefined,
       t,
+      {
+        ...(disputable(kit.deps, resident, found) ? { disputeFor: found.id } : {}),
+        ...(forStaff && found.appointment?.at ? { missedFor: found.id } : {}),
+      },
     ),
   );
 
@@ -307,7 +303,7 @@ export const showNews = async (kit: BotKit, typed: BotContext, offset = 0): Prom
       ? moreKeyboard('news', offset + NEWS_PAGE, t('button.more_news'))
       : keyboardOf([
           ...(inChat(typed) ? [] : [[Keyboard.button.callback(t('button.menu'), 'group:back')]]),
-          ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'news', t),
+          ...appRow(kit.miniAppUrl, 'news', t),
         ], typed, t),
   );
 };
@@ -332,7 +328,7 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
 
     await typed.reply(
       `${first!.title}\n` +
-        `${describeTarget(first!.target)} · ${plural(reportersCount(first!), 'сосед сообщил', 'соседа сообщили', 'соседей сообщили')}\n` +
+        `${describeTarget(first!.target)} · ${counted(t, 'app.reporters', reportersCount(first!))}\n` +
         `${first!.number}`,
       alsoKeyboard(first!.id, t),
     );
@@ -344,11 +340,8 @@ export const showNeighbours = async (kit: BotKit, typed: BotContext): Promise<vo
     kit,
     typed,
     `${strong(t('neighbours.title'))}\n` +
-      t('neighbours.about', {
-        сколько: plural(requests.length, 'проблеме', 'проблемах', 'проблемах'),
-      }),
+      t('neighbours.about', { сколько: requests.length }),
     'list',
-    t('button.show'),
     t,
   );
 };
@@ -370,7 +363,7 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
 
     await typed.reply(
       `Вопросов жильцов: ${tickets.length}${waiting > 0 ? `, ждут ответа ${waiting}` : ''}.`,
-      keyboardOf([...appRow(kit.miniAppUrl, 'Вопросы в приложении', 'support')], typed),
+      keyboardOf([...appRow(kit.miniAppUrl, 'support')], typed),
     );
 
     return 0;
@@ -393,7 +386,7 @@ export const showSupport = async (kit: BotKit, typed: BotContext, offset = 0): P
       t('support.more'),
       keyboardOf([
         [Keyboard.button.callback(t('button.more'), `more:support:${offset + PAGE}`)],
-        ...appRow(kit.miniAppUrl, t('button.in_app_short'), 'support', t),
+        ...appRow(kit.miniAppUrl, 'support', t),
       ], typed, t),
     );
 
@@ -422,7 +415,7 @@ export const showDebtors = async (kit: BotKit, typed: BotContext): Promise<void>
         : keyboardOf(
             [
               ...(mayWrite ? [[Keyboard.button.callback('✉️ Рассылка должникам', 'cast:debtors')]] : []),
-              ...appRow(kit.miniAppUrl, 'Должники в приложении', 'debtors'),
+              ...appRow(kit.miniAppUrl, 'debtors'),
             ],
             typed,
           ),

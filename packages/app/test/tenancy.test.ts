@@ -213,11 +213,11 @@ describe('граница управляющей организации', () => {
   });
 });
 
-describe('подрядчик не управляющая компания', () => {
+describe('подрядчик не управляющая организация', () => {
   it('список людей дома ему не отдают', async () => {
     const deps = setup();
 
-    await assert.rejects(listPeople(deps, contractor), /доступен управляющей компании/);
+    await assert.rejects(listPeople(deps, contractor), /доступен управляющей организации/);
   });
 
   it('дежурство он не назначает', async () => {

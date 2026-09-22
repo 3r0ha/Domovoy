@@ -51,6 +51,14 @@ export const housed = (resident: Resident): boolean =>
   (resident.servesBuildingIds?.length ?? 0) > 0;
 
 /**
+ * Дом человеку известен, даже если квартира ещё не привязана: код с наклейки
+ * на подъезде называет дом. Открытые сведения дома, объявления, контакты и
+ * аварии, он читает по этому признаку, а квитанцию, показания и голос, нет:
+ * они принадлежат помещению.
+ */
+export const knowsHouse = (resident: Resident): boolean => housed(resident) || Boolean(resident.buildingId);
+
+/**
  * Дом, в котором человек живёт. У сотрудника он может не совпадать с рабочим:
  * смену он ведёт в одном доме, а квартира у него в другом. Для проверок права
  * берётся `homeOf`: он не подставляет дом установки. @throws {DomainError}
@@ -171,7 +179,7 @@ export interface ServedBuilding {
   managementCompany?: string;
   /** К дому привязан общий чат: объявления и аварии уходят и туда. */
   chatBound: boolean;
-  /** Ответственный по дому от управляющей компании. */
+  /** Ответственный по дому от управляющей организации. */
   contact?: HouseContact;
   /** Телефоны, режим работы и адрес приёма. */
   service?: HouseService;
@@ -237,9 +245,15 @@ export const servesBuilding = async (deps: AppDeps, resident: Resident, building
  * Жильцу без квартиры дом не подставляется. @throws {DomainError}
  */
 export const publicHouseOf = async (deps: AppDeps, resident: Resident): Promise<string> => {
-  assertApartment(resident);
+  // Жильцу, который ещё не назвал ни квартиру, ни дом, подставлять нечего:
+  // дом установки не его. Скан наклейки дом называет, и тогда он открыт.
+  if (!resident.buildingId) assertApartment(resident);
 
   const known = resident.buildingId ? await deps.repository.findBuilding(resident.buildingId) : undefined;
+
+  // Дом установки жильцу не подставляется: он знает свой дом или не знает
+  // никакого, и чужие телефоны ему не помогут.
+  if (!known && !isCompanyStaff(resident.role)) assertApartment(resident);
 
   return known?.id ?? deps.defaultBuildingId;
 };
@@ -260,7 +274,7 @@ export const atBuilding = async (
   if (!buildingId || buildingId === resident.buildingId) return resident;
 
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Чужой дом видят только сотрудники управляющей компании');
+    throw new DomainError('forbidden', 'Чужой дом видят только сотрудники управляющей организации');
   }
 
   // Несуществующий дом и дом чужой организации отвечают одинаково: иначе

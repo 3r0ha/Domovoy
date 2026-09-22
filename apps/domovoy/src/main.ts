@@ -7,6 +7,7 @@ import {
   InMemoryRepository,
   createSweeper,
   makeManager,
+  createGridFeed,
   createHttpCityFeed,
   createMockCapitalRepair,
   createMockCityFeed,
@@ -40,9 +41,10 @@ import { demoDevices, demoDoorHistory, demoSensorContact, seedDemo } from './dem
 import { meterVisionFromEnv } from './meter-vision.js';
 import { fileSweepStore, sharedSweepStore } from './sweep-store.js';
 import { gigaChatFromEnv } from './gigachat.js';
-import { machineTranslatorFromEnv } from './machine-translator.js';
+import { machineFromText, machineTranslatorFromEnv } from './machine-translator.js';
 import { gigaChatFilesFromEnv } from './gigachat-files.js';
 import { reasonerFromEnv } from './reasoner.js';
+import { createMockRegistry } from './registry-mock.js';
 import { transcriberFromEnv } from './transcriber.js';
 import { translatorFromEnv } from './translator.js';
 
@@ -240,6 +242,13 @@ const main = async (): Promise<void> => {
       ? createMockHandoffs({ channel: process.env['HANDOFF_CHANNEL']?.trim() || 'mock' })
       : undefined;
 
+  // Внешний реестр заявок: ГИС ЖКХ или учётная система организации. Без него
+  // продукт работает, но управляющая организация ведёт заявки дважды.
+  const registry =
+    process.env['REGISTRY'] === 'mock'
+      ? createMockRegistry(process.env['REGISTRY_CHANNEL']?.trim() || 'gis_zhkh')
+      : undefined;
+
   // Сведения о капитальном ремонте: их ведёт региональная программа.
   const capitalRepair =
     process.env['CAPITAL_REPAIR'] === 'mock'
@@ -249,7 +258,18 @@ const main = async (): Promise<void> => {
   // Отключения по данным города: формат один, источник у каждого города свой.
   const cityUrl = process.env['CITY_FEED_URL']?.trim();
   const cityTitle = process.env['CITY_FEED_TITLE']?.trim() || undefined;
-  const city = cityUrl
+  // Служба сетевой организации отвечает своим форматом, а не нашим: адрес дома
+  // уходит ей поиском, и она возвращает отключения электричества по нему.
+  const gridUrl = process.env['GRID_FEED_URL']?.trim();
+  const city = gridUrl
+    ? createGridFeed({
+        url: gridUrl,
+        title: cityTitle ?? 'Сетевая организация',
+        ...(process.env['GRID_FEED_BY']?.trim() ? { by: process.env['GRID_FEED_BY'].trim() } : {}),
+        addresses: async () => (await repository.listBuildings()).map((building) => building.address),
+        onError: (error) => console.error('Сетевая организация не ответила', error),
+      })
+    : cityUrl
     ? createHttpCityFeed({
         url: cityUrl,
         ...(process.env['CITY_FEED_KEY']?.trim() ? { key: process.env['CITY_FEED_KEY'].trim() } : {}),
@@ -300,15 +320,16 @@ const main = async (): Promise<void> => {
     translatorFromEnv(process.env, (error) => console.error('Не удалось перевести текст', error));
 
   // Объявления, работы, собрания и заявки соседей переводит бесплатная служба:
-  // их читают многие, и обращаться из-за них к модели дорого.
-  const machine = machineTranslatorFromEnv(process.env, (error) =>
-    console.error('Служба перевода не ответила', error),
-  );
+  // их читают многие, и обращаться из-за них к модели дорого. Без службы это
+  // делает модель: непереведённый дом хуже лишнего обращения к ней.
+  const machine =
+    machineTranslatorFromEnv(process.env, (error) => console.error('Служба перевода не ответила', error)) ??
+    (translate ? machineFromText(translate, (error) => console.error('Модель не перевела текст', error)) : undefined);
 
   if (!reasoner) console.warn('Модель не задана, категорию подскажут ключевые слова');
   if (!translate) console.warn('Модель не задана, написанное не по-русски дойдёт до смены как есть');
   if (!machine) {
-    console.warn('TRANSLATE_KIND не задан, объявления и заявки соседей читаются так, как написаны');
+    console.warn('Ни TRANSLATE_KIND, ни модель не заданы, объявления и заявки соседей читаются так, как написаны');
   }
 
   const botName = process.env['BOT_NAME']?.trim() || DEFAULT_BOT_NAME;
@@ -338,6 +359,7 @@ const main = async (): Promise<void> => {
     ...(hub ? { hub } : {}),
     ...(payments ? { payments } : {}),
     ...(handoffs ? { handoffs } : {}),
+    ...(registry ? { registry } : {}),
     ...(meetings ? { meetings } : {}),
     ...(capitalRepair ? { capitalRepair } : {}),
     ...(city ? { city } : {}),
@@ -476,6 +498,7 @@ const main = async (): Promise<void> => {
     ...(hub ? { hub } : {}),
     ...(payments ? { payments } : {}),
     ...(handoffs ? { handoffs } : {}),
+    ...(registry ? { registry } : {}),
     ...(meetings ? { meetings } : {}),
     ...(capitalRepair ? { capitalRepair } : {}),
     ...(city ? { city } : {}),

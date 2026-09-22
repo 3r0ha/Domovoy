@@ -30,16 +30,36 @@ import type { Language } from '@domovoy/i18n';
 
 import type { AuditAction } from './audit.js';
 
+/** Право собственности на помещение: доля 1 означает, что оно целиком его. */
+export interface OwnedApartment {
+  apartmentId: string;
+  share: number;
+  /** Чем подтверждено: выписка, договор, слова самого человека. */
+  basis?: 'stated' | 'company';
+}
+
 export interface Resident {
   id: string;
   /** Аккаунт в MAX. У обезличенного профиля его нет. */
   maxUserId?: number;
   displayName: string;
+  /**
+   * Имя человек задал сам. Тогда имя из платформы его не перебивает: в профиле
+   * MAX у людей стоят никнеймы, и смене от «xXx_kotik_xXx» толку нет, а
+   * подставлять его заново поверх выбранного имени тем более незачем.
+   */
+  nameByUser?: boolean;
   role: Role;
   /** Квартира, с которой человек работает сейчас: показания, квитанция, голос. */
   apartmentId?: string;
   /** Все привязанные квартиры, включая текущую. У одного человека их может быть несколько. */
   apartmentIds?: string[];
+  /**
+   * Помещения, в которых человек собственник, и его доля в каждом. Голос на
+   * собрании и подпись под требованием созыва идут отсюда: наниматель и член
+   * семьи живут в квартире, но голоса не имеют.
+   */
+  owned?: OwnedApartment[];
   buildingId?: string;
   /** Дома, которые обслуживает сотрудник, кроме своего. */
   servesBuildingIds?: string[];
@@ -71,6 +91,11 @@ export interface Announcement {
   works?: { category: RequestCategory; from: Date; until: Date; resource?: MeterKind };
   /** Заявка, из-за которой объявление и появилось. */
   requestId?: string;
+  /**
+   * Когда объявление разослать. Заполнено, пока рассылка ждёт утра: ночью
+   * будят только аварии и работы, которые уже начались.
+   */
+  deliverAt?: Date;
 }
 
 /** Адресат объявления в виде, понятном правилам. */
@@ -180,7 +205,7 @@ export interface Building {
   address: string;
   /** Кто обслуживает дом. Нужна обращению в жилищную инспекцию. */
   managementCompany?: string;
-  /** К кому обращаться по дому: ответственный от управляющей компании. */
+  /** К кому обращаться по дому: ответственный от управляющей организации. */
   contact?: HouseContact;
   /** Телефоны, режим работы и адрес приёма. */
   service?: HouseService;
@@ -270,7 +295,7 @@ export interface Repository {
   nextRequestSequence(buildingId: string, at: Date): Promise<number>;
   buildingCode(buildingId: string): Promise<string | undefined>;
   findBuilding(buildingId: string): Promise<Building | undefined>;
-  /** Все дома управляющей компании. */
+  /** Все дома управляющей организации. */
   listBuildings(): Promise<Building[]>;
 
   createRequest(input: CreateRequestInput): Promise<ServiceRequest>;
@@ -334,6 +359,12 @@ export interface Repository {
   saveBindAttempt(attempt: BindAttempt): Promise<void>;
   countBindAttempts(residentId: string, since: Date): Promise<number>;
 
+  /** Просьба подключить дом: её оставляет человек, чей дом продукт ещё не знает. */
+  saveConnectionRequest(request: ConnectionRequest): Promise<ConnectionRequest>;
+  listConnectionRequests(limit?: number): Promise<ConnectionRequest[]>;
+  /** Сколько просьб оставил этот человек: одна и та же не повторяется. */
+  findConnectionRequest(residentId: string): Promise<ConnectionRequest | undefined>;
+
   saveHandoff(handoff: Handoff): Promise<Handoff>;
   findHandoff(handoffId: string): Promise<Handoff | undefined>;
   /** Переданные обращения: по заявке либо по дому целиком. */
@@ -368,6 +399,24 @@ export interface BindAttempt {
   at: Date;
   /** Код подошёл. */
   ok: boolean;
+}
+
+/**
+ * Просьба подключить дом. Человек, чью управляющую организацию продукт ещё
+ * не знает, до сих пор упирался в тупик: без кода из квитанции ему нечего было
+ * делать. Теперь он оставляет адрес, и это единственная работающая дверь
+ * к новому дому.
+ */
+export interface ConnectionRequest {
+  id: string;
+  residentId: string;
+  /** Адрес дома словами человека. */
+  address: string;
+  /** Название управляющей организации, если человек его знает. */
+  company?: string;
+  /** Как с ним связаться: телефон он оставляет сам. */
+  phone?: string;
+  at: Date;
 }
 
 /** Что тарифицируется: ресурс по счётчику или содержание за квадратный метр. */

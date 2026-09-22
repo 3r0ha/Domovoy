@@ -105,14 +105,19 @@ describe('запись на приём', () => {
     assert.equal(reception.slots.length, 12);
   });
 
-  it('жильцу без квартиры приёма нет, сотрудник без дома видит приём дома по умолчанию', async () => {
+  it('жилец без квартиры видит приём своего дома, а без дома приёма нет', async () => {
     const { deps } = await setup();
 
     await deps.repository.saveBuilding({ id: 'b2', code: 'Д17', address: 'ул. Мира, 17', companyId: 'ук-вторая' });
 
     const newcomer: Resident = { id: 'res-new', maxUserId: 1009, displayName: 'Новый', role: 'resident', buildingId: BUILDING_ID };
 
-    await assert.rejects(receptionFor(deps, newcomer, 'b2'), /привяжите квартиру/);
+    // В офис идут как раз те, у кого квартира ещё не привязана: часы приёма
+    // им нужны раньше кода из квитанции. Чужой дом при этом не открывается.
+    const known = await receptionFor(deps, newcomer, 'b2');
+
+    assert.equal(known.buildingId, BUILDING_ID);
+
     await assert.rejects(receptionFor(deps, { ...newcomer, buildingId: undefined }), /привяжите квартиру/);
 
     const reception = await receptionFor(deps, { ...newcomer, role: 'technician', buildingId: undefined }, 'b2');

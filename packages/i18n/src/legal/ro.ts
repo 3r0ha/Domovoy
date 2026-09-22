@@ -9,10 +9,10 @@ const privacy: LegalText = {
     {
       heading: '1. Dispoziții generale',
       lines: [
-        '1.1. Politica stabilește modul de prelucrare a datelor cu caracter personal în produsul software «Domovoy» (în continuare, produsul).',
+        '1.1. Politica stabilește modul de prelucrare a datelor cu caracter personal în produsul software „Domovoy” (în continuare, produsul).',
         '1.2. Operator de date cu caracter personal este organizația de administrare care deservește blocul de locuințe al utilizatorului. Operatorul stabilește scopurile prelucrării și răspunde pentru aceasta față de persoana vizată și față de organele de control.',
         '1.3. Produsul prelucrează datele cu caracter personal la însărcinarea operatorului, în temeiul alineatului 3 al articolului 6 din Legea federală din 27.07.2006 № 152-ФЗ, nu are scopuri proprii de prelucrare și nu transmite date către terți în afara însărcinării.',
-        '1.4. Denumirea și datele de contact ale operatorului sunt indicate în secțiunea «Asistență» a produsului.',
+        '1.4. Denumirea și datele de contact ale operatorului sunt indicate în secțiunea „Asistență” a produsului.',
       ],
     },
     {
@@ -66,11 +66,11 @@ const privacy: LegalText = {
     {
       heading: '7. Drepturile persoanei vizate',
       lines: [
-        '7.1. Obținerea informațiilor despre prelucrarea datelor proprii (articolul 14 din Legea federală № 152-ФЗ): comanda /mydata în chat-bot și secțiunea «Profil» din aplicație generează descărcarea datelor.',
-        '7.2. Rectificarea, blocarea și ștergerea datelor (articolul 21 din Legea federală № 152-ФЗ): ștergerea profilului în secțiunea «Profil» anonimizează contul; informațiile despre solicitări și indicații se păstrează ca istoric al obiectului.',
+        '7.1. Obținerea informațiilor despre prelucrarea datelor proprii (articolul 14 din Legea federală № 152-ФЗ): comanda /mydata în chat-bot și secțiunea „Profil” din aplicație generează descărcarea datelor.',
+        '7.2. Rectificarea, blocarea și ștergerea datelor (articolul 21 din Legea federală № 152-ФЗ): ștergerea profilului în secțiunea „Profil” anonimizează contul; informațiile despre solicitări și indicații se păstrează ca istoric al obiectului.',
         '7.3. Retragerea consimțământului în partea prelucrării efectuate în temeiul acestuia, inclusiv ștergerea numărului de telefon.',
         '7.4. Dezasocierea locuinței la încetarea dreptului de folosință asupra acesteia.',
-        '7.5. Adresarea către operator la contactele din secțiunea «Asistență», precum și către Serviciul Federal de Supraveghere în domeniul Comunicațiilor, Tehnologiei Informației și Comunicării în Masă.',
+        '7.5. Adresarea către operator la contactele din secțiunea „Asistență”, precum și către Serviciul Federal de Supraveghere în domeniul Comunicațiilor, Tehnologiei Informației și Comunicării în Masă.',
       ],
     },
     {
@@ -100,7 +100,7 @@ const terms: LegalText = {
     {
       heading: '1. Obiectul acordului',
       lines: [
-        '1.1. Acordul stabilește condițiile de utilizare a produsului software «Domovoy», care include un chat-bot și o mini-aplicație în sistemul informațional MAX.',
+        '1.1. Acordul stabilește condițiile de utilizare a produsului software „Domovoy”, care include un chat-bot și o mini-aplicație în sistemul informațional MAX.',
         '1.2. Începerea utilizării produsului înseamnă acceptarea condițiilor acordului și a politicii de prelucrare a datelor cu caracter personal.',
         '1.3. Serviciile de administrare a blocului de locuințe sunt prestate de organizația de administrare. Produsul asigură primirea solicitărilor, informarea și afișarea informațiilor despre activitatea organizației.',
       ],
@@ -136,13 +136,13 @@ const terms: LegalText = {
       lines: [
         '5.1. Produsul nu poartă răspundere pentru calitatea lucrărilor executate și pentru deciziile organizației de administrare.',
         '5.2. Disponibilitatea produsului depinde de funcționarea sistemului informațional MAX, a operatorului de comunicații și a infrastructurii de servere a organizației.',
-        '5.3. În situație de avarie, în perioada de indisponibilitate a produsului, solicitarea se transmite la telefonul serviciului de dispecerat pentru avarii indicat în secțiunea «Asistență».',
+        '5.3. În situație de avarie, în perioada de indisponibilitate a produsului, solicitarea se transmite la telefonul serviciului de dispecerat pentru avarii indicat în secțiunea „Asistență”.',
       ],
     },
     {
       heading: '6. Încetarea utilizării',
       lines: [
-        '6.1. Utilizatorul are dreptul să dezasocieze locuința și să șteargă profilul în secțiunea «Profil».',
+        '6.1. Utilizatorul are dreptul să dezasocieze locuința și să șteargă profilul în secțiunea „Profil”.',
         '6.2. Organizația are dreptul să înceteze accesul la încetarea administrării blocului de locuințe.',
         '6.3. Redacția în vigoare a acordului este publicată la adresa domovoy.homes/terms.',
       ],

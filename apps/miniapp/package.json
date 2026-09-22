@@ -2,7 +2,7 @@
   "name": "@domovoy/miniapp",
   "version": "0.1.0",
   "private": true,
-  "description": "Мини-приложение управляющей компании для платформы МАХ",
+  "description": "Мини-приложение управляющей организации для платформы МАХ",
   "type": "module",
   "scripts": {
     "dev": "vite",

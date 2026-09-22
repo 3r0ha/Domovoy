@@ -1,6 +1,21 @@
-import { DomainError, isApartmentCode, isCompanyStaff, normalizeApartmentCode, type Apartment } from '@domovoy/domain';
+import {
+  DomainError,
+  checkShare,
+  isApartmentCode,
+  isCompanyStaff,
+  normalizeApartmentCode,
+  type Apartment,
+} from '@domovoy/domain';
 
-import { apartmentsOf, useApartment, withApartment, withoutApartment } from './apartments.js';
+import {
+  apartmentsOf,
+  ownsApartment,
+  useApartment,
+  withApartment,
+  withOwnership,
+  withoutApartment,
+  withoutOwnership,
+} from './apartments.js';
 import { recordAction } from './audit.js';
 import { atBuilding, homeOf, servesBuilding } from './buildings.js';
 import { speak } from './language.js';
@@ -56,7 +71,16 @@ export const bindApartment = async (deps: AppDeps, resident: Resident, code: str
   const neighbours = await deps.repository.listResidentsByApartments([apartment.id]);
   const others = neighbours.filter((person) => person.id !== resident.id);
 
-  const saved = await deps.repository.saveResident(withApartment(resident, apartment));
+  // Первый, кто привязал помещение, считается его собственником со своих слов:
+  // код лежит в квитанции собственника. Следующий становится проживающим, и
+  // право собственности за ним подтверждает управляющая организация: иначе
+  // голос на собрании получал бы любой, кто дотянулся до чужой квитанции.
+  const claimed = others.some((person) => ownsApartment(person, apartment.id));
+  const bound = withApartment(resident, apartment);
+
+  const saved = await deps.repository.saveResident(
+    claimed ? bound : withOwnership(bound, apartment.id, 1, 'stated'),
+  );
 
   const notifier = deps.notifier ?? noopNotifier;
 
@@ -65,6 +89,8 @@ export const bindApartment = async (deps: AppDeps, resident: Resident, code: str
       notifier,
       person,
       speak(person)('app.binding.neighbour', { квартира: apartment.number, кто: saved.displayName }),
+      [],
+      { dropFlatmate: saved.id },
     );
   }
 
@@ -81,7 +107,7 @@ export const bindApartmentByStaff = async (
   input: { residentId: string; apartmentId: string },
 ): Promise<BindResult> => {
   if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Привязывать жильцов может управляющая компания');
+    throw new DomainError('forbidden', 'Привязывать жильцов может управляющая организация');
   }
 
   if (input.residentId === staff.id) {
@@ -125,17 +151,186 @@ export const bindApartmentByStaff = async (
   return { resident: saved, apartment, alreadyBound };
 };
 
+/**
+ * Жилец говорит, собственник он или живёт в помещении на других основаниях.
+ * От этого зависит голос на собрании: голосуют собственники, ч. 3 ст. 48 ЖК РФ.
+ * Слова человека управляющая организация потом подтверждает или исправляет.
+ * @throws {DomainError}
+ */
+export const declareOwnership = async (
+  deps: AppDeps,
+  resident: Resident,
+  owner: boolean,
+  apartmentId?: string,
+): Promise<Resident> => {
+  const target = apartmentId ?? resident.apartmentId;
+
+  if (!target || !apartmentsOf(resident).includes(target)) {
+    throw new DomainError('apartment_not_bound', 'Сначала привяжите квартиру по коду из квитанции');
+  }
+
+  const saved = await deps.repository.saveResident(
+    owner ? withOwnership(resident, target, 1, 'stated') : withoutOwnership(resident, target),
+  );
+
+  // Собственников у помещения бывает несколько, и слова одного касаются всех:
+  // от них зависит, чьим голосом считается голос квартиры на собрании.
+  if (owner) {
+    const others = (await deps.repository.listResidentsByApartments([target])).filter(
+      (person) => person.id !== resident.id && person.role === 'resident',
+    );
+
+    const apartment = await deps.repository.findApartment(target);
+
+    for (const person of others) {
+      await notifyResident(
+        deps.notifier ?? noopNotifier,
+        person,
+        speak(person)('app.binding.ownerClaimed', {
+          квартира: apartment?.number ?? '',
+          кто: saved.displayName,
+        }),
+      );
+    }
+  }
+
+  return saved;
+};
+
+/**
+ * Управляющая организация подтверждает право собственности и долю. Её запись
+ * сильнее слов жильца: на ней и держится юридическая сила собрания.
+ * @throws {DomainError}
+ */
+export const setOwnership = async (
+  deps: AppDeps,
+  staff: Resident,
+  input: { residentId: string; apartmentId: string; share: number | null },
+): Promise<Resident> => {
+  if (!isCompanyStaff(staff.role)) {
+    throw new DomainError('forbidden', 'Право собственности отмечает управляющая организация');
+  }
+
+  const resident = await deps.repository.findResident(input.residentId);
+
+  if (!resident) throw new DomainError('resident_unknown', 'Житель не найден');
+
+  const apartment = await deps.repository.findApartment(input.apartmentId);
+
+  if (!apartment) throw new DomainError('apartment_unknown', 'Квартира не найдена');
+
+  await atBuilding(deps, staff, apartment.buildingId);
+
+  if (!apartmentsOf(resident).includes(apartment.id)) {
+    throw new DomainError('apartment_not_bound', 'Этот человек к квартире не привязан');
+  }
+
+  const saved = await deps.repository.saveResident(
+    input.share === null
+      ? withoutOwnership(resident, apartment.id)
+      : withOwnership(resident, apartment.id, checkShare(input.share), 'company'),
+  );
+
+  await recordAction(deps, {
+    actor: staff,
+    action: 'apartment_bound',
+    subject: saved.displayName,
+    details:
+      input.share === null
+        ? `квартира ${apartment.number}: не собственник`
+        : `квартира ${apartment.number}: собственник, доля ${input.share}`,
+    buildingId: apartment.buildingId,
+  });
+
+  return saved;
+};
+
+/** Кто ещё привязан к этой квартире и на каком основании. */
+export interface FlatNeighbour {
+  id: string;
+  displayName: string;
+  /** Собственник помещения, а не просто проживающий. */
+  owner: boolean;
+  /** Это сам спрашивающий. */
+  self: boolean;
+}
+
+/**
+ * Кто привязан к квартире. Код из квитанции лежит в почтовом ящике, и привязка
+ * по нему даёт и квитанцию, и домофон, и голос: жилец должен видеть, кто ещё
+ * в его квартире значится, и убирать чужого сам. @throws {DomainError}
+ */
+export const flatNeighbours = async (
+  deps: AppDeps,
+  resident: Resident,
+  apartmentId?: string,
+): Promise<FlatNeighbour[]> => {
+  const target = apartmentId ?? resident.apartmentId;
+
+  if (!target || !apartmentsOf(resident).includes(target)) {
+    throw new DomainError('apartment_not_bound', 'Сначала привяжите квартиру по коду из квитанции');
+  }
+
+  const people = await deps.repository.listResidentsByApartments([target]);
+
+  return people
+    .filter((person) => person.role === 'resident')
+    .map((person) => ({
+      id: person.id,
+      displayName: person.displayName,
+      owner: ownsApartment(person, target),
+      self: person.id === resident.id,
+    }));
+};
+
+/**
+ * Убрать из своей квартиры чужого. Собственника снимает собственник или
+ * управляющая организация: иначе привязавшийся по чужой квитанции выгонял бы
+ * настоящего владельца. @throws {DomainError}
+ */
+export const dropNeighbour = async (
+  deps: AppDeps,
+  resident: Resident,
+  residentId: string,
+  apartmentId?: string,
+): Promise<FlatNeighbour[]> => {
+  const target = apartmentId ?? resident.apartmentId;
+
+  if (!target || !apartmentsOf(resident).includes(target)) {
+    throw new DomainError('apartment_not_bound', 'Сначала привяжите квартиру по коду из квитанции');
+  }
+
+  if (residentId === resident.id) {
+    throw new DomainError('forbidden', 'Себя отвязывают в разделе «Моя квартира»');
+  }
+
+  const other = await deps.repository.findResident(residentId);
+
+  if (!other || !apartmentsOf(other).includes(target)) {
+    throw new DomainError('resident_unknown', 'Этот человек к вашей квартире не привязан');
+  }
+
+  if (ownsApartment(other, target) && !ownsApartment(resident, target)) {
+    throw new DomainError('forbidden', 'Собственника помещения отвязывает собственник или управляющая организация');
+  }
+
+  await unbindApartment(deps, resident, residentId, target, true);
+
+  return flatNeighbours(deps, resident, target);
+};
+
 /** Жилец съехал: квартира отвязывается, а заявки и показания остаются у дома. @throws {DomainError} */
 export const unbindApartment = async (
   deps: AppDeps,
   actor: Resident,
   residentId: string,
   apartmentId?: string,
+  byNeighbour = false,
 ): Promise<Resident> => {
   const own = actor.id === residentId;
 
-  if (!own && !isCompanyStaff(actor.role)) {
-    throw new DomainError('forbidden', 'Отвязать жильца может он сам или управляющая компания');
+  if (!own && !byNeighbour && !isCompanyStaff(actor.role)) {
+    throw new DomainError('forbidden', 'Отвязать жильца может он сам или управляющая организация');
   }
 
   const resident = own ? actor : await deps.repository.findResident(residentId);
@@ -148,9 +343,9 @@ export const unbindApartment = async (
 
   const apartment = await deps.repository.findApartment(target);
 
-  if (!own && apartment) await atBuilding(deps, actor, apartment.buildingId);
+  if (!own && !byNeighbour && apartment) await atBuilding(deps, actor, apartment.buildingId);
 
-  const saved = await deps.repository.saveResident(withoutApartment(resident, target));
+  const saved = await deps.repository.saveResident(withoutOwnership(withoutApartment(resident, target), target));
 
   await recordAction(deps, {
     actor,
@@ -178,10 +373,10 @@ export interface UnboundResident {
   displayName: string;
 }
 
-/** Кого управляющая компания ещё не связала с квартирой. */
+/** Кого управляющая организация ещё не связала с квартирой. */
 export const listUnbound = async (deps: AppDeps, staff: Resident): Promise<UnboundResident[]> => {
   if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Список жильцов доступен управляющей компании');
+    throw new DomainError('forbidden', 'Список жильцов доступен управляющей организации');
   }
 
   const found = await deps.repository.listUnboundResidents();
@@ -212,7 +407,7 @@ export interface ApartmentOption {
 /** Квартиры дома для выбора при привязке: номер и адрес. */
 export const listApartmentsFor = async (deps: AppDeps, staff: Resident): Promise<ApartmentOption[]> => {
   if (!isCompanyStaff(staff.role)) {
-    throw new DomainError('forbidden', 'Список квартир доступен управляющей компании');
+    throw new DomainError('forbidden', 'Список квартир доступен управляющей организации');
   }
 
   const apartments = await deps.repository.listApartments(staff.buildingId ?? deps.defaultBuildingId);

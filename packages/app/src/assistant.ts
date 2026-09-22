@@ -4,8 +4,9 @@ import { LANGUAGES, languageFrom, languageTitle, translatorFor, type Language, t
 
 import { describeHouseNow } from './answers.js';
 import { dossierFor } from './dossier.js';
+import { fieldCode, fieldText } from './fields.js';
 import { languageOf, languageOfText, speakDefault } from './language.js';
-import type { Reasoner } from './reasoner.js';
+import type { AssistInput, Reasoner } from './reasoner.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
@@ -31,6 +32,31 @@ export interface Capability {
   /** Слова, по которым раздел находится без модели. */
   words: RegExp;
 }
+
+/**
+ * Просьба о разделе языка. Слова собраны из трёх частей: код языка отдельным
+ * сообщением, слово «язык» на наших языках и название самого языка. Человек,
+ * которому нужен этот раздел, пишет одно слово и не по-русски: «татарча»,
+ * «English», «ru». Такое сообщение раньше не совпадало ни с чем и уходило в меню.
+ */
+const LANGUAGE_WORDS = new RegExp(
+  [
+    '^\\s*(ru|en|tt|uz|tg|ky|kk|az|hy|tk|ka|ro|zh)\\s*$',
+    '(?<![а-яё])(язык|тел|тіл|тил|забон)(?![а-яё])',
+    '(?<![a-z])(language|til|dil|limba)(?![a-z])',
+    'լեզու|ენა|ენის|语言',
+    'сменить язык|поменять язык|выбрать язык|другой язык|язык продукта',
+    'change language|switch language|choose language',
+    'tilni o.zgartirish|tilni tanlash|тілді ауыстыру|тілді таңдау|тилди өзгөртүү|тилди тандоо',
+    'телне үзгәртү|тағйири забон|интихоби забон|dili dəyişmək|dili seçmək|dili üýtgetmek',
+    'schimbă limba|schimba limba|լեզուն փոխել|ენის შეცვლა|更改语言|切换语言',
+    // Название языка само по себе это просьба говорить на нём.
+    'русск|русча|орусча|англ|татар|узбек|ўзбек|таджик|тоҷик|киргиз|кыргыз|казах|қазақ',
+    'азербайджан|армян|հայերեն|туркмен|грузин|ქართული|румын|молдав|китайск|中文',
+    '(?<![a-z])(english|o.zbekcha|ozbek|az.rbaycanca|t.rkmen.e|rom.n.|qazaq.a|qirg|tatarcha)(?![a-z])',
+  ].join('|'),
+  'i',
+);
 
 const STAFF: readonly Role[] = ['dispatcher', 'technician', 'manager'];
 
@@ -196,8 +222,7 @@ export const CAPABILITIES: readonly Capability[] = [
     about: 'Выбрать язык, на котором продукт говорит с вами',
     // Одно слово «язык» на любом из наших языков это тоже просьба о разделе:
     // тот, кому он нужен, длинную фразу по-русски составить не может.
-    words:
-      /^\s*(ru|en|tt|uz|tg|ky|kk|az|hy|tk|ka|ro|zh)\s*$|(?<![а-яё])(язык|тел|тіл|тил|забон)(?![а-яё])|(?<![a-z])(language|til|dil|limba)(?![a-z])|լեզու|ენა|ენის|语言|сменить язык|поменять язык|выбрать язык|другой язык|язык продукта|change language|switch language|choose language|tilni oʻzgartirish|tilni ozgartirish|tilni tanlash|тілді ауыстыру|тілді таңдау|тилди өзгөртүү|тилди тандоо|телне үзгәртү|тағйири забон|интихоби забон|dili dəyişmək|dili seçmək|dili üýtgetmek|schimbă limba|schimba limba|լեզուն փոխել|ენის შეცვლა|更改语言|切换语言/i,
+    words: LANGUAGE_WORDS,
   },
   {
     screen: 'profile',
@@ -381,12 +406,76 @@ export const groundedInMoney = (answer: string, facts: string): boolean => {
   return money(answer).every((value) => known.has(value));
 };
 
+/** Какой раздел открывает стартовый вопрос: подсказку пишет сам продукт. */
+const STARTER_SCREEN: Readonly<Record<string, string>> = {
+  break: 'new',
+  readings: 'meters',
+  request: 'list',
+  door: 'home',
+  queue: 'queue',
+  assign: 'queue',
+  handoff: 'queue',
+  answer: 'support',
+  orders: 'list',
+  finish: 'list',
+  deadline: 'list',
+  orderDeadline: 'list',
+  inspection: 'inspections',
+  report: 'report',
+  broadcast: 'broadcast',
+  debtor: 'debtors',
+};
+
+/** Текст без знаков препинания и регистра: по нему сравниваются слова. */
+const bare = (text: string): string =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+/**
+ * Нажатая подсказка. Стартовые вопросы продукт пишет на языке человека, а слова
+ * разделов написаны по-русски: без этого собственная подсказка уводила в меню.
+ */
+const byStarter = (question: string, role: Role, t: Translate): Capability | undefined => {
+  const asked = bare(question);
+  const name = ASSISTANT_STARTERS[role].find((item) => bare(t(`app.starter.${item}`)) === asked);
+
+  return name ? capabilityFor(STARTER_SCREEN[name] ?? '', role) : undefined;
+};
+
+/** Короткое слово названия совпадает со всем подряд и раздел не выдаёт. */
+const TITLE_WORD_MIN = 5;
+
+/**
+ * Подбор раздела по названию на языке человека. Слова разделов написаны
+ * по-русски, и спросивший на своём языке не находил ничего. Выигрывает самое
+ * длинное совпавшее слово: оно же и самое редкое.
+ */
+const byTitle = (question: string, role: Role, t: Translate): Capability | undefined => {
+  const asked = ` ${bare(question)} `;
+  let best: { item: Capability; length: number } | undefined;
+
+  for (const item of capabilitiesFor(role)) {
+    if (!item.key) continue;
+
+    for (const word of bare(capabilityTitle(t, item)).split(' ')) {
+      if (word.length < TITLE_WORD_MIN || !asked.includes(` ${word} `)) continue;
+      if (best && word.length <= best.length) continue;
+
+      best = { item, length: word.length };
+    }
+  }
+
+  return best?.item;
+};
+
 /**
  * Подбор раздела по словам: так помощник работает и без модели. Выигрывает
  * самое длинное совпадение, иначе «принять заявку» у смены разошлось бы с
  * «заявкой» жильца и увело сотрудника в форму обращения.
  */
-export const findCapability = (question: string, role: Role): Capability | undefined => {
+export const findCapability = (question: string, role: Role, t?: Translate): Capability | undefined => {
   let best: { item: Capability; length: number } | undefined;
 
   for (const item of capabilitiesFor(role)) {
@@ -397,6 +486,8 @@ export const findCapability = (question: string, role: Role): Capability | undef
 
     best = { item, length: found[0].length };
   }
+
+  if (!best && t) return byStarter(question, role, t) ?? byTitle(question, role, t);
 
   return best?.item;
 };
@@ -418,7 +509,7 @@ const FALLBACK: Readonly<Record<'staff' | 'household', { screen: string; answer:
 };
 
 const plainAnswer = (t: Translate, question: string, role: Role): AssistantAnswer => {
-  const found = findCapability(question, role);
+  const found = findCapability(question, role, t);
 
   if (!found) {
     const staff = isCompanyStaff(role);
@@ -597,7 +688,7 @@ const bySignal = async (
   asked: string,
   modelled: boolean,
 ): Promise<AssistantAnswer | undefined> => {
-  const found = findCapability(asked, resident.role);
+  const found = findCapability(asked, resident.role, t);
 
   if (found?.screen === 'tour') return plainAnswer(t, asked, resident.role);
 
@@ -640,6 +731,11 @@ export const askAssistant = async (
   resident: Resident,
   question: string,
   history: readonly { asked: string; said: string }[] = [],
+  /**
+   * Где человек стоит: экран приложения и незаконченное дело на нём. Без этого
+   * помощник отвечает «зайдите в раздел» тому, кто в разделе уже находится.
+   */
+  at?: { screen?: string; doing?: string },
 ): Promise<AssistantAnswer> => {
   const asked = question.trim().slice(0, QUESTION_MAX_LENGTH);
   const reasoner: Reasoner | undefined = deps.reasoner;
@@ -681,11 +777,57 @@ export const askAssistant = async (
 
   // Слова продукта перевешивают отказ модели: «что горит» и «кто на дежурстве»
   // звучат посторонним, а спрашивают про сроки и смену.
-  const known = findCapability(asked, resident.role) !== undefined;
+  const known = findCapability(asked, resident.role, t) !== undefined;
 
   if (about === false && !known) return offering(declined(t, resident.role), heard, chosen);
 
-  return answerByModel(deps, resident, asked, history, plain, heard);
+  return answerByModel(deps, resident, asked, history, plain, heard, at);
+};
+
+/** Экран, на котором человек стоит, словами его роли. */
+const standingAt = (
+  role: Resident['role'],
+  at: { screen?: string; doing?: string } | undefined,
+): AssistInput['where'] => {
+  const item = capabilityFor(at?.screen, role);
+
+  if (!item) return undefined;
+
+  return {
+    screen: item.screen,
+    title: item.title,
+    about: item.about,
+    ...(at?.doing ? { doing: at.doing.slice(0, DOING_MAX_LENGTH) } : {}),
+  };
+};
+
+/** Сколько знаков помещается в описание незаконченного дела. */
+const DOING_MAX_LENGTH = 200;
+
+/** Что уходит в модель вместе с вопросом: факты, разделы роли, язык и место. */
+const asking = (
+  resident: Resident,
+  question: string,
+  facts: string,
+  language: Language,
+  history: readonly { asked: string; said: string }[],
+  at: { screen?: string; doing?: string } | undefined,
+): AssistInput => {
+  const standing = standingAt(resident.role, at);
+
+  return {
+    question,
+    facts,
+    knowledge: knowledgeFor(resident.role, language),
+    sections: capabilitiesFor(resident.role).map((item) => ({
+      screen: item.screen,
+      title: item.title,
+      about: item.about,
+    })),
+    language,
+    ...(history.length > 0 ? { history: [...history] } : {}),
+    ...(standing ? { where: standing } : {}),
+  };
 };
 
 /** Ответ модели, проверенный по фактам и по разделам этой роли. */
@@ -696,52 +838,49 @@ const answerByModel = async (
   history: readonly { asked: string; said: string }[],
   plain: AssistantAnswer,
   heard: Language | undefined,
+  at?: { screen?: string; doing?: string },
 ): Promise<AssistantAnswer> => {
   const reasoner = deps.reasoner;
   const chosen = languageOf(resident);
 
   if (!reasoner?.assist) return offering(plain, heard, chosen);
 
-  const sections = capabilitiesFor(resident.role).map((item) => ({
-    screen: item.screen,
-    title: item.title,
-    about: item.about,
-  }));
+  // Факты собираются из хранилища: его отказ оставляет человека с подбором по
+  // словам, а не с ошибкой на весь разговор.
+  const facts = await dossierFor(deps, resident).catch(() => undefined);
 
-  const facts = await dossierFor(deps, resident);
+  if (facts === undefined) return offering(plain, heard, chosen);
 
-  const read = await reasoner
-    .assist({
-      question: asked,
-      facts,
-      knowledge: knowledgeFor(resident.role, chosen),
-      sections,
-      language: chosen,
-      ...(history.length > 0 ? { history: [...history] } : {}),
-    })
-    .catch(() => undefined);
+  // Отвечают на языке вопроса: он важнее выбранного в профиле. Язык профиля
+  // остаётся запасным, когда язык вопроса определить не удалось.
+  const speaking = heard ?? chosen;
 
-  if (!read?.answer?.trim()) return offering(plain, heard, chosen);
+  const read = await reasoner.assist(asking(resident, asked, facts, speaking, history, at)).catch(() => undefined);
+
+  const said = fieldText(read?.answer);
+
+  if (!said) return offering(plain, heard, chosen);
 
   // Сумма, которой нет в фактах, отбрасывает весь ответ: подбор по словам
   // скажет меньше, но не назовёт человеку цифру, которой никто не считал.
-  if (!groundedInMoney(read.answer, facts)) return offering(plain, heard, chosen);
+  if (!groundedInMoney(said, facts)) return offering(plain, heard, chosen);
 
   // Язык вопроса называет модель, а не угадывает продукт: она видит весь текст.
   // Незнакомый код остаётся без внимания, и тогда решают буквы и слова.
-  const spoken = languageFrom(read.language) ?? heard;
+  const spoken = languageFrom(fieldCode(read?.language)) ?? heard;
   const voice = translatorFor(spoken ?? chosen);
 
   // Раздел, которого у роли нет, помощник не предлагает: кнопка вела бы в отказ.
   // Раздел, которого модель не назвала, берётся подбором по словам: ответ, в
   // котором раздел назван словами, но нажать нечего, человеку бесполезен.
-  const named = sections.some((item) => item.screen === read.screen) ? read.screen : undefined;
-  const screen = named ?? findCapability(asked, resident.role)?.screen;
+  const code = fieldCode(read?.screen);
+  const named = capabilityFor(code, resident.role) ? code : undefined;
+  const screen = named ?? findCapability(asked, resident.role, voice)?.screen;
   const capability = capabilityFor(screen, resident.role);
 
   return offering(
     {
-      answer: quoted(dashless(unmarked(read.answer.trim()))).slice(0, ANSWER_MAX_LENGTH),
+      answer: quoted(dashless(unmarked(said))).slice(0, ANSWER_MAX_LENGTH),
       ...(screen ? { screen } : {}),
       ...(capability ? { title: capabilityTitle(voice, capability) } : {}),
       ...(capability?.command ? { command: capability.command } : {}),

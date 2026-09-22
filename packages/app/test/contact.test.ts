@@ -78,7 +78,7 @@ describe('телефон жильца', () => {
     assert.deepEqual(seen, { displayName: 'Мария', phone: '+79991234567' });
 
     for (const person of [contractor, neighbour]) {
-      await assert.rejects(contactForRequest(deps, person, request.id), /управляющая компания/);
+      await assert.rejects(contactForRequest(deps, person, request.id), /управляющая организация/);
     }
   });
 

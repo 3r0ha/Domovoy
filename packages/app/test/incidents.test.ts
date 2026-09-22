@@ -605,7 +605,7 @@ describe('заявка по телефонному звонку', () => {
 
     await assert.rejects(
       submitProblem(deps, { resident: maria, description: 'У соседа течёт', apartmentId: 'apt-2' }),
-      /управляющая компания этого дома/,
+      /управляющая организация этого дома/,
     );
   });
 });
@@ -1069,7 +1069,7 @@ describe('сообщение о нарушенном сроке', () => {
     );
   });
 
-  it('о нарушенном сроке узнаёт и управляющая компания', async () => {
+  it('о нарушенном сроке узнаёт и управляющая организация', async () => {
     const deps = setup();
     asRequest(await submitProblem(deps, { resident: maria, description: 'Нет горячей воды' }));
 

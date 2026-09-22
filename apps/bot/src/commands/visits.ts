@@ -73,7 +73,6 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
             typed,
             cards.length === 0 ? 'Записей жильцов на приём нет.' : `Записано жильцов на приём: ${cards.length}.`,
             'visits',
-            'Приём в приложении',
           );
 
           return;
@@ -110,7 +109,6 @@ export const visitCommands = (kit: BotKit): Record<string, Handler> => {
             reception.office ? t('visit.title_office', { офис: plain(reception.office) }) : t('visit.title'),
           )}\n${t('visit.free', { сколько: reception.slots.length })}`,
           'visits',
-          t('button.visit_choose'),
           t,
         );
       } catch (error) {

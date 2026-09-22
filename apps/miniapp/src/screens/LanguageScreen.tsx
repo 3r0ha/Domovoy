@@ -89,6 +89,9 @@ export const LanguageScreen = (props: LanguagePickerProps) => (
   </div>
 );
 
+/** Вопрос о языке на языке: строки берутся из словаря, а не пишутся рядом. */
+const asks = (language: Language): string => translatorFor(language)('app.lang.ask');
+
 /**
  * Первый вход: язык спрашивают до документов, иначе их не прочитать. Сам вопрос
  * не переводится: его читает человек, который языка ещё не выбирал.
@@ -97,18 +100,18 @@ export const LanguageSheet = (props: LanguagePickerProps) => {
   const sheet = useTrapped<HTMLElement>(true);
   // Клиент MAX присылает язык человека: вопрос задают и на нём тоже.
   const spoken = languageFrom(useLaunchParams().initDataUnsafe.user?.language_code);
-  const own = spoken ? translatorFor(spoken)('app.lang.ask') : undefined;
-  const third = own && own !== 'Выберите язык' && own !== 'Choose your language' ? own : undefined;
+  const own = spoken ? asks(spoken) : undefined;
+  const third = own && own !== asks('ru') && own !== asks('en') ? own : undefined;
 
   return (
-    <div className="guide" role="dialog" aria-modal="true" aria-label="Выберите язык">
+    <div className="guide" role="dialog" aria-modal="true" aria-label={asks('ru')}>
       <div className="guide-veil" aria-hidden="true" />
 
       <section className="guide-sheet language-sheet" ref={sheet}>
         <Domovoy mood="walking" size={72} />
 
-        <h2 className="guide-title">Выберите язык</h2>
-        <p className="guide-hint">Choose your language</p>
+        <h2 className="guide-title">{asks('ru')}</h2>
+        <p className="guide-hint">{asks('en')}</p>
         {third ? <p className="guide-hint">{third}</p> : null}
 
         <div className="language-list">

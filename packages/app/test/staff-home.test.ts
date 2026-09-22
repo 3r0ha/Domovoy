@@ -41,6 +41,7 @@ const dispatcher: Resident = {
   apartmentId: 'apt-17',
   apartmentIds: ['apt-17'],
   buildingId: WORK,
+  owned: [{ apartmentId: 'apt-17', share: 1, basis: 'company' }],
 };
 
 const neighbour: Resident = {
@@ -303,11 +304,11 @@ describe('сотрудник, который живёт в другом доме
     const onWork = await escalationFor(deps, staff, work.request.id);
 
     assert.equal(onWork.possible, false);
-    assert.match(onWork.reason ?? '', /управляющая компания/);
+    assert.match(onWork.reason ?? '', /управляющая организация/);
 
     const onHome = await escalationFor(deps, staff, home.request.id);
 
     assert.equal(onHome.possible, false, 'срок ещё не нарушен');
-    assert.doesNotMatch(onHome.reason ?? '', /управляющая компания/, 'свой дом обслуживает не он');
+    assert.doesNotMatch(onHome.reason ?? '', /управляющая организация/, 'свой дом обслуживает не он');
   });
 });

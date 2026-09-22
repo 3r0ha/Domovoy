@@ -73,7 +73,7 @@ describe('датчики', () => {
     assert.match(result.request.title, /датчик протечки/i);
   });
 
-  it('заявку подаёт управляющая компания, а не жилец', async () => {
+  it('заявку подаёт управляющая организация, а не жилец', async () => {
     const { deps } = await setup();
 
     const result = await raiseSensorAlarm(deps, BUILDING_ID, 'leak-1-2');

@@ -102,6 +102,9 @@ export const BuildingsScreen = ({ api, onPick, onAdd, opens = 'queue', canAdd = 
               }
               title={`${line.code} · ${line.address}`}
               subtitle={summary(line)}
+              // Текущий дом отмечен: в списке из двух адресов иначе не понять,
+              // по какому из них сейчас идёт работа.
+              {...(line.current ? { after: <span className="row-now">Сейчас</span> } : {})}
               separator={index > 0}
               showChevron
               onClick={() => onPick(line.buildingId)}

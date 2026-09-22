@@ -11,7 +11,10 @@ import {
   saveContact,
   startersFor,
   listNotices,
+  NAME_MAX_LENGTH,
   needsApartment,
+  renameSelf,
+  resetName,
   setNotice,
   exportPersonalData,
   forgetResident,
@@ -42,6 +45,44 @@ import {
   startParamParamsSchema,
 } from '../serialize.js';
 import { residentReader, type RoutesDeps } from '../context.js';
+
+/**
+ * Своё имя. Имя приходит из профиля MAX и обновляется при каждом входе, но
+ * там у людей никнеймы, а мастер читает, к кому идёт. Заданное здесь имя
+ * платформой больше не перебивается, а пустое поле возвращает имя из профиля.
+ */
+const nameRoute = (
+  scope: Parameters<FastifyPluginAsync<RoutesDeps>>[0],
+  deps: RoutesDeps,
+  currentResident: ReturnType<typeof residentReader>,
+): void => {
+  scope.post<{ Body: { name?: string } }>(
+    '/api/me/name',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          properties: { name: { type: 'string', maxLength: NAME_MAX_LENGTH } },
+        },
+        response: {
+          200: {
+            type: 'object',
+            required: ['displayName', 'own'],
+            properties: { displayName: { type: 'string' }, own: { type: 'boolean' } },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const resident = await currentResident(request.max.userId);
+      const said = request.body.name?.trim();
+
+      const saved = said ? await renameSelf(deps, resident, said) : await resetName(deps, resident);
+
+      return { displayName: saved.displayName, own: saved.nameByUser === true };
+    },
+  );
+};
 
 /** Профиль, уведомления, телефон и свои данные. */
 export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
@@ -217,7 +258,14 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
     );
 
     /** Помощник по приложению: короткий ответ и готовый переход в раздел. */
-    scope.post<{ Body: { question: string; history?: { asked: string; said: string }[] } }>(
+    scope.post<{
+      Body: {
+        question: string;
+        history?: { asked: string; said: string }[];
+        screen?: string;
+        doing?: string;
+      };
+    }>(
       '/api/assistant',
       {
         schema: {
@@ -241,6 +289,10 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
                   },
                 },
               },
+              // Где человек стоит: помощник не зовёт в раздел, в котором
+              // человек уже находится, а помогает с делом на этом экране.
+              screen: { type: 'string', maxLength: 32 },
+              doing: { type: 'string', maxLength: 200 },
             },
           },
           response: {
@@ -264,7 +316,10 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       async (request) => {
         const resident = await currentResident(request.max.userId);
 
-        return askAssistant(deps, resident, request.body.question, request.body.history ?? []);
+        return askAssistant(deps, resident, request.body.question, request.body.history ?? [], {
+          ...(request.body.screen ? { screen: request.body.screen } : {}),
+          ...(request.body.doing ? { doing: request.body.doing } : {}),
+        });
       },
     );
 
@@ -355,6 +410,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
         return setNotice(deps, resident, request.body.kind as NoticeKind, request.body.on);
       },
     );
+
+    nameRoute(scope, deps, currentResident);
 
     /** Телефон жильца из `requestContact`. */
     scope.post<{ Body: { phone: string; authDate?: string; hash?: string } }>(

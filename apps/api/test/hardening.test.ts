@@ -122,7 +122,7 @@ describe('чужое имя в теле запроса', () => {
       },
     });
 
-    assert.equal(response.statusCode, 403, 'собрание объявляет управляющая компания');
+    assert.equal(response.statusCode, 403, 'собрание объявляет управляющая организация');
     assert.deepEqual(await repository.listPolls(BUILDING_ID), [], 'собрания от чужого имени не завелось');
 
     await app.close();

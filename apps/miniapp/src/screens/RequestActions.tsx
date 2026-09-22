@@ -38,6 +38,101 @@ const AssigneePicker = ({
   </label>
 );
 
+/** Единицы, которые встречаются в нарядах чаще прочих: набирать их руками незачем. */
+const MATERIAL_UNITS = ['шт', 'м', 'м²', 'кг', 'л', 'упак'];
+
+/**
+ * Материалы наряда: что израсходовано на работу. Без них смена ведёт расход
+ * в своём журнале, и продукт для неё остаётся вторым местом ввода.
+ */
+const MaterialsField = ({
+  items,
+  onChange,
+}: {
+  items: { title: string; count: number; unit?: string }[];
+  onChange: (items: { title: string; count: number; unit?: string }[]) => void;
+}) => {
+  const [title, setTitle] = useState('');
+  const [count, setCount] = useState('');
+  const [unit, setUnit] = useState('');
+
+  const add = (): void => {
+    const name = title.trim();
+    const many = Number(count.replace(',', '.'));
+    const measure = unit.trim();
+
+    if (!name || !Number.isFinite(many) || many <= 0) return;
+
+    onChange([...items, { title: name, count: many, ...(measure ? { unit: measure } : {}) }]);
+    setTitle('');
+    setCount('');
+    setUnit('');
+  };
+
+  return (
+    <div className="materials">
+      {items.length > 0 ? (
+        <ul className="materials-list">
+          {items.map((item, index) => (
+            <li key={`${item.title}-${index}`}>
+              {/* Название и расход разведены: одной фразой пять материалов
+                  не сверить, количество тонет в тексте. */}
+              <span className="materials-name">{item.title}</span>
+              <span className="materials-count">
+                {item.count}
+                {item.unit ? ` ${item.unit}` : ''}
+              </span>
+              {/* Ошибиться в количестве легко, а сдать наряд с чужим расходом дорого. */}
+              <button
+                type="button"
+                className="link"
+                aria-label={`Убрать ${item.title}`}
+                onClick={() => onChange(items.filter((_, at) => at !== index))}
+              >
+                Убрать
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <div className="materials-row">
+        <input
+          type="text"
+          aria-label="Материал"
+          placeholder="Материал"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+        <input
+          type="text"
+          inputMode="decimal"
+          aria-label="Количество"
+          placeholder="Кол-во"
+          value={count}
+          onChange={(event) => setCount(event.target.value)}
+        />
+        <input
+          type="text"
+          aria-label="Единица измерения"
+          placeholder="Ед."
+          list="material-units"
+          value={unit}
+          onChange={(event) => setUnit(event.target.value)}
+        />
+        <datalist id="material-units">
+          {MATERIAL_UNITS.map((item) => (
+            <option key={item} value={item} />
+          ))}
+        </datalist>
+        <button type="button" className="link" onClick={add}>
+          Добавить
+        </button>
+      </div>
+    </div>
+  );
+};
+
 /** Переходы, которые сервер не примет без объяснения. */
 const NEEDS_REASON = ['rejected', 'needs_info', 'done'];
 
@@ -105,6 +200,7 @@ export const RequestActions = ({
   const [reason, setReason] = useState('');
   const [proved, setProved] = useState<string | undefined>(undefined);
   const [failed, setFailed] = useState<string | undefined>(undefined);
+  const [materials, setMaterials] = useState<{ title: string; count: number; unit?: string }[]>([]);
   const result = usePhotos(api);
   const haptics = useHaptics();
   const t = useT();
@@ -130,8 +226,10 @@ export const RequestActions = ({
         ...((action === 'in_progress' || action === 'needs_info') && assigneeId ? { assigneeId } : {}),
         ...(action === 'done' && result.photos.length > 0 ? { attachments: result.photos } : {}),
         ...(provedBy ? { provedBy } : {}),
+        ...(action === 'done' && materials.length > 0 ? { materials } : {}),
       });
       result.reset();
+      setMaterials([]);
       setAsking(null);
       setReason('');
       setProved(undefined);
@@ -251,13 +349,18 @@ export const RequestActions = ({
                   disabled={busy || result.uploading || needsAssignee}
                   onClick={() => (proving ? scanner.scan() : start(main))}
                 >
-                  {proving ? 'Сканировать код' : title(main)}
+                  {/* Кнопка называет и действие, и его конец: скан сам по себе наряд не сдаёт. */}
+                  {proving ? 'Сканировать код и сдать' : title(main)}
                 </Button>
               ) : null}
             </div>
           ) : null}
 
-          {needsAssignee ? <p className="hint">Выберите исполнителя</p> : null}
+          {photos ? <MaterialsField items={materials} onChange={setMaterials} /> : null}
+
+          {/* Подсказка не повторяет пустой пункт селекта над ней, а называет
+              то, что от неё зависит. */}
+          {needsAssignee ? <p className="hint">Без исполнителя наряд в работу не уходит</p> : null}
 
           {proving ? (
             <>
@@ -272,19 +375,24 @@ export const RequestActions = ({
       ) : null}
 
       {rest.length > 0 ? (
-        <CellList className="actions-more" mode="island">
-          {rest.map((action) => (
-            <CellAction
-              key={action}
-              className="row-split"
-              mode={action === 'rejected' || action === 'withdrawn' ? 'destructive' : 'secondary'}
-              disabled={busy || result.uploading || blocked(action)}
-              onClick={() => start(action)}
-            >
-              {title(action)}
-            </CellAction>
-          ))}
-        </CellList>
+        <>
+          <CellList className="actions-more" mode="island">
+            {rest.map((action) => (
+              <CellAction
+                key={action}
+                className="row-split"
+                mode={action === 'rejected' || action === 'withdrawn' ? 'destructive' : 'secondary'}
+                disabled={busy || result.uploading || blocked(action)}
+                onClick={() => start(action)}
+              >
+                {title(action)}
+              </CellAction>
+            ))}
+          </CellList>
+
+          {/* Погасшая кнопка без объяснения читается как поломка продукта. */}
+          {rest.some(blocked) ? <p className="hint aside">Часть действий откроется после выбора исполнителя</p> : null}
+        </>
       ) : null}
     </>
   );

@@ -27,6 +27,8 @@ import {
 import {
   actionKeyboard,
   alertKeyboard,
+  flatmateKeyboard,
+  visitKeyboardFor,
   appLink,
   appRow,
   initiativeKeyboard,
@@ -67,6 +69,7 @@ import {
   PRIVATE_COMMANDS,
   QUIET_COMMANDS,
   nameOf,
+  rawNameOf,
   shown,
   speaking,
   toast,
@@ -106,7 +109,11 @@ const pressed = async (kit: BotKit, typed: BotContext): Promise<void> => {
       return;
     }
 
-    if (!inChat(typed) && !WITHOUT_FLAT_BUTTONS.has(name) && (await needsFlat(kit, typed))) {
+    if (
+      !inChat(typed) &&
+      !WITHOUT_FLAT_BUTTONS.has(name) &&
+      (await needsFlat(kit, typed, undefined, HOUSE_IS_ENOUGH.has(args[0] ?? '')))
+    ) {
       await toast(typed);
       return;
     }
@@ -150,15 +157,15 @@ const WITHOUT_LEGAL = new Set(['start', 'help', 'legal', 'lang']);
  */
 const WITHOUT_FLAT = new Set(['start', 'help', 'legal', 'flat', 'mydata', 'demo', 'lang']);
 
-/** Куда ведёт кнопка под уведомлением: подпись под раздел приложения. */
-const SECTION_TITLES: Record<string, string> = {
-  news: 'button.in_app_short',
-  meters: 'button.in_app_short',
-  polls: 'button.polls_in_app',
-  inspections: 'button.in_app_short',
-  list: 'button.requests_in_app',
-  queue: 'button.requests_in_app',
-};
+/**
+ * Дела дома, а не помещения: объявления и контакты открыты и тому, кто назвал
+ * дом сканом наклейки, но квартиру ещё не привязал.
+ */
+const HOUSE_IS_ENOUGH = new Set(['news', 'contacts']);
+
+/** Закрыто ли дело отсутствием квартиры. Дела дома открыты по известному дому. */
+const gated = async (kit: BotKit, typed: BotContext, name: string): Promise<boolean> =>
+  !WITHOUT_FLAT.has(name) && (await needsFlat(kit, typed, undefined, HOUSE_IS_ENOUGH.has(name)));
 
 /**
  * То же самое в переписке: не у всех есть приложение, и набирать команду из
@@ -199,7 +206,7 @@ export const BOT_COMMANDS = [
   { name: 'bill', description: 'Сколько платить в этом месяце' },
   { name: 'door', description: 'Открыть дверь подъезда' },
   { name: 'news', description: 'Объявления дома' },
-  { name: 'support', description: 'Написать в управляющую компанию' },
+  { name: 'support', description: 'Написать в управляющую организацию' },
   { name: 'contacts', description: 'К кому обращаться по дому' },
   { name: 'help', description: 'Спросить о доме словами' },
   // Список команд один на всех и не переводится: язык выбирают до того,
@@ -256,12 +263,17 @@ export const createBotNotifier = (
     mutable,
     complaintFor,
     voteAbout,
+    visitAbout,
+    dropFlatmate,
   }) {
     try {
       const t = speakLanguage(language);
-      const inApp = section ? (SECTION_TITLES[section] ?? 'button.open_app') : 'button.open_app';
 
-      const keyboard = askAbout
+      const keyboard = visitAbout
+        ? visitKeyboardFor(visitAbout.requestId, visitAbout.slots, undefined, t)
+        : dropFlatmate
+        ? flatmateKeyboard(dropFlatmate, t)
+        : askAbout
         ? alertKeyboard(askAbout, t)
         : signAbout
           ? initiativeKeyboard(signAbout, t)
@@ -275,7 +287,7 @@ export const createBotNotifier = (
                     ? [[Keyboard.button.callback(t('button.gzhi'), `gzhi:${complaintFor}`)]]
                     : []),
                   ...inChatRow(section, t),
-                  ...(section ? appRow(miniAppUrl, t(inApp), section) : []),
+                  ...(section ? appRow(miniAppUrl, section, t) : []),
                   ...(mutable ? [[Keyboard.button.callback(t('button.mute'), `mute:${mutable}`)]] : []),
                 ], PERSONAL, t)
               : actionKeyboard(actions, replyTo, undefined, undefined, t);
@@ -347,7 +359,9 @@ const rememberLanguage = (context: BotContext, resident: Resident): void => {
 
   // Написано на языке, который продукт знает, а человек читает на другом: под
   // ответом появится переход на него. Ответ при этом приходит сразу, целиком.
-  const said = context.message?.body?.text;
+  // При нажатии кнопки в сообщении лежит текст самого бота, а не слова человека:
+  // по нему предлагался переход на язык, с которого человек только что ушёл.
+  const said = context.callback ? undefined : context.message?.body?.text;
   const heard = said ? languageOfText(said) : undefined;
 
   if (heard && resident.role === 'resident' && heard !== languageOf(resident)) context.session.offerLang = heard;
@@ -444,6 +458,25 @@ const inPrivate = async (
   }
 };
 
+/** Кто пишет: профиль по идентификатору MAX, с домом чата, если он известен. */
+const residentIn = async (
+  deps: AppDeps,
+  user: { user_id?: number; first_name?: string; last_name?: string } | undefined,
+  house: string | undefined,
+): Promise<Resident> => {
+  const maxUserId = user?.user_id;
+
+  if (maxUserId === undefined) throw new DomainError('user_unknown', 'Не удалось определить пользователя');
+
+  const known = await ensureResident(deps, {
+    maxUserId,
+    displayName: rawNameOf(user),
+    ...(house ? { buildingId: house } : {}),
+  });
+
+  return house && !known.buildingId ? { ...known, buildingId: house } : known;
+};
+
 export const createDomovoyBot = (
   options: BotOptions,
 ): {
@@ -488,18 +521,14 @@ export const createDomovoyBot = (
     context.chatId === undefined ? undefined : buildingByChat(deps, context.chatId);
 
   const residentOf = async (context: BotContext, buildingId?: string): Promise<Resident> => {
-    const user = context.user ?? context.callback?.user ?? context.message?.sender;
-    const maxUserId = user?.user_id;
-
-    if (maxUserId === undefined) throw new DomainError('user_unknown', 'Не удалось определить пользователя');
-
     // В чате дома человек действует в этом доме, даже если сам ещё нигде не привязан.
     const house = buildingId ?? (inChat(context) ? (await houseOf(context))?.id : undefined);
-    const known = await ensureResident(deps, { maxUserId, displayName: nameOf(user), ...(house ? { buildingId: house } : {}) });
+    const user = context.user ?? context.callback?.user ?? context.message?.sender;
+    const known = await residentIn(deps, user, house);
 
     rememberLanguage(context, known);
 
-    return house && !known.buildingId ? { ...known, buildingId: house } : known;
+    return known;
   };
 
   /** Без адреса мини-приложения сообщение остаётся с кнопкой меню, а не голым. */
@@ -535,7 +564,8 @@ export const createDomovoyBot = (
       if (!inChat(typed) && !WITHOUT_LEGAL.has(name) && (await needsLegal(kit, typed, name))) return undefined;
 
       // Без квартиры дома нет, и дел по дому тоже: жилец сначала привязывается.
-      if (!inChat(typed) && !WITHOUT_FLAT.has(name) && (await needsFlat(kit, typed))) return undefined;
+      // Объявления и контакты открыты и тому, кто назвал дом сканом наклейки.
+      if (!inChat(typed) && (await gated(kit, typed, name))) return undefined;
 
       if (!inChat(typed) || !PRIVATE_COMMANDS.has(name)) return run(typed);
 

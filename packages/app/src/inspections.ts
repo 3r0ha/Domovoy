@@ -115,7 +115,7 @@ export const planInspections = async (deps: AppDeps, buildingId: string): Promis
 /** @throws {DomainError} */
 const forStaff = (resident: Resident): void => {
   if (!isCompanyStaff(resident.role)) {
-    throw new DomainError('forbidden', 'Осмотры общего имущества ведёт управляющая компания');
+    throw new DomainError('forbidden', 'Осмотры общего имущества ведёт управляющая организация');
   }
 };
 

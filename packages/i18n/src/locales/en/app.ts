@@ -5,7 +5,7 @@ export const app: Dictionary = {
   'status.new': 'new',
   'status.accepted': 'accepted for work',
   'status.in_progress': 'in progress',
-  'status.needs_info': 'awaiting the resident reply',
+  'status.needs_info': 'awaiting an answer from the resident',
   'status.done': 'completed, awaiting acceptance',
   'status.confirmed': 'closed, work accepted',
   'status.rejected': 'rejected',
@@ -51,6 +51,7 @@ export const app: Dictionary = {
   'noticeKind.works': 'Planned works',
   'noticeKind.polls': 'Owners meetings',
   'noticeKind.news': 'House announcements',
+  'noticeKind.debt': 'Payment reminders',
 
   'charge.maintenance': 'Maintenance and current repairs',
   'charge.common': '{ресурс} for common house needs',
@@ -115,12 +116,12 @@ export const app: Dictionary = {
   'error.visit_exists': 'You already have an appointment',
   'error.slot_taken': 'This time is already taken, choose another one',
   'error.reception_empty': 'The management organisation does not hold appointments',
-  'error.ticket_not_found': 'Enquiry not found',
-  'error.ticket_closed': 'The enquiry is closed, ask your question again',
+  'error.ticket_not_found': 'Question not found',
+  'error.ticket_closed': 'The question is closed, ask it again',
   'error.poll_not_found': 'Vote not found',
   'error.poll_closed': 'The results are counted, the vote cannot be accepted',
   'error.poll_open': 'The meeting is still running, the minutes are drawn up on its results',
-  'error.already_knocked': 'The neighbour upstairs has already been knocked for',
+  'error.already_knocked': 'The neighbour upstairs has already been told',
   'error.no_upstairs': 'There are no neighbours above this apartment',
   'error.upstairs_unknown': 'The neighbour upstairs is not in the app yet, they cannot be called from here',
   'error.complaint_exists': 'A complaint on this request has already been sent',
@@ -180,9 +181,10 @@ export const app: Dictionary = {
   'notice.staffRequest':
     'The management company has opened a request for your apartment: {суть}.\n{номер}, due by {срок}.',
   'notice.complaintSent':
-    'The complaint is sent: {организация}.{номер}\nThe reply arrives within 30 days.',
+    'The complaint is sent: {организация}.{номер}\nThe answer arrives within 30 days.',
   'notice.complaintNumber': '\nNumber {номер}.',
   'notice.debt': '{долг}\n\nYou can pay with the button below.',
+  'notice.due': 'Charged for the month: {сумма}. Pay by day {день}, after that the penalty starts.',
 
   'hours.one': '{сколько} hour',
   'hours.few': '{сколько} hours',
@@ -206,12 +208,12 @@ export const app: Dictionary = {
   'answer.houseAhead': 'Nothing is switched off in the house now. Next: {событие}, {когда}.',
   'answer.houseQuiet': 'Nothing is switched off in the house and there are no emergencies.',
   'answer.billEmpty': 'There are no charges for this month yet.',
-  'answer.billLeft': '{сумма} to pay by the {число}th.',
+  'answer.billLeft': '{сумма} to pay by day {число} of the month.',
   'answer.billPaid': 'Everything is paid for this month.',
   'answer.requestsEmpty': 'You have no open requests.',
   'answer.requests': 'Your requests:\n{строки}',
   'answer.requestLine': '{номер}: {состояние}, due {срок}.',
-  'answer.requestWaiting': 'awaits your acceptance',
+  'answer.requestWaiting': 'awaiting your acceptance',
   'answer.requestWorking': 'in progress',
   'answer.requestNew': 'new',
 
@@ -224,7 +226,7 @@ export const app: Dictionary = {
     'Consumption on the meter "{прибор}" for the period: {расход} {единица}, noticeably more than usual.\n' +
     'If you did not use more than usual, check the taps and the cistern.',
   'meters.aboveNeighbours':
-    'Consumption on meter {номер} is higher than the neighbours: {расход} {единица} against {соседи} {единица} in similar apartments.\n' +
+    'Consumption on meter {номер} is higher than at the neighbours: {расход} {единица} against {соседи} {единица} in similar apartments.\n' +
     'Worth checking: most often it is a leaking cistern or mixer tap.',
 
   'debt.total': 'Unpaid {сумма}:\n{строки}',
@@ -238,7 +240,7 @@ export const app: Dictionary = {
 
   'support.answered': '{сотрудник}, management company, answers the question "{тема}":\n{текст}',
   'support.waiting': 'Awaits the reply of the management company.',
-  'support.earlier': 'Earlier there are {сколько} more, in full in the app.',
+  'support.earlier': '{сколько} more earlier, in full in the app.',
   'support.you': 'You',
   'support.company': 'Management company',
   'support.resident': 'Resident',
@@ -251,7 +253,7 @@ export const app: Dictionary = {
   'poll.remind': 'The meeting "{название}" closes {до}.\n{нехватка}',
   'poll.remindFew': 'Not everyone has voted: while there are few votes, no decision is taken.',
   'poll.remindArea':
-    'The owners of not all the area have voted: {площадь} m² are missing. While there are few votes, no decision is taken.',
+    'Not all the area has voted: {площадь} m² still missing. While there are few votes, no decision is taken.',
   'poll.closed':
     'The meeting is completed: {название}\n{итог}\nTurnout: {участие}, in favour: {за} of the house area.',
   'poll.noQuorum': 'There is no quorum, the meeting did not take place.',
@@ -281,7 +283,7 @@ export const app: Dictionary = {
   'poll.result.survey': 'A resident survey, it is not a decision of a meeting. Answered: {участие} of the house area.',
   'poll.result.meeting': '{правило}. Turnout: {участие} of the house area.',
   'poll.result.quorum':
-    'Not everyone has voted yet: for the decision to stand, the votes of owners of {площадь} m² more are needed.',
+    'Not everyone has voted yet: for the decision to stand, the votes of the owners of another {площадь} m² are needed.',
   'poll.result.share': '{ответ}: {доля}',
   'poll.result.needed': '{порог} {база} is needed, {набрано} collected.',
   'poll.result.mine': 'The vote of the apartment: {ответ}.',
@@ -304,7 +306,7 @@ export const app: Dictionary = {
   'protocol.turnout': 'Took part: {площадь} m² ({доля})',
   'protocol.quorumYes': 'Quorum: yes, more than {порог} is required',
   'protocol.quorumUnknown': 'Quorum: not confirmed, {сколько} premises have no area on record',
-  'protocol.quorumNo': 'Quorum: no, {площадь} m² are missing',
+  'protocol.quorumNo': 'Quorum: no, {площадь} m² missing',
   'protocol.line': '{ответ}: {площадь} m² ({доля})',
   'protocol.decision': 'Decision',
   'protocol.rule': '{правило}: {набрано} {база} against the threshold of {порог}.',
@@ -322,12 +324,15 @@ export const app: Dictionary = {
   'initiative.meetingCalled':
     'A meeting on your proposal has been called: {название}.\nThe vote is cast with the button below.',
   'initiative.enough': 'There are enough signatures to demand a meeting',
-  'initiative.need': 'For a meeting to be called, the signatures of owners of {площадь} m² more are needed',
+  'initiative.need': 'For a meeting to be called, the signatures of the owners of another {площадь} m² are needed',
   'initiative.signatures': 'Signatures: {сколько}.',
 
   'binding.neighbour':
     'One more resident has been linked to your apartment {квартира}: {кто}.\n' +
     'If this is not your neighbour, tell the management company.',
+  'binding.ownerClaimed':
+    '{кто} has stated that they are the owner of apartment {квартира}.\n' +
+    'If this is not so, tell the management organisation: the vote at the meeting depends on it.',
   'binding.bound':
     'The management company has linked you to apartment {квартира}.\n' +
     'Meter readings and voting at meetings are available now.',
@@ -361,6 +366,25 @@ export const app: Dictionary = {
 
   'visit.booked': 'The management organisation has booked you an appointment: {когда}.\n{тема}',
   'visit.cancelled': 'The appointment on {день} at {время} is cancelled by the management organisation.',
+
+  'visit.offer': 'Request {номер}: the technician is ready to come. Choose a convenient time.',
+  'visit.chosenForStaff': 'Request {номер}: the resident is waiting at {когда}. {место}.',
+  'visit.missed':
+    'The technician came at {когда} for request {номер} and could not get into the apartment. ' +
+    'Choose another time and he will come again.',
+  'visit.refused':
+    'For request {номер} the technician could not get into the apartment {сколько} times. The request stays ' +
+    'open, but the time of the works is now agreed by the management organisation: call them.',
+  'visit.declined': 'None of the offered times fits. The management organisation will offer another one.',
+  'visit.dropped': 'Request {номер}: the resident has cancelled the visit time and is choosing a new one.',
+  'visit.todayForResident':
+    'Today at {время} the technician comes for request {номер}. If your plans have changed, cancel the time.',
+  'visit.todayForStaff': 'Today at {время} you are expected for request {номер}. {место}.',
+
+  'dispute.forStaff': 'Request {номер}, {место}. The applicant disagrees with the refusal "{причина}". They write: {что}',
+  'dispute.upheld':
+    'For request {номер} the refusal is upheld. If you disagree with it, the housing inspectorate decides ' +
+    'further: the appeal is ready, you can send it with the button.',
 
   'assistant.offTopic':
     'I only help with the house and this app: requests, meters, the bill, meetings, ' +
@@ -435,7 +459,7 @@ export const app: Dictionary = {
   'scope.meters': 'readings not submitted',
   'scope.poll': 'have not voted: {название}',
   'scope.pollAny': 'have not voted',
-  'scope.staff': 'house shift',
+  'scope.staff': 'house duty team',
 
   'reporters.one': '{сколько} reported',
   'reporters.few': '{сколько} reported',
@@ -462,21 +486,24 @@ export const app: Dictionary = {
 
   'responsible.management': 'Management organisation',
   'responsible.resource': 'Utility supplier',
-  'responsible.contractor': 'Contractor under agreement',
+  'responsible.contractor': 'Contractor under an agreement',
   'responsible.municipal': 'Municipal service',
-  'responsible.owner': 'Owner of the property',
+  'responsible.owner': 'Owner of the premises',
 
   'zone.elevator': 'The lift is serviced by a specialised organisation',
   'zone.insideFlat': 'Equipment inside the apartment is repaired by the owner',
+  'zone.flatBorder':
+    'The boundary runs along the first shut-off device: before it the management organisation is responsible, after it the owner',
   'zone.yard': 'The yard of the house is maintained by the management organisation',
   'zone.common': 'This is common property of the house, maintained by the management organisation',
   'zoneNext.elevator':
     'The request is handled by the management organisation: it passes it to the lift service company.',
   'zoneNext.insideFlat':
     'The management organisation does such work on a separate request, usually for a fee.',
+  'zoneNext.flatBorder': 'The technician determines on inspection where exactly the fault is.',
   'zoneNext.yard': 'If the place is beyond the house plot, the request goes to the municipal service.',
 
-  'ticketStatus.open': 'awaiting a reply',
+  'ticketStatus.open': 'awaiting an answer',
   'ticketStatus.answered': 'answered',
   'ticketStatus.closed': 'closed',
 
@@ -492,10 +519,10 @@ export const app: Dictionary = {
   'deed.rejectStaff': 'Requests are rejected by the management organisation.',
   'deed.withdrawOwn': 'Only the person who filed a request can withdraw it, and only while it is open.',
   'deed.needsInfoStaff': 'It is the management organisation that asks the resident for details.',
-  'deed.doneWorker': 'Work is handed over by the assignee of a job that is in progress.',
+  'deed.doneWorker': 'Work is handed over by the assignee of a work order that is in progress.',
   'deed.acceptDone': 'You can accept the work once the technician has handed it over.',
   'deed.acceptStaff': 'Requests are taken into work by the management organisation.',
-  'deed.startWorker': 'A job can be taken into work by its assignee.',
+  'deed.startWorker': 'A work order can be taken into work by its assignee.',
   'deed.unavailable': 'This action is not available right now.',
 
   'contacts.emergency': 'Emergency, around the clock: {телефон}',
@@ -504,7 +531,8 @@ export const app: Dictionary = {
   'contacts.email': 'Email: {почта}',
   'contacts.office': 'Office hours: {где}',
   'contacts.person': 'Responsible: {кто}',
-  'contacts.empty': 'No contacts are set: write to support, the shift will reply.',
+  'contacts.empty': 'No contacts are set: write to support, the duty team will answer.',
+  'privacy.summary': 'Requests {заявок}, readings {показаний}, votes {голосов}, payments {платежей}',
 
   'role.removed': 'The management company removed your staff role. Requests and readings stay available.',
   'role.given': 'The management company gave you the role: {роль}.\nType /start to see the new commands.',
@@ -536,10 +564,10 @@ export const app: Dictionary = {
   'starter.assign': 'How do I assign an executor?',
   'starter.handoff': 'How do I pass a request to a partner organisation?',
   'starter.answer': 'How do I reply to a resident?',
-  'starter.orders': 'Which jobs are assigned to me?',
+  'starter.orders': 'Which work orders are assigned to me?',
   'starter.finish': 'How do I hand over the work?',
   'starter.deadline': 'Where is the deadline of a request?',
-  'starter.orderDeadline': 'Where is the deadline of a job?',
+  'starter.orderDeadline': 'Where is the deadline of a work order?',
   'starter.inspection': 'How do I mark an inspection?',
   'starter.report': 'How do I look at the house summary?',
   'starter.broadcast': 'How do I send an announcement to residents?',

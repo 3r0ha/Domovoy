@@ -45,12 +45,13 @@ export const app: Dictionary = {
 
   'basis.meter': 'hisoblagich boʻyicha',
   'basis.average': 'oʻrtacha boʻyicha',
-  'basis.norm': 'meʼyor boʻyicha',
+  'basis.norm': 'normativ boʻyicha',
 
   'noticeKind.meters': 'Hisoblagich koʻrsatkichlari',
   'noticeKind.works': 'Rejali ishlar',
   'noticeKind.polls': 'Mulkdorlar yigʻilishi',
   'noticeKind.news': 'Uy eʼlonlari',
+  'noticeKind.debt': 'Toʻlov haqida eslatmalar',
 
   'charge.maintenance': 'Saqlash va joriy taʼmir',
   'charge.common': 'Uyning umumiy ehtiyojlariga {ресурс}',
@@ -151,7 +152,7 @@ export const app: Dictionary = {
   'notice.guestEntry': 'Mehmon kodi ishladi: {устройство}, {время}',
   'notice.guestDoor': 'eshik',
   'notice.neighbourQuestion':
-    'Umumiy quvurdagi qoʻshni xabar bermoqda: {суть}.\nAriza {номер} ishda.\nSizda ham shundaymi?',
+    'Stoyakdagi qoʻshni xabar bermoqda: {суть}.\nAriza {номер} ishda.\nSizda ham shundaymi?',
   'notice.knock':
     'Domovoy eshikni taqillatmoqda: pastdagi qoʻshnida {суть}.\n' +
     'Sizda suv oqmayaptimi, qarang. Oqayotgan boʻlsa, suvni berkiting va quyidagi tugmani bosing, ariza ochilgan.',
@@ -181,6 +182,7 @@ export const app: Dictionary = {
   'notice.complaintSent': 'Murojaat yuborildi: {организация}.{номер}\nJavob 30 kun ichida keladi.',
   'notice.complaintNumber': '\nRaqami {номер}.',
   'notice.debt': '{долг}\n\nQuyidagi tugma bilan toʻlash mumkin.',
+  'notice.due': 'Oy uchun hisoblandi: {сумма}. Oyning {день} sanasigacha toʻlang, keyin penya boshlanadi.',
 
   'hours.one': '{сколько} soat',
   'hours.few': '{сколько} soat',
@@ -215,22 +217,22 @@ export const app: Dictionary = {
   'meters.remind':
     'Hisoblagich koʻrsatkichlarini yuborish vaqti keldi, {осталось}:\n{приборы}\n' +
     'Quyidagi tugmani bosing va hisoblagichdagi raqamlarni yuboring.',
-  'meters.expired': 'Tekshiruv muddati tugadi: {приборы}.\nYangi tekshiruvgacha meʼyor boʻyicha hisoblanadi.',
+  'meters.expired': 'Tekshiruv muddati tugadi: {приборы}.\nYangi tekshiruvgacha normativ boʻyicha hisoblanadi.',
   'meters.name': '{прибор} ({номер})',
   'meters.spike':
     '«{прибор}» hisoblagichi boʻyicha davr sarfi: {расход} {единица}, bu odatdagidan ancha koʻp.\n' +
     'Odatdagidan koʻp ishlatmagan boʻlsangiz, joʻmrak va bachokni tekshiring.',
   'meters.aboveNeighbours':
     '{номер} hisoblagich sarfi qoʻshnilarnikidan koʻp: sizda {расход} {единица}, oʻxshash kvartiralarda {соседи} {единица}.\n' +
-    'Tekshirib koʻrgan maʼqul: koʻpincha buning sababi oqayotgan bachok yoki jumrak.',
+    'Tekshirib koʻrgan maʼqul: koʻpincha buning sababi oqayotgan bachok yoki joʻmrak.',
 
   'debt.total': 'Toʻlanmagan {сумма}:\n{строки}',
   'debt.line': '  {период}: {сумма}',
   'debt.linePenalty': '  {период}: {сумма} va penya {пени}',
-  'debt.penalty': '\n\nKechikkani uchun jarima: {пени}\nJami toʻlash kerak: {итого}',
+  'debt.penalty': '\n\nKechikkani uchun penya: {пени}\nJami toʻlash kerak: {итого}',
   'debt.short': 'Eski qarz, {месяцы} uchun: {сумма}',
-  'debt.shortPenalty': 'Eski qarz, {месяцы} uchun: {сумма}, kechikkani uchun jarima {пени}',
-  'debt.range': '{от}dan {до}gacha',
+  'debt.shortPenalty': 'Eski qarz, {месяцы} uchun: {сумма}, kechikkani uchun penya {пени}',
+  'debt.range': '{от} bilan {до} oraligʻi',
   'debt.period': '{месяц} {год}',
 
   'support.answered': '{сотрудник}, boshqaruv kompaniyasi, «{тема}» savoliga javob beradi:\n{текст}',
@@ -254,13 +256,13 @@ export const app: Dictionary = {
   'poll.passed': 'Qaror qabul qilindi.',
   'poll.failed': 'Qaror qabul qilinmadi.',
   'poll.voteReplaced':
-    '«{название}» yigʻilishida {квартира} kvartiraning ovozini {кто} oʻzgartirdi: {ответ}.\n' +
+    '«{название}» yigʻilishida {квартира}-kvartiraning ovozini {кто} oʻzgartirdi: {ответ}.\n' +
     'Xonadonda bitta ovoz bor, oxirgisi hisoblanadi.',
   'poll.choice.for': 'yoqlab',
   'poll.choice.against': 'qarshi',
   'poll.choice.abstain': 'betaraf',
   'poll.elder':
-    'Qoʻshnilar sizni {подъезд} podyezdga oqsoqol qilib sayladi.\n' +
+    'Qoʻshnilar sizni {подъезд}-podyezdga oqsoqol qilib sayladi.\n' +
     'Podyezdning umumiy mulki boʻyicha arizalar endi sizniki: ularni siz koʻrasiz va ishni siz qabul qilasiz.',
 
   'pollRule.simple': 'Oddiy koʻpchilik',
@@ -279,7 +281,7 @@ export const app: Dictionary = {
   'poll.result.quorum':
     'Hali hamma ovoz bermadi: qaror qabul qilinishi uchun yana {площадь} m² mulkdorlarining ovozi kerak.',
   'poll.result.share': '{ответ}: {доля}',
-  'poll.result.needed': '{база} {порог} kerak, toʻplandi {набрано}.',
+  'poll.result.needed': '{база} {порог} kerak, {набрано} toʻplandi.',
   'poll.result.mine': 'Kvartira ovozi: {ответ}.',
   'poll.result.mineBy': 'Kvartira ovozi: {ответ} ({кто} berdi, kvartiraning bitta ovozi bor).',
 
@@ -293,7 +295,7 @@ export const app: Dictionary = {
   'protocol.initiator': 'Tashabbuskor: {кто}',
   'protocol.surveyBy': 'Oʻtkazdi: {кто}',
   'protocol.administrator': 'Yigʻilish administratori: {кто}',
-  'protocol.voting': 'Ovoz berish: {от} dan {до} gacha',
+  'protocol.voting': 'Ovoz berish: {от}dan {до}gacha',
   'protocol.agenda': 'Kun tartibidagi masala',
   'protocol.counting': 'Ovozlarni sanash',
   'protocol.totalArea': 'Xonalarning umumiy maydoni: {площадь} m²',
@@ -322,13 +324,16 @@ export const app: Dictionary = {
   'initiative.signatures': 'Imzolar: {сколько}.',
 
   'binding.neighbour':
-    '{квартира} kvartirangizga yana bitta yashovchi bogʻlandi: {кто}.\n' +
+    '{квартира}-kvartirangizga yana bitta yashovchi bogʻlandi: {кто}.\n' +
     'Agar bu sizning qoʻshningiz boʻlmasa, boshqaruv kompaniyasiga xabar bering.',
+  'binding.ownerClaimed':
+    '{кто} {квартира}-kvartira mulkdori ekanini bildirdi.\n' +
+    'Agar bu shunday boʻlmasa, boshqaruv tashkilotiga ayting: yigʻilishdagi ovoz shunga bogʻliq.',
   'binding.bound':
-    'Boshqaruv kompaniyasi sizni {квартира} kvartiraga bogʻladi.\n' +
+    'Boshqaruv kompaniyasi sizni {квартира}-kvartiraga bogʻladi.\n' +
     'Endi hisoblagich koʻrsatkichlari va yigʻilishlarda ovoz berish ochiq.',
   'binding.unbound':
-    'Boshqaruv kompaniyasi sizni {квартира} kvartiradan uzdi.\n' +
+    'Boshqaruv kompaniyasi sizni {квартира}-kvartiradan uzdi.\n' +
     'Agar bu xato boʻlsa, kvitansiyadagi kod bilan qaytadan bogʻlaning.',
   'binding.unboundPlain':
     'Boshqaruv kompaniyasi sizni kvartiradan uzdi.\n' +
@@ -344,19 +349,37 @@ export const app: Dictionary = {
   'quality.inTime': '  Muddatida: {доля}',
   'quality.hours': '  Oʻrtacha ish vaqti: {часы} soat',
   'quality.hoursBefore': '  Oʻrtacha ish vaqti: {часы} soat, bir oy oldin {раньше} soat',
-  'quality.rating': '  Yashovchilar bahosi: 5 dan {оценка} ({сколько} kishi baholadi)',
+  'quality.rating': '  Yashovchilar bahosi: 5 balldan {оценка} ({сколько} kishi baholadi)',
   'quality.open': 'Hozir ochiq arizalar: {сколько}',
   'quality.openOverdue': 'Hozir ochiq arizalar: {сколько}, muddati oʻtgan {просрочено}',
 
   'clarify.where': 'Bu qayerda boʻldi?',
   'clarify.whichFlat': 'Bu qaysi kvartirada boʻldi?',
-  'clarify.flat': '{номер} kvartira',
-  'clarify.entrance': '{номер} podyezd',
+  'clarify.flat': '{номер}-kvartira',
+  'clarify.entrance': '{номер}-podyezd',
 
-  'device.snapshot': '{устройство}: {время} dagi kadr',
+  'device.snapshot': '{устройство}: kadr, soat {время}',
 
   'visit.booked': 'Boshqaruv tashkiloti sizni qabulga yozdi: {когда}.\n{тема}',
-  'visit.cancelled': '{день} kuni {время}dagi qabulni boshqaruv tashkiloti bekor qildi.',
+  'visit.cancelled': '{день} kuni soat {время} qabulini boshqaruv tashkiloti bekor qildi.',
+
+  'visit.offer': 'Ariza {номер}: usta kelishga tayyor. Qulay vaqtni tanlang.',
+  'visit.chosenForStaff': 'Ariza {номер}: yashovchi {когда} kutmoqda. {место}.',
+  'visit.missed':
+    'Usta {номер} arizasi boʻyicha {когда} keldi va kvartiraga kira olmadi. Boshqa vaqt tanlang, u yana keladi.',
+  'visit.refused':
+    '{номер} arizasi boʻyicha usta kvartiraga {сколько} marta kira olmadi. Ariza ochiq qoladi, lekin ish ' +
+    'vaqtini endi boshqaruv tashkiloti kelishadi: ularga qoʻngʻiroq qiling.',
+  'visit.declined': 'Taklif qilinganlardan hech biri toʻgʻri kelmadi. Boshqaruv tashkiloti boshqa vaqt taklif qiladi.',
+  'visit.dropped': 'Ariza {номер}: yashovchi tashrif vaqtini bekor qildi va yangisini tanlamoqda.',
+  'visit.todayForResident':
+    'Bugun soat {время} da {номер} arizasi boʻyicha usta keladi. Rejalar oʻzgargan boʻlsa, vaqtni bekor qiling.',
+  'visit.todayForStaff': 'Bugun soat {время} da {номер} arizasi boʻyicha sizni kutishadi. {место}.',
+
+  'dispute.forStaff': 'Ariza {номер}, {место}. Ariza beruvchi «{причина}» rad javobiga qoʻshilmaydi. U yozadi: {что}',
+  'dispute.upheld':
+    '{номер} arizasi boʻyicha rad javobi kuchida qoldirildi. Agar rozi boʻlmasangiz, buni uy-joy nazorati ' +
+    'koʻrib chiqadi: murojaat tayyor, uni tugma bilan yuborish mumkin.',
 
   'assistant.offTopic':
     'Men faqat uy va shu ilova boʻyicha yordam beraman: arizalar, hisoblagichlar, kvitansiya, yigʻilishlar, ' +
@@ -409,13 +432,13 @@ export const app: Dictionary = {
   'capability.stickers.about': 'Podyezd, lift yoki kvartira kodi bilan stiker olish',
 
   'audience.building': 'butun uy',
-  'audience.entrance': '{подъезд} podyezd',
-  'audience.riser': '{подъезд} podyezd, {стояк} umumiy quvur',
+  'audience.entrance': '{подъезд}-podyezd',
+  'audience.riser': '{подъезд}-podyezd, {стояк}-stoyak',
 
-  'target.apartment': '{номер} kvartira',
+  'target.apartment': '{номер}-kvartira',
   'target.apartmentAny': 'kvartira',
-  'target.entrance': '{подъезд} podyezd',
-  'target.riser': '{подъезд} podyezd, {стояк} umumiy quvur',
+  'target.entrance': '{подъезд}-podyezd',
+  'target.riser': '{подъезд}-podyezd, {стояк}-stoyak',
   'target.equipment': '{код} jihozi',
   'target.building': 'uy butunligicha',
 
@@ -457,22 +480,25 @@ export const app: Dictionary = {
 
   'zone.elevator': 'Liftga ixtisoslashgan tashkilot xizmat koʻrsatadi',
   'zone.insideFlat': 'Kvartira ichidagi jihozni mulkdor taʼmirlaydi',
+  'zone.flatBorder':
+    'Chegara birinchi oʻchirish qurilmasidan oʻtadi: undan oldin boshqaruv tashkiloti, keyin mulkdor javob beradi',
   'zone.yard': 'Uy hovlisini boshqaruv tashkiloti saqlaydi',
   'zone.common': 'Bu uyning umumiy mulki, uni boshqaruv tashkiloti saqlaydi',
   'zoneNext.elevator':
     'Arizani boshqaruv tashkiloti olib boradi: u uni liftga xizmat koʻrsatuvchi kompaniyaga uzatadi.',
   'zoneNext.insideFlat':
     'Boshqaruv tashkiloti bunday ishlarni alohida ariza boʻyicha, odatda pullik bajaradi.',
+  'zoneNext.flatBorder': 'Nosozlik aynan qayerdaligini usta koʻrikda aniqlaydi.',
   'zoneNext.yard': 'Joy uy yer uchastkasidan tashqarida boʻlsa, murojaat munitsipal xizmatga ketadi.',
 
   'ticketStatus.open': 'javob kutmoqda',
   'ticketStatus.answered': 'javob berilgan',
   'ticketStatus.closed': 'yopilgan',
 
-  'inspection.entrance': 'Podyezdni koʻrikdan oʻtkazish',
-  'inspection.roof': 'Tomni koʻrikdan oʻtkazish',
-  'inspection.basement': 'Yerto‘lani koʻrikdan oʻtkazish',
-  'inspection.ventilation': 'Shamollatish kanallarini tekshirish',
+  'inspection.entrance': 'Podyezd koʻrigi',
+  'inspection.roof': 'Tom koʻrigi',
+  'inspection.basement': 'Yertoʻla koʻrigi',
+  'inspection.ventilation': 'Shamollatish kanallari tekshiruvi',
   'inspection.lift': 'Liftga texnik xizmat',
   'inspection.intercom': 'Domofonga xizmat',
   'inspection.meter_unit': 'Hisoblash tuguniga xizmat',
@@ -481,10 +507,10 @@ export const app: Dictionary = {
   'deed.rejectStaff': 'Arizalarni boshqaruv tashkiloti rad etadi.',
   'deed.withdrawOwn': 'Murojaatni faqat uni bergan odam va faqat u ochiq ekan olib tashlay oladi.',
   'deed.needsInfoStaff': 'Yashovchidan aniqlik soʻrashni boshqaruv tashkiloti qiladi.',
-  'deed.doneWorker': 'Ishni ishga olingan naryadning ijrochisi topshiradi.',
+  'deed.doneWorker': 'Ishni ishga olingan topshiriqning ijrochisi topshiradi.',
   'deed.acceptDone': 'Ishni usta topshirgach qabul qilish mumkin.',
   'deed.acceptStaff': 'Arizalarni ishga boshqaruv tashkiloti oladi.',
-  'deed.startWorker': 'Naryadni ishga uning ijrochisi olishi mumkin.',
+  'deed.startWorker': 'Topshiriqni ishga uning ijrochisi olishi mumkin.',
   'deed.unavailable': 'Bunday amal hozir mavjud emas.',
 
   'contacts.emergency': 'Avariya, kechayu kunduz: {телефон}',
@@ -494,6 +520,7 @@ export const app: Dictionary = {
   'contacts.office': 'Qabul: {где}',
   'contacts.person': 'Masʼul: {кто}',
   'contacts.empty': 'Kontaktlar kiritilmagan: qoʻllab-quvvatlashga yozing, smena javob beradi.',
+  'privacy.summary': 'Arizalar {заявок}, koʻrsatkichlar {показаний}, ovozlar {голосов}, toʻlovlar {платежей}',
 
   'role.removed': 'Boshqaruv kompaniyasi sizdan xizmat rolini oldi. Arizalar va koʻrsatkichlar qoladi.',
   'role.given': 'Boshqaruv kompaniyasi sizga rol berdi: {роль}.\nYangi buyruqlarni koʻrish uchun /start yozing.',
@@ -525,10 +552,10 @@ export const app: Dictionary = {
   'starter.assign': 'Ijrochini qanday tayinlayman?',
   'starter.handoff': 'Murojaatni qoʻshni tashkilotga qanday uzataman?',
   'starter.answer': 'Yashovchiga qanday javob beraman?',
-  'starter.orders': 'Menda qanday naryadlar bor?',
+  'starter.orders': 'Menda qanday topshiriqlar bor?',
   'starter.finish': 'Ishni qanday topshiraman?',
   'starter.deadline': 'Ariza muddati qayerda?',
-  'starter.orderDeadline': 'Naryad muddati qayerda?',
+  'starter.orderDeadline': 'Topshiriq muddati qayerda?',
   'starter.inspection': 'Koʻrikni qanday belgilayman?',
   'starter.report': 'Uy boʻyicha hisobotni qanday koʻraman?',
   'starter.broadcast': 'Eʼlonni yashovchilarga qanday tarqataman?',

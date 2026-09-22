@@ -58,7 +58,7 @@ export const staffRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       },
     );
 
-    /** Жильцы, которых управляющая компания ещё не связала с квартирой. */
+    /** Жильцы, которых управляющая организация ещё не связала с квартирой. */
     scope.get<{ Querystring: { buildingId?: string } }>(
       '/api/residents/unbound',
       {

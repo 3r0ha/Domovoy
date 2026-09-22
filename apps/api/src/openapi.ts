@@ -135,7 +135,7 @@ export const applyOpenApi = (fastify: FastifyInstance, options: OpenApiOptions =
         version: options.version ?? '0.1.0',
         description:
           options.description ??
-          'Заявки в управляющую компанию, счётчики, объявления и собрания собственников. ' +
+          'Заявки в управляющую организацию, счётчики, объявления и собрания собственников. ' +
             'Описание собрано из схем, по которым сервер проверяет запросы.',
       },
       components: {

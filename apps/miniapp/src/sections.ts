@@ -152,6 +152,9 @@ const STAFF_SECTIONS: readonly Section[] = [
 /** У мастера свои наряды впереди: очередь дома ведёт диспетчер. */
 const TECHNICIAN_SECTIONS: readonly Section[] = [
   { screen: 'list', title: 'Наряды', hint: 'Ваши наряды', icon: IconRequests, tone: 'tile-blue' },
+  // День обхода нужен мастеру каждую смену, но начинает он со списка нарядов:
+  // на день могут быть назначены не все. Диспетчеру и управляющему он пуст.
+  { screen: 'workday', title: 'Мой день', hint: 'Наряды по порядку обхода', icon: IconCalendar, tone: 'tile-green' },
   { screen: 'queue', title: 'Очередь', hint: 'Заявки дома', icon: IconQueue, tone: 'tile-red' },
   { screen: 'home', title: 'Дом', hint: 'Оборудование и журнал', icon: IconKey, tone: 'tile-teal' },
   { screen: 'news', title: 'Новости', hint: 'Лента и публикация', icon: IconNews, tone: 'tile-orange' },

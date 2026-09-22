@@ -60,6 +60,17 @@ export interface Notification {
   complaintFor?: string;
   /** Собрание, по которому голосуют кнопками прямо под уведомлением. */
   voteAbout?: string;
+  /** Окна визита на выбор: под текстом стоит кнопка на каждое. */
+  visitAbout?: VisitOffer;
+  /** Новый жилец квартиры: под сообщением стоит кнопка «это не мой сосед». */
+  dropFlatmate?: string;
+}
+
+/** Предложение времени визита: заявка и окна, каждое отдельной кнопкой. */
+export interface VisitOffer {
+  requestId: string;
+  /** Начала окон в ISO 8601. */
+  slots: string[];
 }
 
 /** Файл в переписку с человеком: наклейка, выгрузка, документ. */
@@ -198,7 +209,7 @@ export const formatMessage = (t: Translate, request: ServiceRequest, author: str
 export const formatAnnouncement = (title: string, body: string, house?: string): string =>
   `${title}${house ? `\n${house}` : ''}\n\n${body}`;
 
-/** Рассылка: получатель должен видеть, что пишет управляющая компания, а не бот. */
+/** Рассылка: получатель должен видеть, что пишет управляющая организация, а не бот. */
 export const formatBroadcast = (t: Translate, text: string, house?: string): string =>
   `${t('app.notice.broadcast', { дом: house ? `, ${house}` : '' })}\n\n${text}`;
 
@@ -328,7 +339,7 @@ export const formatDeadlineWarning = (
   );
 };
 
-/** Сообщение управляющей компании о нарушенном нормативе. */
+/** Сообщение управляющей организации о нарушенном нормативе. */
 export const formatBreachForStaff = (request: ServiceRequest, kind: 'reaction' | 'resolution'): string => {
   const what = kind === 'reaction' ? 'нарушен срок реакции' : 'нарушен срок выполнения';
 
@@ -407,6 +418,10 @@ export interface NotifyReply {
   answerAbout?: string;
   /** Раздел, о котором говорит уведомление: в него и ведёт кнопка под текстом. */
   section?: string;
+  /** Окна визита на выбор: жилец назначает время кнопкой под уведомлением. */
+  visitAbout?: VisitOffer;
+  /** Кто только что привязался к квартире: его убирают кнопкой под сообщением. */
+  dropFlatmate?: string;
 }
 
 /**
@@ -422,7 +437,7 @@ export const notifyResident = async (
 ): Promise<void> => {
   if (!resident?.maxUserId) return;
 
-  const { replyTo, askAbout, signAbout, answerAbout, section }: NotifyReply =
+  const { replyTo, askAbout, signAbout, answerAbout, section, visitAbout, dropFlatmate }: NotifyReply =
     typeof reply === 'string' ? { replyTo: reply } : reply;
 
   await deliver(notifier, {
@@ -435,5 +450,7 @@ export const notifyResident = async (
     ...(signAbout ? { signAbout } : {}),
     ...(answerAbout ? { answerAbout } : {}),
     ...(section ? { section } : {}),
+    ...(visitAbout ? { visitAbout } : {}),
+    ...(dropFlatmate ? { dropFlatmate } : {}),
   });
 };

@@ -3,6 +3,7 @@ import {
   DomainError,
   PAYMENT_DUE_DAY,
   chargesFor,
+  leftToPay,
   overdueDays,
   penaltyFor,
   roundMoney,
@@ -13,11 +14,11 @@ import {
 
 import type { Translate } from '@domovoy/i18n';
 
-import { paying, periodOf, type Receipt } from './billing.js';
+import { chargesForResident, paying, periodOf, type Receipt } from './billing.js';
 import { endOfPeriod, periodConsumption } from './consumption.js';
 import { commonNeedsShare, knownForCommon, type KnownForCommon } from './house-meters.js';
 import { counted, speak, speakDefault } from './language.js';
-import { noopNotifier, notifyResident } from './notifier.js';
+import { noopNotifier, notifyAbout, notifyResident } from './notifier.js';
 import { tariffsAt } from './tariffs.js';
 import { apartmentsOf } from './apartments.js';
 import { houseHintFor } from './buildings.js';
@@ -197,7 +198,9 @@ const monthOf = (period: string, withYear: boolean, t: Translate): string => {
 
   if (month === 0) return period;
 
-  return `${t(`app.monthOf.${month}`)}${withYear ? ` ${period.slice(0, 4)}` : ''}`;
+  const name = t(`app.monthOf.${month}`);
+
+  return withYear ? t('app.debt.period', { месяц: name, год: period.slice(0, 4) }) : name;
 };
 
 /** Месяцы одной строкой, с общим годом в конце. */
@@ -283,6 +286,45 @@ export const payArrears = async (deps: AppDeps, resident: Resident): Promise<Rec
   }
 
   return receipts;
+};
+
+/** За сколько дней до срока оплаты напоминать о начислениях этого месяца. */
+export const PAYMENT_NOTICE_DAYS = 3;
+
+/**
+ * Напоминание о сроке оплаты. Напоминание после срока уже поздно: человек
+ * узнаёт о нём, когда пени пошли. Поэтому за несколько дней до десятого числа
+ * продукт называет сумму этого месяца тем, у кого она не закрыта.
+ */
+export const remindBeforeDue = async (deps: AppDeps, buildingId: string): Promise<Resident[]> => {
+  const now = deps.now();
+  const zone = await zoneOf(deps, buildingId);
+  const day = Number(new Intl.DateTimeFormat('en-CA', { timeZone: zone, day: 'numeric' }).format(now));
+
+  if (day !== PAYMENT_DUE_DAY - PAYMENT_NOTICE_DAYS) return [];
+
+  const apartments = await deps.repository.listApartments(buildingId);
+  const residents = await deps.repository.listResidentsByApartments(apartments.map((flat) => flat.id));
+  const notifier = deps.notifier ?? noopNotifier;
+  const reminded: Resident[] = [];
+
+  for (const resident of residents) {
+    const charges = await chargesForResident(deps, resident).catch(() => undefined);
+    const left = charges ? leftToPay(charges) : 0;
+
+    if (!charges || left <= 0) continue;
+
+    const t = speak(resident);
+
+    await notifyAbout(notifier, resident, t('app.notice.due', { сумма: formatMoney(left, t), день: PAYMENT_DUE_DAY }), {
+      section: 'bill',
+      mutable: 'debt',
+    });
+
+    reminded.push(resident);
+  }
+
+  return reminded;
 };
 
 /** Напоминание о долге: после срока оплаты и только должникам. */

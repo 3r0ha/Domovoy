@@ -7,21 +7,40 @@ import { type Resident } from '../repository.js';
 import { type AppDeps } from './deps.js';
 import { withReadableAddress } from './requests.js';
 
+/** Как зовут того, чьего имени платформа не назвала. */
+export const ANONYMOUS_NAME = 'Жилец';
+
+/**
+ * Имя из платформы: человек мог сменить его у себя, и смена увидит новое.
+ * Своё имя, заданное в продукте, платформой не перебивается: человек назвал
+ * себя сам, и возвращать ему никнейм из профиля незачем. Имя обезличенного
+ * профиля тоже не восстанавливается.
+ */
+const withFreshName = async (deps: AppDeps, resident: Resident, displayName: string): Promise<Resident> => {
+  const fresh = displayName.trim();
+
+  if (resident.nameByUser || resident.forgottenAt || !fresh || fresh === resident.displayName) return resident;
+
+  return deps.repository.saveResident({ ...resident, displayName: fresh });
+};
+
 /**
  * Только что пришедший человек. Дом ему не подставляется: он появляется вместе
  * с квартирой по коду из квитанции. Дом известен только у пришедшего из чата дома.
+ * Пустое имя означает, что платформа его не назвала: тогда прежнее имя остаётся.
  */
 export const ensureResident = async (
   deps: AppDeps,
   input: { maxUserId: number; displayName: string; /** Дом, из чата которого пришёл человек. */ buildingId?: string },
 ): Promise<Resident> => {
   const existing = await deps.repository.findResidentByMaxUserId(input.maxUserId);
-  if (existing) return existing;
+
+  if (existing) return withFreshName(deps, existing, input.displayName);
 
   const resident: Resident = {
     id: deps.createId(),
     maxUserId: input.maxUserId,
-    displayName: input.displayName,
+    displayName: input.displayName.trim() || ANONYMOUS_NAME,
     role: 'resident',
     ...(input.buildingId ? { buildingId: input.buildingId } : {}),
   };

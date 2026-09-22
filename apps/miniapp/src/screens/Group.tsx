@@ -10,11 +10,14 @@ export interface GroupProps {
   children: ReactNode;
 }
 
-/** Группа строк с подписью. */
+/**
+ * Группа строк с подписью. Счётчик показывается и без подписи: он говорит,
+ * сколько в группе ждёт, а подпись над списком часто повторяет заголовок экрана.
+ */
 export const Group = ({ title, aside, className, children }: GroupProps) => (
   <div className={className}>
-    {title ? (
-      <h2 className="group-title">
+    {title || aside ? (
+      <h2 className={title ? 'group-title' : 'group-title group-title-bare'}>
         {title}
         {aside ? <span className="group-aside">{aside}</span> : null}
       </h2>

@@ -17,6 +17,7 @@ import {
   type Reasoner,
   type Resident,
 } from '../dist/index.js';
+import { LANGUAGES, translatorFor } from '@domovoy/i18n';
 
 const BUILDING_ID = 'b1';
 
@@ -430,6 +431,18 @@ describe('помощник смены', () => {
 
       for (const starter of starters) {
         assert.ok(findCapability(starter, role), `${role}: «${starter}» никуда не ведёт`);
+      }
+    }
+  });
+
+  it('стартовый вопрос ведёт в раздел на любом языке продукта', () => {
+    for (const { code } of LANGUAGES) {
+      const t = translatorFor(code);
+
+      for (const role of ['resident', 'dispatcher', 'technician', 'manager', 'contractor'] as const) {
+        for (const starter of startersFor(role, t)) {
+          assert.ok(findCapability(starter, role, t), `${code}, ${role}: «${starter}» никуда не ведёт`);
+        }
       }
     }
   });

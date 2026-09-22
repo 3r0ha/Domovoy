@@ -39,6 +39,7 @@ const owed = (bill: ChargesView): number => Math.max(0, Math.round((bill.total -
 export const ChargesCard = ({ api, version, payable = true, model }: ChargesCardProps) => {
   const charges = useBridgeRequest((alive): Promise<ChargesView> => api.until(alive).charges(), [api, version]);
   const [paying, setPaying] = useState(false);
+  const [part, setPart] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [asked, setAsked] = useState<Asked | null>(null);
   const [open, setOpen] = useState(false);
@@ -77,12 +78,19 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
     }
   };
 
-  const pay = (): Promise<void> =>
+  const pay = (amount?: number): Promise<void> =>
     run(async () => {
-      const receipt = await api.payCharges();
+      const receipt = await api.payCharges(amount);
 
       say(t('charges.paid', { сумма: rubles(receipt.amount) }));
     });
+
+  /** Сумма частичного платежа: пустое поле означает «весь остаток». */
+  const partial = (): number | undefined => {
+    const typed = Number(part.replace(',', '.'));
+
+    return part.trim() && Number.isFinite(typed) && typed > 0 ? typed : undefined;
+  };
 
   const payDebt = (): Promise<void> =>
     run(async () => {
@@ -114,24 +122,36 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
         </p>
 
         {left > 0 && payable ? (
-          <Button
-            type="button"
-            stretched
-            size="large"
-            disabled={paying}
-            onClick={() => setAsked({ kind: 'month', amount: left })}
-          >
-            {paying ? t('charges.paying') : t('charges.pay')}
-          </Button>
+          <>
+            <Button
+              type="button"
+              stretched
+              size="large"
+              disabled={paying}
+              onClick={() => setAsked({ kind: 'month', amount: partial() ?? left })}
+            >
+              {/* Кнопка называет сумму: при частичном платеже иначе не видно,
+                  спишут введённое или весь остаток. */}
+              {paying ? t('charges.paying') : `${t('charges.pay')} ${rubles(partial() ?? left)}`}
+            </Button>
+
+            {/* Денег бывает не на весь счёт: частичный платёж лучше
+                неоплаченного счёта, и пени тогда идут на остаток. */}
+            {/* Подпись внутри поля: отдельной строкой слева она оставляла
+                рядом пустую коробку, а сумма к списанию теперь на кнопке. */}
+            <input
+              className="part"
+              type="text"
+              inputMode="decimal"
+              aria-label={t('charges.part')}
+              placeholder={t('charges.part')}
+              value={part}
+              onChange={(event) => setPart(event.target.value)}
+            />
+          </>
         ) : null}
 
         {payable && model ? <p className="hint aside">{t('charges.model')}</p> : null}
-
-        {(bill.bases ?? []).map((basis) => (
-          <p key={basis} className="hint aside">
-            {basis}
-          </p>
-        ))}
 
         {error ? <ErrorText>{error}</ErrorText> : null}
       </section>
@@ -191,6 +211,18 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
           : null}
       </CellList>
 
+      {/* Основания расчёта лежат под разбором, а не под суммой: там они были
+          стопкой серых абзацев поверх главного числа экрана. */}
+      {open && (bill.bases ?? []).length > 0 ? (
+        <div className="bases">
+          {(bill.bases ?? []).map((basis) => (
+            <p key={basis} className="hint">
+              {basis}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
       <Payments api={api} version={version + paid} />
 
       {/* Деньги уходят со счёта необратимо: сумму человек видит до касания, а не после. */}
@@ -205,7 +237,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
           confirmLabel={t('charges.pay')}
           busy={paying}
           busyLabel={t('charges.paying')}
-          onConfirm={() => void (asked.kind === 'debt' ? payDebt() : pay())}
+          onConfirm={() => void (asked.kind === 'debt' ? payDebt() : pay(partial()))}
           onCancel={() => setAsked(null)}
         />
       ) : null}

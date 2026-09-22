@@ -84,7 +84,7 @@ describe('дома компании', () => {
     );
   });
 
-  it('пояс и управляющая компания едут вместе с домом, а пустые поля не выдумываются', async () => {
+  it('пояс и управляющая организация едут вместе с домом, а пустые поля не выдумываются', async () => {
     const [first, second] = await listServedBuildings(setup(), person('manager', FIRST));
 
     assert.equal(first?.timeZone, 'Asia/Vladivostok');
@@ -202,13 +202,17 @@ describe('дом без владельца', () => {
     assert.equal(contacts.buildingId, FIRST);
   });
 
-  it('оставшаяся после отвязки привязка к дому контактов жильцу не открывает', async () => {
+  it('жилец без квартиры получает телефоны дома, который знает, и ничего сверх них', async () => {
     const deps = setup();
 
-    // После отвязки квартиры дом в профиле остаётся, а приложение может
-    // прислать и другой дом, запомненный с прошлого раза.
-    await assert.rejects(contactsFor(deps, person('resident', SECOND), FIRST), /привяжите квартиру/);
-    await assert.rejects(contactsFor(deps, person('resident', SECOND)), /привяжите квартиру/);
+    // Наклейка в подъезде дом называет: телефоны организации человеку нужны
+    // раньше, чем код из квитанции. Дежурный при этом остаётся своим.
+    const contacts = await contactsFor(deps, person('resident', SECOND), FIRST);
+
+    assert.equal(contacts.buildingId, SECOND, 'дом берётся из профиля, а не из просьбы');
+    assert.equal(contacts.duty, undefined);
+
+    // Дома, которого нет, не бывает и у знающего: дом установки ему не подставляют.
     await assert.rejects(contactsFor(deps, person('resident', 'gone')), /привяжите квартиру/);
   });
 

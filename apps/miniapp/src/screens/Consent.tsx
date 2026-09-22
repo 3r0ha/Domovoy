@@ -1,7 +1,8 @@
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { describeFailure, type DomovoyApi } from '../api.js';
+import { describeFailure, type DocumentStructure, type DomovoyApi } from '../api.js';
+import { structureOf } from '../views.js';
 import { useTrapped } from '../focus.js';
 import { useHaptics } from '../haptics.js';
 import { useT } from '../i18n.js';
@@ -12,7 +13,7 @@ import { RetryLink } from './Retry.js';
 export interface ConsentProps {
   api: DomovoyApi;
   /** Документ открывается своим экраном: браузер для этого не нужен. */
-  onDocument: (title: string, text: string) => void;
+  onDocument: (title: string, text: string, structure?: DocumentStructure) => void;
   onAccepted: () => void;
 }
 
@@ -68,7 +69,7 @@ export const Consent = ({ api, onDocument, onAccepted }: ConsentProps) => {
               key={document.slug}
               type="button"
               className="inline-btn"
-              onClick={() => onDocument(document.title, document.text)}
+              onClick={() => onDocument(document.title, document.text, structureOf(document))}
             >
               {document.short}
             </button>

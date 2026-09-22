@@ -18,6 +18,17 @@ import type { AppDeps } from './use-cases.js';
 export const languageOf = (resident: Resident | undefined): Language =>
   (resident?.role === 'resident' ? resident.language : undefined) ?? DEFAULT_LANGUAGE;
 
+/**
+ * На каком языке писать тому, кто прислал этот текст. Выбранный язык важнее:
+ * человек его назвал сам. Не выбран, значит язык называют его же слова, и
+ * жилец, написавший по-узбекски, читает вопрос по-узбекски, а не по-русски.
+ */
+export const languageHeard = (resident: Resident | undefined, text: string): Language => {
+  const chosen = resident?.role === 'resident' ? resident.language : undefined;
+
+  return chosen ?? (resident?.role === 'resident' ? languageOfText(text) : undefined) ?? DEFAULT_LANGUAGE;
+};
+
 /** Перевод для человека: без выбранного языка продукт говорит по-русски. */
 export const speak = (resident: Resident | undefined): Translate => translatorFor(languageOf(resident));
 
@@ -54,11 +65,19 @@ const LETTERS: readonly { language: Language; letters: RegExp }[] = [
 
 /** Частые слова: ими язык узнаётся там, где особых букв не попалось. */
 const WORDS: readonly { language: Language; words: RegExp }[] = [
-  { language: 'uz', words: /(^|\P{L})(qanday|qayerda|qachon|nima|uchun|kerak|rahmat|iltimos|tilni|mening)(\P{L}|$)/u },
+  {
+    language: 'uz',
+    words:
+      /(^|\P{L})(qanday|qayerda|qachon|nima|uchun|kerak|rahmat|iltimos|tilni|mening|eshik|eshikni|oching|suv|yordam|hisob)(\P{L}|$)/u,
+  },
   { language: 'az', words: /(^|\P{L})(necə|harada|nədir|zaman|mənim|mənə|zəhmət|dili)(\P{L}|$)/u },
   { language: 'tk', words: /(^|\P{L})(nädip|nirede|haçan|näme|maňa|meniň|sagbol|haýyş)(\P{L}|$)/u },
   { language: 'ro', words: /(^|\P{L})(cum|unde|când|când|mulțumesc|factura|limba)(\P{L}|$)/u },
-  { language: 'en', words: /(^|\P{L})(how|where|when|why|what|please|thanks|language|my)(\P{L}|$)/u },
+  {
+    language: 'en',
+    words:
+      /(^|\P{L})(how|where|when|why|what|please|thanks|language|my|the|is|are|do|does|can|want|need|help|hello|water)(\P{L}|$)/u,
+  },
   { language: 'tg', words: /(^|\P{L})(куҷо|кай|ташаккур|лутфан|забон|ман)(\P{L}|$)/u },
   { language: 'kk', words: /(^|\P{L})(қалай|қайда|қашан|маған|менің|рахмет|тілді)(\P{L}|$)/u },
   { language: 'ky', words: /(^|\P{L})(кандай|кайда|качан|эмне|мага|менин|рахмат|тилди)(\P{L}|$)/u },

@@ -1,5 +1,6 @@
 import { CATEGORY_RULES, isReactionOverdue, isResolutionOverdue } from './sla.js';
 import { describeTarget } from './audience.js';
+import { rejectionUpheld } from './dispute.js';
 import { formatSpan } from './moment.js';
 import { isFinal } from './status.js';
 import { DEFAULT_TIME_ZONE, type RequestEvent, type Role, type ServiceRequest } from './types.js';
@@ -15,6 +16,12 @@ export interface EscalationCheck {
 
 /** Есть ли у жильца основание для обращения в жилищную инспекцию. */
 export const canEscalate = (request: ServiceRequest, now: Date): EscalationCheck => {
+  // Отказ, оставленный в силе после несогласия заявителя, это спор по существу,
+  // а не просрочка: разрешает его надзор, а не переписка с той же компанией.
+  if (rejectionUpheld(request)) {
+    return { possible: true, reason: 'управляющая организация отклонила заявку повторно, заявитель с отказом не согласен' };
+  }
+
   if (isFinal(request.status)) {
     return { possible: false, reason: 'заявка закрыта' };
   }

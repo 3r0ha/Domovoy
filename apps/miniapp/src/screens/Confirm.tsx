@@ -20,6 +20,8 @@ export interface ConfirmProps {
     value: string;
     placeholder: string;
     label: string;
+    /** Сколько строк ждут в ответ. Имя и номер это одна, причина отказа три. */
+    rows?: number;
     onChange: (value: string) => void;
   };
   onConfirm: () => void;
@@ -59,7 +61,9 @@ export const Confirm = ({
 
   return (
     <div className="guide" role="dialog" aria-modal="true" aria-label={title}>
-      <button type="button" className="guide-veil" aria-label={t('request.cancel')} onClick={onCancel} />
+      {/* Отказ от действия называется отдельно: рядом с «Отменить запись»
+          кнопка «Отмена» читается тем же самым. */}
+      <button type="button" className="guide-veil" aria-label={t('request.keep')} onClick={onCancel} />
 
       <section className="guide-sheet confirm" ref={sheet}>
         <h2 className="guide-title">{title}</h2>
@@ -69,7 +73,7 @@ export const Confirm = ({
           <textarea
             className="confirm-field"
             aria-label={field.label}
-            rows={3}
+            rows={field.rows ?? 3}
             autoFocus
             maxLength={2000}
             value={field.value}
@@ -89,7 +93,7 @@ export const Confirm = ({
           </button>
 
           <button type="button" className="inline-btn" disabled={busy} onClick={onCancel}>
-            {t('request.cancel')}
+            {t('request.keep')}
           </button>
         </div>
       </section>

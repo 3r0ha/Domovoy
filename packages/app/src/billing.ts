@@ -9,6 +9,7 @@ import {
   leftToPay,
   meterKindKey,
   meterUnitKey,
+  roundMoney,
   type ChargeLine,
   type Charges,
   type MeterKind,
@@ -24,7 +25,7 @@ import { zoneOf } from './zone.js';
 import type { Resident } from './repository.js';
 import type { AppDeps } from './use-cases.js';
 
-/** Оплата. За портом банк или платёжный шлюз управляющей компании. */
+/** Оплата. За портом банк или платёжный шлюз управляющей организации. */
 export interface PaymentGateway {
   /** Подключение модельное: платёж никуда не уходит. */
   readonly model?: boolean;
@@ -42,6 +43,10 @@ export interface Receipt {
   at: Date;
   /** Куда отправить человека, если шлюз просит подтверждения. */
   url?: string;
+  /** Номер кассового чека: его выдаёт шлюз по 54-ФЗ. */
+  receiptNumber?: string;
+  /** Где лежит сам чек. */
+  receiptUrl?: string;
 }
 
 /** Обращение к платёжному шлюзу: его отказ превращается в «оплата недоступна». @throws {DomainError} */
@@ -200,14 +205,31 @@ export const paymentHistory = async (
   return deps.payments.history(resident.apartmentId, limit);
 };
 
-/** Оплата начисленного. @throws {DomainError} если платить нечем или нечего. */
-export const payCharges = async (deps: AppDeps, resident: Resident): Promise<Receipt> => {
+/** Наименьшая сумма, которую есть смысл отправлять в шлюз. */
+export const LEAST_PAYMENT = 1;
+
+/**
+ * Оплата начисленного. Сумма задаётся, когда человек платит часть: денег
+ * бывает не на весь счёт, и частичный платёж лучше неоплаченного счёта.
+ * @throws {DomainError} если платить нечем или нечего.
+ */
+export const payCharges = async (deps: AppDeps, resident: Resident, sum?: number): Promise<Receipt> => {
   const charges = await chargesForResident(deps, resident);
-  const amount = leftToPay(charges);
+  const left = leftToPay(charges);
   const apartmentId = resident.apartmentId;
 
   if (!apartmentId) throw new DomainError('apartment_not_bound', 'Платежи принадлежат помещению');
-  if (amount <= 0) throw new DomainError('nothing_to_pay', 'За этот месяц всё оплачено');
+  if (left <= 0) throw new DomainError('nothing_to_pay', 'За этот месяц всё оплачено');
+
+  const amount = sum === undefined ? left : roundMoney(sum);
+
+  if (sum !== undefined && (!Number.isFinite(amount) || amount < LEAST_PAYMENT)) {
+    throw new DomainError('amount_invalid', `Сумма платежа начинается от ${LEAST_PAYMENT} ₽`);
+  }
+
+  if (amount > left) {
+    throw new DomainError('amount_invalid', 'Сумма больше начисленного за месяц');
+  }
 
   return paying(deps, (gateway) => gateway.pay({ apartmentId, period: charges.period, amount }));
 };

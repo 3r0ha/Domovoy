@@ -47,7 +47,7 @@ export interface Tariffs {
   keyRate: number;
 }
 
-/** Тарифы по умолчанию: управляющая компания задаёт свои. */
+/** Тарифы по умолчанию: управляющая организация задаёт свои. */
 export const DEFAULT_TARIFFS: Tariffs = {
   meters: {
     cold_water: 43.5,

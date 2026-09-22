@@ -11,6 +11,8 @@ import {
   type VoteChoice,
 } from '@domovoy/domain';
 
+import type { Translate } from '@domovoy/i18n';
+
 import { periodTitle } from './debt.js';
 import { speakDefault } from './language.js';
 
@@ -155,15 +157,14 @@ export const exportPersonalData = async (deps: AppDeps, resident: Resident): Pro
 const date = formatDate;
 
 
-/** Выгрузка словами. */
 /** Что в выгрузке, одной строкой: сам список уходит файлом. */
-export const personalDataSummary = (data: PersonalData): string =>
-  [
-    `Заявок ${data.requests.length}`,
-    `показаний ${data.readings.length}`,
-    `голосов ${data.votes.length}`,
-    `платежей ${data.payments.length}`,
-  ].join(', ');
+export const personalDataSummary = (data: PersonalData, t: Translate = speakDefault()): string =>
+  t('app.privacy.summary', {
+    заявок: data.requests.length,
+    показаний: data.readings.length,
+    голосов: data.votes.length,
+    платежей: data.payments.length,
+  });
 
 export const formatPersonalData = (data: PersonalData, timeZone: string): string => {
   const lines = [`${data.displayName}`];
@@ -222,7 +223,7 @@ export const FORGOTTEN_NAME = 'Профиль удалён';
 /** Удаляет профиль по требованию человека. */
 export const forgetResident = async (deps: AppDeps, resident: Resident): Promise<Resident> => {
   if (resident.role !== 'resident') {
-    throw new DomainError('forbidden', 'Профиль сотрудника снимает управляющая компания');
+    throw new DomainError('forbidden', 'Профиль сотрудника снимает управляющая организация');
   }
 
   const anonymous = { ...resident, displayName: FORGOTTEN_NAME, forgottenAt: deps.now() };

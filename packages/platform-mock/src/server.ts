@@ -56,7 +56,9 @@ const DEFAULT_BOT: MockUser = {
   is_bot: true,
 };
 
-const DEFAULT_ACTOR = { userId: 1001, chatId: 2001, firstName: 'Жилец', username: 'zhilec' };
+// Имя по умолчанию пустое: платформа его называет не всегда, а подстановка
+// вместо него перетирала бы имя, которое продукт уже знает.
+const DEFAULT_ACTOR = { userId: 1001, chatId: 2001, firstName: '', username: 'zhilec' };
 
 const readBody = async (request: IncomingMessage): Promise<unknown> => {
   const chunks: Buffer[] = [];
