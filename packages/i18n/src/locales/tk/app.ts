@@ -486,7 +486,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': '10 iş gününden gijä galman jogap berýäris',
   'plain.disclosureAnswer': 'Jaý baradaky maglumaty indiki günden gijä galman berýäris',
   'plain.readingWindow': 'Görkezijiler aýyň 26-syna çenli kabul edilýär',
-  'plain.quorum': 'Karar jaýyň meýdanynyň ýarysyndan köpi ses berende kabul edilýär',
   'plain.qualified': 'Bu mesele boýunça sesleriň üçden ikisi gerek',
   'plain.initiative': 'Ýygnagy bilelikde sesleriň ondan birine eýelik edýän eýeler çagyrýar',
   'plain.share': 'Ses kwartiranyň meýdany boýunça hasaplanýar',

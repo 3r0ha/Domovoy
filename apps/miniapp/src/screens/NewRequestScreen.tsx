@@ -239,8 +239,6 @@ export const NewRequestScreen = ({
           <p className="description">{t('new.what')}</p>
         </article>
 
-        {fresh ? <p className="hint chat-note">{t('new.hint')}</p> : null}
-
         {fresh ? (
           <div className="chips chat-common">
             {problems.map((problem) => (

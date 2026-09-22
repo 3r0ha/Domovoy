@@ -492,7 +492,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': 'Răspundem în cel mult 10 zile lucrătoare',
   'plain.disclosureAnswer': 'Informațiile despre bloc le dăm cel târziu a doua zi',
   'plain.readingWindow': 'Indicațiile se primesc până pe 26',
-  'plain.quorum': 'Hotărârea se ia dacă a votat mai mult de jumătate din suprafața blocului',
   'plain.qualified': 'La această întrebare sunt necesare două treimi din voturi',
   'plain.initiative': 'Adunarea este convocată de proprietarii care dețin împreună a zecea parte din voturi',
   'plain.share': 'Votul se socotește după suprafața apartamentului',

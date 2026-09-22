@@ -2189,6 +2189,11 @@ button.flat {
   font-size: var(--font-meta);
 }
 
+/* Кворум и голоса это две строки одного блока, а не два отдельных абзаца. */
+.quorum-meta + .quorum-meta {
+  margin-top: var(--gap-tight);
+}
+
 .quorum-ok {
   color: var(--success);
 }

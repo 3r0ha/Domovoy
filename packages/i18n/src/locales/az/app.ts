@@ -481,7 +481,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': '10 iş günündən gec olmayaraq cavab veririk',
   'plain.disclosureAnswer': 'Bina haqqında məlumatı növbəti gündən gec olmayaraq veririk',
   'plain.readingWindow': 'Göstəricilər ayın 26-dək qəbul edilir',
-  'plain.quorum': 'Qərar binanın sahəsinin yarısından çoxu səs verdikdə qəbul olunur',
   'plain.qualified': 'Bu məsələ üzrə səslərin üçdə ikisi lazımdır',
   'plain.initiative': 'Yığıncağı birlikdə səslərin onda birinə sahib mülkiyyətçilər çağırır',
   'plain.share': 'Səs mənzilin sahəsinə görə sayılır',

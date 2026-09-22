@@ -1864,8 +1864,9 @@ describe('собрания собственников', () => {
 
     const screen = await render(createElement(PollsScreen as never, { api } as never), bridge);
 
-    assert.match(screen.text, /за 33%/);
-    assert.match(screen.text, /Не хватает 25 м²/);
+    // Кворум и голоса стоят разными строками: в одной они читались как одно число.
+    assert.match(screen.text, /Не хватает 25 м² до кворума/);
+    assert.match(screen.text, /За 33%, против/);
 
     assert.equal(screen.find<HTMLElement>('.quorum-fill').style.width, '33%');
 

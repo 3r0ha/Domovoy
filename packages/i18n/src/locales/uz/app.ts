@@ -470,7 +470,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': '10 ish kunidan kechiktirmay javob beramiz',
   'plain.disclosureAnswer': 'Uy haqidagi maʼlumotni ertasi kundan kechiktirmay beramiz',
   'plain.readingWindow': 'Koʻrsatkichlar 26-sanagacha qabul qilinadi',
-  'plain.quorum': 'Qaror uy maydonining yarmidan koʻpi ovoz bergan boʻlsa qabul qilinadi',
   'plain.qualified': 'Bu masala boʻyicha ovozlarning uchdan ikki qismi kerak',
   'plain.initiative': 'Yigʻilishni birgalikda ovozlarning oʻndan birini egallagan mulkdorlar chaqiradi',
   'plain.share': 'Ovoz kvartira maydoni boʻyicha hisoblanadi',

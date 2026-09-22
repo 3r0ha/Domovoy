@@ -112,9 +112,6 @@ const PollCard = ({
         </span>
       </header>
 
-      {/* Опрос и собрание решают разное: это видно сразу, а не в протоколе. */}
-      {poll.mode === 'survey' ? <p className="hint">{t('polls.survey.note')}</p> : null}
-
       {/* Силу заочному голосованию даёт государственная система: номер оттуда
           стоит рядом, чтобы человек мог найти собрание и там. */}
       {poll.noticeId ? <p className="hint aside">{t('polls.notice', { номер: poll.noticeId })}</p> : null}
@@ -142,12 +139,10 @@ const PollCard = ({
             <span className="quorum-fill" style={{ width: percent(Math.min(1, poll.turnout)) }} />
           </div>
 
+          <p className="quorum-meta">{t('polls.survey.meta', { доля: percent(poll.turnout) })}</p>
+
           <p className="quorum-meta">
-            {t('polls.survey.meta', {
-              доля: percent(poll.turnout),
-              за: percent(poll.shares.for),
-              против: percent(poll.shares.against),
-            })}
+            {t('polls.meeting.meta', { за: percent(poll.shares.for), против: percent(poll.shares.against) })}
           </p>
         </div>
       ) : (
@@ -169,17 +164,17 @@ const PollCard = ({
             )}
           </div>
 
+          {/* Кворум и голоса это разные числа: в одной строке они читались как одно. */}
           <p className="quorum-meta">
             {poll.quorum ? (
               <strong className="quorum-ok">{t('polls.quorum.ok')}</strong>
             ) : (
-              <>{t('polls.quorum.left', { площадь: area(poll.areaToQuorum) })}</>
+              t('polls.quorum.left', { площадь: area(poll.areaToQuorum) })
             )}
-            {' · '}
-            {t('polls.meeting.meta', {
-              за: percent(poll.shares.for),
-              против: percent(poll.shares.against),
-            })}
+          </p>
+
+          <p className="quorum-meta">
+            {t('polls.meeting.meta', { за: percent(poll.shares.for), против: percent(poll.shares.against) })}
           </p>
 
           {/* Порог задан законом, а не продуктом: основание стоит рядом с полосой. */}

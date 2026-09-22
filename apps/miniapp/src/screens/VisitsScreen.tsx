@@ -556,8 +556,6 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
         </p>
       ) : null}
 
-      <p className="hint aside">{t('visits.pick')}</p>
-
       {days.map((day) => (
         <div key={day} className="list">
           <Group title={day}>

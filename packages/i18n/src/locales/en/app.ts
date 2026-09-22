@@ -482,7 +482,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': 'We will reply within 10 working days',
   'plain.disclosureAnswer': 'We give house information no later than the next day',
   'plain.readingWindow': 'Readings are accepted until the 26th',
-  'plain.quorum': 'A decision is taken if owners of more than half the house area have voted',
   'plain.qualified': 'This question needs two thirds of the votes',
   'plain.initiative': 'A meeting is called by owners who together hold a tenth of the votes',
   'plain.share': 'A vote counts by the area of the apartment',

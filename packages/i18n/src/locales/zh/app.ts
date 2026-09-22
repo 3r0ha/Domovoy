@@ -447,7 +447,6 @@ export const app: Dictionary = {
   'plain.supportAnswer': '我们将在10个工作日内答复',
   'plain.disclosureAnswer': '楼栋信息我们最迟次日提供',
   'plain.readingWindow': '读数受理至每月26日',
-  'plain.quorum': '当超过全楼面积一半的业主投票时，决议方可通过',
   'plain.qualified': '此事项需要三分之二的票数',
   'plain.initiative': '合计持有十分之一票数的业主可以召集大会',
   'plain.share': '票数按住宅面积计算',
