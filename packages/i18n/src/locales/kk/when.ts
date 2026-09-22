@@ -3,6 +3,8 @@ import type { Dictionary } from '../../translate.js';
 /** Даты, сроки и числа. Порядок частей и разделители задаёт сам язык. */
 export const when: Dictionary = {
   locale: 'kk-KZ',
+  group: ' ',
+  decimal: ',',
   monthCase: 'name',
 
   day: '{день} {месяц}',

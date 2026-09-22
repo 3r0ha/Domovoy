@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'նոյեմբերից',
   'monthOf.12': 'դեկտեմբերից',
 
+  'weekday.1': 'երկուշաբթի',
+  'weekday.2': 'երեքշաբթի',
+  'weekday.3': 'չորեքշաբթի',
+  'weekday.4': 'հինգշաբթի',
+  'weekday.5': 'ուրբաթ',
+  'weekday.6': 'շաբաթ',
+  'weekday.7': 'կիրակի',
+
   'error.forbidden': 'Սրանք ուրիշի տվյալներն են, դրանք բացել չի կարելի',
   'error.request_not_found': 'Հայտը չի գտնվել',
   'error.request_closed': 'Հայտն արդեն փակված է',

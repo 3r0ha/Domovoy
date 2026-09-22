@@ -14,6 +14,7 @@ import {
   type ReceptionWindow,
   type Visit,
 } from '../dist/index.js';
+import { translatorFor } from '@domovoy/i18n';
 
 const ZONE = 'Asia/Yekaterinburg';
 
@@ -97,6 +98,10 @@ describe('часы приёма', () => {
 
   it('окна словами читаются по дням недели', () => {
     assert.equal(formatReception(WINDOWS), 'вторник 15:00-19:00, четверг 15:00-17:00');
+  });
+
+  it('день недели идёт на языке человека: строку читает жилец', () => {
+    assert.equal(formatReception(WINDOWS, translatorFor('tt')), 'сишәмбе 15:00-19:00, пәнҗешәмбе 15:00-17:00');
   });
 });
 

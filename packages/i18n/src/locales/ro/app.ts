@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'noiembrie',
   'monthOf.12': 'decembrie',
 
+  'weekday.1': 'luni',
+  'weekday.2': 'marți',
+  'weekday.3': 'miercuri',
+  'weekday.4': 'joi',
+  'weekday.5': 'vineri',
+  'weekday.6': 'sâmbătă',
+  'weekday.7': 'duminică',
+
   'error.forbidden': 'Acestea sunt date străine, nu pot fi deschise',
   'error.request_not_found': 'Sesizarea nu a fost găsită',
   'error.request_closed': 'Sesizarea este deja închisă',

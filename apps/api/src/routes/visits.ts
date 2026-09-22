@@ -71,7 +71,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       return {
         buildingId: reception.buildingId,
         minutes: reception.minutes,
-        hours: formatReception(reception.windows),
+        hours: formatReception(reception.windows, speak(resident)),
         windows: reception.windows,
         ...(reception.office ? { office: reception.office } : {}),
         // У часа приёма стоит день недели: приём идёт по вторникам и четвергам,
@@ -122,7 +122,7 @@ export const visitRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) =
       return {
         buildingId: reception.buildingId,
         minutes: reception.minutes,
-        hours: formatReception(reception.windows),
+        hours: formatReception(reception.windows, speak(resident)),
         windows: reception.windows,
         ...(reception.office ? { office: reception.office } : {}),
         slots: reception.slots.map((at) => ({

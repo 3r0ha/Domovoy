@@ -31,6 +31,7 @@ export {
   partsIn,
   spanIn,
   weekdayIn,
+  weekdayOf,
   type DateParts,
   type Form,
 } from './when.js';

@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'ноябр',
   'monthOf.12': 'декабр',
 
+  'weekday.1': 'душанбе',
+  'weekday.2': 'сешанбе',
+  'weekday.3': 'чоршанбе',
+  'weekday.4': 'панҷшанбе',
+  'weekday.5': 'ҷумъа',
+  'weekday.6': 'шанбе',
+  'weekday.7': 'якшанбе',
+
   'error.forbidden': 'Ин маълумоти каси дигар аст, онро кушодан мумкин нест',
   'error.request_not_found': 'Дархост ёфт нашуд',
   'error.request_closed': 'Дархост аллакай баста шудааст',

@@ -1,6 +1,6 @@
 /** Числа, сроки и даты на языке человека. */
 
-import { clockIn, dayIn, localeOf, partsIn, translatorFor, type Translate } from '@domovoy/i18n';
+import { clockIn, dayIn, localeOf, numberIn, partsIn, translatorFor, type Translate } from '@domovoy/i18n';
 
 import { say, spokenLanguage } from './i18n.js';
 
@@ -130,14 +130,14 @@ export const monthShort = (index: number): string => monthName(index).slice(0, 3
 
 /** Сумма без знака валюты: «1 234,50», «1,234.50». Валюта остаётся рублём. */
 export const money = (amount: number): string =>
-  amount.toLocaleString(when('when.locale'), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  numberIn(when, amount, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Сумма со знаком рубля. */
 export const rubles = (amount: number): string => `${money(amount)} ₽`;
 
 /** Дробная часть с разделителем своего языка: «137,1», «137.1». */
 export const decimal = (value: number, digits = 3): string =>
-  value.toLocaleString(when('when.locale'), { maximumFractionDigits: digits });
+  numberIn(when, value, { maximumFractionDigits: digits });
 
 /** Часы с долей: «14,8 ч». */
 export const hours = (value: number): string => when('when.hoursValue', { сколько: decimal(value, 1) });

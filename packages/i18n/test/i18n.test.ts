@@ -9,8 +9,11 @@ import {
   isLanguage,
   languageFrom,
   languageTitle,
+  numberIn,
   translator,
   translatorFor,
+  weekdayIn,
+  weekdayOf,
 } from '../dist/index.js';
 
 describe('языки продукта', () => {
@@ -107,5 +110,47 @@ describe('полнота словарей', () => {
         assert.deepEqual(names(text), names(DICTIONARIES.ru[key] ?? ''), `подстановки разошлись: ${code}, ${key}`);
       }
     }
+  });
+});
+
+/**
+ * Данных о татарском, киргизском, грузинском и ещё нескольких языках продукта
+ * в вебвью может не быть, и Intl тогда молча переходит на английский: житель,
+ * выбравший татарский, видел «6,062.04» и «Tuesday». Ни число, ни день недели
+ * не должны зависеть от того, что знает среда.
+ */
+describe('числа и дни недели не зависят от данных среды', () => {
+  /** Вторник в московском поясе: по нему сверяется название дня. */
+  const TUESDAY = new Date('2026-09-22T12:00:00Z');
+
+  it('разделители берутся из словаря языка, а не из Intl', () => {
+    for (const { code } of LANGUAGES) {
+      const own = DICTIONARIES[code];
+
+      if (!own) continue;
+
+      const group = own['when.group'] === ' ' ? ' ' : own['when.group'];
+      const decimal = own['when.decimal'];
+      const shown = numberIn(translatorFor(code), 1_284_000.5, { minimumFractionDigits: 2 });
+
+      assert.equal(shown, `1${group}284${group}000${decimal}50`, `разделители разошлись: ${code}`);
+    }
+  });
+
+  it('день недели называет словарь', () => {
+    for (const { code } of LANGUAGES) {
+      const own = DICTIONARIES[code];
+
+      if (!own) continue;
+
+      assert.equal(weekdayIn(translatorFor(code), TUESDAY, 'Europe/Moscow'), own['app.weekday.2'], code);
+    }
+  });
+
+  it('день недели считается по поясу дома, а не по поясу телефона', () => {
+    const midnight = new Date('2026-09-22T20:00:00Z');
+
+    assert.equal(weekdayOf(midnight, 'Europe/Moscow'), 2, 'в Москве ещё вторник');
+    assert.equal(weekdayOf(midnight, 'Asia/Vladivostok'), 3, 'во Владивостоке уже среда');
   });
 });

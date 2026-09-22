@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'noyabr',
   'monthOf.12': 'dekabr',
 
+  'weekday.1': 'dushanba',
+  'weekday.2': 'seshanba',
+  'weekday.3': 'chorshanba',
+  'weekday.4': 'payshanba',
+  'weekday.5': 'juma',
+  'weekday.6': 'shanba',
+  'weekday.7': 'yakshanba',
+
   'error.forbidden': 'Bu begona maʼlumot, uni ochib boʻlmaydi',
   'error.request_not_found': 'Ariza topilmadi',
   'error.request_closed': 'Ariza allaqachon yopilgan',

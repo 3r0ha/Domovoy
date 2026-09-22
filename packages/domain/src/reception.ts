@@ -1,3 +1,6 @@
+import type { Translate } from '@domovoy/i18n';
+
+import { russian } from './moment.js';
 import { DomainError, DEFAULT_TIME_ZONE } from './types.js';
 
 /**
@@ -46,8 +49,8 @@ const DAY_MS = 24 * 3600_000;
 
 const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-/** Название дня недели для клавиатуры и списка. */
-export const WEEKDAY_TITLES = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+/** Название дня недели по-русски: для журнала и документов, где языка нет. */
+export const WEEKDAY_TITLES = [1, 2, 3, 4, 5, 6, 7].map((weekday) => russian(`app.weekday.${weekday}`));
 
 interface LocalParts {
   year: number;
@@ -312,10 +315,13 @@ export const cancelVisit = (visit: Visit, now: Date): Visit => {
 export const completeVisit = (visit: Visit): Visit =>
   visit.status === 'booked' ? { ...visit, status: 'done' } : visit;
 
-/** Приёмные окна словами: «вторник 15:00-19:00, четверг 15:00-19:00». */
-export const formatReception = (windows: readonly ReceptionWindow[]): string =>
+/**
+ * Приёмные окна словами: «вторник 15:00-19:00, четверг 15:00-19:00». День
+ * недели называет язык человека: строка идёт жильцу, а не в журнал.
+ */
+export const formatReception = (windows: readonly ReceptionWindow[], t: Translate = russian): string =>
   windows
     .slice()
     .sort((left, right) => left.weekday - right.weekday)
-    .map((window) => `${WEEKDAY_TITLES[window.weekday - 1] ?? ''} ${window.from}-${window.to}`)
+    .map((window) => `${t(`app.weekday.${window.weekday}`)} ${window.from}-${window.to}`)
     .join(', ');

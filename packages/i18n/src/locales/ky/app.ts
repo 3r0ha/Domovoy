@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'ноябрь',
   'monthOf.12': 'декабрь',
 
+  'weekday.1': 'дүйшөмбү',
+  'weekday.2': 'шейшемби',
+  'weekday.3': 'шаршемби',
+  'weekday.4': 'бейшемби',
+  'weekday.5': 'жума',
+  'weekday.6': 'ишемби',
+  'weekday.7': 'жекшемби',
+
   'error.forbidden': 'Бул башка кишинин маалыматы, аны ачууга болбойт',
   'error.request_not_found': 'Арыз табылган жок',
   'error.request_closed': 'Арыз мурда эле жабылган',

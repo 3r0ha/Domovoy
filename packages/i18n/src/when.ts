@@ -39,9 +39,36 @@ export const formOf = (t: Translate, count: number): Form =>
 export const counted = (t: Translate, prefix: string, count: number): string =>
   t(`${prefix}.${formOf(t, count)}`, { сколько: count });
 
-/** Число с разделителями своего языка. */
-export const numberIn = (t: Translate, value: number, options?: Intl.NumberFormatOptions): string =>
-  value.toLocaleString(localeOf(t), options);
+/**
+ * Разделители разрядов и дробной части. Берутся из словаря, а не из Intl:
+ * данных о татарском, киргизском, грузинском и ещё пяти языках продукта в
+ * вебвью может не быть вовсе, и тогда Intl молча переходит на английский.
+ * Житель, выбравший татарский, видел «6,062.04» вместо «6 062,04».
+ */
+const separatorsOf = (t: Translate): { group: string; decimal: string } => {
+  const group = t('when.group');
+  const decimal = t('when.decimal');
+
+  // Неразрывный пробел записан в словаре обычным: в исходнике их не различить.
+  return {
+    group: group === 'when.group' ? ' ' : group === ' ' ? ' ' : group,
+    decimal: decimal === 'when.decimal' ? ',' : decimal,
+  };
+};
+
+/**
+ * Число с разделителями своего языка. Разряды считает Intl по английскому
+ * тегу: он есть везде и делит по три всюду, где продукт говорит. Знаки
+ * подставляются уже свои.
+ */
+export const numberIn = (t: Translate, value: number, options?: Intl.NumberFormatOptions): string => {
+  const shown = value.toLocaleString('en-US', options);
+  const { group, decimal } = separatorsOf(t);
+
+  // Оба знака меняются за один проход: подстановка по очереди переписала бы
+  // уже подставленное там, где у языка разделители поменяны местами.
+  return shown.replace(/[.,]/gu, (sign) => (sign === ',' ? group : decimal));
+};
 
 /** Календарные числа дня. */
 export interface DateParts {
@@ -69,9 +96,26 @@ export const partsIn = (at: Date, timeZone: string): DateParts => {
   };
 };
 
-/** День недели словом языка: «четверг», «Thursday», «星期四». */
+/** Понедельник это 1: тем же счётом задаются приёмные окна. */
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * Какой это день недели в поясе дома. Считается по английскому тегу: он есть
+ * в любом вебвью, а само название берётся из словаря.
+ */
+export const weekdayOf = (at: Date, timeZone: string): number => {
+  const short = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(at);
+
+  return WEEKDAYS.indexOf(short) + 1;
+};
+
+/**
+ * День недели словом языка: «четверг», «Thursday», «星期四». Название лежит
+ * в словаре рядом с месяцами: у Intl данных о части языков продукта нет,
+ * и он отдавал «Tuesday» посреди татарской строки.
+ */
 export const weekdayIn = (t: Translate, at: Date, timeZone: string): string =>
-  at.toLocaleDateString(localeOf(t), { timeZone, weekday: 'long' });
+  t(`app.weekday.${weekdayOf(at, timeZone)}`);
 
 /**
  * Месяц в том падеже, в каком язык ставит его в дате: русский в родительном,

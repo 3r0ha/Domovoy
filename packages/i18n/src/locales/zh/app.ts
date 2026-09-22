@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': '11月',
   'monthOf.12': '12月',
 
+  'weekday.1': '星期一',
+  'weekday.2': '星期二',
+  'weekday.3': '星期三',
+  'weekday.4': '星期四',
+  'weekday.5': '星期五',
+  'weekday.6': '星期六',
+  'weekday.7': '星期日',
+
   'error.forbidden': '这是他人的数据，无法打开',
   'error.request_not_found': '未找到该报修单',
   'error.request_closed': '该报修单已关闭',

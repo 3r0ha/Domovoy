@@ -1,6 +1,5 @@
 import { formatVisit, listVisitsFor, receptionFor, zoneOf, type Resident } from '@domovoy/app';
-import { DomainError, isCompanyStaff } from '@domovoy/domain';
-import { localeOf } from '@domovoy/i18n';
+import { DomainError, formatMoment, isCompanyStaff } from '@domovoy/domain';
 
 import { speak } from '../i18n.js';
 import { menuButton, visitCancelKeyboard } from '../keyboards.js';
@@ -30,19 +29,14 @@ export const freeHours = async (
 
   return {
     reception,
+    /*
+     * Подпись собирается словарём, а не Intl: данных о татарском, киргизском
+     * и ещё шести языках продукта в среде может не быть, и тогда Intl молча
+     * отдаёт английское «Tue 22 Sep».
+     */
     hours: reception.slots.slice(0, SHOWN_SLOTS).map((at) => ({
       at: at.toISOString(),
-      title: at
-        .toLocaleString(localeOf(speak(resident)), {
-          timeZone: zone,
-          weekday: 'short',
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-        .replace(/,/g, '')
-        .replace(/\.$/, ''),
+      title: formatMoment(at, zone, speak(resident)),
     })),
   };
 };

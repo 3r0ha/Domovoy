@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'noýabr',
   'monthOf.12': 'dekabr',
 
+  'weekday.1': 'duşenbe',
+  'weekday.2': 'sişenbe',
+  'weekday.3': 'çarşenbe',
+  'weekday.4': 'penşenbe',
+  'weekday.5': 'anna',
+  'weekday.6': 'şenbe',
+  'weekday.7': 'ýekşenbe',
+
   'error.forbidden': 'Bu başganyň maglumatlary, olary açyp bolmaýar',
   'error.request_not_found': 'Arza tapylmady',
   'error.request_closed': 'Arza eýýäm ýapyldy',

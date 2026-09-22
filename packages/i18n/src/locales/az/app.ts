@@ -90,6 +90,14 @@ export const app: Dictionary = {
   'monthOf.11': 'noyabr',
   'monthOf.12': 'dekabr',
 
+  'weekday.1': 'bazar ertəsi',
+  'weekday.2': 'çərşənbə axşamı',
+  'weekday.3': 'çərşənbə',
+  'weekday.4': 'cümə axşamı',
+  'weekday.5': 'cümə',
+  'weekday.6': 'şənbə',
+  'weekday.7': 'bazar',
+
   // Отказы, которые видит жилец. Числа и номера в них не подставляются:
   // человеку хватает причины, подробности остаются в карточке.
   'error.forbidden': 'Bu, başqasının məlumatlarıdır, onları açmaq olmaz',

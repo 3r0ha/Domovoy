@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'November',
   'monthOf.12': 'December',
 
+  'weekday.1': 'Monday',
+  'weekday.2': 'Tuesday',
+  'weekday.3': 'Wednesday',
+  'weekday.4': 'Thursday',
+  'weekday.5': 'Friday',
+  'weekday.6': 'Saturday',
+  'weekday.7': 'Sunday',
+
   'error.forbidden': 'This data belongs to someone else, it cannot be opened',
   'error.request_not_found': 'Request not found',
   'error.request_closed': 'The request is already closed',

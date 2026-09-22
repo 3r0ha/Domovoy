@@ -88,6 +88,14 @@ export const app: Dictionary = {
   'monthOf.11': 'ნოემბერი',
   'monthOf.12': 'დეკემბერი',
 
+  'weekday.1': 'ორშაბათი',
+  'weekday.2': 'სამშაბათი',
+  'weekday.3': 'ოთხშაბათი',
+  'weekday.4': 'ხუთშაბათი',
+  'weekday.5': 'პარასკევი',
+  'weekday.6': 'შაბათი',
+  'weekday.7': 'კვირა',
+
   'error.forbidden': 'ეს სხვისი მონაცემებია, მათი გახსნა შეუძლებელია',
   'error.request_not_found': 'განაცხადი ვერ მოიძებნა',
   'error.request_closed': 'განაცხადი უკვე დახურულია',
