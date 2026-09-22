@@ -601,13 +601,87 @@ button.link.danger-link {
   --tile: var(--muted);
 }
 
+/* Значок категории заявки: рисунок различает, цвет остаётся за состоянием. */
+.tile-plain {
+  --tile: var(--muted);
+}
+
+/*
+ * Главное по своим заявкам. На экране не было ничего крупного, и глазу негде
+ * было сесть: пять блоков одного веса подряд. Здесь стоит ответ на вопрос,
+ * с которым жилец открывает приложение.
+ */
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lead:active {
+  background-color: var(--sunk);
+}
+
+.lead-line {
+  font-size: var(--font-head);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.lead-about {
+  color: var(--muted);
+  font-size: var(--font-meta);
+}
+
+/* Просроченное называется цветом: это уже не срок, а нарушение. */
+.lead-late .lead-line {
+  color: var(--danger-text);
+}
+
+/*
+ * Состояние заявки плашкой. Цвет здесь единственное, что значит состояние:
+ * значок слева говорит о категории и цветом больше не спорит.
+ */
 .row-state {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: var(--font-meta);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--font-small);
   white-space: nowrap;
+}
+
+.state-work {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-text);
+}
+
+.state-wait {
+  background: color-mix(in srgb, #f5a623 22%, transparent);
+  color: var(--warning);
+}
+
+.state-good {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.state-muted {
+  background: var(--sunk);
+  color: var(--faint);
+}
+
+.state-bad {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger-text);
 }
 
 .request-head {
@@ -1439,8 +1513,14 @@ main > * > .loading:only-child {
   margin-top: 8px;
 }
 
+/*
+ * Название на своей строке, количество с единицей под ним. Втроём в одну
+ * строку они не помещались на телефоне: название сжималось до пары знаков,
+ * а у единицы обрезалась подпись.
+ */
 .materials-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
@@ -1458,15 +1538,17 @@ main > * > .loading:only-child {
 }
 
 .materials-row input:first-child {
-  flex: 1 1 auto;
+  flex: 1 1 100%;
 }
 
-.materials-row input:nth-child(2) {
-  flex: 0 0 72px;
-}
-
+.materials-row input:nth-child(2),
 .materials-row input:nth-child(3) {
-  flex: 0 0 64px;
+  flex: 1 1 0;
+}
+
+/* «Добавить» прижата к правому краю второй строки, а не втиснута между полей. */
+.materials-row .link {
+  margin-left: auto;
 }
 
 /* Списанное строкой на каждый материал: так его видно и так его можно убрать. */
@@ -2878,6 +2960,11 @@ button.chat-done {
 }
 
 /* Действие прямо из строки списка: принять заявку, не открывая её. */
+/*
+ * Кнопка в строке залита акцентом целиком, как и всё остальное, что в продукте
+ * нажимают. Оттенком акцента рядом написано состояние заявки, и по бледной
+ * заливке кнопка от подписи не отличалась.
+ */
 .row-action {
   flex: none;
   /* Заявка принимается прямо отсюда: цель не мельче 44, промах уводит в карточку. */
@@ -2886,15 +2973,22 @@ button.chat-done {
   padding: 9px 14px;
   border: 0;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent-text);
+  background: var(--accent);
+  color: var(--card);
   font-size: var(--font-small);
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .row-action:active {
-  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: color-mix(in srgb, var(--accent) 86%, #000000);
+}
+
+.row-action:disabled {
+  background: var(--sunk);
+  color: var(--faint);
+  cursor: default;
 }
 
 /* Что получилось: спокойное подтверждение рядом с кнопкой. */
@@ -3707,19 +3801,6 @@ button.link.danger-action {
   text-align: left;
 }
 
-/* Число и под ним слово о правке: правится нажатием по строке, и это видно. */
-.tariff-after {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.tariff-change {
-  color: var(--accent-text);
-  font-size: var(--font-small);
-}
-
 /* Код квартиры с наклейки: его переписывают в квитанцию, поэтому он крупный и по группам. */
 .sticker-code {
   margin: 4px 0 0;
@@ -3816,10 +3897,15 @@ button.link.danger-action {
   min-width: 0;
 }
 
+/*
+ * Месяц без поломок это черта по низу, а не такая же плашка. Двенадцать
+ * одинаковых плашек с одной цветной читались как сломанный график, а не
+ * как год, в котором объект ломался один раз.
+ */
 .month {
   height: 18px;
   border-radius: 3px;
-  background: var(--sunk);
+  background: linear-gradient(to top, var(--sunk) 4px, transparent 4px);
 }
 
 .month-once {

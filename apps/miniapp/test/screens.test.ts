@@ -4157,9 +4157,10 @@ describe('тарифы дома', () => {
 
     const screen = await render(createElement(TariffsScreen as never, { api } as never), bridge);
 
-    // Пометка про умолчание стоит одной сноской под списком, а не в каждой строке.
-    assert.match(screen.text, /Холодная вода₽ за м³43,5/);
-    assert.match(screen.text, /₽ за м² в месяц · с 1 сентября/);
+    // Знак валюты стоит при числе, уточнение под названием, а пометка про
+    // умолчание одной сноской под списком, а не в каждой строке.
+    assert.match(screen.text, /Холодная водаза м³43,5₽/);
+    assert.match(screen.text, /за м² в месяц · с 1 сентября/);
     assert.equal(screen.text.match(/по умолчанию/g)?.length ?? 0, 0);
 
     await screen.act(() => (screen.findAll('.tariff-row')[0] as HTMLElement).click());

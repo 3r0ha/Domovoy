@@ -2,7 +2,7 @@ import { Button, CellAction, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
-import { actionTitle, describeFailure, type DomovoyApi, type RequestView } from '../api.js';
+import { actionTitle, describeFailure, formatDue, type DomovoyApi, type RequestView } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { useT } from '../i18n.js';
 import { usePages } from '../use-pages.js';
@@ -33,6 +33,40 @@ export interface RequestListScreenProps {
 
 /** Сколько закрытых заявок приходит за раз, как и на сервере. */
 const PAGE = 20;
+
+/** Состояния, в которых заявка стоит из-за жильца, а не из-за смены. */
+const WAITS_FOR_YOU = ['needs_info', 'done'];
+
+/**
+ * Главное по своим заявкам одной строкой. Жилец открывает приложение с одним
+ * вопросом: что с заявкой и когда придут, а ответ лежал серой строчкой внутри
+ * карточки. Порядок важности: просрочено, ждут ответа жильца, ближайший срок.
+ */
+const Nearest = ({ requests, onOpen }: { requests: RequestView[]; onOpen: (id: string) => void }) => {
+  const t = useT();
+  const overdue = requests.find((request) => request.overdue);
+  const waiting = requests.find((request) => WAITS_FOR_YOU.includes(request.status));
+  const soonest = [...requests]
+    .filter((request) => !request.overdue && request.dueAt)
+    .sort((left, right) => new Date(left.dueAt).getTime() - new Date(right.dueAt).getTime())[0];
+
+  const shown = overdue ?? waiting ?? soonest;
+
+  if (!shown) return null;
+
+  const lead = overdue
+    ? t('requests.lead.overdue')
+    : waiting
+      ? t(waiting.status === 'needs_info' ? 'requests.lead.answer' : 'requests.lead.accept')
+      : t('requests.lead.until', { срок: formatDue(shown.dueAt) });
+
+  return (
+    <button type="button" className={overdue ? 'lead lead-late' : 'lead'} onClick={() => onOpen(shown.id)}>
+      <span className="lead-line">{lead}</span>
+      <span className="lead-about">{shown.title}</span>
+    </button>
+  );
+};
 
 const Rows = ({
   requests,
@@ -138,6 +172,10 @@ export const RequestListScreen = ({
   return (
     <section className="list">
       {now}
+
+      {/* Сначала дом, потом своё: авария объясняет и саму заявку тоже. */}
+      {staff ? null : <Nearest requests={active} onOpen={onOpen} />}
+
       {active.length > 0 ? create : null}
 
       {failed ? <ErrorText>{failed}</ErrorText> : null}

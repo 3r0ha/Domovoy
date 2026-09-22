@@ -3,6 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
 import { ApiError, decimal, type DomovoyApi, formatDay, parseDecimal, type TariffView } from '../api.js';
+import { Amount } from './Amount.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Skeleton } from './Skeleton.js';
@@ -17,11 +18,20 @@ const number = (value: number): string => decimal(value, 4);
 
 /** Ставка хранится долей, а читается процентами: 0,16 это 16% годовых. */
 const shown = (tariff: TariffView): string =>
-  tariff.kind === 'key_rate' ? `${number(tariff.value * 100)}%` : number(tariff.value);
+  tariff.kind === 'key_rate' ? number(tariff.value * 100) : number(tariff.value);
+
+/**
+ * Знак при числе: он и есть единица. Остальное от «₽ за м³» это уточнение
+ * и стоит под названием, а не в числовой колонке.
+ */
+const sign = (tariff: TariffView): string => (tariff.kind === 'key_rate' ? '%' : '₽');
 
 /** Свой тариф подписан датой, базовый только единицей: про них говорит сноска. */
-const since = (tariff: TariffView): string =>
-  tariff.own && tariff.since ? `${tariff.unit} · с ${formatDay(tariff.since)}` : tariff.unit;
+const since = (tariff: TariffView): string => {
+  const about = tariff.unit.replace(/^₽\s+/u, '');
+
+  return tariff.own && tariff.since ? `${about} · с ${formatDay(tariff.since)}` : about;
+};
 
 /** Тарифы дома: из них складывается квитанция. */
 export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
@@ -92,13 +102,9 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
               className="tariff-row"
               title={tariff.title}
               subtitle={since(tariff)}
-              after={
-                <span className="tariff-after">
-                  <span className="report-value">{shown(tariff)}</span>
-                  {/* Что число правится нажатием, видно по слову, а не угадывается. */}
-                  {editable ? <span className="tariff-change">Изменить</span> : null}
-                </span>
-              }
+              /* Что тариф правится, видно по шеврону: слово «Изменить» стояло
+                 в каждой строке и превращало столбец чисел в столбец ссылок. */
+              after={<Amount value={shown(tariff)} unit={sign(tariff)} />}
               separator={index > 0}
               {...(editable
                 ? {

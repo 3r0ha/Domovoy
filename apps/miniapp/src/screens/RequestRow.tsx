@@ -25,26 +25,30 @@ const SHORT_STAFF: Record<string, string> = {
   done: 'ждёт приёмки',
 };
 
+/*
+ * Цвет говорит, что с заявкой: синий, работа идёт; оранжевый, ждут человека;
+ * зелёный, закрыта работой; серый, закрыта без неё. Плашкой, а не точкой
+ * в восемь пикселей: список из пяти заявок должен читаться взглядом.
+ */
 const TONE: Record<string, string> = {
-  new: 'dot-work',
-  accepted: 'dot-work',
-  in_progress: 'dot-work',
-  needs_info: 'dot-warn',
-  done: 'dot-warn',
-  confirmed: 'dot-good',
-  rejected: 'dot-muted',
-  withdrawn: 'dot-muted',
+  new: 'state-work',
+  accepted: 'state-work',
+  in_progress: 'state-work',
+  needs_info: 'state-wait',
+  done: 'state-wait',
+  confirmed: 'state-good',
+  rejected: 'state-muted',
+  withdrawn: 'state-muted',
 };
 
 const CLOSED = ['confirmed', 'rejected', 'withdrawn'];
 
-/** Состояние одним словом с цветной точкой: одинаково во всех списках заявок. */
+/** Состояние одним словом цветной плашкой: одинаково во всех списках заявок. */
 export const RequestState = ({ status, staff }: { status: string; staff?: boolean }) => {
   const t = useT();
 
   return (
-    <span className="row-state">
-      <span className={`dot ${TONE[status] ?? 'dot-work'}`} />
+    <span className={`row-state ${TONE[status] ?? 'state-work'}`}>
       {(staff ? SHORT_STAFF[status] : undefined) ?? short(t)[status] ?? status}
     </span>
   );
@@ -101,10 +105,7 @@ export const RequestRow = ({
         <span className="row-line">
           <span className="row-where">
             {request.overdue && !CLOSED.includes(request.status) ? (
-              <span className="row-state">
-                <span className="dot dot-bad" />
-                {t('request.overdue', { срок: formatSince(request.dueAt) })}
-              </span>
+              <span className="row-state state-bad">{t('request.overdue', { срок: formatSince(request.dueAt) })}</span>
             ) : (
               <RequestState status={request.status} {...(staff ? { staff } : {})} />
             )}

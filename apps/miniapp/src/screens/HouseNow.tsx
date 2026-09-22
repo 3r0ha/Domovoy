@@ -3,7 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { formatDeadline, formatDue, type DomovoyApi, type HouseNowView } from '../api.js';
+import { formatDue, formatLeft, type DomovoyApi, type HouseNowView } from '../api.js';
 import { useT } from '../i18n.js';
 import { Domovoy } from './Domovoy.js';
 import { Group } from './Group.js';
@@ -63,7 +63,9 @@ export const HouseNow = ({ api, onOpen }: HouseNowProps) => {
                 </span>
               }
               title={item.title}
-              subtitle={`${item.target} · ${formatDeadline(item.resolutionDueAt)}${noted(t, item.machineTranslated)}`}
+              // Срок называется так же, как в списке заявок под этим блоком:
+              // «осталось 6 ч» над «5 ч» читалось как две разные величины.
+              subtitle={`${item.target} · ${formatLeft(item.resolutionDueAt)}${noted(t, item.machineTranslated)}`}
               showChevron
               separator={index > 0}
               onClick={() => onOpen(item.id)}
