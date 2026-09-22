@@ -48,7 +48,7 @@ export const RequestState = ({ status, staff }: { status: string; staff?: boolea
   const t = useT();
 
   return (
-    <span className={`row-state ${TONE[status] ?? 'state-work'}`}>
+    <span className={`state ${TONE[status] ?? 'state-work'}`}>
       {(staff ? SHORT_STAFF[status] : undefined) ?? short(t)[status] ?? status}
     </span>
   );
@@ -105,12 +105,12 @@ export const RequestRow = ({
         <span className="row-line">
           <span className="row-where">
             {request.overdue && !CLOSED.includes(request.status) ? (
-              <span className="row-state state-bad">{t('request.overdue', { срок: formatSince(request.dueAt) })}</span>
+              <span className="state state-bad">{t('request.overdue', { срок: formatSince(request.dueAt) })}</span>
             ) : (
               <RequestState status={request.status} {...(staff ? { staff } : {})} />
             )}
-            {/* Точка перед адресом рисуется стилем: в узкой строке рядом с кнопкой
-                адрес встаёт под состоянием целиком, без неё. */}
+            {/* После плашки состояния разделителя нет: расстояние держит отступ.
+                Знак повисал в начале строки, когда адрес переносился. */}
             <span className="row-target">{tight(request.target)}</span>
             {staff ? <span className="row-number">{` ·\u{a0}${request.number}`}</span> : null}
 

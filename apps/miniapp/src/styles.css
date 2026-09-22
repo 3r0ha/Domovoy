@@ -613,8 +613,8 @@ button.link.danger-link {
  */
 .lead {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: var(--gap);
   width: 100%;
   padding: 16px;
   border: 0;
@@ -624,6 +624,21 @@ button.link.danger-link {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.lead-text {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lead-go {
+  flex: none;
+  color: var(--faint);
+  font-size: 1.5rem;
+  line-height: 1;
 }
 
 .lead:active {
@@ -646,11 +661,22 @@ button.link.danger-link {
   color: var(--danger-text);
 }
 
+/* Состояние точкой и словом: объявления, счётчики, собрания, люди дома. */
+.row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: var(--font-meta);
+  white-space: nowrap;
+}
+
 /*
  * Состояние заявки плашкой. Цвет здесь единственное, что значит состояние:
- * значок слева говорит о категории и цветом больше не спорит.
+ * значок слева говорит о категории и цветом больше не спорит. Точка в восемь
+ * пикселей для этого мала: список из пяти заявок должен читаться взглядом.
  */
-.row-state {
+.state {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
@@ -701,7 +727,7 @@ button.link.danger-link {
   flex: none;
 }
 
-.request-head .row-state {
+.request-head .state {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -732,7 +758,7 @@ button.link.danger-link {
   background: var(--faint);
 }
 
-.row-line .row-state {
+.row-line .state {
   vertical-align: baseline;
 }
 
@@ -757,6 +783,19 @@ button.link.danger-link {
  */
 .row-target::before {
   content: ' ·\00a0';
+}
+
+/*
+ * После плашки состояния разделителя нет. Плашка выше строки, и перенос
+ * случается сразу за ней: точка оставалась висеть в начале следующей строки
+ * как «· Подъезд 1». Расстояние держит отступ, а не знак.
+ */
+.state + .row-target::before {
+  content: none;
+}
+
+.row-line .state {
+  margin-right: 6px;
 }
 
 /* Рядом с кнопкой строке тесно: адрес встаёт под состоянием целиком, а не рвётся вокруг кнопки. */
@@ -931,6 +970,18 @@ button.link.danger-link {
 .check-marks {
   display: flex;
   gap: 6px;
+}
+
+/*
+ * Цвет нажатой отметки осмотра: зелёным порядок, красным недостаток. Синий
+ * значит «выбрано» и на «нашли непорядок» читался как «сделано».
+ */
+.check-ok [class*='IconButton'][class*='primary'] {
+  background: var(--success);
+}
+
+.check-problem [class*='IconButton'][class*='primary'] {
+  background: var(--danger-solid);
 }
 
 .reading-photo {
@@ -3793,6 +3844,13 @@ button.link.danger-action {
  * Место под единицу держится всегда, даже когда её нет: иначе «12» упиралось
  * в правый край, а «67 %» кончалось на знаке, и числа в столбце шли уступом.
  */
+/* Слово на месте числа: «нет данных» весом числа читалось как главное в столбце. */
+.report-plain {
+  color: var(--muted);
+  font-size: var(--font-meta);
+  font-weight: 400;
+}
+
 .report-unit {
   min-width: 12px;
   color: var(--muted);

@@ -57,6 +57,7 @@ const Row = ({
   title,
   value,
   unit,
+  plain,
   hint,
   before,
 }: {
@@ -64,6 +65,8 @@ const Row = ({
   value: ReactNode;
   /** Единица числа: стоит рядом с ним, а не внутри. */
   unit?: string;
+  /** На месте числа слово: весом числа оно читалось как главное в столбце. */
+  plain?: boolean;
   hint?: ReactNode;
   before?: ReactNode;
 }) => (
@@ -72,7 +75,7 @@ const Row = ({
     title={title}
     subtitle={hint}
     after={
-      <span className="report-value">
+      <span className={plain ? 'report-value report-plain' : 'report-value'}>
         {value}
         <span className="report-unit">{unit ?? ''}</span>
       </span>
@@ -127,7 +130,7 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     <Row
       title="В срок"
       value={period.closed === 0 ? 'нет данных' : share(period.inTimeRate)}
-      {...(period.closed === 0 ? {} : { unit: '%' })}
+      {...(period.closed === 0 ? { plain: true } : { unit: '%' })}
       hint={
         previous.closed > 0 && period.closed > 0 ? (
           <Change value={period.inTimeRate} before={previous.inTimeRate} better="more" format={percent} />
@@ -137,7 +140,7 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     <Row
       title="Среднее время"
       value={period.closed === 0 ? 'нет данных' : decimal(period.averageHours, 1)}
-      {...(period.closed === 0 ? {} : { unit: 'ч' })}
+      {...(period.closed === 0 ? { plain: true } : { unit: 'ч' })}
       hint={
         previous.averageHours > 0 && period.closed > 0 ? (
           <Change value={period.averageHours} before={previous.averageHours} better="less" format={hours} />
@@ -147,7 +150,7 @@ const PeriodRows = ({ period, previous }: { period: PeriodSummaryView; previous:
     <Row
       title="Оценка жильцов"
       value={period.rated ? period.averageRating : 'не оценивали'}
-      {...(period.rated ? { unit: 'из 5' } : {})}
+      {...(period.rated ? { unit: 'из 5' } : { plain: true })}
       hint={period.rated ? `оценок ${period.rated}` : undefined}
     />
     <Row title="Склеено обращений" value={period.mergedReports} />

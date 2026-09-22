@@ -25,6 +25,8 @@ interface Line {
    * с числом и остаются внутри перевода.
    */
   unit?: string;
+  /** На месте числа слово: весом числа оно читалось как главное в столбце. */
+  plain?: boolean;
   hint?: string;
 }
 
@@ -58,7 +60,7 @@ const lines = (t: Translate, quality: QualityView): Line[] => {
 
   own.push(
     quality.averageRating === undefined
-      ? { title: t('quality.rating'), value: t('quality.rating.none') }
+      ? { title: t('quality.rating'), value: t('quality.rating.none'), plain: true }
       : {
           title: t('quality.rating'),
           value: t('quality.rating.value', { оценка: quality.averageRating }),
@@ -114,7 +116,7 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
             title={line.title}
             {...(line.hint ? { subtitle: line.hint } : {})}
             after={
-              <span className="report-value">
+              <span className={line.plain ? 'report-value report-plain' : 'report-value'}>
                 {line.value}
                 <span className="report-unit">{line.unit ?? ''}</span>
               </span>

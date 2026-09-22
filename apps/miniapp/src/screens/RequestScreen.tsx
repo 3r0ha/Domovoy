@@ -72,14 +72,15 @@ const ENDED = [...CLOSED, 'withdrawn'];
 /** Категория, где причина бывает этажом выше: протечка идёт сверху. */
 const LEAKS = 'plumbing';
 
+/** Состояние называется плашкой, теми же цветами, что и в списках заявок. */
 const TONE: Record<string, string> = {
-  new: 'dot-work',
-  accepted: 'dot-work',
-  in_progress: 'dot-work',
-  needs_info: 'dot-warn',
-  done: 'dot-warn',
-  confirmed: 'dot-good',
-  rejected: 'dot-muted',
+  new: 'state-work',
+  accepted: 'state-work',
+  in_progress: 'state-work',
+  needs_info: 'state-wait',
+  done: 'state-wait',
+  confirmed: 'state-good',
+  rejected: 'state-muted',
 };
 
 const ratings = (t: Translate): string[] => [
@@ -794,8 +795,7 @@ export const RequestScreen = ({
       <section className="block">
 
         <p className="request-head">
-          <span className="row-state">
-            <span className={`dot ${view.overdue ? 'dot-bad' : (TONE[view.status] ?? 'dot-work')}`} />
+          <span className={`state ${view.overdue ? 'state-bad' : (TONE[view.status] ?? 'state-work')}`}>
             {statusTitle(view.status, staff, view.statusTitle)}
           </span>
           <span className="number">{view.number}</span>

@@ -5,8 +5,19 @@ import { money } from '../api.js';
  * шла тем же весом и размером, и столбец значений выстраивался по знаку,
  * а не по цифрам.
  */
-export const Amount = ({ value, unit, className }: { value: string | number; unit?: string; className?: string }) => (
-  <span className={className ? `report-value ${className}` : 'report-value'}>
+export const Amount = ({
+  value,
+  unit,
+  className,
+  plain,
+}: {
+  value: string | number;
+  unit?: string;
+  /** На месте числа слово: «нет данных», «не оценивали». Весом оно не кричит. */
+  plain?: boolean;
+  className?: string;
+}) => (
+  <span className={['report-value', plain ? 'report-plain' : '', className ?? ''].filter(Boolean).join(' ')}>
     {value}
     <span className="report-unit">{unit ?? ''}</span>
   </span>
