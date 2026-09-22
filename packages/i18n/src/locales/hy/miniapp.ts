@@ -538,7 +538,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Կուտակել է տունը',
   'capital.contribution': 'Վճար կապիտալ վերանորոգման համար',
-  'capital.contribution.unit': '₽ m²-ի համար ամսական',
+  'capital.contribution.unit': 'm²-ի համար ամսական',
   'capital.empty': 'Կապիտալ վերանորոգում նախատեսված չէ',
   'capital.empty.hint': 'Ծրագիրը վարում է տարածաշրջանը',
   'capital.failure': 'Կապիտալ վերանորոգումը հասանելի չէ',

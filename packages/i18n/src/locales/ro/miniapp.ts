@@ -548,7 +548,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Acumulat de bloc',
   'capital.contribution': 'Contribuția pentru reparația capitală',
-  'capital.contribution.unit': '₽ pe m² pe lună',
+  'capital.contribution.unit': 'pe m² pe lună',
   'capital.empty': 'Reparația capitală nu este planificată',
   'capital.empty.hint': 'Programul este ținut de regiune',
   'capital.failure': 'Reparația capitală nu este disponibilă',

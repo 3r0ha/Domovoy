@@ -538,7 +538,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Uy jamgʻargani',
   'capital.contribution': 'Kapital taʼmir uchun badal',
-  'capital.contribution.unit': '₽ oyiga har m² uchun',
+  'capital.contribution.unit': 'oyiga har m² uchun',
   'capital.empty': 'Kapital taʼmir rejalashtirilmagan',
   'capital.empty.hint': 'Dasturni mintaqa yuritadi',
   'capital.failure': 'Kapital taʼmir maʼlumoti ochiq emas',

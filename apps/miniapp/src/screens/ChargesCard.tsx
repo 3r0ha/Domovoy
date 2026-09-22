@@ -15,6 +15,7 @@ import {
 import { useHaptics } from '../haptics.js';
 import { useT } from '../i18n.js';
 import { useToast } from '../toast.js';
+import { Money } from './Amount.js';
 import { Confirm } from './Confirm.js';
 import { ErrorText } from './ErrorText.js';
 import { Retry } from './Retry.js';
@@ -162,7 +163,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
             className="row-split"
             title={t('charges.debt')}
             {...(bill.debtFor ? { subtitle: bill.debtFor } : {})}
-            after={<span className="report-value">{rubles(bill.debt)}</span>}
+            after={<Money amount={bill.debt} />}
             separator={false}
           />
 
@@ -170,7 +171,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
             <CellSimple
               className="row-split"
               title={t('charges.penalty')}
-              after={<span className="report-value overdue">{rubles(bill.penalty)}</span>}
+              after={<Money amount={bill.penalty} className="overdue" />}
               separator
               height="compact"
             />
@@ -203,7 +204,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
                 key={line.title}
                 title={line.title}
                 subtitle={line.detail}
-                after={<span className="report-value">{rubles(line.amount)}</span>}
+                after={<Money amount={line.amount} />}
                 separator
                 height="compact"
               />
@@ -275,7 +276,7 @@ const Payments = ({ api, version }: { api: DomovoyApi; version: number }) => {
               key={`${payment.period}-${payment.at}`}
               title={payment.periodTitle}
               subtitle={formatDay(payment.at)}
-              after={<span className="report-value">{rubles(payment.amount)}</span>}
+              after={<Money amount={payment.amount} />}
               separator
               height="compact"
             />

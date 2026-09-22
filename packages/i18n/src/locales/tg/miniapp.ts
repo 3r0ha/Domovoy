@@ -538,7 +538,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Хона ҷамъ кардааст',
   'capital.contribution': 'Пардохт барои таъмири асосӣ',
-  'capital.contribution.unit': '₽ барои м² дар як моҳ',
+  'capital.contribution.unit': 'барои м² дар як моҳ',
   'capital.empty': 'Таъмири асосӣ ба нақша гирифта нашудааст',
   'capital.empty.hint': 'Барномаро минтақа мебарад',
   'capital.failure': 'Таъмири асосӣ дастрас нест',

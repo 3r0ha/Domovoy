@@ -542,7 +542,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Jaý tarapyndan ýygnanan',
   'capital.contribution': 'Düýpli abatlaýyş tölegi',
-  'capital.contribution.unit': 'aýda m² üçin ₽',
+  'capital.contribution.unit': 'aýda m² üçin',
   'capital.empty': 'Düýpli abatlaýyş meýilleşdirilmedik',
   'capital.empty.hint': 'Maksatnamany sebit alyp barýar',
   'capital.failure': 'Düýpli abatlaýyş elýeterli däl',

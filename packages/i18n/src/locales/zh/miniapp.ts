@@ -536,7 +536,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': '楼栋已累计',
   'capital.contribution': '大修缴费标准',
-  'capital.contribution.unit': '₽每m²每月',
+  'capital.contribution.unit': '每m²每月',
   'capital.empty': '尚未安排大修',
   'capital.empty.hint': '该计划由地区主管',
   'capital.failure': '大修信息不可用',

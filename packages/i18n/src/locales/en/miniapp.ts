@@ -543,7 +543,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Saved by the house',
   'capital.contribution': 'Contribution for capital repairs',
-  'capital.contribution.unit': '₽ per m² per month',
+  'capital.contribution.unit': 'per m² per month',
   'capital.empty': 'Capital repairs are not planned',
   'capital.empty.hint': 'The programme is run by the region',
   'capital.failure': 'Capital repairs are unavailable',

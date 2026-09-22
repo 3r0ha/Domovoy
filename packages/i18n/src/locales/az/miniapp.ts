@@ -538,7 +538,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'Evin yığdığı vəsait',
   'capital.contribution': 'Əsaslı təmir haqqı',
-  'capital.contribution.unit': 'ayda m² üçün ₽',
+  'capital.contribution.unit': 'ayda m² üçün',
   'capital.empty': 'Əsaslı təmir planlaşdırılmayıb',
   'capital.empty.hint': 'Proqramı region aparır',
   'capital.failure': 'Əsaslı təmir əlçatan deyil',

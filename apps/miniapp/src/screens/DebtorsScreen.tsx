@@ -3,6 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState } from 'react';
 
 import { ApiError, money, plural, rubles, type DebtorView, type DomovoyApi } from '../api.js';
+import { Money } from './Amount.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -61,9 +62,7 @@ const DebtorRow = ({
         title={debtor.displayName}
         subtitle={describe(debtor)}
         after={
-          <span className={debtor.overdueDays >= 90 ? 'report-value overdue' : 'report-value'}>
-            {rubles(debtor.debt + debtor.penalty)}
-          </span>
+          <Money amount={debtor.debt + debtor.penalty} {...(debtor.overdueDays >= 90 ? { className: 'overdue' } : {})} />
         }
         showChevron
         separator
@@ -74,7 +73,7 @@ const DebtorRow = ({
         <>
           <CellSimple
             title="Начислено, не оплачено"
-            after={<span className="report-value">{rubles(debtor.debt)}</span>}
+            after={<Money amount={debtor.debt} />}
             separator
             height="compact"
           />
@@ -83,7 +82,7 @@ const DebtorRow = ({
             <CellSimple
               title="Пени за просрочку"
               subtitle={`просрочка ${plural(debtor.overdueDays, 'день', 'дня', 'дней')}`}
-              after={<span className="report-value overdue">{rubles(debtor.penalty)}</span>}
+              after={<Money amount={debtor.penalty} className="overdue" />}
               separator
               height="compact"
             />

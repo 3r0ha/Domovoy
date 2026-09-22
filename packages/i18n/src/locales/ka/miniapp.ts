@@ -538,7 +538,7 @@ export const miniapp: Dictionary = {
 
   'capital.balance': 'სახლის დაგროვილი',
   'capital.contribution': 'შენატანი კაპიტალურ რემონტზე',
-  'capital.contribution.unit': '₽ თვეში m²-ზე',
+  'capital.contribution.unit': 'თვეში m²-ზე',
   'capital.empty': 'კაპრემონტი დაგეგმილი არ არის',
   'capital.empty.hint': 'პროგრამას რეგიონი უძღვება',
   'capital.failure': 'კაპიტალური რემონტი მიუწვდომელია',

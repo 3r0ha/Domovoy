@@ -913,13 +913,16 @@ npm run typecheck # проверка типов, включая тесты
 
 ```bash
 npm run stand
-# http://localhost:5173/stand.html?startapp=&as=1001&name=Мария      жилец
-# http://localhost:5173/stand.html?startapp=&as=2001&name=Ольга      диспетчер
-# http://localhost:5173/stand.html?startapp=&as=2002&name=Сергей     мастер
-# http://localhost:5173/stand.html?startapp=&as=2003&name=Нина       управляющий
-# http://localhost:5173/stand.html?startapp=&as=2004&name=Лифтсервис подрядчик
-# http://localhost:5173/stand.html?startapp=ent_dom15_1              переход по наклейке
-# http://localhost:3000/health                                       API
+# Имя задаётся целиком: вход из клиента MAX перезаписывает им имя в наборе
+# для показа, и «Ольга» вместо «Ольга Титова» сотрёт фамилию. Фамилию можно
+# задать и отдельно, параметром surname.
+# http://localhost:5173/stand.html?startapp=&as=1001&name=Мария         жилец
+# http://localhost:5173/stand.html?startapp=&as=2001&name=Ольга Титова  диспетчер
+# http://localhost:5173/stand.html?startapp=&as=2002&name=Сергей Малых  мастер
+# http://localhost:5173/stand.html?startapp=&as=2003&name=Нина Гордеева управляющий
+# http://localhost:5173/stand.html?startapp=&as=2004&name=Лифтсервис    подрядчик
+# http://localhost:5173/stand.html?startapp=ent_dom15_1                 переход по наклейке
+# http://localhost:3000/health                                          API
 ```
 
 Поднимаются эмулятор Bot API, продукт (бот и API) и мини-приложение внутри эмулятора клиента

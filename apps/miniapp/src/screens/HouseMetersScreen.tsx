@@ -131,7 +131,8 @@ const HouseMeterCard = ({
           title="Расход за месяц"
           after={
             <span className="report-value">
-              {number(meter.lastConsumption)} {meter.unit}
+              {number(meter.lastConsumption)}
+              <span className="report-unit">{meter.unit}</span>
             </span>
           }
           separator

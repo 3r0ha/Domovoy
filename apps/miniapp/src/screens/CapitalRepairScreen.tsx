@@ -3,7 +3,8 @@ import { useBridgeRequest } from '@maxkit/react';
 
 import type { Translate } from '@domovoy/i18n';
 
-import { money, type DomovoyApi } from '../api.js';
+import type { DomovoyApi } from '../api.js';
+import { Money } from './Amount.js';
 import { useT } from '../i18n.js';
 import { Empty } from './Empty.js';
 import { Failure } from './Failure.js';
@@ -59,7 +60,7 @@ export const CapitalRepairScreen = ({ api }: CapitalRepairScreenProps) => {
           <CellSimple
             title={t('capital.contribution')}
             subtitle={t('capital.contribution.unit')}
-            after={<span className="report-value">{money(plan.data.contribution)}</span>}
+            after={<Money amount={plan.data.contribution} />}
             height="compact"
           />
         )}
@@ -67,16 +68,15 @@ export const CapitalRepairScreen = ({ api }: CapitalRepairScreenProps) => {
         {plan.data.balance === undefined ? null : (
           <CellSimple
             title={t('capital.balance')}
-            after={<span className="report-value">{money(plan.data.balance)} ₽</span>}
+            after={<Money amount={plan.data.balance} />}
             separator
             height="compact"
           />
         )}
-
-        {plan.data.fund ? (
-          <CellSimple title={funds(t)[plan.data.fund] ?? t('capital.fund.unknown')} separator height="compact" />
-        ) : null}
       </Group>
+
+      {/* Способ накопления это не строка списка: значения у неё нет, а место она занимает. */}
+      {plan.data.fund ? <p className="hint aside">{funds(t)[plan.data.fund] ?? t('capital.fund.unknown')}</p> : null}
 
       <Group title={t('capital.works')}>
         <CellList mode="island">

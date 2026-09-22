@@ -2237,12 +2237,15 @@ button.flat {
   display: none;
 }
 
+/*
+ * Свой голос цветом, а не белой плашкой: плашка читается как «подсвечено».
+ * Цвет тот же, которым в продукте отмечено выбранное: фильтр очереди,
+ * промежуток сводки и отметка осмотра.
+ */
 .segment.segment-on {
-  background: var(--card);
-  font-weight: 500;
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 10%),
-    inset 0 0 0 1px var(--divider-primary, transparent);
+  background: var(--accent);
+  color: var(--card);
+  font-weight: 600;
 }
 
 .segment:disabled {

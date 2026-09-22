@@ -439,7 +439,14 @@ export const seedDemo = async (deps: AppDeps, options: SeedOptions = {}): Promis
   // Отключение в расчётном месяце дольше нормы: в квитанции видна строка перерасчёта.
   const outageStart = billedMonthDay(deps.now(), 10, 6);
 
-  await publishAnnouncement(deps, {
+  /*
+   * Объявление о работах датируется теми же днями, что и сами работы.
+   * С сегодняшней датой лента показывала «сегодня» и тут же «закончили
+   * 11 августа», и это читалось как ошибка продукта, а не как старая запись.
+   */
+  const noticeAt: AppDeps = { ...deps, now: () => new Date(outageStart.getTime() - 2 * 24 * 3600_000) };
+
+  await publishAnnouncement(noticeAt, {
     resident: dispatcher,
     title: 'Отключение горячей воды',
     body: 'Ремонт на тепловой сети. Отключение с 06:00 до 20:00. Работы ведёт Теплосеть. По данным: Портал города.',
