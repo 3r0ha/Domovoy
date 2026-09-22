@@ -734,6 +734,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': '问助手',
   'assistant.button': '提问',
+  'assistant.byModel': '答复由模型生成',
   'assistant.close': '关闭',
   'assistant.close.veil': '关闭助手',
   'assistant.lead': '需要什么帮助？',

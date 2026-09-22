@@ -243,6 +243,7 @@ export const bot: Dictionary = {
   'talk.start':
     'Ask about the house and about how to do things. I will answer and open the right section.\n' +
     'You can ask one after another, the conversation ends with the button.',
+  'talk.byModel': 'Composed by a model.',
   'talk.more': 'Ask more and I will answer. Or end the conversation.',
   'help.bind':
     'To start, send the apartment code from the bill: 8 characters next to the address.\n' +

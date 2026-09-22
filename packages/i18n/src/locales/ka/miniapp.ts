@@ -738,6 +738,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'ასისტენტის კითხვა',
   'assistant.button': 'კითხვა',
+  'assistant.byModel': 'პასუხი შეადგინა მოდელმა',
   'assistant.close': 'დახურვა',
   'assistant.close.veil': 'ასისტენტის დახურვა',
   'assistant.lead': 'რით დაგეხმაროთ?',

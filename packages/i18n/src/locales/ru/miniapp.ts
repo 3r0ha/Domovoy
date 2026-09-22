@@ -744,6 +744,8 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Спросить помощника',
   'assistant.button': 'Спросить',
+  // Откуда ответ: собранное моделью это пересказ, а не выписка из правил дома.
+  'assistant.byModel': 'Ответ собрала модель',
   'assistant.close': 'Закрыть',
   'assistant.close.veil': 'Закрыть помощника',
   'assistant.lead': 'Чем помочь?',

@@ -738,6 +738,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Հարցնել օգնականին',
   'assistant.button': 'Հարցնել',
+  'assistant.byModel': 'Պատասխանը կազմել է մոդելը',
   'assistant.close': 'Փակել',
   'assistant.close.veil': 'Փակել օգնականը',
   'assistant.lead': 'Ինչո՞վ օգնեմ',

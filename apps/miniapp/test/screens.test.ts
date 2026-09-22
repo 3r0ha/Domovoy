@@ -3799,6 +3799,8 @@ describe('первый вход и помощник', () => {
     assert.deepEqual(JSON.parse(asked?.body ?? '{}'), { question: 'Где передать показания?' });
     assert.match(screen.text, /Откройте «Оплата»/);
     assert.match(screen.text, /Где передать показания\?/, 'вопрос не остался в разговоре');
+    // Собранное моделью не выдаётся за выписку из правил дома.
+    assert.match(screen.text, /Ответ собрала модель/);
 
     await screen.act(() => tap(screen, 'Открыть'));
 

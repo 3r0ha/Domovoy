@@ -189,6 +189,19 @@ export const buildServer = async (options: ServerOptions): Promise<FastifyInstan
     void parseJson(request, text, done);
   });
 
+  /*
+   * Запрос без тела читается как запрос с пустым телом. У части ручек все поля
+   * тела необязательные: «оплатить» без суммы это оплатить всю квитанцию,
+   * «имя» без имени это вернуть имя из профиля MAX. Такой запрос упирался
+   * в разбор и получал «body must be object» вместо ответа по делу, а там,
+   * где поля обязательны, отказ теперь называет недостающее поле.
+   */
+  fastify.addHook('preValidation', async (request) => {
+    if (request.body === undefined && request.method !== 'GET' && request.method !== 'HEAD') {
+      request.body = {};
+    }
+  });
+
   /** Заголовки безопасности ответа. */
   fastify.addHook('onSend', async (request, reply) => {
     reply.header('x-content-type-options', 'nosniff');

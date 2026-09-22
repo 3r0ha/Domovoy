@@ -242,6 +242,7 @@ export const bot: Dictionary = {
   'talk.start':
     'Jaý barada we nämäni nädip etmelidigi barada soraň. Jogap bererin we gerek bölegi açaryn.\n' +
     'Yzly-yzyna sorap bolýar, gürrüň düwme bilen tamamlanar.',
+  'talk.byModel': 'Jogaby model düzdi.',
   'talk.more': 'Ýene soraň, jogap bererin. Ýa-da gürrüňi tamamlaň.',
   'help.bind':
     'Başlamak üçin kwitansiýadaky kwartira kodyny iberiň: salgynyň ýanyndaky 8 belgi.\n' +

@@ -754,6 +754,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Întreb asistentul',
   'assistant.button': 'Întreb',
+  'assistant.byModel': 'Răspunsul a fost compus de un model',
   'assistant.close': 'Închide',
   'assistant.close.veil': 'Închide asistentul',
   'assistant.lead': 'Cu ce vă ajut?',

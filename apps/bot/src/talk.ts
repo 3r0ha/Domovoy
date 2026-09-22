@@ -46,8 +46,11 @@ export const answerFromAssistant = async (kit: BotKit, typed: BotContext, questi
       ? { title: help.offerTitle, code: help.offerLanguage }
       : undefined;
 
+  // Откуда ответ: собранное моделью это пересказ, а не выписка из правил дома.
+  const by = help.by === 'model' ? `${t('talk.byModel')}\n\n` : '';
+
   await typed.reply(
-    `${help.answer}\n\n${t('talk.more')}`,
+    `${help.answer}\n\n${by}${t('talk.more')}`,
     talkKeyboard(item && command ? { title: t(item.title), command } : undefined, t, language),
   );
 };

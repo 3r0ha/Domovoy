@@ -745,6 +745,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Ask the assistant',
   'assistant.button': 'Ask',
+  'assistant.byModel': 'Composed by a model',
   'assistant.close': 'Close',
   'assistant.close.veil': 'Close the assistant',
   'assistant.lead': 'How can I help?',

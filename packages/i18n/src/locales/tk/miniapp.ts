@@ -742,6 +742,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Kömekçiden soramak',
   'assistant.button': 'Soramak',
+  'assistant.byModel': 'Jogaby model düzdi',
   'assistant.close': 'Ýapmak',
   'assistant.close.veil': 'Kömekçini ýapmak',
   'assistant.lead': 'Näme kömek gerek?',

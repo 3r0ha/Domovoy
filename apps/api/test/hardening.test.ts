@@ -438,6 +438,48 @@ describe('таблица кодов отказа', () => {
 });
 
 describe('отказы транспорта', () => {
+  /*
+   * У части ручек все поля тела необязательные, и запрос без тела это запрос
+   * по умолчанию: «имя» без имени возвращает имя из профиля MAX. Такой запрос
+   * упирался в разбор и получал «body must be object» вместо ответа по делу.
+   */
+  it('запрос без тела доходит до дела, а не до разбора', async () => {
+    const { app, login } = await setup([maria]);
+    const token = await login(1001);
+
+    const named = await app.inject({
+      method: 'POST',
+      url: '/api/me/name',
+      headers: authed(token),
+      payload: { name: 'Мария Ивановна' },
+    });
+
+    assert.equal(named.statusCode, 200, named.body);
+    assert.equal(named.json<{ own: boolean }>().own, true);
+
+    const reset = await app.inject({ method: 'POST', url: '/api/me/name', headers: authed(token) });
+
+    assert.equal(reset.statusCode, 200, reset.body);
+    assert.equal(reset.json<{ own: boolean }>().own, false, 'имя не вернулось к профилю MAX');
+
+    await app.close();
+  });
+
+  it('отказ называет недостающее поле, а не тип тела', async () => {
+    const { app, login } = await setup([maria]);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/requests',
+      headers: authed(await login(1001)),
+    });
+
+    assert.equal(response.statusCode, 400, response.body);
+    assert.match(response.json<{ message: string }>().message, /description/u);
+
+    await app.close();
+  });
+
   it('подпись телефона не из hex отвечает отказом, а не сбоем сервера', async () => {
     const { app, login } = await setup([maria]);
     const token = await login(1001);

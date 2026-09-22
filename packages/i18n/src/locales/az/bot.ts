@@ -230,6 +230,7 @@ export const bot: Dictionary = {
   'talk.start':
     'Ev barədə və nəyin necə ediləcəyi barədə soruşun. Cavab verib lazımi bölməni açacağam.\n' +
     'Ardıcıl soruşmaq olar, söhbət düymə ilə bitir.',
+  'talk.byModel': 'Cavabı model tərtib etdi.',
   'talk.more': 'Daha soruşun, cavab verərəm. Və ya söhbəti bitirin.',
   'help.bind':
     'Başlamaq üçün qəbzdəki mənzil kodunu göndərin: ünvanın yanındakı 8 işarə.\n' +

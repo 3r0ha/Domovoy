@@ -235,6 +235,7 @@ export const bot: Dictionary = {
   'talk.start':
     'Uy haqida va nimani qanday qilish haqida soʻrang. Javob beraman va kerakli boʻlimni ochaman.\n' +
     'Ketma-ket soʻrash mumkin, suhbat tugma bilan tugaydi.',
+  'talk.byModel': 'Javobni model tuzdi.',
   'talk.more': 'Yana soʻrang, javob beraman. Yoki suhbatni tugating.',
   'help.bind':
     'Boshlash uchun kvitansiyadagi kvartira kodini yuboring: manzil yonidagi 8 ta belgi.\n' +

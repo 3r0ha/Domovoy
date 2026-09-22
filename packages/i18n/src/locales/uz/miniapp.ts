@@ -738,6 +738,7 @@ export const miniapp: Dictionary = {
 
   'assistant.ask': 'Yordamchidan soʻrash',
   'assistant.button': 'Soʻrash',
+  'assistant.byModel': 'Javobni model tuzdi',
   'assistant.close': 'Yopish',
   'assistant.close.veil': 'Yordamchini yopish',
   'assistant.lead': 'Nimada yordam beray?',

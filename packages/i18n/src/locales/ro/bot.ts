@@ -264,6 +264,7 @@ export const bot: Dictionary = {
   'talk.start':
     'Întrebați despre bloc și despre cum se face ceva. Răspund și deschid secțiunea potrivită.\n' +
     'Puteți întreba în continuare, conversația se încheie cu butonul.',
+  'talk.byModel': 'Răspunsul a fost compus de un model.',
   'talk.more': 'Mai întrebați și vă răspund. Sau încheiați conversația.',
   'help.bind':
     'Pentru a începe, trimiteți codul apartamentului din factură: 8 semne lângă adresă.\n' +

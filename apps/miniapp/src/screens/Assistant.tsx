@@ -39,6 +39,8 @@ interface Line {
   language?: Language;
   /** Подпись кнопки перехода, на том же языке. */
   languageTitle?: string;
+  /** Ответ собрала модель, а не подбор по разделам продукта. */
+  byModel?: boolean;
 }
 
 /** Сколько прошлых реплик уходит модели: дальше разговор уходит в сторону. */
@@ -158,6 +160,7 @@ export const Assistant = ({ api, onGo, onLanguage, at, onClose }: AssistantProps
           ...(answer.title ? { title: answer.title } : {}),
           ...(answer.offerLanguage ? { language: answer.offerLanguage } : {}),
           ...(answer.offerTitle ? { languageTitle: answer.offerTitle } : {}),
+          ...(answer.by === 'model' ? { byModel: true } : {}),
         },
       ]);
       haptics.done();
@@ -217,6 +220,10 @@ export const Assistant = ({ api, onGo, onLanguage, at, onClose }: AssistantProps
                   {line.languageTitle}
                 </button>
               ) : null}
+
+              {/* Откуда ответ: разделы продукта человек проверит сам, а собранное
+                  моделью это пересказ, а не выписка из правил дома. */}
+              {line.byModel ? <p className="hint aside machine-note">{t('assistant.byModel')}</p> : null}
             </div>
           ))}
 
