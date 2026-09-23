@@ -10,6 +10,7 @@
     "start": "node dist/main.js",
     "seed": "node dist/cli.js seed",
     "stickers": "node dist/cli.js stickers",
+    "check-tokens": "node dist/cli.js check-tokens",
     "walkthrough": "node dist/cli.js walkthrough",
     "test": "tsc -b && node --test test/*.test.ts"
   },

@@ -17,9 +17,13 @@ services:
       retries: 10
 
   # Состояние диалога и сессии живут вне процесса: нужно для нескольких реплик.
+  # Журнал на диске: сессии переживают `docker compose down`, в том числе токены
+  # проверки API, выпущенные командой check-tokens до конца срока проверки.
   redis:
     image: redis:7-alpine
-    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    command: ['redis-server', '--save', '', '--appendonly', 'yes']
+    volumes:
+      - redis:/data
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 5s
@@ -164,6 +168,7 @@ services:
 
 volumes:
   postgres:
+  redis:
   state:
   libretranslate:
   caddy-data:

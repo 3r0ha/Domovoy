@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -23,7 +23,10 @@ import {
 import { isStickerStyle } from '@domovoy/domain';
 import { writeStickers } from '@domovoy/stickers';
 import { PostgresRepository, applyMigrations, clearData, fromPool } from '@domovoy/storage';
+import { KeyValueSessionTokenStore, type SessionRecord } from '@maxkit/server';
+import { fromNodeRedis } from '@maxkit/sessions';
 import pg from 'pg';
+import { createClient } from 'redis';
 
 import { createApartmentCode } from './codes.js';
 import { demoData, seedDemo } from './demo.js';
@@ -42,9 +45,11 @@ const usage = `Команды:
   export-readings  показания за прошлый месяц в CSV для ГИС ЖКХ
   export-requests  реестр заявок за прошлый месяц в CSV
   walkthrough  проиграть сценарий целиком: бот, сценарии и эмулятор платформы
+  check-tokens [--until ГГГГ-ММ-ДД]  токены ролей DATA-API.yaml до конца дня по Москве, по умолчанию до 2026-10-31
 
 Переменные окружения:
   DATABASE_URL   адрес Postgres; без него используется хранилище в памяти
+  REDIS_URL      адрес Redis с сессиями, нужен команде check-tokens
   BOT_NAME       имя бота для ссылок на наклейках (по умолчанию uk_bot)
 `;
 
@@ -356,6 +361,69 @@ const exportCsv = async (kind: 'readings' | 'requests'): Promise<void> => {
   });
 };
 
+/** Учётные записи ролей из DATA-API.yaml: набор для показа, данные в нём вымышленные. */
+const CHECK_ACCOUNTS = [
+  { role: 'resident', maxUserId: 1001, name: 'Мария' },
+  { role: 'neighbor', maxUserId: 1002, name: 'Иван' },
+  { role: 'dispatcher', maxUserId: 2001, name: 'Ольга Титова' },
+  { role: 'technician', maxUserId: 2002, name: 'Сергей Малых' },
+  { role: 'manager', maxUserId: 2003, name: 'Нина Гордеева' },
+  { role: 'contractor', maxUserId: 2004, name: 'Лифтсервис' },
+];
+
+const CHECK_UNTIL = '2026-10-31';
+
+/**
+ * Токены для автоматической проверки API. Обычная сессия живёт 12 часов, а день
+ * проверки заранее неизвестен, поэтому эти действуют до указанной даты. Пишутся
+ * в то же хранилище сессий, что читает сервер, и переживают его перезапуск и
+ * ночной пересев набора.
+ */
+const checkTokens = async (): Promise<void> => {
+  const url = process.env['REDIS_URL'];
+
+  if (!url) {
+    console.error('Нужен REDIS_URL: без Redis сессии живут в памяти сервера, и выпущенный здесь токен он не увидит');
+    process.exitCode = 1;
+    return;
+  }
+
+  const day = flag('until') ?? CHECK_UNTIL;
+  const until = new Date(`${day}T23:59:59+03:00`);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(until.getTime()) || until.getTime() <= Date.now()) {
+    console.error(`Дата ${day} не подходит: нужна будущая дата вида 2026-10-31`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const client = createClient({ url });
+
+  await client.connect();
+
+  try {
+    const store = new KeyValueSessionTokenStore(fromNodeRedis(client as never));
+
+    for (const account of CHECK_ACCOUNTS) {
+      const token = randomBytes(32).toString('base64url');
+      const record: SessionRecord = {
+        userId: account.maxUserId,
+        data: { user: { id: account.maxUserId, first_name: account.name } },
+        initData: '',
+        issuedAt: Date.now(),
+        expiresAt: until.getTime(),
+      };
+
+      await store.set(token, record);
+      console.log(`${account.role.padEnd(11)} ${token}`);
+    }
+
+    console.log(`\nДействуют до ${day} 23:59 по Москве. Роль public токена не требует.`);
+  } finally {
+    await client.quit();
+  }
+};
+
 const main = async (): Promise<void> => {
   const command = process.argv[2];
 
@@ -386,6 +454,9 @@ const main = async (): Promise<void> => {
       return;
     case 'export-requests':
       await exportCsv('requests');
+      return;
+    case 'check-tokens':
+      await checkTokens();
       return;
     case 'walkthrough':
       await runWalkthrough({
