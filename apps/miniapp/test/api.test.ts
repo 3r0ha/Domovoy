@@ -332,6 +332,11 @@ describe('человеческие подписи', () => {
     assert.equal(parseDecimal('0'), 0, 'настоящий ноль принимается');
   });
 
+  it('пробелы между разрядами не мешают числу', () => {
+    assert.equal(parseDecimal('12 350'), 12350);
+    assert.equal(parseDecimal(`2${String.fromCharCode(0xa0)}100,5`), 2100.5, 'так число выводит сам интерфейс');
+  });
+
   it('счёт дней принимается только целым и в пределах', () => {
     assert.equal(parseCount('', 1, 90), null);
     assert.equal(parseCount('0', 1, 90), null);

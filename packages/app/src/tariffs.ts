@@ -113,6 +113,11 @@ export const setTariff = async (
     throw new DomainError('tariff_invalid', 'Тариф должен быть неотрицательным числом');
   }
 
+  // Ставка хранится долей года: 16 вместо 0,16 подняло бы пени в сто раз.
+  if (command.kind === 'key_rate' && command.value > 1) {
+    throw new DomainError('tariff_invalid', 'Ключевая ставка задаётся долей: 16% годовых это 0,16');
+  }
+
   const buildingId = manager.buildingId ?? deps.defaultBuildingId;
 
   await deps.repository.saveTariff({

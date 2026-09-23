@@ -4185,6 +4185,29 @@ describe('тарифы дома', () => {
 
     await screen.unmount();
   });
+
+  it('ставку правят процентами, а на сервер она уходит долей', async () => {
+    const { bridge } = createMockBridge();
+    const { api, calls } = apiWith({
+      '/api/tariffs': [{ kind: 'key_rate', title: 'Ключевая ставка ЦБ', unit: 'годовых', value: 0.16, own: false }],
+    });
+
+    const screen = await render(createElement(TariffsScreen as never, { api, editable: true } as never), bridge);
+
+    await screen.act(() => (screen.findAll('.tariff-row')[0] as HTMLElement).click());
+
+    assert.equal(screen.find<HTMLInputElement>('.tariff-edit input').value, '16', 'в поле не то число, что в списке');
+    assert.match(screen.find('.tariff-edit').textContent ?? '', /Ключевая ставка ЦБ% годовых/, 'не видно, чей тариф правится');
+
+    await screen.act(() => typeInto(screen.find<HTMLInputElement>('.tariff-edit input'), '21'));
+    await screen.act(() => screen.find<HTMLButtonElement>('.tariff-save').click());
+
+    const post = calls.find((call) => call.method === 'POST');
+
+    assert.deepEqual(JSON.parse(post?.body ?? '{}'), { kind: 'key_rate', value: 0.21 });
+
+    await screen.unmount();
+  });
 });
 
 describe('заведение дома', () => {

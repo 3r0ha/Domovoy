@@ -26,6 +26,12 @@ const shown = (tariff: TariffView): string =>
  */
 const sign = (tariff: TariffView): string => (tariff.kind === 'key_rate' ? '%' : '₽');
 
+/** Что вводится в поле: ставку правят теми же процентами, какими она показана в списке. */
+const entered = (tariff: TariffView, value: number): number => (tariff.kind === 'key_rate' ? value / 100 : value);
+
+/** Единица рядом с полем: без неё «16» у ставки и «43,5» у воды читаются одинаково. */
+const inputUnit = (tariff: TariffView): string => (tariff.kind === 'key_rate' ? '% годовых' : tariff.unit);
+
 /** Свой тариф подписан датой, базовый только единицей: про них говорит сноска. */
 const since = (tariff: TariffView): string => {
   const about = tariff.unit.replace(/^₽\s+/u, '');
@@ -65,7 +71,7 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
     setError(null);
 
     try {
-      await api.setTariff(tariff.kind, parsed);
+      await api.setTariff(tariff.kind, entered(tariff, parsed));
       setEditing(null);
       tariffs.reload();
     } catch (reason) {
@@ -81,20 +87,34 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
         {list.map((tariff, index) =>
           editing === tariff.kind ? (
             <div key={tariff.kind} className="tariff-edit">
-              <CellInput
-                autoFocus
-                inputMode="decimal"
-                aria-label={tariff.title}
-                value={draft}
-                before={<span className="hint">{tariff.title}</span>}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !busy) void save(tariff);
-                }}
-              />
-              <Button className="tariff-save" type="button" size="small" disabled={busy} onClick={() => void save(tariff)}>
-                {busy ? 'Сохраняем…' : 'Сохранить'}
-              </Button>
+              {/* Название над полем: в строке правки число стояло одно, и было не видно, чей это тариф. */}
+              <p className="tariff-edit-title">
+                {tariff.title}
+                <span className="hint">{inputUnit(tariff)}</span>
+              </p>
+
+              <div className="tariff-edit-line">
+                <CellInput
+                  autoFocus
+                  inputMode="decimal"
+                  aria-label={`${tariff.title}, ${inputUnit(tariff)}`}
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !busy) void save(tariff);
+                    if (event.key === 'Escape' && !busy) setEditing(null);
+                  }}
+                />
+                <Button className="tariff-save" type="button" size="small" disabled={busy} onClick={() => void save(tariff)}>
+                  {busy ? 'Сохраняем…' : 'Сохранить'}
+                </Button>
+              </div>
+
+              {error ? <ErrorText>{error}</ErrorText> : null}
+
+              <button type="button" className="link" disabled={busy} onClick={() => setEditing(null)}>
+                Отмена
+              </button>
             </div>
           ) : (
             <CellSimple
@@ -110,7 +130,7 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
                 ? {
                     showChevron: true,
                     onClick: () => {
-                      setDraft(String(tariff.value));
+                      setDraft(shown(tariff));
                       setEditing(tariff.kind);
                       setError(null);
                     },
@@ -120,8 +140,6 @@ export const TariffsScreen = ({ api, editable }: TariffsScreenProps) => {
           ),
         )}
       </CellList>
-
-      {error ? <ErrorText>{error}</ErrorText> : null}
 
       {/* Откуда взялось значение: заданное организацией и умолчание продукта различаются. */}
       {bases.map((basis) => (

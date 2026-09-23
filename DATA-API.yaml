@@ -1,433 +1,580 @@
-# Описание API для автоматической проверки.
-# Схема файла и её версия заданы организатором трека «Умный город».
-version: 1
+# DATA-API 1.0: обязательные проверки API «Домового».
+# Формат и валидатор: https://gitverse.ru/stasnorman/example-data-api
+#
+# Вход. Закрытые маршруты ждут заголовок Authorization: Bearer <токен>. Токен
+# выдаёт POST /auth/session в обмен на параметры запуска, подписанные токеном
+# бота MAX (заголовок x-max-init-data). Токен живёт 12 часов. Выпустить токен
+# для роли из репозитория:
+#   BOT_TOKEN=<токен бота> API_URL=https://domovoy.homes node scripts/token.mjs <maxUserId> <имя>
+# Токены и токен бота в этом файле не хранятся, они передаются по каналу проверки.
+#
+# Роли. Учётные записи заводит `npm run seed --workspace @domovoy/server`,
+# роль задаётся идентификатором пользователя MAX:
+#   public      без токена
+#   resident    1001, Мария: жилец, квартира 1 в доме Д15
+#   neighbor    1002, Иван: жилец, квартира 2 в доме Д15
+#   dispatcher  2001, Ольга Титова: диспетчер дома Д15
+#   technician  2002, Сергей Малых: мастер
+#   contractor  2004, Лифтсервис: подрядчик, видит только порученные наряды
+#
+# Проверки идут в этом порядке. Основной сценарий заводит заявку жильца и ведёт
+# её до принятой работы. Весь прогон повторяется по той же установке:
+# `npm run check-api` выполняет его вместе с очисткой.
+
+schemaVersion: "1.0"
 
 solution:
-  name: Домовой
-  team: antihype
+  name: "Домовой"
+  teamId: "antihype"
 
-# Единый адрес: по нему же раздаются лендинг и мини-приложение.
-# До привязки домена установка отвечает по адресу машины, после неё здесь будет
-# https://<домен>, и сертификат Caddy получит сам.
-baseUrl: https://domovoy.homes
-
-# Как получить токен для роли. Параметры запуска подписывает клиент MAX,
-# на проверке их подписывает тот же токен бота:
-#   BOT_TOKEN=<токен> API_URL=https://domovoy.homes node scripts/token.mjs 1001 Мария
-# Ответ: сессионный токен, который идёт в заголовке Authorization: Bearer <токен>.
-auth:
-  type: bearer
-  header: Authorization
-  obtain:
-    method: POST
-    path: /auth/session
-    headers:
-      x-max-init-data: подписанные параметры запуска MAX
-    script: node scripts/token.mjs <maxUserId> <имя>
-
-# Тестовые учётные записи заводит `npm run seed --workspace @domovoy/server`.
-# Роль определяется идентификатором MAX, пароля нет: вход идёт через MAX.
-roles:
-  resident:
-    maxUserId: 1001
-    name: Мария
-    about: жилец, квартира 1 в доме Д15 и квартира 4 в доме Д17
-  dispatcher:
-    maxUserId: 2001
-    name: Ольга Титова
-    about: диспетчер дома Д15
-  technician:
-    maxUserId: 2002
-    name: Сергей Малых
-    about: мастер
-  manager:
-    maxUserId: 2003
-    name: Нина Гордеева
-    about: управляющий, заводит дома и видит журнал действий
-  contractor:
-    maxUserId: 2004
-    name: Лифтсервис
-    about: подрядчик, видит только порученные наряды
-
-# Проверка глазами человека идёт под одной учётной записью MAX. Установка поднята
-# с DEMO_ROLES=1: в боте команда /demo, в приложении раздел «Роль», переключение
-# меняет роль самого человека. Маршруты: GET и POST /api/demo.
-#
-# Переключение меняет роль той учётной записи, из-под которой его нажали. Проверки
-# ниже опираются на роли из списка, поэтому примеряйте роли под своей учётной
-# записью MAX, а не под учётками 1001-2004. Роль возвращается тем же переключением.
-
+api:
+  baseUrl: "https://domovoy.homes"
+  # Собирается командой `npm run openapi` по схемам сервера, отдаётся на GET /openapi.json.
+  openapi: "./openapi.json"
+  defaultHeaders:
+    Accept: "application/json"
 
 checks:
-  - name: Сервер отвечает
-    method: GET
-    path: /health
-    role: anonymous
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [status, storage]
+  - id: "health"
+    name: "Сервер отвечает"
+    method: "GET"
+    path: "/health"
+    role: "public"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["status", "storage"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Вход в мини-приложение
-    method: POST
-    path: /auth/session
-    role: resident
+  - id: "session-unsigned"
+    name: "Вход без подписи MAX не выдаёт токен"
+    method: "POST"
+    path: "/auth/session"
+    role: "public"
+    expected:
+      statusCodes: [401]
+      contentType: "application/json"
+      requiredFields: ["error", "message"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "me"
+    name: "Профиль и роль"
+    method: "GET"
+    path: "/api/me"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "displayName", "role", "apartmentId"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "me-unauthorized"
+    name: "Без токена профиль не отдаётся"
+    method: "GET"
+    path: "/api/me"
+    role: "public"
+    expected:
+      statusCodes: [401]
+      contentType: "application/json"
+      requiredFields: ["error", "message"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "create-request"
+    name: "Заявка заводится описанием проблемы"
+    description: >-
+      Описание не поднимает весь стояк: о поломке общего имущества продукт
+      спрашивает соседей, и на каждом прогоне им приходил бы вопрос.
+    method: "POST"
+    path: "/api/requests"
+    role: "resident"
     request:
       headers:
-        x-max-init-data: подписанные параметры запуска MAX
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [token, expiresAt]
-
-  - name: Профиль и роль
-    method: GET
-    path: /api/me
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, displayName, role, apartmentId]
-
-  # Проверка идёт по работающей установке, и заявка в ней настоящая. Поэтому
-  # описание взято такое, которое не поднимает весь стояк: о поломке общего
-  # имущества продукт спрашивает соседей, и на каждом прогоне им приходило бы
-  # «у вас то же самое?».
-  - name: Заявка заводится описанием проблемы
-    method: POST
-    path: /api/requests
-    role: resident
-    request:
+        Content-Type: "application/json"
       body:
-        description: Не вывезли мусор от подъезда
-        startParam: apt_apt-1
-    expect:
-      status: [201]
-      contentType: application/json
-      required: [joined, request]
-      request:
-        required: [id, number, status, title, category, resolutionDueAt]
+        description: "Не вывезли мусор от подъезда"
+        startParam: "apt_apt-1"
+    expected:
+      statusCodes: [201]
+      contentType: "application/json"
+      requiredFields: ["joined", "request"]
+      bodySchema:
+        type: "object"
+        required: ["joined", "request"]
+        properties:
+          request:
+            type: "object"
+            required: ["id", "number", "status", "title", "category", "resolutionDueAt"]
+    timeoutMs: 15000
+    repeatable: false
+    extract:
+      requestId: "$.request.id"
 
-  - name: Свои заявки списком
-    method: GET
-    path: /api/requests
-    role: resident
+  - id: "my-requests"
+    name: "Свои заявки списком"
+    method: "GET"
+    path: "/api/requests"
+    role: "resident"
+    dependsOn: ["create-request"]
     request:
       query:
-        scope: mine
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, number, status, title, target, resolutionDueAt, overdue]
+        scope: "mine"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "number", "status", "title", "target", "resolutionDueAt", "overdue"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Заявка целиком
-    method: GET
-    path: /api/requests/{id}
-    role: resident
+  - id: "request-detail"
+    name: "Заявка целиком"
+    method: "GET"
+    path: "/api/requests/{id}"
+    role: "resident"
+    dependsOn: ["create-request"]
     request:
       path:
-        id: идентификатор заявки из предыдущей проверки
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, number, status, title, description, history, attachments]
+        id: "${requestId}"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "number", "status", "title", "description", "history", "attachments"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Сообщение по заявке
-    method: POST
-    path: /api/requests/{id}/comment
-    role: resident
+  - id: "request-comment"
+    name: "Сообщение по заявке"
+    method: "POST"
+    path: "/api/requests/{id}/comment"
+    role: "resident"
+    dependsOn: ["create-request"]
     request:
       path:
-        id: идентификатор заявки из предыдущей проверки
+        id: "${requestId}"
+      headers:
+        Content-Type: "application/json"
       body:
-        text: Кран течёт сильнее
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, number, status, history]
+        text: "Пакеты так и стоят у входа"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "number", "status", "history"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Очередь дома у смены
-    method: GET
-    path: /api/requests
-    role: dispatcher
+  - id: "request-responsibility"
+    name: "Кто отвечает за заявку"
+    method: "GET"
+    path: "/api/requests/{id}/responsibility"
+    role: "resident"
+    dependsOn: ["create-request"]
+    request:
+      path:
+        id: "${requestId}"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["kind", "title", "basis", "targets", "handoffs"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "queue"
+    name: "Очередь дома у смены"
+    method: "GET"
+    path: "/api/requests"
+    role: "dispatcher"
     request:
       query:
-        scope: queue
+        scope: "queue"
         limit: 100
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, number, status, title, target]
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "number", "status", "title", "target"]
+    timeoutMs: 5000
+    repeatable: true
 
-  # Четыре проверки ниже идут по одной и той же заявке, заведённой выше: так
-  # проходит основной сценарий продукта, от приёма до принятой жильцом работы.
-  - name: Диспетчер принимает заявку в работу
-    method: POST
-    path: /api/requests/{id}/transition
-    role: dispatcher
+  - id: "accept"
+    name: "Диспетчер принимает заявку в работу"
+    method: "POST"
+    path: "/api/requests/{id}/transition"
+    role: "dispatcher"
+    dependsOn: ["create-request"]
     request:
       path:
-        id: идентификатор заявки из проверки «Заявка заводится описанием проблемы»
+        id: "${requestId}"
+      headers:
+        Content-Type: "application/json"
       body:
-        to: accepted
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, status, history]
+        to: "accepted"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status", "history"]
+    timeoutMs: 5000
+    repeatable: false
 
-  - name: Мастер берёт наряд в работу
-    method: POST
-    path: /api/requests/{id}/transition
-    role: technician
+  - id: "start-work"
+    name: "Мастер берёт наряд в работу"
+    method: "POST"
+    path: "/api/requests/{id}/transition"
+    role: "technician"
+    dependsOn: ["accept"]
     request:
       path:
-        id: та же заявка
+        id: "${requestId}"
+      headers:
+        Content-Type: "application/json"
       body:
-        to: in_progress
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, status, history]
+        to: "in_progress"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status", "history"]
+    timeoutMs: 5000
+    repeatable: false
 
-  - name: Мастер сдаёт работу
-    method: POST
-    path: /api/requests/{id}/transition
-    role: technician
+  - id: "finish-work"
+    name: "Мастер сдаёт работу"
+    method: "POST"
+    path: "/api/requests/{id}/transition"
+    role: "technician"
+    dependsOn: ["start-work"]
     request:
       path:
-        id: та же заявка
+        id: "${requestId}"
+      headers:
+        Content-Type: "application/json"
       body:
-        to: done
-        comment: Заменил смеситель
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, status, history]
+        to: "done"
+        comment: "Мусор вывезли, площадку убрали"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status", "history"]
+    timeoutMs: 5000
+    repeatable: false
 
-  - name: Жилец принимает работу
-    method: POST
-    path: /api/requests/{id}/transition
-    role: resident
+  - id: "confirm-work"
+    name: "Жилец принимает работу"
+    method: "POST"
+    path: "/api/requests/{id}/transition"
+    role: "resident"
+    dependsOn: ["finish-work"]
     request:
       path:
-        id: та же заявка
+        id: "${requestId}"
+      headers:
+        Content-Type: "application/json"
       body:
-        to: confirmed
+        to: "confirmed"
         rating: 5
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [id, status, history]
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["id", "status", "history"]
+    timeoutMs: 5000
+    repeatable: false
 
-  - name: Наряды подрядчика
-    method: GET
-    path: /api/requests
-    role: contractor
+  - id: "complaint-without-grounds"
+    name: "Обращение в надзор без основания не уходит"
+    description: >-
+      Обращение в жилищную инспекцию уходит только по основанию: нарушенный срок
+      реакции или срок выполнения, превышенный вдвое. У заявки сценария сроки
+      соблюдены, поэтому отправка отклоняется.
+    method: "POST"
+    path: "/api/requests/{id}/complaint"
+    role: "resident"
+    dependsOn: ["create-request"]
+    request:
+      path:
+        id: "${requestId}"
+    expected:
+      statusCodes: [409]
+      contentType: "application/json"
+      requiredFields: ["error", "message"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "contractor-orders"
+    name: "Наряды подрядчика"
+    method: "GET"
+    path: "/api/requests"
+    role: "contractor"
     request:
       query:
-        scope: mine
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, number, status, title, target]
+        scope: "mine"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "number", "status", "title", "target"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Счётчики квартиры
-    method: GET
-    path: /api/meters
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, kind, title, unit, serial, submittedThisMonth, verification]
+  - id: "neighbor-request"
+    name: "Сосед заводит заявку о своей квартире"
+    description: "Заявка нужна следующей проверке и отзывается при очистке."
+    method: "POST"
+    path: "/api/requests"
+    role: "neighbor"
+    request:
+      headers:
+        Content-Type: "application/json"
+      body:
+        description: "Не закрывается балконная дверь"
+        startParam: "apt_apt-2"
+    expected:
+      statusCodes: [201]
+      contentType: "application/json"
+      requiredFields: ["joined", "request"]
+    timeoutMs: 15000
+    repeatable: false
+    extract:
+      foreignId: "$.request.id"
 
-  # Показание за расчётный период принимается один раз: повторная проверка на той
-  # же установке и в том же периоде получает 409 reading_duplicate, и это тоже
-  # правильный ответ продукта.
-  - name: Показание счётчика
-    method: POST
-    path: /api/meters/{id}/readings
-    role: resident
+  - id: "foreign-request-forbidden"
+    name: "Чужая квартирная заявка не отдаётся"
+    description: "Заявку по общему имуществу видит весь дом, закрыта именно чужая квартирная."
+    method: "GET"
+    path: "/api/requests/{id}"
+    role: "resident"
+    dependsOn: ["neighbor-request"]
     request:
       path:
-        id: идентификатор счётчика из предыдущей проверки
+        id: "${foreignId}"
+    expected:
+      statusCodes: [403]
+      contentType: "application/json"
+      requiredFields: ["error", "message"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "handoffs"
+    name: "Переданные обращения дома"
+    method: "GET"
+    path: "/api/handoffs"
+    role: "dispatcher"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "requestId", "organization", "status", "dueAt", "basis"]
+    timeoutMs: 5000
+    repeatable: true
+
+  - id: "meters"
+    name: "Счётчики квартиры"
+    method: "GET"
+    path: "/api/meters"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        minItems: 1
+        items:
+          type: "object"
+          required: ["id", "kind", "title", "unit", "serial", "submittedThisMonth", "verification"]
+    timeoutMs: 5000
+    repeatable: true
+    extract:
+      meterId: "$[0].id"
+
+  - id: "meter-reading"
+    name: "Показание счётчика"
+    description: >-
+      Показание за расчётный период принимается один раз: повторный прогон в том
+      же периоде получает 409 reading_duplicate, это тоже правильный ответ.
+    method: "POST"
+    path: "/api/meters/{id}/readings"
+    role: "resident"
+    dependsOn: ["meters"]
+    request:
+      path:
+        id: "${meterId}"
+      headers:
+        Content-Type: "application/json"
       body:
         value: 152.4
-    expect:
-      status: [201, 409]
-      contentType: application/json
+    expected:
+      statusCodes: [201, 409]
+      contentType: "application/json"
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Квитанция за месяц
-    method: GET
-    path: /api/charges
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [period, dueDay, total, paid, lines]
+  - id: "charges"
+    name: "Квитанция за месяц"
+    method: "GET"
+    path: "/api/charges"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["period", "dueDay", "total", "paid", "lines"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Объявления дома
-    method: GET
-    path: /api/announcements
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, title, body, createdAt, audience, recipients]
+  - id: "announcements"
+    name: "Объявления дома"
+    method: "GET"
+    path: "/api/announcements"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "title", "body", "createdAt", "audience", "recipients"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Часы приёма и своя запись
-    method: GET
-    path: /api/reception
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [buildingId, minutes, hours, slots]
+  - id: "reception"
+    name: "Часы приёма и своя запись"
+    method: "GET"
+    path: "/api/reception"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["buildingId", "minutes", "hours", "slots"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: К кому обращаться по дому
-    method: GET
-    path: /api/house/contacts
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [buildingId, address]
+  - id: "house-contacts"
+    name: "К кому обращаться по дому"
+    method: "GET"
+    path: "/api/house/contacts"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["buildingId", "address"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Собрания собственников
-    method: GET
-    path: /api/polls
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, title, question, opensAt, closesAt, open]
+  - id: "polls"
+    name: "Собрания собственников"
+    method: "GET"
+    path: "/api/polls"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      bodySchema:
+        type: "array"
+        items:
+          type: "object"
+          required: ["id", "title", "question", "opensAt", "closesAt", "open"]
+    timeoutMs: 5000
+    repeatable: true
 
-  # Капитальный ремонт ведёт региональная программа. Без подключённого порта
-  # раздел пуст, но маршрут отвечает и список работ в ответе есть всегда.
-  - name: Капитальный ремонт дома
-    method: GET
-    path: /api/capital-repair
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [works]
+  - id: "capital-repair"
+    name: "Капитальный ремонт дома"
+    description: "Без подключённой региональной программы раздел пуст, но список работ в ответе есть всегда."
+    method: "GET"
+    path: "/api/capital-repair"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["works"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Кто отвечает за заявку
-    method: GET
-    path: /api/requests/{id}/responsibility
-    role: resident
+  - id: "handover-forbidden"
+    name: "Дом передаёт только управляющий"
+    method: "POST"
+    path: "/api/buildings/handover"
+    role: "resident"
     request:
-      path:
-        id: идентификатор заявки, заведённой проверкой выше
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [kind, title, basis, targets, handoffs]
-
-  - name: Переданные обращения дома
-    method: GET
-    path: /api/handoffs
-    role: dispatcher
-    expect:
-      status: [200]
-      contentType: application/json
-      type: array
-      itemRequired: [id, requestId, organization, status, dueAt, basis]
-
-  # Заявку по общему имуществу видит весь дом, это правило продукта.
-  # Закрыта именно чужая квартирная заявка.
-  - name: Чужая квартирная заявка не отдаётся
-    method: GET
-    path: /api/requests/{id}
-    role: resident
-    request:
-      path:
-        id: идентификатор квартирной заявки другого жильца
-    expect:
-      status: [403]
-      contentType: application/json
-      required: [error, message]
-
-  # Обращение в жилищную инспекцию уходит только по основанию: нарушенный срок
-  # реакции или срок выполнения, превышенный вдвое. У заявки из проверок выше
-  # сроки соблюдены, поэтому отправка отклоняется.
-  - name: Обращение в надзор без основания не уходит
-    method: POST
-    path: /api/requests/{id}/complaint
-    role: resident
-    expect:
-      status: [409]
-      contentType: application/json
-      required: [error, message]
-
-  # Дом передаёт управляющий организации, которая ведёт его сейчас.
-  - name: Дом передаёт только управляющий
-    method: POST
-    path: /api/buildings/handover
-    role: resident
-    request:
+      headers:
+        Content-Type: "application/json"
       body:
-        company: ООО «Новая управляющая»
-        managerId: res-maria
+        company: "ООО «Новая управляющая»"
+        managerId: "res-maria"
         confirm: true
-    expect:
-      status: [403]
-      contentType: application/json
-      required: [error, message]
+    expected:
+      statusCodes: [403]
+      contentType: "application/json"
+      requiredFields: ["error", "message"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Без токена внутрь не пускают
-    method: GET
-    path: /api/me
-    role: anonymous
-    expect:
-      status: [401]
-      contentType: application/json
-      required: [error, message]
-
-  - name: Помощник отвечает и называет раздел
-    method: POST
-    path: /api/assistant
-    role: resident
+  - id: "assistant"
+    name: "Помощник отвечает и называет раздел"
+    method: "POST"
+    path: "/api/assistant"
+    role: "resident"
     request:
+      headers:
+        Content-Type: "application/json"
       body:
-        question: Где передать показания?
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [answer, by]
+        question: "Где передать показания?"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["answer", "by"]
+    timeoutMs: 30000
+    repeatable: true
 
-  # Политику обработки персональных данных оператор открывает без ограничений,
-  # ч. 2 ст. 18.1 152-ФЗ, поэтому документы читаются и без входа.
-  - name: Документы продукта открыты без входа
-    method: GET
-    path: /api/legal
-    role: anonymous
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [version, documents]
+  - id: "legal"
+    name: "Документы продукта открыты без входа"
+    description: "Политику обработки персональных данных оператор публикует без ограничений, ч. 2 ст. 18.1 152-ФЗ."
+    method: "GET"
+    path: "/api/legal"
+    role: "public"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["version", "documents"]
+    timeoutMs: 5000
+    repeatable: true
 
-  - name: Согласие с документами принимается
-    method: POST
-    path: /api/me/legal
-    role: resident
-    expect:
-      status: [200]
-      contentType: application/json
-      required: [version, accepted]
+  - id: "legal-accept"
+    name: "Согласие с документами принимается"
+    method: "POST"
+    path: "/api/me/legal"
+    role: "resident"
+    expected:
+      statusCodes: [200]
+      contentType: "application/json"
+      requiredFields: ["version", "accepted"]
+    timeoutMs: 5000
+    repeatable: true
 
-# Проверки идут в этом порядке и опираются на набор `seed`. Повторный прогон
-# по той же установке проходит целиком: цепочка переходов работает с заявкой,
-# которую заводит проверка «Заявка заводится описанием проблемы».
-#
-# Полное машинное описание: openapi.json в корне репозитория, 119 путей и 135 операций,
-# оно же отдаётся сервером на GET /openapi.json.
-#
-# Файл собирается командой `npm run openapi` по схемам работающего сервера.
-openapi: openapi.json
+cleanup:
+  - id: "withdraw-neighbor-request"
+    method: "POST"
+    path: "/api/requests/{id}/transition"
+    role: "neighbor"
+    request:
+      path:
+        id: "${foreignId}"
+      headers:
+        Content-Type: "application/json"
+      body:
+        to: "withdrawn"
+    expected:
+      statusCodes: [200, 409]
+    timeoutMs: 5000

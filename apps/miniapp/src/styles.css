@@ -1174,14 +1174,34 @@ input[type='search']::-webkit-search-decoration {
 
 .tariff-edit {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 0 12px 8px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 10px;
 }
 
-.tariff-edit > :first-child {
+.tariff-edit-title {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 4px;
+}
+
+.tariff-edit-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tariff-edit-line > :first-child {
   flex: 1;
   min-width: 0;
+}
+
+.tariff-edit .error,
+.tariff-edit .link {
+  margin: 0;
+  padding-inline: 4px;
+  align-self: flex-start;
 }
 
 .tariff-edit input {

@@ -206,7 +206,8 @@ export const parseCount = (value: string, least: number, most: number): number |
 
 /** Число из поля ввода: пустое поле числом не считается, запятая это точка. */
 export const parseDecimal = (value: string): number | null => {
-  const text = value.trim().replaceAll(',', '.');
+  // Пробелы между разрядами пропускаются: «12 350» набирают так же часто, как «12350».
+  const text = value.replace(/\s/gu, '').replaceAll(',', '.');
 
   if (text.length === 0) return null;
 

@@ -348,6 +348,15 @@ describe('тарифы дома', () => {
     await assert.rejects(setTariff(deps, manager, { kind: 'maintenance', value: -1 }), /неотрицательным числом/);
   });
 
+  it('ключевая ставка процентами вместо доли не принимается', async () => {
+    const { deps, repository } = setup();
+
+    await repository.saveResident(manager);
+
+    await assert.rejects(setTariff(deps, manager, { kind: 'key_rate', value: 16 }), /долей/);
+    await setTariff(deps, manager, { kind: 'key_rate', value: 0.16 });
+  });
+
   it('изменение тарифа попадает в журнал действий', async () => {
     const { deps, repository } = setup();
 
