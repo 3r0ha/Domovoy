@@ -4587,6 +4587,26 @@ describe('профиль жильца', () => {
     await screen.unmount();
   });
 
+  it('снимок профиля MAX стоит вместо буквы, без снимка остаётся буква', async () => {
+    const photo = 'https://i.oneme.ru/i?r=avatar';
+    const withPhoto = createMockBridge({ user: { id: 1001, first_name: 'Мария', photo_url: photo } });
+    const { api } = apiWith({ '/api/me/notices': [] });
+
+    const shown = await render(createElement(ProfileScreen as never, { api, ...props } as never), withPhoto.bridge);
+
+    assert.equal(shown.find<HTMLImageElement>('img').getAttribute('src'), photo);
+
+    await shown.unmount();
+
+    const { bridge } = createMockBridge({ user: { id: 1001, first_name: 'Мария' } });
+    const plainScreen = await render(createElement(ProfileScreen as never, { api, ...props } as never), bridge);
+
+    assert.deepEqual(plainScreen.findAll('img'), []);
+    assert.match(plainScreen.text, /^М/u);
+
+    await plainScreen.unmount();
+  });
+
   it('полномочия старшего показываются со сроком', async () => {
     const { bridge } = createMockBridge();
     const { api } = apiWith({ '/api/me/notices': [] });

@@ -1,5 +1,5 @@
 import { Avatar, CellAction, CellList, CellSimple, Switch } from '@maxhub/max-ui';
-import { useBridge, useBridgeRequest, useSupports } from '@maxkit/react';
+import { useBridge, useBridgeRequest, useMaxUser, useSupports } from '@maxkit/react';
 import { useState } from 'react';
 
 import {
@@ -66,6 +66,7 @@ export const ProfileScreen = ({
   const t = useT();
   const bridge = useBridge();
   const canShareContact = useSupports('requestContact');
+  const photo = useMaxUser()?.photo_url;
   const notices = useBridgeRequest((alive) => api.until(alive).notices(), [api]);
   const legal = useBridgeRequest((alive) => api.until(alive).legal(), [api]);
 
@@ -202,7 +203,12 @@ export const ProfileScreen = ({
         <CellSimple
           before={
             <Avatar.Container size={40}>
-              <Avatar.Text>{initial(displayName)}</Avatar.Text>
+              {/* Снимок профиля MAX, если клиент его передал. Не загрузился или его нет: буква имени. */}
+              {photo ? (
+                <Avatar.Image src={photo} alt="" fallback={initial(displayName)} />
+              ) : (
+                <Avatar.Text>{initial(displayName)}</Avatar.Text>
+              )}
             </Avatar.Container>
           }
           title={displayName}
