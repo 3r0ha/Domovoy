@@ -38,6 +38,7 @@ import { createClient } from 'redis';
 
 import { createApartmentCode } from './codes.js';
 import { demoDevices, demoDoorHistory, demoSensorContact, seedDemo } from './demo.js';
+import { realPeople, restorePeople } from './reseed.js';
 import { meterVisionFromEnv } from './meter-vision.js';
 import { fileSweepStore, sharedSweepStore } from './sweep-store.js';
 import { gigaChatFromEnv } from './gigachat.js';
@@ -93,6 +94,8 @@ const createRepository = async (): Promise<{
   close: () => Promise<void>;
   /** Стирает все данные: нужно пересеву набора для показа. */
   wipe?: () => Promise<void>;
+  /** Идентификаторы MAX всех, кто есть в базе: пересев сохраняет настоящих людей. */
+  people?: () => Promise<number[]>;
 }> => {
   const url = process.env['DATABASE_URL'];
 
@@ -126,6 +129,10 @@ const createRepository = async (): Promise<{
     repository: new PostgresRepository(fromPool(pool)),
     close: () => pool.end(),
     wipe: () => clearData(pool),
+    people: async () =>
+      (await pool.query<{ id: string }>('select max_user_id as id from resident where max_user_id is not null')).rows.map(
+        (row) => Number(row.id),
+      ),
   };
 };
 
@@ -217,7 +224,7 @@ const main = async (): Promise<void> => {
   const port = Number(env('PORT', '3000'));
   const defaultBuildingId = env('DEFAULT_BUILDING_ID', 'dom15');
 
-  const { repository, close, wipe } = await createRepository();
+  const { repository, close, wipe, people } = await createRepository();
   const { sessionMiddleware, sessionStore, lock, sweepKv, closeSessions } = await createSessions();
 
   const now = (): Date => new Date();
@@ -387,9 +394,12 @@ const main = async (): Promise<void> => {
           reseedHour,
           async () => {
             const run = async (): Promise<void> => {
+              const kept = await realPeople(deps, people);
+
               await wipe();
               await seedDemo(deps, { withRequests: true });
-              console.log('Набор для показа пересеян');
+              await restorePeople(deps, kept);
+              console.log(`Набор для показа пересеян, людей сохранено: ${kept.length}`);
             };
 
             await (lock ? lock('domovoy:reseed', run) : run());
