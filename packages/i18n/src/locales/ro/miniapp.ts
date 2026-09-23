@@ -421,14 +421,10 @@ export const miniapp: Dictionary = {
   'voice.decoding': 'Transcriem…',
   'voice.empty': 'Înregistrarea este goală. Spuneți încă o dată',
   'voice.failed.decode': 'Înregistrarea nu a putut fi deslușită',
-  'voice.failed.start':
-    'Nu am reușit să pornesc înregistrarea. Înregistrați cu reportofonul de sistem de mai jos',
+  'voice.failed.start': 'Înregistrarea nu a pornit. Scrieți în cuvinte',
   'voice.long': 'Înregistrarea este prea lungă. Spuneți mai scurt',
-  'voice.missing':
-    'Microfonul nu a fost găsit. Înregistrați cu reportofonul de sistem de mai jos',
-  'voice.refused':
-    'Nu este acces la microfon. Permiteți înregistrarea în setări sau înregistrați cu reportofonul de sistem de mai jos',
-  'voice.retry': 'Repetați',
+  'voice.missing': 'Microfonul nu a fost găsit. Scrieți în cuvinte',
+  'voice.refused': 'Nu este acces la microfon. Permiteți-l pentru MAX în setările telefonului',
   'voice.say': 'Spun vocal',
   'voice.silent': 'Nu am auzit nimic. Spuneți încă o dată',
   'voice.stop': 'Gata',

@@ -787,6 +787,7 @@ const HandOver = ({ api, onDone }: { api: DomovoyApi; onDone: (message: string) 
           busyLabel="Передаём…"
           busy={busy}
           danger
+          error={error}
           onConfirm={() => void hand()}
           onCancel={() => setAsking(false)}
         />

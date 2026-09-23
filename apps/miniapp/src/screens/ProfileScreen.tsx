@@ -18,6 +18,9 @@ import { ErrorText } from './ErrorText.js';
 import { FlatPeople } from './FlatPeople.js';
 import { Group } from './Group.js';
 
+/** Где встаёт отказ: у дежурства, у данных профиля, у уведомлений, у телефона или в окне. */
+type Place = 'duty' | 'account' | 'notices' | 'phone' | 'sheet';
+
 export interface ProfileScreenProps {
   api: DomovoyApi;
   displayName: string;
@@ -75,12 +78,12 @@ export const ProfileScreen = ({
   const [named, setNamed] = useState('');
   const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; at: Place } | null>(null);
 
   const list = own ?? notices.data ?? [];
   const number = savedPhone ?? phone ?? '';
 
-  const run = async (what: () => Promise<void>): Promise<void> => {
+  const run = async (at: Place, what: () => Promise<void>): Promise<void> => {
     // Второе нажатие до ответа сервера ничего не отправляет и не открывает.
     if (working) return;
 
@@ -90,15 +93,24 @@ export const ProfileScreen = ({
     try {
       await what();
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : t('profile.failed'));
+      setError({ text: reason instanceof ApiError ? reason.message : t('profile.failed'), at });
     } finally {
       setWorking(false);
     }
   };
 
+  /** Отказ встаёт у того, что его вызвало: экран длинный, и строка внизу за краем. */
+  const failure = (at: Place) => (error?.at === at ? <ErrorText>{error.text}</ErrorText> : null);
+  const sheetError = error?.at === 'sheet' ? error.text : null;
+
+  const ask = (open: (value: boolean) => void): void => {
+    setError(null);
+    open(true);
+  };
+
   /** Дежурство переключается на месте: смена принимает его с телефона. */
   const switchDuty = (): Promise<void> =>
-    run(async () => {
+    run('duty', async () => {
       if (!duty) return;
 
       const next = !onDuty;
@@ -114,7 +126,7 @@ export const ProfileScreen = ({
     });
 
   const toggle = (notice: NoticeView): Promise<void> =>
-    run(async () => {
+    run('notices', async () => {
       const before = list;
 
       setOwn(list.map((item) => (item.kind === notice.kind ? { ...item, on: !item.on } : item)));
@@ -128,7 +140,7 @@ export const ProfileScreen = ({
     });
 
   const share = (): Promise<void> =>
-    run(async () => {
+    run('account', async () => {
       const saved = (await api.saveContact(await bridge.requestContact())).phone;
 
       setSavedPhone(saved);
@@ -136,7 +148,7 @@ export const ProfileScreen = ({
     });
 
   const forgetPhone = (): Promise<void> =>
-    run(async () => {
+    run('phone', async () => {
       await api.forgetContact();
       setSavedPhone('');
       onPhone?.('');
@@ -144,7 +156,7 @@ export const ProfileScreen = ({
 
   /** Своё имя. Пустое поле возвращает имя из профиля платформы. */
   const rename = (): Promise<void> =>
-    run(async () => {
+    run('sheet', async () => {
       const saved = await api.rename(named.trim() || undefined);
 
       setNaming(false);
@@ -153,7 +165,7 @@ export const ProfileScreen = ({
     });
 
   const unbind = (): Promise<void> =>
-    run(async () => {
+    run('sheet', async () => {
       if (!flat) return;
 
       await api.unbindResident(flat.residentId, flat.apartmentId);
@@ -162,18 +174,18 @@ export const ProfileScreen = ({
     });
 
   const showData = (): Promise<void> =>
-    run(async () => onDocument(t('profile.data'), await api.personalData()));
+    run('account', async () => onDocument(t('profile.data'), await api.personalData()));
 
   /** Документ продукта: открывается своим экраном, без браузера. Список уже прочитан. */
   const showLegal = (slug: string): Promise<void> =>
-    run(async () => {
+    run('account', async () => {
       const found = (legal.data?.documents ?? []).find((document) => document.slug === slug);
 
       if (found) onDocument(found.title, found.text, structureOf(found));
     });
 
   const forget = (): Promise<void> =>
-    run(async () => {
+    run('sheet', async () => {
       setBusy(true);
 
       try {
@@ -218,6 +230,8 @@ export const ProfileScreen = ({
         </Group>
       ) : null}
 
+      {failure('duty')}
+
       <CellList mode="island">
         {/* Имя приходит из профиля MAX, а там у людей никнеймы: мастер читает,
             к кому идёт, поэтому имя задаётся своё. */}
@@ -227,7 +241,7 @@ export const ProfileScreen = ({
           subtitle={t('profile.name.hint')}
           separator={false}
           showChevron
-          onClick={() => setNaming(true)}
+          onClick={() => ask(setNaming)}
         />
 
         {canShareContact ? (
@@ -261,6 +275,8 @@ export const ProfileScreen = ({
         ))}
       </CellList>
 
+      {failure('account')}
+
       {list.length > 0 ? (
         <>
           <Group title={t('profile.notices')}>
@@ -274,6 +290,8 @@ export const ProfileScreen = ({
               />
             ))}
           </Group>
+
+          {failure('notices')}
 
           <p className="hint aside">{t('profile.notices.always')}</p>
         </>
@@ -291,7 +309,7 @@ export const ProfileScreen = ({
             className="row-split"
             title={t('profile.unbind')}
             showChevron
-            onClick={() => setLeaving(true)}
+            onClick={() => ask(setLeaving)}
           />
         </CellList>
       ) : null}
@@ -303,6 +321,7 @@ export const ProfileScreen = ({
           confirmLabel={t('profile.name.save')}
           busyLabel={t('profile.name.saving')}
           busy={working}
+          error={sheetError}
           field={{
             value: named,
             label: t('profile.name'),
@@ -327,6 +346,7 @@ export const ProfileScreen = ({
           busyLabel={t('profile.unbind.busy')}
           busy={working}
           danger
+          error={sheetError}
           onConfirm={() => void unbind()}
           onCancel={() => setLeaving(false)}
         />
@@ -340,7 +360,9 @@ export const ProfileScreen = ({
         </CellList>
       ) : null}
 
-      <button type="button" className="link danger-link" onClick={() => setConfirming(true)}>
+      {failure('phone')}
+
+      <button type="button" className="link danger-link" onClick={() => ask(setConfirming)}>
         {t('profile.forget')}
       </button>
 
@@ -352,12 +374,11 @@ export const ProfileScreen = ({
           busyLabel={t('profile.forget.busy')}
           busy={busy}
           danger
+          error={sheetError}
           onConfirm={() => void forget()}
           onCancel={() => setConfirming(false)}
         />
       ) : null}
-
-      {error ? <ErrorText>{error}</ErrorText> : null}
     </div>
   );
 };

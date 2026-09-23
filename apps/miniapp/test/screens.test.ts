@@ -6214,7 +6214,7 @@ describe('запись голоса', () => {
     microphone.restore();
   });
 
-  it('отказ в доступе к микрофону объясняется словами и оставляет системную запись', async () => {
+  it('отказ в доступе к микрофону объясняется словами, а не открывает выбор файла', async () => {
     const microphone = stubMicrophone({ refuse: true });
     const { bridge } = createMockBridge();
     const { api } = apiWith({ 'GET /api/assistant': { starters: [] } });
@@ -6227,33 +6227,25 @@ describe('запись голоса', () => {
     await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
 
     assert.match(screen.text, /Нет доступа к микрофону/);
-    assert.ok(screen.find<HTMLInputElement>('.voice-file'), 'запасного пути не осталось');
-    assert.equal(screen.find<HTMLInputElement>('.voice-file').getAttribute('accept'), 'audio/*');
+    assert.deepEqual(screen.findAll('input[type="file"]'), [], 'кнопка стала полем файла');
+    assert.ok(screen.find<HTMLButtonElement>('.voice-key'), 'разрешив микрофон, нажать снова нечем');
 
     await screen.unmount();
     microphone.restore();
   });
 
-  it('без записи в клиенте остаётся системная, и она тоже расшифровывается', async () => {
+  it('без записи в клиенте кнопки микрофона нет', async () => {
     const microphone = stubMicrophone({ absent: true });
     const { bridge } = createMockBridge();
-    const { api, calls } = apiWith({
-      'GET /api/assistant': { starters: [] },
-      'POST /api/voice': { text: 'Не работает лифт' },
-    });
+    const { api } = apiWith({ 'GET /api/assistant': { starters: [] } });
 
     const screen = await render(
       createElement(Assistant as never, { api, onGo: () => undefined, onClose: () => undefined } as never),
       bridge,
     );
 
-    const field = screen.find<HTMLInputElement>('.voice-file');
-
-    await screen.act(() => pick(field, new File(['звук'], 'запись.ogg', { type: 'audio/ogg' })));
-    await screen.act(() => undefined);
-
-    assert.ok(calls.find((call) => call.path === '/api/voice'));
-    assert.equal(screen.find<HTMLTextAreaElement>('.composer-field').value, 'Не работает лифт');
+    assert.deepEqual(screen.findAll('.voice-key'), []);
+    assert.deepEqual(screen.findAll('input[type="file"]'), []);
 
     await screen.unmount();
     microphone.restore();
@@ -6310,7 +6302,7 @@ describe('запись голоса', () => {
   });
 
   it('запись больше предела ручки до сервера не доходит', async () => {
-    const microphone = stubMicrophone({ absent: true });
+    const microphone = stubMicrophone({ chunk: new Blob([new Uint8Array(2_100_000)], { type: 'audio/ogg' }) });
     const { bridge } = createMockBridge();
     const { api, calls } = apiWith({ 'GET /api/assistant': { starters: [] } });
 
@@ -6319,9 +6311,8 @@ describe('запись голоса', () => {
       bridge,
     );
 
-    const long = new File([new Uint8Array(2_100_000)], 'длинная.ogg', { type: 'audio/ogg' });
-
-    await screen.act(() => pick(screen.find<HTMLInputElement>('.voice-file'), long));
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
+    await screen.act(() => screen.find<HTMLButtonElement>('.voice-key').click());
     await screen.act(() => undefined);
 
     assert.match(screen.text, /Запись слишком длинная/);

@@ -724,6 +724,7 @@ const Complaint = ({
           confirmLabel={t('request.complaint.confirm')}
           busyLabel={t('request.sending')}
           busy={busy}
+          error={failed}
           onConfirm={() => void send()}
           onCancel={() => setAsking(false)}
         />

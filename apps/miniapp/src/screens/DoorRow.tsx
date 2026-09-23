@@ -6,6 +6,7 @@ import type { Translate } from '@domovoy/i18n';
 import { ApiError, type DeviceView, type DomovoyApi } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { useT } from '../i18n.js';
+import { ErrorText } from './ErrorText.js';
 import { IconKey } from './icons.js';
 
 type OpenState = 'idle' | 'opening' | 'open';
@@ -75,28 +76,32 @@ export const DoorRow = ({
   const lock = useLock(api, device);
 
   return (
-    <CellSimple
-      className="row-split"
-      before={
-        <span className="tile tile-teal">
-          <IconKey />
-        </span>
-      }
-      title={device.title}
-      {...(lock.error ? { subtitle: <span className="error">{lock.error}</span> } : {})}
-      after={
-        <Button
-          type="button"
-          size="small"
-          className="steady"
-          aria-label={t('door.label', { дверь: device.title })}
-          disabled={lock.state === 'opening'}
-          onClick={lock.open}
-        >
-          {lockLabel(t, lock.state, lock.left)}
-        </Button>
-      }
-      separator={separator}
-    />
+    <>
+      <CellSimple
+        className="row-split"
+        before={
+          <span className="tile tile-teal">
+            <IconKey />
+          </span>
+        }
+        title={device.title}
+        after={
+          <Button
+            type="button"
+            size="small"
+            className="steady"
+            aria-label={t('door.label', { дверь: device.title })}
+            disabled={lock.state === 'opening'}
+            onClick={lock.open}
+          >
+            {lockLabel(t, lock.state, lock.left)}
+          </Button>
+        }
+        separator={separator}
+      />
+
+      {/* Отказ под строкой во всю ширину: рядом с кнопкой ему оставалась узкая колонка. */}
+      {lock.error ? <ErrorText className="inset">{lock.error}</ErrorText> : null}
+    </>
   );
 };

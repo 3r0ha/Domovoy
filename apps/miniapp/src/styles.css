@@ -2690,6 +2690,7 @@ button.flat {
 .composer {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 2px;
   padding: 5px 6px 5px 4px;
@@ -2752,8 +2753,9 @@ button.flat {
   clip-path: inset(50%);
 }
 
+/* Ширина поля от остатка строки, а не от текста: иначе оно переносилось бы под кнопки. */
 .composer-field {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   max-height: 120px;
   margin: 0;
@@ -2821,30 +2823,14 @@ button.flat {
   font-variant-numeric: tabular-nums;
 }
 
-.voice-key:disabled,
-.voice-busy {
+.voice-key:disabled {
   color: var(--faint);
   cursor: default;
   /* Пока прошлая запись расшифровывается, вторую начать нечем. */
   pointer-events: none;
 }
 
-/* Само поле файла не показывается: его открывает подпись рядом. */
-.voice-file {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  border: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .voice-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 10px;
   flex-basis: 100%;
   color: var(--muted);
   font-size: var(--font-meta);
@@ -2877,13 +2863,17 @@ button.flat {
   height: 22px;
 }
 
-/* Отказ от чтения кода: строкой над полем, чтобы не рвать строку ответа. */
-.composer-error {
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  bottom: calc(100% + 4px);
+/*
+ * Отказ снимка, кода или микрофона: своей строкой в самой строке ответа,
+ * над кнопками. В ряду с полем он сжимал поле до обрывка слова, а поверх
+ * переписки закрывал её текст.
+ */
+.composer-error,
+.composer .voice-note {
+  order: -1;
+  flex-basis: 100%;
   margin: 0;
+  padding: 6px 10px 2px;
 }
 
 /* Снять вопрос: строчкой над полем, чтобы не спорить с отправкой. */
@@ -3425,6 +3415,11 @@ select {
 
 .confirm-field::placeholder {
   color: var(--faint);
+}
+
+.confirm-error {
+  margin: 14px 0 0;
+  text-align: center;
 }
 
 .confirm-keys {

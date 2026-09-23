@@ -238,6 +238,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
           confirmLabel={t('charges.pay')}
           busy={paying}
           busyLabel={t('charges.paying')}
+          error={error}
           onConfirm={() => void (asked.kind === 'debt' ? payDebt() : pay(partial()))}
           onCancel={() => setAsked(null)}
         />

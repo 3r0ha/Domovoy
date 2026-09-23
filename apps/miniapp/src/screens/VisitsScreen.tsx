@@ -1,6 +1,6 @@
 import { Button, CellAction, CellInput, CellList, CellSimple } from '@maxhub/max-ui';
 import { useBridgeRequest } from '@maxkit/react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 import {
   describeFailure,
@@ -299,6 +299,8 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
   const [saved, setSaved] = useState<ReceptionView | null>(null);
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
+  // Отказ стоит у своей записи и не гаснет сам, как всплывающее сообщение.
+  const [failed, setFailed] = useState<{ id: string; text: string } | null>(null);
   // Отмена записи касается жильца, который уже отпросился с работы: спрашиваем.
   const [cancelling, setCancelling] = useState<{ id: string; title: string } | null>(null);
 
@@ -344,13 +346,14 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
 
   const run = async (id: string, what: () => Promise<unknown>, done: string): Promise<void> => {
     setBusy(id);
+    setFailed(null);
 
     try {
       await what();
       toast(done);
       visits.reload();
     } catch (reason) {
-      toast(describeFailure(reason), 'error');
+      setFailed({ id, text: describeFailure(reason) });
     } finally {
       setBusy(null);
     }
@@ -361,31 +364,35 @@ const StaffVisits = ({ api, canSchedule }: { api: DomovoyApi; canSchedule?: bool
       {head}
 
       {visits.data.map((visit) => (
-        <CellList key={visit.id} mode="island">
-          <CellSimple
-            before={
-              <span className="tile tile-green">
-                <IconPerson />
-              </span>
-            }
-            title={`${visit.day}, ${visit.clock} · ${who(visit)}`}
-            subtitle={visit.topic}
-          />
-          <CellAction
-            mode="primary"
-            disabled={busy === visit.id}
-            onClick={() => void run(visit.id, () => api.completeVisit(visit.id), 'Приём отмечен')}
-          >
-            Приём состоялся
-          </CellAction>
-          <CellAction
-            mode="secondary"
-            disabled={busy === visit.id}
-            onClick={() => setCancelling({ id: visit.id, title: `${visit.day}, ${visit.clock} · ${who(visit)}` })}
-          >
-            Отменить
-          </CellAction>
-        </CellList>
+        <Fragment key={visit.id}>
+          <CellList mode="island">
+            <CellSimple
+              before={
+                <span className="tile tile-green">
+                  <IconPerson />
+                </span>
+              }
+              title={`${visit.day}, ${visit.clock} · ${who(visit)}`}
+              subtitle={visit.topic}
+            />
+            <CellAction
+              mode="primary"
+              disabled={busy === visit.id}
+              onClick={() => void run(visit.id, () => api.completeVisit(visit.id), 'Приём отмечен')}
+            >
+              Приём состоялся
+            </CellAction>
+            <CellAction
+              mode="secondary"
+              disabled={busy === visit.id}
+              onClick={() => setCancelling({ id: visit.id, title: `${visit.day}, ${visit.clock} · ${who(visit)}` })}
+            >
+              Отменить
+            </CellAction>
+          </CellList>
+
+          {failed?.id === visit.id ? <ErrorText className="inset">{failed.text}</ErrorText> : null}
+        </Fragment>
       ))}
 
       {cancelling ? (
@@ -417,6 +424,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
   const [chosen, setChosen] = useState<string | null>(null);
   const [topic, setTopic] = useState('');
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Отмена спрашивается: время приёма человек уже, возможно, выпросил у работы.
   const [cancelling, setCancelling] = useState(false);
 
@@ -432,6 +440,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
     if (!chosen || topic.trim().length === 0) return;
 
     setBusy(true);
+    setError(null);
 
     try {
       await api.bookVisit(chosen, topic.trim());
@@ -442,7 +451,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
       reception.reload();
     } catch (reason) {
       haptics.failed();
-      toast(describeFailure(reason), 'error');
+      setError(describeFailure(reason));
     } finally {
       setBusy(false);
     }
@@ -452,6 +461,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
     if (!view.mine) return;
 
     setBusy(true);
+    setError(null);
 
     try {
       await api.cancelVisit(view.mine.id);
@@ -459,7 +469,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
       toast(t('visits.cancelled'));
       reception.reload();
     } catch (reason) {
-      toast(describeFailure(reason), 'error');
+      setError(describeFailure(reason));
     } finally {
       setBusy(false);
     }
@@ -481,7 +491,14 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
           {view.office ? (
             <CellSimple title={t('visits.office')} subtitle={view.office} height="compact" separator />
           ) : null}
-          <CellAction mode="destructive" disabled={busy} onClick={() => setCancelling(true)}>
+          <CellAction
+            mode="destructive"
+            disabled={busy}
+            onClick={() => {
+              setError(null);
+              setCancelling(true);
+            }}
+          >
             {t('visits.cancel')}
           </CellAction>
         </Group>
@@ -494,6 +511,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
             busyLabel={t('visits.cancel.busy')}
             busy={busy}
             danger
+            error={error}
             onConfirm={() => void cancel()}
             onCancel={() => setCancelling(false)}
           />
@@ -523,29 +541,33 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
 
   // Форма стоит под выбранным днём, а не в конце списка: выбранный час виден рядом с ней.
   const form = picked ? (
-    <Group title={t('visits.topic')}>
-      <CellSimple
-        before={
-          <span className="tile tile-green">
-            <IconCalendar />
-          </span>
-        }
-        title={`${picked.day}, ${picked.clock}`}
-        subtitle={t('visits.picked')}
-        height="compact"
-      />
-      <CellInput
-        className="field-row"
-        id="visit-topic"
-        aria-label={t('visits.topic')}
-        placeholder={t('visits.topic.example')}
-        value={topic}
-        onChange={(event) => setTopic(event.target.value)}
-      />
-      <CellAction mode="primary" disabled={busy || topic.trim().length === 0} onClick={() => void book()}>
-        {busy ? t('visits.booking') : t('visits.book')}
-      </CellAction>
-    </Group>
+    <>
+      <Group title={t('visits.topic')}>
+        <CellSimple
+          before={
+            <span className="tile tile-green">
+              <IconCalendar />
+            </span>
+          }
+          title={`${picked.day}, ${picked.clock}`}
+          subtitle={t('visits.picked')}
+          height="compact"
+        />
+        <CellInput
+          className="field-row"
+          id="visit-topic"
+          aria-label={t('visits.topic')}
+          placeholder={t('visits.topic.example')}
+          value={topic}
+          onChange={(event) => setTopic(event.target.value)}
+        />
+        <CellAction mode="primary" disabled={busy || topic.trim().length === 0} onClick={() => void book()}>
+          {busy ? t('visits.booking') : t('visits.book')}
+        </CellAction>
+      </Group>
+
+      {error ? <ErrorText className="inset">{error}</ErrorText> : null}
+    </>
   ) : null;
 
   return (

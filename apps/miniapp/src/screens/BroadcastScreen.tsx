@@ -393,6 +393,7 @@ export const BroadcastScreen = ({ api }: BroadcastScreenProps) => {
           confirmLabel={night ? 'Разбудить и отправить' : 'Отправить'}
           busy={sending}
           danger={night}
+          error={error}
           onConfirm={() => void send()}
           onCancel={() => {
             setConfirming(false);

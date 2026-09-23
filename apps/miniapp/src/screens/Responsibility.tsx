@@ -239,6 +239,7 @@ export const Responsibility = ({
             confirmLabel="Передать"
             busyLabel="Передаём…"
             busy={passing !== null}
+            error={failed}
             onConfirm={() => void pass(asking.to)}
             onCancel={() => setAsking(null)}
           />

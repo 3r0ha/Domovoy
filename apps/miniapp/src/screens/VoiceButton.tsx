@@ -1,4 +1,4 @@
-import { useId, useRef } from 'react';
+import { useRef } from 'react';
 
 import { type DomovoyApi } from '../api.js';
 import { useCapabilities } from '../capabilities.js';
@@ -34,7 +34,6 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
   const capabilities = useCapabilities();
   const voice = useVoice(api, onText);
   const t = useT();
-  const field = useId();
   const since = useRef(0);
   const held = useRef(false);
   // Нажатие мышью и пальцем даёт и pointer-события, и click: второй раз не считаем.
@@ -63,8 +62,8 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
     if (Date.now() - since.current >= LOCK_MS) voice.stop();
   };
 
-  // Расшифровывать запись нечем: кнопка вела бы к отказу, поэтому её нет.
-  if (!capabilities.voice) return null;
+  // Расшифровывать нечем или писать нечем: кнопка вела бы к отказу, поэтому её нет.
+  if (!capabilities.voice || !voice.live) return null;
 
   const caption = recording ? t('voice.stop') : decoding ? t('voice.decoding') : t('voice.say');
   const aria = recording ? t('voice.aria.stop', { поле: label }) : t('voice.aria.start', { поле: label });
@@ -72,53 +71,27 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
 
   return (
     <div className={compact ? 'voice voice-flat' : 'voice'}>
-      {voice.live ? (
-        <button
-          type="button"
-          className={recording ? `${shape} voice-on` : shape}
-          aria-label={aria}
-          aria-pressed={recording}
-          title={aria}
-          disabled={decoding}
-          onPointerDown={press}
-          onPointerUp={release}
-          onPointerCancel={release}
-          onPointerLeave={release}
-          onClick={() => {
-            // С клавиатуры приходит только click: там кнопка работает переключателем.
-            if (byPointer.current) byPointer.current = false;
-            else toggle();
-          }}
-        >
-          <IconMic />
-          {recording ? <span className="voice-time">{clock(voice.seconds)}</span> : null}
-          {compact ? null : <span>{caption}</span>}
-        </button>
-      ) : (
-        <>
-          {/* Запасной путь: системная запись клиента. Подпись поля файла с
-              клавиатуры недостижима, поэтому у неё своя роль и свой Enter. */}
-          <label
-            className={decoding ? `${shape} voice-busy` : shape}
-            htmlFor={field}
-            title={t('voice.aria.start', { поле: label })}
-            aria-label={t('voice.aria.start', { поле: label })}
-            role="button"
-            tabIndex={decoding ? -1 : 0}
-            onKeyDown={(event) => {
-              if (decoding || (event.key !== 'Enter' && event.key !== ' ')) return;
-
-              event.preventDefault();
-              event.currentTarget.click();
-            }}
-          >
-            <IconMic />
-            {compact ? null : <span>{decoding ? t('voice.decoding') : t('voice.say')}</span>}
-          </label>
-
-          <input id={field} className="voice-file" type="file" accept="audio/*" capture onChange={voice.attach} />
-        </>
-      )}
+      <button
+        type="button"
+        className={recording ? `${shape} voice-on` : shape}
+        aria-label={aria}
+        aria-pressed={recording}
+        title={aria}
+        disabled={decoding}
+        onPointerDown={press}
+        onPointerUp={release}
+        onPointerCancel={release}
+        onPointerLeave={release}
+        onClick={() => {
+          // С клавиатуры приходит только click: там кнопка работает переключателем.
+          if (byPointer.current) byPointer.current = false;
+          else toggle();
+        }}
+      >
+        <IconMic />
+        {recording ? <span className="voice-time">{clock(voice.seconds)}</span> : null}
+        {compact ? null : <span>{caption}</span>}
+      </button>
 
       {decoding ? (
         <span className="voice-note" role="status">
@@ -126,24 +99,7 @@ export const VoiceButton = ({ api, label, compact, onText }: VoiceButtonProps) =
         </span>
       ) : null}
 
-      {voice.error ? (
-        <span className="voice-note">
-          <ErrorText className="voice-error">{voice.error}</ErrorText>
-
-          {voice.live ? (
-            <button
-              type="button"
-              className="link"
-              onClick={() => {
-                voice.dismiss();
-                voice.start();
-              }}
-            >
-              {t('voice.retry')}
-            </button>
-          ) : null}
-        </span>
-      ) : null}
+      {voice.error ? <ErrorText className="voice-note">{voice.error}</ErrorText> : null}
     </div>
   );
 };

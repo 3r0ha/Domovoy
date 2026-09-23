@@ -252,6 +252,7 @@ export const RequestActions = ({
 
   const start = (action: string): void => {
     if (explains(action) || confirms(action)) {
+      setFailed(undefined);
       setAsking(action);
       return;
     }
@@ -290,6 +291,7 @@ export const RequestActions = ({
           busyLabel={t('request.withdraw.busy')}
           busy={busy}
           danger
+          error={failed}
           onConfirm={() => void apply(asking)}
           onCancel={() => setAsking(null)}
         />
@@ -302,6 +304,7 @@ export const RequestActions = ({
           busyLabel="Отправляем…"
           busy={busy}
           danger={asking === 'rejected'}
+          error={failed}
           field={{
             value: reason,
             label: (afterDone ? AFTER_DONE_TITLE[asking] : REASON_TITLE[asking]) ?? 'Причина',

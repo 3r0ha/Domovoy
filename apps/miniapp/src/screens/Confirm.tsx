@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 
 import { useTrapped } from '../focus.js';
 import { useT } from '../i18n.js';
+import { ErrorText } from './ErrorText.js';
 
 export interface ConfirmProps {
   /** О чём спрашивают: «Отправить рассылку?». */
@@ -15,6 +16,8 @@ export interface ConfirmProps {
   busyLabel?: string;
   /** Действие необратимо: согласие красное. */
   danger?: boolean;
+  /** Отказ сервера. Окно остаётся открытым, и под затемнением текст страницы не виден. */
+  error?: string | null;
   /** Поле, без которого соглашаться нечем: причина отказа или вопрос жильцу. */
   field?: {
     value: string;
@@ -40,6 +43,7 @@ export const Confirm = ({
   busy,
   busyLabel,
   danger,
+  error,
   field,
   onConfirm,
   onCancel,
@@ -81,6 +85,8 @@ export const Confirm = ({
             onChange={(event) => field.onChange(event.target.value)}
           />
         ) : null}
+
+        {error ? <ErrorText className="confirm-error">{error}</ErrorText> : null}
 
         <div className="confirm-keys">
           <button

@@ -97,6 +97,8 @@ export const NewRequestScreen = ({
   const [apartmentId, setApartmentId] = useState('');
 
   const send = async (text: string, anyway: boolean, apartFrom?: string): Promise<void> => {
+    const before = sent;
+
     setSending(true);
     setError(null);
     setSent(text);
@@ -148,6 +150,9 @@ export const NewRequestScreen = ({
     } catch (reason) {
       haptics.failed();
       setError(reason instanceof ApiError ? reason.message : t('new.failed'));
+
+      // Не ушедшее остаётся в поле: пузырём рядом оно читалось бы отправленным.
+      if (text === description.trim()) setSent(before);
     } finally {
       setSending(false);
     }

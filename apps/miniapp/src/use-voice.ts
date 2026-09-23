@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { Translate } from '@domovoy/i18n';
 
@@ -24,15 +24,12 @@ export interface VoiceInput {
   /** Причина неудачи словами. */
   error: string | null;
   /**
-   * Запись идёт прямо кнопкой. Иначе остаётся системная запись полем файла:
-   * в вебвью мессенджера она открывается почти всегда.
+   * Клиент умеет писать звук. Иначе кнопки нет: поле файла вместо неё на
+   * Android открывает выбор вложения, а не диктофон.
    */
   live: boolean;
   start: () => void;
   stop: () => void;
-  /** Запись, пришедшая системным полем файла. */
-  attach: (event: ChangeEvent<HTMLInputElement>) => void;
-  dismiss: () => void;
 }
 
 const recorderClass = (): typeof MediaRecorder | undefined =>
@@ -51,8 +48,8 @@ const formatFor = (recorder: typeof MediaRecorder): string | undefined =>
 
 /**
  * Тип записи для ручки расшифровки: без параметров кодека и в том виде,
- * который она знает. Браузер пишет `audio/webm;codecs=opus`, системная запись
- * приходит как `audio/x-m4a`, а пустой тип у записи бывает в вебвью.
+ * который она знает. Браузер пишет `audio/webm;codecs=opus`, Safari пишет
+ * `audio/mp4`, а пустой тип у записи бывает в вебвью.
  */
 export const voiceType = (declared: string): string => {
   const base = declared.split(';')[0]!.trim().toLowerCase();
@@ -173,8 +170,7 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
       setState('recording');
     } catch (reason) {
       release();
-      // Отказ в доступе не оставляет человека ни с чем: остаётся системная запись.
-      setLive(false);
+      // Кнопка остаётся: разрешив микрофон в настройках, человек нажмёт её снова.
       setState('failed');
       setError(refusal(t, reason));
     }
@@ -239,19 +235,5 @@ export const useVoice = (api: DomovoyApi, onText: (text: string) => void): Voice
     live,
     start,
     stop,
-    attach: (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-
-      event.target.value = '';
-
-      if (file) {
-        setError(null);
-        void decode(file);
-      }
-    },
-    dismiss: () => {
-      setError(null);
-      setState('idle');
-    },
   };
 };
