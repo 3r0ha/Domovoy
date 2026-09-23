@@ -230,7 +230,7 @@ describe('стартовый экран приложения', () => {
 
     const screen = await render(fetchStub, 'ent_b1_1');
 
-    assert.match(screen.text, /подъезд 1/);
+    assert.match(screen.text, /подъезд\s1/);
     assert.match(screen.text, /Сообщить о поломке/);
     assert.doesNotMatch(screen.text, /Квартира не привязана/);
 

@@ -1,4 +1,4 @@
-import { formatPublished, type DomovoyApi } from '../api.js';
+import { formatPublished, tight, type DomovoyApi } from '../api.js';
 import { useT } from '../i18n.js';
 import { ApartmentPicker } from './ApartmentPicker.js';
 import { AssistantButton } from './Assistant.js';
@@ -56,7 +56,9 @@ export const TopBar = ({
         .join(' ')}
     >
       <div className="topbar-line">
-        <h1 className="screen-title">{title}</h1>
+        {/* Номер не отрывается от слова: «Лифт, подъезд 1» переносилось с
+            одинокой «1» на второй строке, а при обрезке номер терялся вовсе. */}
+        <h1 className="screen-title">{tight(title)}</h1>
 
         <div className="topbar-acts">
           {onAssistant ? <AssistantButton onOpen={onAssistant} /> : null}
