@@ -251,7 +251,28 @@ export const createBotNotifier = (
   bot: Bot,
   onError?: (error: unknown) => void,
   miniAppUrl?: string,
+  codeAsks?: Map<number, string>,
 ): Notifier => ({
+  async apartmentBound({ maxUserId, number, language }) {
+    const asked = codeAsks?.get(maxUserId);
+
+    if (!asked) return;
+
+    codeAsks?.delete(maxUserId);
+
+    const t = speakLanguage(language);
+    const ready = shown(t('flat.bound', { номер: number }), menuButton(PERSONAL, t));
+
+    // Устаревшая просьба убирается, итог приходит новым сообщением: он внизу
+    // переписки и с уведомлением. Удаление могло не пройти, сообщение уходит всё равно.
+    await bot.api.deleteMessage(asked).catch((error: unknown) => onError?.(error));
+
+    try {
+      await bot.api.sendMessageToUser(maxUserId, ready.text, ready.extra);
+    } catch (error) {
+      onError?.(error);
+    }
+  },
   async send({
     maxUserId,
     text,
@@ -503,9 +524,7 @@ export const createDomovoyBot = (
   /** Обработать один апдейт: так его приносит вебхук. */
   handleUpdate: (update: unknown) => Promise<void>;
 } => {
-  const bot = new Bot(options.token, {
-    ...(options.baseUrl ? { clientOptions: { baseUrl: options.baseUrl } } : {}),
-  });
+  const bot = new Bot(options.token, options.baseUrl ? { clientOptions: { baseUrl: options.baseUrl } } : {});
 
   installResilientApi(bot, options.token, {
     ...(options.baseUrl ? { baseUrl: options.baseUrl } : {}),
@@ -513,9 +532,11 @@ export const createDomovoyBot = (
     retry: { attempts: 3 },
   });
 
+  const codeAsks = new Map<number, string>();
+
   const deps: AppDeps = {
     ...options.deps,
-    notifier: options.deps.notifier ?? createBotNotifier(bot, options.onNotifyError, options.miniAppUrl),
+    notifier: options.deps.notifier ?? createBotNotifier(bot, options.onNotifyError, options.miniAppUrl, codeAsks),
   };
 
   bot.use((async (typed: BotContext, next: () => Promise<void>) => {
@@ -627,6 +648,7 @@ export const createDomovoyBot = (
 
       return true;
     },
+    codeAsks,
   };
 
   // Команды разложены по областям продукта, регистрируются одинаково.

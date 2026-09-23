@@ -38,6 +38,12 @@ export const askApartment = async (
   expect(typed, { kind: 'code' });
 
   await typed.reply(`${prefix}${speak(person)('flat.ask')}`, kit.menuKeyboard(person));
+
+  // Просьба с меню становится экраном переписки: её идентификатор запоминается,
+  // чтобы убрать её, если квартиру привяжут в приложении.
+  const asked = typed.session?.screen;
+
+  if (person.maxUserId !== undefined && asked) kit.codeAsks.set(person.maxUserId, asked);
 };
 
 /**

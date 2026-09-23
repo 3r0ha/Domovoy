@@ -371,6 +371,30 @@ describe('чат-бот управляющей организации', () => {
     await bot.stop();
   });
 
+  it('квартира привязана в приложении: просьба о коде уходит, итог приходит новым сообщением', async () => {
+    const bot = await start();
+
+    platform.userSends('/start', { userId: 5303, chatId: 5303 });
+    await chooseLanguage(5303, 5303);
+    await waitForMessage(5303, /персональные данные/u);
+
+    platform.userPressesButton('legal:accept', { userId: 5303, chatId: 5303 });
+    await waitForMessage(5303, /код квартиры из квитанции/u);
+
+    const asked = platform.outgoing.filter((message) => message.chatId === 5303).at(-1);
+
+    await bot.deps.notifier?.apartmentBound?.({ maxUserId: 5303, number: 5 });
+
+    assert.equal(
+      platform.outgoing.some((message) => message.mid === asked?.mid),
+      false,
+      'просьба о коде осталась висеть',
+    );
+    assert.match(platform.outgoing.at(-1)?.text ?? '', /Готово, квартира 5/u);
+
+    await bot.stop();
+  });
+
   it('первый разговор начинается с выбора языка, и язык клиента стоит первым', async () => {
     const bot = await start();
 

@@ -77,6 +77,9 @@ export const sayBound = async (kit: BotKit, typed: BotContext, flat: BindResult)
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
 
+  // Привязали здесь же, в переписке: прежнюю просьбу о коде убирать уже не нужно.
+  if (resident.maxUserId !== undefined) kit.codeAsks.delete(resident.maxUserId);
+
   await typed.reply(
     flat.alreadyBound
       ? t('flat.already', { номер: flat.apartment.number })

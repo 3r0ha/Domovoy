@@ -84,6 +84,19 @@ const nameRoute = (
   );
 };
 
+/** Просьба о коде в переписке с ботом устарела: бот убирает её и присылает итог. */
+const tellBotBound = async (
+  deps: RoutesDeps,
+  resident: Resident,
+  bound: { alreadyBound: boolean; apartment: { number: number } },
+): Promise<void> => {
+  if (bound.alreadyBound || resident.maxUserId === undefined) return;
+
+  const { maxUserId, language } = resident;
+
+  await deps.notifier?.apartmentBound?.({ maxUserId, number: bound.apartment.number, ...(language ? { language } : {}) });
+};
+
 /** Профиль, уведомления, телефон и свои данные. */
 export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
   const currentResident = residentReader(deps);
@@ -499,6 +512,8 @@ export const meRoutes: FastifyPluginAsync<RoutesDeps> = async (scope, deps) => {
       async (request) => {
         const resident = await currentResident(request.max.userId);
         const bound = await bindApartment(deps, resident, request.body.code);
+
+        await tellBotBound(deps, resident, bound);
 
         return {
           apartmentId: bound.apartment.id,

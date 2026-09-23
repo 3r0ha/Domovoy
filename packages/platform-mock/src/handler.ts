@@ -162,7 +162,11 @@ export const handleRequest = async (
   if (comments) return ok({ comments: [] });
 
   if (method === 'GET' && path === 'messages') return ok({ messages: [] });
-  if (method === 'PUT' && path === 'messages') return ok();
+  if (method === 'PUT' && path === 'messages') {
+    state.editMessage(request.query['message_id'] ?? '', body);
+
+    return ok();
+  }
   if (method === 'DELETE' && path === 'messages') {
     state.forgetMessage(request.query['message_id'] ?? '');
 

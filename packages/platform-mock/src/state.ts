@@ -170,6 +170,20 @@ export class PlatformState {
     return sent;
   }
 
+  /** Правка своего сообщения: текст и кнопки меняются на месте, как на платформе. */
+  editMessage(mid: string, body: Record<string, unknown>): boolean {
+    const target = this.outgoing.find((message) => message.mid === mid);
+
+    if (!target) return false;
+
+    if (typeof body['text'] === 'string') target.text = body['text'];
+    if (Array.isArray(body['attachments'])) target.attachments = body['attachments'];
+
+    target.body = body;
+
+    return true;
+  }
+
   /** Удаление сообщения: бот убирает своё, и в переписке его больше нет. */
   forgetMessage(mid: string): void {
     const at = this.outgoing.findIndex((message) => message.mid === mid);

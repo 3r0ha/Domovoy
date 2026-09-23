@@ -97,6 +97,11 @@ export interface Notifier {
   /** Закрепить сообщение в чате. */
   pinInChat?(chatId: number, messageId: string): Promise<void>;
   unpinInChat?(chatId: number): Promise<void>;
+  /**
+   * Квартиру привязали не в переписке, а в приложении. Просьба о коде, если бот
+   * её отправлял, убирается, и приходит итог: иначе в переписке висит устаревший вопрос.
+   */
+  apartmentBound?(bound: { maxUserId: number; number: number; language?: Language }): Promise<void>;
 }
 
 /** Уведомления выключены: подходит для тестов API и запуска без бота. */
