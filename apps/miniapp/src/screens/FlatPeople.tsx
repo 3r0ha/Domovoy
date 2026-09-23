@@ -46,7 +46,9 @@ export const FlatPeople = ({ api }: { api: DomovoyApi }) => {
   const title = (person: FlatNeighbourView): string =>
     person.self ? t('flat.people.you') : person.displayName;
 
-  if (people.error && list.length === 0) return null;
+  // Пустой список: ответ ещё не пришёл или квартира в другом доме. Заголовки без
+  // строк висели пустыми, а без себя в списке не видно и собственности.
+  if (list.length === 0) return null;
 
   return (
     <>

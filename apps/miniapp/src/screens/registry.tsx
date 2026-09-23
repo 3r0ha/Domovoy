@@ -3,6 +3,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 
 import { type DomovoyApi, type DeviceView, type Profile } from '../api.js';
 import { say } from '../i18n.js';
+import { roleTitle } from '../roles.js';
 import { type Screen } from '../navigation.js';
 import type { OpenedDocument, Waiting } from '../App.js';
 import type { DocumentStructure } from '../views.js';
@@ -247,7 +248,10 @@ const REGISTRY: Partial<Record<Screen, Body>> = {
               .filter(Boolean)
               .join(' · '),
           }
-        : {})}
+        : isStaff(context.profile)
+          ? // Сотруднику без своей квартиры «квартира не привязана» ни о чём не говорит: он работает в доме.
+            { where: [roleTitle(context.profile.role), context.profile.address].filter(Boolean).join(' · ') }
+          : {})}
       {...(context.profile.phone ? { phone: context.profile.phone } : {})}
       {...(context.profile.elder ? { elder: context.profile.elder } : {})}
       {...(isStaff(context.profile) && context.profile.onDuty !== undefined

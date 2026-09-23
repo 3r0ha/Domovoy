@@ -241,10 +241,14 @@ export const welcome = async (kit: BotKit, typed: BotContext, payload?: string |
     return;
   }
 
-  await typed.reply(`${missed}${hello(person.role, t)}`, kit.menuKeyboard(person));
+  // Первый разговор начинается с документов, одним сообщением с приветствием:
+  // меню до согласия ничего не открывает, оно приходит после «Принимаю».
+  if (!legalAccepted(person)) {
+    await askLegal(kit, typed, `${missed}${strong(t('greeting.hello'))}`);
+    return;
+  }
 
-  // Первый разговор начинается с документов: дальше продукт сохраняет данные.
-  if (!legalAccepted(person)) await askLegal(kit, typed);
+  await typed.reply(`${missed}${hello(person.role, t)}`, kit.menuKeyboard(person));
 };
 
 /** Приветствие под роль: жильцу о заявке, смене о работе. */

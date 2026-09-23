@@ -6,7 +6,7 @@ import { Keyboard } from '@maxkit/max-bot-api';
 import { speak } from '../i18n.js';
 import { needsFlat } from '../apartment.js';
 import { appRow, keyboardOf } from '../keyboards.js';
-import { ROOT_MENUS, type BotContext } from '../max.js';
+import { plain, ROOT_MENUS, type BotContext } from '../max.js';
 import type { BotKit, Handler } from '../kit.js';
 
 /** Сайт по умолчанию: там же, где лежит лендинг продукта. */
@@ -36,7 +36,7 @@ const documentRows = (kit: BotKit, resident: Resident) => {
  * данных оператор публикует и открывает для чтения (ч. 2 ст. 18.1 152-ФЗ),
  * поэтому она приходит ссылкой на сайт и текстом в переписку.
  */
-export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> => {
+export const askLegal = async (kit: BotKit, typed: BotContext, greeting?: string): Promise<void> => {
   const resident = await kit.residentOf(typed);
   const t = speak(resident);
 
@@ -50,7 +50,9 @@ export const askLegal = async (kit: BotKit, typed: BotContext): Promise<void> =>
 
   if (screen) ROOT_MENUS.add(screen);
 
-  await typed.reply(t('legal.ask'), screen);
+  // Приветствие первого разговора идёт в том же сообщении: двумя подряд с меню
+  // до согласия человек получал кнопки, которые всё равно вели к документам.
+  await typed.reply(greeting ? `${greeting}\n\n${plain(t('legal.ask'))}` : t('legal.ask'), screen);
 };
 
 /**

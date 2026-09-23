@@ -56,6 +56,9 @@ body::-webkit-scrollbar,
   --accent-text: color-mix(in srgb, var(--accent) 82%, var(--text));
   /* Тот же красный под белыми буквами: на исходном белое читается хуже порога. */
   --danger-solid: color-mix(in srgb, var(--danger) 82%, #000000);
+  /* Акцент заливкой под белыми буквами и у крупных кнопок. В тёмной схеме он свой. */
+  --accent-solid: var(--accent);
+  --accent-button: color-mix(in srgb, var(--accent) 86%, #000);
   --sunk: var(--background-tertiary, rgb(9 9 9 / 5%));
 
   /*
@@ -105,6 +108,77 @@ body::-webkit-scrollbar,
     --sunk: var(--background-tertiary, rgb(255 255 255 / 8%));
     --danger-solid: color-mix(in srgb, var(--danger) 78%, #3a0512);
   }
+}
+
+/*
+ * Тёмная схема своими цветами поверх цветов MAX UI. У библиотеки подложка
+ * почти чёрная, и тот же насыщенный синий, что в светлой схеме, на ней
+ * светится пятнами: крупные кнопки и выбранные сегменты били в глаза, а
+ * карточки проваливались в фон. Здесь подложка и карточки серо-синие с
+ * тем же шагом яркости, что в светлой схеме, текст не чисто белый, акцент
+ * текстом светлее, а заливкой спокойнее. Селектор по классу схемы MAX UI:
+ * цвета меняются там же, где тёмную схему включает библиотека.
+ */
+.app[class*='colorScheme_dark'] {
+  --background-surface: #15161b;
+  --background-primary: #1b1c22;
+  --background-secondary: #26272f;
+  --background-card: #202128;
+  --background-tertiary: rgb(255 255 255 / 7%);
+  --background-accent-neutral-fade-secondary: rgb(255 255 255 / 7%);
+  --divider-primary: rgb(255 255 255 / 9%);
+  --divider-secondary: rgb(255 255 255 / 5%);
+
+  --text-primary: #ececf1;
+  --text-secondary: rgb(236 236 241 / 72%);
+  --text-tertiary: rgb(236 236 241 / 56%);
+  --icon-primary: #ececf1;
+  --icon-tertiary: rgb(236 236 241 / 52%);
+
+  --text-themed: #74a9ff;
+  --icon-themed: #74a9ff;
+  --text-negative: #ff7d8c;
+  --icon-negative: #ff7d8c;
+
+  --button-primary: #2f6fd8;
+  --states-button-primary-hover: #3a7be4;
+  --states-button-primary-pressed: #2863c4;
+  --button-secondary: #2e2f38;
+  --states-button-secondary-hover: #363742;
+  --states-button-secondary-pressed: #292a32;
+  --button-secondary-contrast: rgb(206 210 236 / 12%);
+  --states-button-secondary-contrast-hover: rgb(206 210 236 / 16%);
+  --states-button-secondary-contrast-pressed: rgb(206 210 236 / 10%);
+  --controls-active: #2f6fd8;
+  --counter-themed: #2f6fd8;
+  --counter-attention: #e5485f;
+
+  --accent-solid: #2f6fd8;
+  --accent-button: #2f6fd8;
+  --danger-solid: #c93b52;
+  --warning: color-mix(in srgb, #ffb547 88%, var(--text));
+  --success: color-mix(in srgb, #3dd68c 82%, var(--text));
+}
+
+/*
+ * Ярлыки состояний в тёмной схеме: тон подмешан к карточке, а не к
+ * прозрачности. Прозрачный оранжевый на тёмном давал бурое пятно, синий
+ * сливался с фоном.
+ */
+.app[class*='colorScheme_dark'] .state-work {
+  background: color-mix(in srgb, var(--accent) 22%, var(--card));
+}
+
+.app[class*='colorScheme_dark'] .state-wait {
+  background: color-mix(in srgb, #ffb547 18%, var(--card));
+}
+
+.app[class*='colorScheme_dark'] .state-good {
+  background: color-mix(in srgb, #3dd68c 16%, var(--card));
+}
+
+.app[class*='colorScheme_dark'] .state-bad {
+  background: color-mix(in srgb, var(--danger) 20%, var(--card));
 }
 
 /*
@@ -385,7 +459,7 @@ button.now-row {
 }
 
 .app [class*='Button_variant_primary'] {
-  background: color-mix(in srgb, var(--accent) 86%, #000);
+  background: var(--accent-button);
 }
 
 /*
@@ -611,7 +685,7 @@ button.link.danger-link {
  * было сесть: пять блоков одного веса подряд. Здесь стоит ответ на вопрос,
  * с которым жилец открывает приложение.
  */
-.lead {
+.nearest {
   display: flex;
   align-items: center;
   gap: var(--gap);
@@ -626,7 +700,7 @@ button.link.danger-link {
   cursor: pointer;
 }
 
-.lead-text {
+.nearest-text {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -634,30 +708,30 @@ button.link.danger-link {
   gap: 4px;
 }
 
-.lead-go {
+.nearest-go {
   flex: none;
   color: var(--faint);
   font-size: 1.5rem;
   line-height: 1;
 }
 
-.lead:active {
+.nearest:active {
   background-color: var(--sunk);
 }
 
-.lead-line {
+.nearest-line {
   font-size: var(--font-head);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
-.lead-about {
+.nearest-about {
   color: var(--muted);
   font-size: var(--font-meta);
 }
 
 /* Просроченное называется цветом: это уже не срок, а нарушение. */
-.lead-late .lead-line {
+.nearest-late .nearest-line {
   color: var(--danger-text);
 }
 
@@ -817,6 +891,26 @@ button.link.danger-link {
   .request-row-acting .row-number {
     display: none;
   }
+
+  /* На узком экране помощник остаётся значком: слово ломало название экрана посреди слова. */
+  .ask {
+    padding: 0 12px;
+  }
+
+  .ask-word {
+    display: none;
+  }
+
+  /* «Воздержусь» целиком: ступенью мельче три ответа встают в строку без многоточия. */
+  .segments .segment {
+    font-size: var(--font-small);
+  }
+
+  /* Подпись кнопки переносится, а не обрывается: «Прислать лист в перепи…» не читалось. */
+  .app [class*='Button_'] [class*='EllipsisText'] {
+    white-space: normal;
+    text-align: center;
+  }
 }
 
 .row-number {
@@ -877,7 +971,8 @@ button.link.danger-link {
   color: var(--danger-text);
 }
 
-.request-row [class*='title'] {
+/* Только заголовок: под «title» попадал и subtitle, и на узком экране хвост строки с номером пропадал. */
+.request-row [class*='CellSimple__title'] {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1158,6 +1253,9 @@ input[type='search']::-webkit-search-decoration {
   position: sticky;
   bottom: calc(env(safe-area-inset-bottom) + 72px);
   z-index: 1;
+  /* Отступ на высоту растушёвки: в покое она ложится на пустое место, а не
+     гасит строку, стоящую прямо над кнопкой. */
+  margin-top: 18px;
   padding: 10px 0;
   background: var(--bg);
 }
@@ -1785,7 +1883,7 @@ main > * > .loading:only-child {
   height: 18px;
   padding: 0 4px;
   border-radius: 9px;
-  background: var(--accent);
+  background: var(--accent-solid);
   color: #fff;
   font-size: 0.8125rem;
   font-weight: 600;
@@ -2401,8 +2499,8 @@ button.flat {
  * промежуток сводки и отметка осмотра.
  */
 .segment.segment-on {
-  background: var(--accent);
-  color: var(--card);
+  background: var(--accent-solid);
+  color: #fff;
   font-weight: 600;
 }
 
@@ -2867,7 +2965,7 @@ button.flat {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 86%, #000);
+  background: var(--accent-button);
   color: #fff;
   cursor: pointer;
 }
@@ -2974,8 +3072,8 @@ button.chat-done {
 
 .chip-on {
   border-color: transparent;
-  background: var(--accent);
-  color: var(--card);
+  background: var(--accent-solid);
+  color: #fff;
 }
 
 .group-aside {
@@ -3034,8 +3132,8 @@ button.chat-done {
   padding: 9px 14px;
   border: 0;
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--card);
+  background: var(--accent-solid);
+  color: #fff;
   font-size: var(--font-small);
   font-weight: 500;
   white-space: nowrap;
@@ -3043,7 +3141,7 @@ button.chat-done {
 }
 
 .row-action:active {
-  background: color-mix(in srgb, var(--accent) 86%, #000000);
+  background: var(--accent-button);
 }
 
 .row-action:disabled {
@@ -3265,7 +3363,7 @@ select {
   font: inherit;
   font-weight: 600;
   color: var(--on-accent, #fff);
-  background: var(--accent);
+  background: var(--accent-solid);
 }
 
 /** Помощник: разговор, в котором спрашивают дальше. */
@@ -3457,7 +3555,7 @@ select {
   font: inherit;
   font-weight: 600;
   color: var(--on-accent, #fff);
-  background: var(--accent);
+  background: var(--accent-solid);
   cursor: pointer;
 }
 

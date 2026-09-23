@@ -11,6 +11,7 @@ import {
   type RoleView,
   type UnboundResidentView,
 } from '../api.js';
+import { ROLES, roleTitle } from '../roles.js';
 import { Confirm } from './Confirm.js';
 import { Empty } from './Empty.js';
 import { More } from './More.js';
@@ -28,16 +29,6 @@ export interface ResidentsScreenProps {
 
 /** Сколько жильцов показывается сразу: в доме их сотни. */
 const PEOPLE_PAGE = 20;
-
-const ROLES: { value: RoleView; title: string }[] = [
-  { value: 'resident', title: 'жилец' },
-  { value: 'dispatcher', title: 'диспетчер' },
-  { value: 'technician', title: 'мастер' },
-  { value: 'manager', title: 'управляющий' },
-  { value: 'contractor', title: 'подрядчик' },
-];
-
-const roleTitle = (role: RoleView): string => ROLES.find((item) => item.value === role)?.title ?? role;
 
 /** Первая буква имени вместо фотографии. */
 const initial = (name: string): string => name.trim().slice(0, 1).toUpperCase() || '?';

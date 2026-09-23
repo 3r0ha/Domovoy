@@ -351,6 +351,26 @@ describe('чат-бот управляющей организации', () => {
     await bot.stop();
   });
 
+  it('новый диалог без /start: первое же сообщение начинает знакомство', async () => {
+    const bot = await start();
+
+    // Клиент MAX не всегда присылает bot_started: человек открывает чат и сразу пишет.
+    platform.userSends('Здравствуйте', { userId: 5202, chatId: 5202 });
+
+    const asked = await waitForMessage(5202, /Выберите язык/u);
+
+    assert.match(asked, /Choose your language/u);
+
+    // После выбора языка одно сообщение: приветствие вместе с документами, без меню до согласия.
+    platform.forgetOutgoing();
+    platform.userPressesButton('lang:ru', { userId: 5202, chatId: 5202 });
+
+    assert.match(await waitForMessage(5202, /персональные данные/u), /Здравствуйте/u);
+    assert.equal(platform.outgoing.filter((message) => message.chatId === 5202).length, 1, 'сообщение одно');
+
+    await bot.stop();
+  });
+
   it('первый разговор начинается с выбора языка, и язык клиента стоит первым', async () => {
     const bot = await start();
 
@@ -1793,13 +1813,9 @@ describe('чат-бот управляющей организации', () => {
   it('код из квитанции сообщением привязывает квартиру, а не заводит заявку', async () => {
     const bot = await start();
 
+    // Код первым же сообщением, ещё до выбора языка: он не теряется и привязывается после выбора.
     platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
-    await waitForMessage(4009, /персональные данные/);
-
-    platform.userPressesButton('legal:accept', { userId: 4009, chatId: 4009 });
-    await waitForMessage(4009, /код квартиры из квитанции/);
-
-    platform.userSends(FLAT_CODE.toLowerCase(), { userId: 4009, chatId: 4009 });
+    await chooseLanguage(4009, 4009);
 
     assert.match(await waitForMessage(4009, /Готово, квартира/), /квартира 1/);
 
@@ -1815,6 +1831,10 @@ describe('чат-бот управляющей организации', () => {
     const bot = await start();
 
     platform.userSends('WXYWXY33', { userId: 4010, chatId: 4010 });
+    await chooseLanguage(4010, 4010);
+    await waitForMessage(4010, /Код не подошёл/);
+
+    platform.userSends('/start', { userId: 4010, chatId: 4010 });
     await waitForMessage(4010, /персональные данные/);
 
     platform.userPressesButton('legal:accept', { userId: 4010, chatId: 4010 });
@@ -3529,6 +3549,7 @@ describe('чат-бот управляющей организации', () => {
     const bot = await start();
 
     platform.userSends('Течёт кран на кухне, вода капает', { userId: 9100, chatId: 9100 });
+    await chooseLanguage(9100, 9100);
     await waitForMessage(9100, /персональные данные/);
 
     assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'без согласия заявки нет');

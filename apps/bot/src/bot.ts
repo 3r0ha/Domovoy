@@ -1,7 +1,9 @@
 import {
   ensureResident,
   buildingByChat,
+  languageChosen,
   languageOf,
+  legalAccepted,
   languageOfText,
   type AppDeps,
   type Building,
@@ -38,7 +40,7 @@ import {
   supportKeyboard,
   PERSONAL,
 } from './keyboards.js';
-import { needsFlat } from './apartment.js';
+import { codeIn, needsFlat } from './apartment.js';
 import type { Translate } from '@domovoy/i18n';
 
 import { RU, speak, speakLanguage } from './i18n.js';
@@ -398,6 +400,21 @@ const apologize = async (typed: BotContext, text: string): Promise<void> => {
  * Отказ ниже по цепочке: сессия, состояние экрана, разбор апдейта. Обработчики
  * извиняются сами, сюда доходит то, что случилось раньше них.
  */
+/**
+ * Клиент MAX не всегда присылает bot_started: открыв новый диалог, человек сразу
+ * пишет. Тогда знакомство начинается с первого сообщения, как с «Начать». Код
+ * квартиры в этом сообщении не теряется: он привязывается после выбора языка.
+ */
+const firstContact = async (kit: BotKit, typed: BotContext, text?: string): Promise<boolean> => {
+  const person = await kit.residentOf(typed);
+
+  if (languageChosen(person) || legalAccepted(person)) return false;
+
+  await greet(kit, typed, text ? codeIn(text) : undefined);
+
+  return true;
+};
+
 const guarded =
   (run: (typed: BotContext) => Promise<void>) =>
   async (typed: BotContext): Promise<void> => {
@@ -541,11 +558,14 @@ export const createDomovoyBot = (
     return { attachments: [Keyboard.inlineKeyboard([[Keyboard.button.openApp(t('button.open_app'), url)]])] };
   };
 
-  bot.on('bot_started', (context) =>
-    greet(kit, context as never as BotContext, (context.update as { payload?: string | null }).payload),
+  // «Начать» без ответа выглядит как неработающий бот: сбой получает хотя бы
+  // извинение, как и остальные обработчики.
+  bot.on(
+    'bot_started',
+    guarded((typed) => greet(kit, typed, (typed.update as { payload?: string | null }).payload)),
   );
 
-  bot.command('start', (context) => greet(kit, context as never));
+  bot.command('start', guarded((typed) => greet(kit, typed)) as never);
 
   const answerPrivately = (typed: BotContext, run: (typed: BotContext) => Promise<void>, quiet: boolean) =>
     inPrivate(bot, typed, run, { quiet, whenClosed: openAppKeyboard() });
@@ -674,6 +694,8 @@ export const createDomovoyBot = (
         await speakInChat(kit, typed);
         return;
       }
+
+      if (await firstContact(kit, typed, text)) return;
 
       // Согласие спрашивается и на обычное сообщение: иначе первый же текст
       // заводит заявку и профиль у человека, который документов не видел.

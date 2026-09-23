@@ -358,7 +358,7 @@ export const StickersScreen = ({ api, staff }: StickersScreenProps) => {
           aria-label="Поиск объекта"
           withClearButton
           value={query}
-          placeholder="Подъезд, лифт или номер квартиры"
+          placeholder="Подъезд, лифт, квартира"
           onChange={(event) => {
             setQuery(event.target.value);
           }}

@@ -1032,8 +1032,9 @@ export const serializePoll = (
   quorumShare: POLL_RULES[view.poll.kind].quorum,
   shares: view.result.shares,
   support: view.result.support,
-  // Собрание читают жильцы: им идёт правило словами, а не номер статьи.
-  basis: t(plainBasisKey(view.poll.kind === 'qualified' ? 'qualified' : 'quorum')),
+  // Собрание читают жильцы: им идёт правило словами, а не номер статьи. Про
+  // обычный кворум говорит отметка на полосе, словами назван только повышенный порог.
+  ...(view.poll.kind === 'qualified' ? { basis: t(plainBasisKey('qualified')) } : {}),
   ...(view.poll.closedAt ? { closedAt: view.poll.closedAt.toISOString() } : {}),
   ...(view.myChoice ? { myChoice: view.myChoice } : {}),
   // Голос подал сосед по квартире: человек должен знать, что заменит его.

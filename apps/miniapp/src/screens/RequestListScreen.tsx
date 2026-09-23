@@ -61,15 +61,15 @@ const Nearest = ({ requests, onOpen }: { requests: RequestView[]; onOpen: (id: s
       : t('requests.lead.until', { срок: formatDue(shown.dueAt) });
 
   return (
-    <button type="button" className={overdue ? 'lead lead-late' : 'lead'} onClick={() => onOpen(shown.id)}>
-      <span className="lead-text">
-        <span className="lead-line">{lead}</span>
-        <span className="lead-about">{shown.title}</span>
+    <button type="button" className={overdue ? 'nearest nearest-late' : 'nearest'} onClick={() => onOpen(shown.id)}>
+      <span className="nearest-text">
+        <span className="nearest-line">{lead}</span>
+        <span className="nearest-about">{shown.title}</span>
       </span>
 
       {/* Шеврон, как у остальных нажимаемых карточек: без него блок читался
           как надпись, а не как переход в заявку. */}
-      <span className="lead-go" aria-hidden="true">
+      <span className="nearest-go" aria-hidden="true">
         ›
       </span>
     </button>
