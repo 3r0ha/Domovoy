@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 
 import { DEFAULT_LANGUAGE, isLanguage, translatorFor, type Language, type Translate } from '@domovoy/i18n';
 
@@ -73,6 +73,12 @@ export const I18nProvider = ({ language, children }: I18nProviderProps) => {
   // Перевод вне React берёт тот же язык: клиент API живёт рядом с деревом, а не в нём.
   active = value.t;
   spoken = value.language;
+
+  // Язык страницы тот же, что у интерфейса: по нему экранный диктор выбирает голос,
+  // а браузер расставляет переносы. Иначе казахский текст читался русским голосом.
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.lang = value.language;
+  }, [value.language]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 };

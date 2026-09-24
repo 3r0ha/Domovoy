@@ -111,6 +111,19 @@ body::-webkit-scrollbar,
 }
 
 /*
+ * Синий MAX на белом даёт 4:1, ниже порога 4,5 для обычного текста: ссылка
+ * «Погасить», выбранный ответ «За». Тон на ступень глубже проходит порог и на
+ * глаз остаётся тем же синим. Тёмная схема ниже задаёт свой.
+ */
+.app[class] {
+  --text-themed: #0070e8;
+  --icon-themed: #0070e8;
+  /* Красный «Отклонить» и «Передать дом» на серой кнопке давал 3,4: так он проходит порог. */
+  --text-negative: #c8102e;
+  --icon-negative: #c8102e;
+}
+
+/*
  * Тёмная схема своими цветами поверх цветов MAX UI. У библиотеки подложка
  * почти чёрная, и тот же насыщенный синий, что в светлой схеме, на ней
  * светится пятнами: крупные кнопки и выбранные сегменты били в глаза, а
@@ -406,8 +419,10 @@ main > *:not(.topbar) {
   align-items: baseline;
   gap: 8px;
   width: 100%;
+  /* Строка нажимается целиком: ниже 44 палец попадал в соседнюю. */
+  min-height: 44px;
   margin: 0 0 2px;
-  padding: 5px 0;
+  padding: 11px 0;
   border: 0;
   background: none;
   color: inherit;
@@ -740,9 +755,10 @@ button.link.danger-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  /* Перенос разрешён: длинный срок на казахском уезжал за край и тянул экран вбок. */
+  max-width: 100%;
   color: var(--muted);
   font-size: var(--font-meta);
-  white-space: nowrap;
 }
 
 /*
@@ -801,11 +817,11 @@ button.link.danger-link {
   flex: none;
 }
 
+/* Состояние в шапке карточки переносится, а не режется: «Сіздің қабылдауыңыз…» не читалось. */
 .request-head .state {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 .dot {
@@ -905,12 +921,15 @@ button.link.danger-link {
   .segments .segment {
     font-size: var(--font-small);
   }
+}
 
-  /* Подпись кнопки переносится, а не обрывается: «Прислать лист в перепи…» не читалось. */
-  .app [class*='Button_'] [class*='EllipsisText'] {
-    white-space: normal;
-    text-align: center;
-  }
+/*
+ * Подпись кнопки переносится, а не обрывается: «Прислать лист в перепи…» и
+ * «Сканировать код и с…» не читались, а на крупном шрифте так режется любая.
+ */
+.app [class*='Button_'] [class*='EllipsisText'] {
+  white-space: normal;
+  text-align: center;
 }
 
 .row-number {
@@ -1068,6 +1087,18 @@ button.link.danger-link {
 }
 
 /*
+ * Отметки осмотра ставят на ходу одной рукой: маленькая кнопка библиотеки давала 40,
+ * средняя 52 теснит название пункта. Значок центрируется явно, иначе он уезжал в угол.
+ */
+.check-marks [class*='IconButton'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+}
+
+/*
  * Цвет нажатой отметки осмотра: зелёным порядок, красным недостаток. Синий
  * значит «выбрано» и на «нашли непорядок» читался как «сделано».
  */
@@ -1098,6 +1129,11 @@ button.link.danger-link {
 .field-row {
   flex-wrap: wrap;
   row-gap: 4px;
+}
+
+/* Поле ввода не ниже 44: по нему попадают пальцем, а поле библиотеки давало 40. */
+.field-row input {
+  min-height: 44px;
 }
 
 .field-row > [class*='CellInput__before'],
@@ -1698,6 +1734,7 @@ main > * > .loading:only-child {
    единственными и выбивались из всех остальных экранов. */
 .materials-row input {
   min-width: 0;
+  min-height: 44px;
   padding: 8px 10px;
   border: 0;
   border-radius: 10px;
@@ -1920,6 +1957,12 @@ main > * > .loading:only-child {
 }
 
 button.link {
+  /* Цель не мельче 44 по высоте: отступов хватало на 41, строка текста ниже. */
+  display: inline-flex;
+  align-items: center;
+  /* Пробел между «‹» и словом во флексе схлопывается: его держит промежуток. */
+  gap: 0.25em;
+  min-height: 44px;
   padding: 12px 0;
   margin: -12px 0;
   border: none;
@@ -1939,8 +1982,10 @@ button.link.quiet {
 /* Возврат к списку: нижние вкладки уводят из стопки, а эта ссылка на шаг назад. */
 .back-link {
   align-self: flex-start;
-  margin: 0 0 2px;
-  padding: 4px 0;
+  min-width: 44px;
+  min-height: 44px;
+  margin: -6px 0 -4px;
+  padding: 4px 8px 4px 0;
 }
 
 .protocol,
@@ -2459,14 +2504,15 @@ button.flat {
 }
 
 
+/* Ответ переносится на вторую строку, а не режется: «Қалыс қаламын» и «Abstain» длиннее «Воздержусь». */
 .segment {
   position: relative;
   flex: 1;
   min-width: 0;
   padding: 12px 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.2;
   border: none;
   border-radius: 10px;
   background: none;
@@ -2582,8 +2628,10 @@ button.flat {
   background: none;
   color: var(--muted);
   font: inherit;
-  /* Подпись раздела читают пожилые глаза: в rem, чтобы её увеличивала система. */
-  font-size: clamp(0.8125rem, 3.2vw, 0.875rem);
+  /* Подпись раздела читают пожилые глаза: в rem, чтобы её увеличивала система.
+     Потолок по ширине экрана: крупный шрифт телефона растил её больше вкладки,
+     и «Очередь» с «Новостями» резались до «Оче…». */
+  font-size: min(clamp(0.8125rem, 3.2vw, 0.875rem), 3.6vw);
   line-height: 1.15;
   cursor: pointer;
 }
@@ -2605,8 +2653,15 @@ button.flat {
 @media (max-width: 359px) {
   .tabs .tab {
     padding: 6px 1px;
-    font-size: 0.6875rem;
-    letter-spacing: -0.01em;
+    /* «Жаңалықтар» целиком: в 11 пикселей казахская подпись резалась. 10 это кегль
+       подписей системной панели вкладок iOS. */
+    font-size: min(0.625rem, 3.1vw);
+    letter-spacing: -0.02em;
+  }
+
+  /* Выбранную вкладку здесь выделяет цвет: полужирная подпись шире и резалась. */
+  .tabs .tab.tab-active {
+    font-weight: 400;
   }
 }
 
@@ -3800,11 +3855,16 @@ select.building {
 
 .filters button {
   flex: none;
+  /* Отбор нажимают пальцем, а малая кнопка библиотеки давала 40. */
+  min-height: 44px;
   white-space: nowrap;
 }
 
 .share {
   flex: none;
+  /* Цель не мельче 44: маленькая кнопка библиотеки давала 40. */
+  min-width: 44px;
+  min-height: 44px;
   color: var(--muted);
 }
 

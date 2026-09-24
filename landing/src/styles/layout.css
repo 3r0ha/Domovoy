@@ -1338,26 +1338,3 @@
 .foot-legal a:hover {
   color: var(--ink);
 }
-
-/* Языки документов: строка под ссылками на них. */
-.foot-langs {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 2px 12px;
-  margin-top: 4px;
-  text-align: center;
-}
-
-.foot-langs a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  color: var(--ink-soft);
-  font-size: 15px;
-  text-decoration: none;
-}
-
-.foot-langs a:hover {
-  color: var(--ink);
-}

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { LEGAL_DOCUMENTS } from '@domovoy/domain';
-import { DEFAULT_LANGUAGE, languageTitle, legalLanguages } from '@domovoy/i18n';
 
 import { SECTIONS } from '../sections.js';
 import { Ink } from './Ink.js';
@@ -211,9 +210,6 @@ export const Top = ({ current }: { current?: string }) => {
   );
 };
 
-/** Языки, на которых документы есть: появляются вместе с переводом. */
-const LEGAL_LANGUAGES = legalLanguages();
-
 export const Foot = () => (
   <footer className="foot">
     <div className="wrap foot-inner">
@@ -224,21 +220,6 @@ export const Foot = () => (
           </a>
         ))}
       </nav>
-
-      {LEGAL_LANGUAGES.length > 1 ? (
-        <nav className="foot-langs" aria-label="Языки документов">
-          {LEGAL_LANGUAGES.map((code) => (
-            <a
-              key={code}
-              href={code === DEFAULT_LANGUAGE ? '/privacy/' : `/${code}/privacy/`}
-              hrefLang={code}
-              lang={code}
-            >
-              {languageTitle(code)}
-            </a>
-          ))}
-        </nav>
-      ) : null}
 
       <a className="foot-max" href={BOT_LINK} target="_blank" rel="noreferrer">
         Открыть в MAX

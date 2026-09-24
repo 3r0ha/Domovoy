@@ -66,7 +66,14 @@ export const RequestDue = ({ dueAt, overdue }: { dueAt: string; overdue: boolean
 
   const left = dueNow(dueAt) ? t('request.due.soon') : formatLeft(dueAt);
 
-  return <span className="row-due">{` ·\u{a0}${left}`}</span>;
+  // Пробел снаружи куска: перед точкой строка может перенестись, а сама точка
+  // остаётся со своим словом. Внутри куска переносу было негде случиться.
+  return (
+    <>
+      {' '}
+      <span className="row-due">{`·\u{a0}${left}`}</span>
+    </>
+  );
 };
 
 /** Состояние стоит под заголовком. */
@@ -112,17 +119,28 @@ export const RequestRow = ({
             {/* После плашки состояния разделителя нет: расстояние держит отступ.
                 Знак повисал в начале строки, когда адрес переносился. */}
             <span className="row-target">{tight(request.target)}</span>
-            {staff ? <span className="row-number">{` ·\u{a0}${request.number}`}</span> : null}
+            {staff ? (
+              <>
+                {' '}
+                <span className="row-number">{`·\u{a0}${request.number}`}</span>
+              </>
+            ) : null}
 
             {/* Назначенное время визита важнее остатка срока: к нему ждут дома. */}
             {request.appointment?.at ? (
-              <span className="row-visit">
-                {` ·\u{a0}${t('day.visitAt', { когда: formatDayAt(request.appointment.at) })}`}
-              </span>
+              <>
+                {' '}
+                <span className="row-visit">
+                  {`·\u{a0}${t('day.visitAt', { когда: formatDayAt(request.appointment.at) })}`}
+                </span>
+              </>
             ) : null}
 
             {request.machineTranslated ? (
-              <span className="row-machine">{` ·\u{a0}${t('translation.machine')}`}</span>
+              <>
+                {' '}
+                <span className="row-machine">{`·\u{a0}${t('translation.machine')}`}</span>
+              </>
             ) : null}
 
             {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы
