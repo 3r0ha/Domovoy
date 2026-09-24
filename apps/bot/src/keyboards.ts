@@ -461,6 +461,23 @@ export const confirmKeyboard = (title: string, payload: string, t: Translate = R
  * Разговор, из которого нужно уметь выйти, не набирая команду. Такой экран
  * помечается подсказкой: он живёт до ответа или отмены и потом убирается.
  */
+/** Догадка со снимка: отправить её одним нажатием или написать своими словами. */
+export const photoGuessKeyboard = (t: Translate = RU): Extra => {
+  const built = {
+    attachments: [
+      Keyboard.inlineKeyboard([
+        [Keyboard.button.callback(t('button.photo_yes'), 'photo:yes')],
+        [Keyboard.button.callback(t('button.cancel'), 'cancel')],
+      ]),
+    ],
+  };
+
+  PROMPTS.add(built);
+  SCREENS.add(built);
+
+  return built;
+};
+
 export const cancelKeyboard = (t: Translate = RU): Extra => {
   const built = {
     attachments: [Keyboard.inlineKeyboard([[Keyboard.button.callback(t('button.cancel'), 'cancel')]])],

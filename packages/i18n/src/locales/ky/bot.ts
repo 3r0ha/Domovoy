@@ -242,6 +242,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Эмне болгонун сөз менен жазыңыз. Сүрөт жана файл да жарайт.',
   'dialog.photo_ask': 'Сүрөттө эмне бар? Сөз менен жазыңыз.',
+  'dialog.photo_guess': 'Сүрөттө мындай окшойт: «{что}». Арызды ушундай жөнөтүңүз же өз сөзүңүз менен жазыңыз.',
   'dialog.one_line': 'Эмне болгонун бир сап менен жазыңыз.',
   'dialog.unknown_attachment':
     'Мындай тиркемени түшүнбөйм. Сөз менен жазыңыз же сүрөт же файл жөнөтүңүз.',
@@ -390,6 +391,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Меню',
   'button.back': '⬅️ Артка',
   'button.cancel': '✖️ Жокко чыгаруу',
+  'button.photo_yes': '✅ Ушундай жөнөтүү',
   'button.open_app': '📱 Колдонмону ачуу',
   'button.in_app': 'Колдонмодон ачуу',
   'button.in_app_short': 'Колдонмодо',

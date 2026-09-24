@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 import { DomainError } from '@domovoy/domain';
 
-import { createGigaChatFiles, gigaChatFilesFromEnv, readingOf, transcriptOf } from '../dist/gigachat-files.js';
+import { createGigaChatFiles, gigaChatFilesFromEnv, problemOf, readingOf, transcriptOf } from '../dist/gigachat-files.js';
 import { mp4Of, oggOf, wavOf, webmOf } from './audio-fixtures.ts';
 
 const IMAGE = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' });
@@ -79,6 +79,23 @@ const files = (said: string, options: Parameters<typeof stub>[1] & { timeoutMs?:
 
 /** Данные записи из мини-приложения: файл уходит в самом токене. */
 const dataUrl = (bytes: Uint8Array, type: string): string => `data:${type};base64,${Buffer.from(bytes).toString('base64')}`;
+
+describe('догадка по снимку поломки', () => {
+  it('короткая фраза о поломке проходит, кавычки и точка снимаются', () => {
+    assert.equal(problemOf('«разбито стекло в окне на лестнице».'), 'Разбито стекло в окне на лестнице');
+    assert.equal(problemOf('Течёт труба под раковиной'), 'Течёт труба под раковиной');
+  });
+
+  it('неуверенный ответ, пересказ и рассуждение догадкой не становятся', () => {
+    assert.equal(problemOf('нет'), undefined);
+    assert.equal(problemOf('Нет.'), undefined);
+    assert.equal(problemOf('На снимке видно окно в подъезде'), undefined);
+    assert.equal(problemOf('К сожалению, не могу определить'), undefined);
+    assert.equal(problemOf('The window is broken'), undefined, 'ответ не по-русски');
+    assert.equal(problemOf('Разбито стекло.\nРекомендую вызвать мастера'), undefined, 'две строки это уже совет');
+    assert.equal(problemOf('В'.repeat(120)), undefined, 'слишком длинно для названия');
+  });
+});
 
 describe('снимки и голосовые через GigaChat', () => {
   it('число с табло читается ответом модели', async () => {

@@ -239,6 +239,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'აღწერეთ სიტყვებით, რა მოხდა. გამოდგება ფოტო და ფაილი.',
   'dialog.photo_ask': 'რა არის სურათზე? დაწერეთ სიტყვებით.',
+  'dialog.photo_guess': 'როგორც ჩანს, სურათზეა: «{что}». გაგზავნეთ განაცხადი ასე ან დაწერეთ საკუთარი სიტყვებით.',
   'dialog.one_line': 'დაწერეთ ერთი სტრიქონით, რა მოხდა.',
   'dialog.unknown_attachment':
     'ასეთ დანართს ვერ გავარჩევ. დაწერეთ სიტყვებით ან გამოაგზავნეთ ფოტო ან ფაილი.',
@@ -386,6 +387,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 მენიუ',
   'button.back': '⬅️ უკან',
   'button.cancel': '✖️ გაუქმება',
+  'button.photo_yes': '✅ ასე გაგზავნა',
   'button.open_app': '📱 აპლიკაციის გახსნა',
   'button.in_app': 'გახსნა აპლიკაციაში',
   'button.in_app_short': 'აპლიკაციაში',

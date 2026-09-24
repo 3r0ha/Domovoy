@@ -180,11 +180,14 @@ const STATUS_KEYS: Record<string, string> = {
 };
 
 /** Текст уведомления о смене статуса. */
-export const formatStatusChange = (t: Translate, request: ServiceRequest): string => {
+export const formatStatusChange = (t: Translate, request: ServiceRequest, worker?: string): string => {
   const key = STATUS_KEYS[request.status];
   const status = key ? t(key) : request.status;
   const last = request.history.at(-1);
   const comment = last?.comment ? `\n${last.comment}` : '';
+  // Кто придёт, жилец узнаёт сразу: «выполняется» без имени не говорит, кого ждать у двери.
+  // Строка общая с перепиской бота, через которую уведомление и доходит.
+  const who = worker ? `\n${t('bot.request.worker', { кто: worker })}` : '';
 
   return (
     t('app.notice.status', {
@@ -192,7 +195,9 @@ export const formatStatusChange = (t: Translate, request: ServiceRequest): strin
       состояние: status,
       суть: request.title,
       место: describePlace(request, t),
-    }) + comment
+    }) +
+    who +
+    comment
   );
 };
 

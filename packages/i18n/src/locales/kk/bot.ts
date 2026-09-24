@@ -238,6 +238,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Не болғанын сөзбен сипаттаңыз. Фото және файл да жарайды.',
   'dialog.photo_ask': 'Суретте не бар? Сөзбен жазыңыз.',
+  'dialog.photo_guess': 'Суретте мынау сияқты: «{что}». Өтінімді осылай жіберіңіз немесе өз сөзіңізбен жазыңыз.',
   'dialog.one_line': 'Не болғанын бір жолмен жазыңыз.',
   'dialog.unknown_attachment':
     'Мұндай тіркемені ажырата алмаймын. Сөзбен жазыңыз немесе фото не файл жіберіңіз.',
@@ -385,6 +386,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Мәзір',
   'button.back': '⬅️ Артқа',
   'button.cancel': '✖️ Болдырмау',
+  'button.photo_yes': '✅ Осылай жіберу',
   'button.open_app': '📱 Қосымшаны ашу',
   'button.in_app': 'Қосымшада ашу',
   'button.in_app_short': 'Қосымшада',

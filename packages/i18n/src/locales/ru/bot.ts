@@ -239,6 +239,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Опишите словами, что случилось. Подойдут фотография и файл.',
   'dialog.photo_ask': 'Что на снимке? Напишите словами.',
+  'dialog.photo_guess': 'Похоже, на снимке: «{что}». Отправить заявку так или напишите своими словами.',
   'dialog.one_line': 'Напишите одной строкой, что случилось.',
   'dialog.unknown_attachment':
     'Такое вложение я не разберу. Напишите словами или пришлите фотографию либо файл.',
@@ -386,6 +387,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Меню',
   'button.back': '⬅️ Назад',
   'button.cancel': '✖️ Отмена',
+  'button.photo_yes': '✅ Отправить так',
   'button.open_app': '📱 Открыть приложение',
   'button.in_app': 'Открыть в приложении',
   'button.in_app_short': 'В приложении',

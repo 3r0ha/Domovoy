@@ -16,6 +16,15 @@ export interface MeterVision {
   readUrl?(url: string): Promise<number | undefined>;
 }
 
+/**
+ * Что сломано на снимке жильца: одна короткая фраза для черновика заявки. Пусто,
+ * если неисправности не видно или модель не уверена. Заявку по догадке заводит
+ * только сам жилец, нажав «Отправить так».
+ */
+export interface PhotoSeer {
+  describeUrl(url: string): Promise<string | undefined>;
+}
+
 /** Отказ службы одним кодом: человеку говорят, что цифры вводятся руками. */
 export const visionFailed = (error: unknown): DomainError =>
   error instanceof DomainError

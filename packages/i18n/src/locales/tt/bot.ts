@@ -238,6 +238,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Нәрсә булганын сүзләр белән языгыз. Фото һәм файл да ярый.',
   'dialog.photo_ask': 'Рәсемдә нәрсә? Сүзләр белән языгыз.',
+  'dialog.photo_guess': 'Рәсемдә, ахры: «{что}». Гаризаны шулай җибәрегез яки үз сүзләрегез белән языгыз.',
   'dialog.one_line': 'Нәрсә булганын бер юлда языгыз.',
   'dialog.unknown_attachment':
     'Мондый кушымтаны аңлый алмыйм. Сүзләр белән языгыз яки фото яисә файл җибәрегез.',
@@ -385,6 +386,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Меню',
   'button.back': '⬅️ Артка',
   'button.cancel': '✖️ Баш тарту',
+  'button.photo_yes': '✅ Шулай җибәрү',
   'button.open_app': '📱 Кушымтаны ачу',
   'button.in_app': 'Кушымтада ачу',
   'button.in_app_short': 'Кушымтада',

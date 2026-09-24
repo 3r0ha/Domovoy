@@ -238,6 +238,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Nə baş verdiyini sözlə təsvir edin. Şəkil və fayl da uyğundur.',
   'dialog.photo_ask': 'Şəkildə nə var? Sözlə yazın.',
+  'dialog.photo_guess': 'Deyəsən, şəkildə: «{что}». Müraciəti belə göndərin və ya öz sözlərinizlə yazın.',
   'dialog.one_line': 'Nə baş verdiyini bir sətirlə yazın.',
   'dialog.unknown_attachment':
     'Belə əlavəni başa düşə bilmirəm. Sözlə yazın və ya şəkil, yaxud fayl göndərin.',
@@ -385,6 +386,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Menyu',
   'button.back': '⬅️ Geri',
   'button.cancel': '✖️ Ləğv et',
+  'button.photo_yes': '✅ Belə göndər',
   'button.open_app': '📱 Tətbiqi aç',
   'button.in_app': 'Tətbiqdə aç',
   'button.in_app_short': 'Tətbiqdə',

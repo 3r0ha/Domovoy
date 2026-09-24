@@ -266,6 +266,7 @@ export {
   visionFailed,
   type MeterVision,
   type MeterVisionDeps,
+  type PhotoSeer,
   type ReadMeterPhotoCommand,
 } from './meter-vision.js';
 export {

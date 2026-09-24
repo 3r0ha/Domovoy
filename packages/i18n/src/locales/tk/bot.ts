@@ -250,6 +250,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Näme bolanyny söz bilen ýazyň. Surat we faýl hem bolýar.',
   'dialog.photo_ask': 'Suratda näme bar? Söz bilen ýazyň.',
+  'dialog.photo_guess': 'Suratda şu görünýär: «{что}». Arzany şeýle iberiň ýa-da öz sözleriňiz bilen ýazyň.',
   'dialog.one_line': 'Näme bolanyny bir setirde ýazyň.',
   'dialog.unknown_attachment':
     'Beýle goşulan faýly saýgaryp bilemok. Söz bilen ýazyň ýa-da surat ýa-da faýl iberiň.',
@@ -404,6 +405,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Menýu',
   'button.back': '⬅️ Yza',
   'button.cancel': '✖️ Ýatyrmak',
+  'button.photo_yes': '✅ Şeýle ibermek',
   'button.open_app': '📱 Goşundyny açmak',
   'button.in_app': 'Goşundyda açmak',
   'button.in_app_short': 'Goşundyda',

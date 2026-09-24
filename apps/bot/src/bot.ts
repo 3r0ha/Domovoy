@@ -9,6 +9,7 @@ import {
   type Building,
   type Resident,
   type MeterVision,
+  type PhotoSeer,
   type Transcriber,
 } from '@domovoy/app';
 import {
@@ -237,6 +238,8 @@ export interface BotOptions {
   transcriber?: Transcriber;
   /** Распознавание показаний с фотографии табло. Без него их вводят цифрами. */
   vision?: MeterVision;
+  /** Догадка, что сломано на снимке без слов. Без неё жильца просто спрашивают словами. */
+  seer?: PhotoSeer;
   /** Где хранится позиция в потоке апдейтов. */
   markerStore?: MarkerStore;
   /** Куда сообщать об ошибке обработки апдейта. */
@@ -630,7 +633,7 @@ export const createDomovoyBot = (
     ...(options.siteUrl ? { siteUrl: options.siteUrl } : {}),
     ...(options.demo ? { demo: true } : {}),
     ...(options.transcriber ? { transcriber: options.transcriber } : {}),
-    ...(options.vision ? { vision: options.vision } : {}),
+    ...(options.vision ? { vision: options.vision } : {}), ...(options.seer ? { seer: options.seer } : {}),
     residentOf,
     houseOf,
     chatHelp,

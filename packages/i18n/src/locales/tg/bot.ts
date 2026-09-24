@@ -241,6 +241,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Бо калима тасвир кунед, ки чӣ шуд. Сурат ва файл ҳам мешавад.',
   'dialog.photo_ask': 'Дар сурат чӣ аст? Бо калима нависед.',
+  'dialog.photo_guess': 'Чунин менамояд, ки дар сурат: «{что}». Дархостро ҳамин тавр фиристед ё бо суханони худ нависед.',
   'dialog.one_line': 'Бо як сатр нависед, ки чӣ шуд.',
   'dialog.unknown_attachment':
     'Чунин замимаро ман намефаҳмам. Бо калима нависед ё сурат ё файл фиристед.',
@@ -390,6 +391,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Меню',
   'button.back': '⬅️ Бозгашт',
   'button.cancel': '✖️ Бекор кардан',
+  'button.photo_yes': '✅ Ҳамин тавр фиристодан',
   'button.open_app': '📱 Барномаро кушодан',
   'button.in_app': 'Дар барнома кушодан',
   'button.in_app_short': 'Дар барнома',

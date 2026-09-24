@@ -110,6 +110,10 @@ services:
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       # Проверка ролями: значение 1 включает примерку роли в боте и приложении.
       DEMO_ROLES: ${DEMO_ROLES:-}
+      # Виртуальная смена: значение 1 ведёт заявку проверяющего сотрудниками набора.
+      DEMO_SHIFT: ${DEMO_SHIFT:-}
+      # Пересев набора для показа по ночам: час по Москве.
+      DEMO_RESEED_HOUR: ${DEMO_RESEED_HOUR:-}
       # Корень доверия для Bot API MAX: в образе он лежит рядом с продуктом.
       NODE_EXTRA_CA_CERTS: ${NODE_EXTRA_CA_CERTS:-/app/certs/russian-trusted-root-ca.pem}
     # Внешние службы разбора и распознавания часто подняты рядом на машине,

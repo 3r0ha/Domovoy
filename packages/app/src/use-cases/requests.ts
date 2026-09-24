@@ -327,6 +327,16 @@ const auditTransition = async (
   });
 };
 
+/** Исполнитель заявки, которая только что ушла в работу: его имя жилец видит в уведомлении. */
+const startedBy = async (
+  deps: AppDeps,
+  before: ServiceRequest,
+  saved: ServiceRequest,
+): Promise<Resident | undefined> =>
+  saved.status === 'in_progress' && before.status !== 'in_progress' && saved.assigneeId
+    ? deps.repository.findResident(saved.assigneeId)
+    : undefined;
+
 /** Кому уходит смена статуса: заявителям, старшему по подъезду и новому исполнителю. */
 const tellAboutTransition = async (
   deps: AppDeps,
@@ -344,6 +354,8 @@ const tellAboutTransition = async (
       ? undefined
       : elderNow(await deps.repository.listElderships(saved.buildingId), entrance, deps.now());
 
+  const worker = await startedBy(deps, before, saved);
+
   for (const id of new Set([...reporterIds(saved), ...(elder ? [elder.residentId] : [])])) {
     if (id === command.resident.id) continue;
 
@@ -352,7 +364,7 @@ const tellAboutTransition = async (
     await notifyResident(
       notifier,
       person,
-      formatStatusChange(speak(person), saved),
+      formatStatusChange(speak(person), saved, worker?.displayName),
       person ? actionsFor(saved, person) : [],
       OPEN_STATUSES.includes(saved.status) ? saved.id : undefined,
     );

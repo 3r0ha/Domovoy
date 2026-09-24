@@ -38,7 +38,7 @@ export interface DialogSession {
 
 /** Чего бот ждёт от следующего сообщения. Ожидание всегда одно. */
 export type Awaiting =
-  | { kind: 'description'; target?: string; photos?: Attachment[]; said?: string }
+  | { kind: 'description'; target?: string; photos?: Attachment[]; said?: string; guess?: string }
   | { kind: 'support'; ticketId?: string }
   | { kind: 'reading'; meterId: string }
   | { kind: 'message'; requestId: string }

@@ -239,6 +239,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Նկարագրեք բառերով, թե ինչ է պատահել։ Կգան լուսանկար և ֆայլ։',
   'dialog.photo_ask': 'Ի՞նչ է նկարում։ Գրեք բառերով։',
+  'dialog.photo_guess': 'Կարծես նկարում է՝ «{что}»։ Ուղարկե՞լ հայտն այսպես, թե գրեք ձեր բառերով։',
   'dialog.one_line': 'Գրեք մեկ տողով, թե ինչ է պատահել։',
   'dialog.unknown_attachment':
     'Այդպիսի կցորդ չեմ հասկանա։ Գրեք բառերով կամ ուղարկեք լուսանկար կամ ֆայլ։',
@@ -386,6 +387,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Մենյու',
   'button.back': '⬅️ Հետ',
   'button.cancel': '✖️ Չեղարկել',
+  'button.photo_yes': '✅ Ուղարկել այսպես',
   'button.open_app': '📱 Բացել հավելվածը',
   'button.in_app': 'Բացել հավելվածում',
   'button.in_app_short': 'Հավելվածում',

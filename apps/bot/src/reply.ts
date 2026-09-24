@@ -8,7 +8,15 @@ import {
   type Resident,
   type SubmitResult,
 } from '@domovoy/app';
-import { categoryKey, describeTarget, emergencyHint, formatMoment, statusTitle, targetName } from '@domovoy/domain';
+import {
+  categoryKey,
+  describeTarget,
+  emergencyHint,
+  formatMoment,
+  statusTitle,
+  targetName,
+  type RequestStatus,
+} from '@domovoy/domain';
 import { languageTitle, translatorFor, type Translate } from '@domovoy/i18n';
 import { Keyboard } from '@maxkit/max-bot-api';
 
@@ -169,6 +177,12 @@ const placeOf = async (
 };
 
 /** Что жилец узнаёт в ответ на своё обращение. */
+/**
+ * Состояние заявки для присоединившегося соседа. Уточнение ждут от автора, а не
+ * от него: «ждёт ответа жильца» он принимал на свой счёт. Для него заявка принята.
+ */
+const joinedStatus = (status: RequestStatus): RequestStatus => (status === 'needs_info' ? 'accepted' : status);
+
 export const announce = async (
   kit: BotKit,
   typed: BotContext,
@@ -226,7 +240,7 @@ export const announce = async (
 
   if (result.kind === 'joined') {
     await typed.reply(
-      `${t('request.joined', { номер: created.number, состояние: statusTitle(created.status, false, t) })}\n` +
+      `${t('request.joined', { номер: created.number, состояние: statusTitle(joinedStatus(created.status), false, t) })}\n` +
         `${t('request.what', { что: t(categoryKey(created.category)), где: place })}\n` +
         `${t('request.joined_you', {
           который: result.reporters,

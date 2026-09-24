@@ -385,6 +385,28 @@ const anyway: Button = async (kit, typed) => {
   await kit.announce(typed, result, description, startParam);
 };
 
+/**
+ * «Отправить так»: заявка по догадке со снимка. Её заводит сам жилец нажатием,
+ * со снимками, которые он прислал. Устаревшая кнопка ничего не заводит.
+ */
+const photo: Button = async (kit, typed, [step]) => {
+  const waited = typed.session?.awaiting;
+
+  if (step !== 'yes' || waited?.kind !== 'description' || !waited.guess) return stale(typed, kit);
+
+  forget(typed);
+
+  const author = await kit.residentOf(typed);
+  const result = await submitProblem(kit.deps, {
+    resident: author,
+    description: waited.guess,
+    ...(waited.photos?.length ? { attachments: waited.photos } : {}),
+    ...(waited.target ? { startParam: waited.target } : {}),
+  });
+
+  await kit.announce(typed, result, waited.guess, waited.target);
+};
+
 /** Голос на собрании. В чате виден результат, а сам голос уходит в переписку. */
 const ballot: Button = async (kit, typed, [pollId, choice]) => {
   if (!pollId || !choice) return stale(typed, kit);
@@ -1439,6 +1461,7 @@ const legal: Button = async (kit, typed, [step]) => {
 
 export const BUTTONS: Record<string, Button> = {
   app,
+  photo,
   meter,
   mydata,
   rate,

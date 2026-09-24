@@ -38,6 +38,7 @@ import { createClient } from 'redis';
 
 import { createApartmentCode } from './codes.js';
 import { demoDevices, demoDoorHistory, demoSensorContact, seedDemo } from './demo.js';
+import { advanceDemoShift } from './demo-shift.js';
 import { realPeople, restorePeople } from './reseed.js';
 import { meterVisionFromEnv } from './meter-vision.js';
 import { fileSweepStore, sharedSweepStore } from './sweep-store.js';
@@ -440,6 +441,7 @@ const main = async (): Promise<void> => {
     ...(demo ? { demo: true } : {}),
     ...(transcriber ? { transcriber } : {}),
     ...(vision ? { vision } : {}),
+    ...(files?.seer ? { seer: files.seer } : {}),
     ...(process.env['MAX_API_URL'] ? { baseUrl: process.env['MAX_API_URL'] } : {}),
     ...(process.env['MINI_APP_URL'] ? { miniAppUrl: process.env['MINI_APP_URL'] } : {}),
     // Адрес сайта: по нему бот даёт ссылки на политику и соглашение.
@@ -568,6 +570,28 @@ const main = async (): Promise<void> => {
 
   sweep.unref();
 
+  // Демонстрационная установка: заявку проверяющего ведёт виртуальная смена набора.
+  const SHIFT_INTERVAL_MS = 10_000;
+  const shiftDeps = { ...deps, notifier: bot.deps.notifier };
+  const shift =
+    process.env['DEMO_SHIFT'] === '1'
+      ? setInterval(() => {
+          const run = async (): Promise<void> => {
+            const moved = await advanceDemoShift(shiftDeps);
+
+            if (moved > 0) console.log(`Виртуальная смена: заявок сдвинуто ${moved}`);
+          };
+
+          void (lock ? lock('domovoy:demo-shift', run) : run()).catch((error: unknown) =>
+            console.error('Виртуальная смена не отработала', error),
+          );
+        }, SHIFT_INTERVAL_MS)
+      : undefined;
+
+  shift?.unref();
+
+  if (shift) console.warn('DEMO_SHIFT=1: заявки проверяющих ведёт виртуальная смена набора');
+
   await server.listen({ port, host: '0.0.0.0' });
   console.log(`API слушает порт ${port}, бот запущен`);
 
@@ -577,6 +601,7 @@ const main = async (): Promise<void> => {
     console.log('Останавливаемся…');
 
     clearInterval(sweep);
+    if (shift) clearInterval(shift);
     if (reseeding) clearInterval(reseeding);
     await server.close();
     await (receiver ? receiver.drain() : bot.supervisor.stop());

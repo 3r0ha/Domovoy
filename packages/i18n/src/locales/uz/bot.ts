@@ -243,6 +243,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Nima boʻlganini soʻz bilan tasvirlang. Surat va fayl ham boʻladi.',
   'dialog.photo_ask': 'Suratda nima? Soʻz bilan yozing.',
+  'dialog.photo_guess': 'Suratda shunga oʻxshaydi: «{что}». Arizani shunday yuboring yoki oʻz soʻzlaringiz bilan yozing.',
   'dialog.one_line': 'Nima boʻlganini bir qatorda yozing.',
   'dialog.unknown_attachment':
     'Bunday ilovani men tushunmayman. Soʻz bilan yozing yoki surat yoxud fayl yuboring.',
@@ -391,6 +392,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Menyu',
   'button.back': '⬅️ Orqaga',
   'button.cancel': '✖️ Bekor qilish',
+  'button.photo_yes': '✅ Shunday yuborish',
   'button.open_app': '📱 Ilovani ochish',
   'button.in_app': 'Ilovada ochish',
   'button.in_app_short': 'Ilovada',

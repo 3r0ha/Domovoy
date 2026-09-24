@@ -1,4 +1,4 @@
-import type { AppDeps, Building, MeterVision, Resident, SubmitResult, Transcriber } from '@domovoy/app';
+import type { AppDeps, Building, MeterVision, PhotoSeer, Resident, SubmitResult, Transcriber } from '@domovoy/app';
 import type { Bot } from '@maxkit/max-bot-api';
 
 import type { BotContext } from './max.js';
@@ -32,6 +32,8 @@ export interface BotKit {
   transcriber?: Transcriber;
   /** Показание с фотографии табло. Без него его вводят цифрами. */
   vision?: MeterVision;
+  /** Догадка, что сломано на снимке без слов: её показывают, отправляет жилец. */
+  seer?: PhotoSeer;
   /** Вопрос о доме получает ответ вместо заявки. Возвращает true, если ответил. */
   answered: (typed: BotContext, resident: Resident, description: string, startParam?: string) => Promise<boolean>;
   /** Что жилец узнаёт в ответ на своё обращение. */

@@ -1,4 +1,4 @@
-import type { MeterVision, Transcriber } from '@domovoy/app';
+import type { MeterVision, PhotoSeer, Transcriber } from '@domovoy/app';
 import { DomainError } from '@domovoy/domain';
 import { languageScript, languageTitle, type Language } from '@domovoy/i18n';
 
@@ -37,6 +37,40 @@ const ABOUT_METER =
   'Ответь одним числом без пояснений, например «01234,567». ' +
   'Если на снимке нет табло счётчика, ответь «нет». ' +
   'Если табло есть, но цифры не прочитать или рядов цифр несколько, ответь «неясно».';
+
+/**
+ * Снимок поломки. Модель не должна угадывать: неуверенный ответ и снимок не о
+ * доме дают «нет», и тогда жильца просто спрашивают словами, как раньше.
+ */
+const ABOUT_PROBLEM =
+  'Это снимок, который жилец многоквартирного дома прислал в управляющую организацию. ' +
+  'Если на нём ясно видна неисправность в доме или в квартире (течь, разбитое стекло, ' +
+  'сломанная дверь, погасший свет, мусор, повреждённая труба, лифт, домофон), назови её ' +
+  'одной короткой фразой по-русски: что сломано и где, например «Разбито стекло в окне на лестнице». ' +
+  'Не больше десяти слов, без вступления, без кавычек и без советов. ' +
+  'Если неисправности не видно, на снимке люди, документы, экран или что-то непонятное, ' +
+  'или ты не уверен, ответь одним словом «нет».';
+
+/** Самая длинная догадка, которую стоит показывать: длиннее это уже рассуждение. */
+const MAX_GUESS_LENGTH = 90;
+
+/** Догадка о поломке из ответа модели. Пусто, если модель не уверена или ответила не по делу. */
+export const problemOf = (said: string): string | undefined => {
+  const text = said
+    .trim()
+    .replace(/^[«"']+/u, '')
+    .replace(/[»"']+([.!?…]*)$/u, '$1')
+    .replace(/[.!…]+$/u, '')
+    .trim();
+
+  if (text.length === 0 || text.length > MAX_GUESS_LENGTH || text.includes('\n')) return undefined;
+  if (NOTHING.test(text) || UNCLEAR.test(text) || RETOLD.test(text) || foreign(text, 'ru')) return undefined;
+
+  // Ответ начинается с описания снимка, а не с поломки: это пересказ, а не название.
+  if (/^(?:на\s+(?:снимке|фото|изображении)|я\s+вижу|вижу)/iu.test(text)) return undefined;
+
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
 
 /** Язык говорящего дописывается к просьбе: без него модель ждёт русскую речь. */
 const aboutVoice = (language: Language | undefined): string =>
@@ -143,7 +177,7 @@ const prepareVoice = (bytes: Uint8Array): { file: Blob; name: string } => {
 
 export const createGigaChatFiles = (
   options: GigaChatFilesOptions,
-): { vision: MeterVision; transcriber: Transcriber } => {
+): { vision: MeterVision; transcriber: Transcriber; seer: PhotoSeer } => {
   const doFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   const base = options.baseUrl ?? BASE_URL;
   const timeoutMs = options.timeoutMs ?? TIMEOUT_MS;
@@ -305,7 +339,17 @@ export const createGigaChatFiles = (
     },
   };
 
-  return { vision, transcriber };
+  const seer: PhotoSeer = {
+    async describeUrl(url) {
+      if (!isDownloadable(url)) return undefined;
+
+      const said = await askAbout(url, asImage, ABOUT_PROBLEM, MAX_IMAGE_BYTES);
+
+      return said === undefined ? undefined : problemOf(said);
+    },
+  };
+
+  return { vision, transcriber, seer };
 };
 
 /**
@@ -315,7 +359,7 @@ export const createGigaChatFiles = (
 export const gigaChatFilesFromEnv = (
   env: Record<string, string | undefined>,
   onError?: (error: unknown) => void,
-): { vision: MeterVision; transcriber: Transcriber } | undefined => {
+): { vision: MeterVision; transcriber: Transcriber; seer: PhotoSeer } | undefined => {
   const authKey = env['GIGACHAT_AUTH_KEY']?.trim();
 
   if (!authKey) return undefined;

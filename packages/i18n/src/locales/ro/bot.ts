@@ -272,6 +272,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Descrieți în cuvinte ce s-a întâmplat. Merg fotografia și fișierul.',
   'dialog.photo_ask': 'Ce este în imagine? Scrieți în cuvinte.',
+  'dialog.photo_guess': 'Se pare că în imagine este: «{что}». Trimiteți cererea așa sau scrieți cu cuvintele dvs.',
   'dialog.one_line': 'Scrieți într-un rând ce s-a întâmplat.',
   'dialog.unknown_attachment':
     'Un astfel de atașament nu îl pot desluși. Scrieți în cuvinte sau trimiteți o fotografie ori un fișier.',
@@ -439,6 +440,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Meniu',
   'button.back': '⬅️ Înapoi',
   'button.cancel': '✖️ Anulare',
+  'button.photo_yes': '✅ Trimite așa',
   'button.open_app': '📱 Deschide aplicația',
   'button.in_app': 'Deschide în aplicație',
   'button.in_app_short': 'În aplicație',

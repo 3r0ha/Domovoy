@@ -251,6 +251,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': 'Describe in words what happened. A photo and a file will do.',
   'dialog.photo_ask': 'What is in the photo? Write in words.',
+  'dialog.photo_guess': 'It looks like the photo shows: «{что}». Send the request like this or write in your own words.',
   'dialog.one_line': 'Write in one line what happened.',
   'dialog.unknown_attachment':
     'I cannot make out such an attachment. Write in words or send a photo or a file.',
@@ -408,6 +409,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 Menu',
   'button.back': '⬅️ Back',
   'button.cancel': '✖️ Cancel',
+  'button.photo_yes': '✅ Send like this',
   'button.open_app': '📱 Open the app',
   'button.in_app': 'Open in the app',
   'button.in_app_short': 'In the app',

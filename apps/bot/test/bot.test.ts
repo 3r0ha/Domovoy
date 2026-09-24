@@ -17,6 +17,7 @@ import {
   type AppDeps,
   type Device,
   type MeterVision,
+  type PhotoSeer,
   type Resident,
   type Transcriber,
 } from '@domovoy/app';
@@ -226,6 +227,8 @@ describe('чат-бот управляющей организации', () => {
       transcriber?: Transcriber;
       /** Показание с фотографии табло: в проверках отвечает заглушкой. */
       vision?: MeterVision;
+      /** Догадка по снимку поломки: в проверках отвечает заглушкой. */
+      seer?: PhotoSeer;
       onNotifyError?: (error: unknown) => void;
       /** Начало отсчёта: нужно тестам про сроки. */
       now?: () => Date;
@@ -2145,6 +2148,53 @@ describe('чат-бот управляющей организации', () => {
 
     assert.equal(mute?.description, 'Разбито стекло на площадке');
     assert.equal(mute?.attachments[0]?.kind, 'photo', 'снимок дождался слов и ушёл в заявку');
+
+    await bot.stop();
+  });
+
+  it('снимок без слов: догадку модели показывают, а заявку по ней заводит жилец', async () => {
+    const seen: string[] = [];
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      seer: {
+        describeUrl: (url) => {
+          seen.push(url);
+          return Promise.resolve('Разбито стекло в окне на лестнице');
+        },
+      },
+    });
+
+    mariaSends('mid-photo-guess', PHOTO);
+
+    const offered = await waitForMessage(3003, /Похоже, на снимке/u);
+
+    assert.match(offered, /Разбито стекло в окне на лестнице/u);
+    assert.deepEqual(seen, ['https://max.test/photo.jpg']);
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0, 'заявка ушла по догадке без нажатия');
+
+    platform.userPressesButton('photo:yes', { userId: 3003, chatId: 3003 });
+    await waitForMessage(3003, /принята/u);
+
+    const [sent] = await bot.deps.repository.listRequests({});
+
+    assert.equal(sent?.description, 'Разбито стекло в окне на лестнице');
+    assert.equal(sent?.attachments[0]?.kind, 'photo');
+
+    await bot.stop();
+  });
+
+  it('модель не уверена или молчит: жильца спрашивают словами, как раньше', async () => {
+    const bot = await start([RESIDENT_WITH_FLAT], {
+      seer: { describeUrl: () => Promise.reject(new Error('модель недоступна')) },
+    });
+
+    mariaSends('mid-photo-silent', PHOTO);
+    await waitForMessage(3003, /Что на снимке/u);
+
+    // Устаревшая кнопка догадки заявку не заводит.
+    platform.userPressesButton('photo:yes', { userId: 3003, chatId: 3003 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    assert.equal((await bot.deps.repository.listRequests({})).length, 0);
 
     await bot.stop();
   });

@@ -65,6 +65,7 @@ import {
   metersForValueKeyboard,
   metersKeyboard,
   oneKeyboard,
+  photoGuessKeyboard,
   readingKeyboard,
   replyIfOpen,
   complaintKeyboard,
@@ -369,7 +370,9 @@ const doneByWords = async (
  * заводится, даже если расшифровать не вышло.
  */
 const askAboutPhoto = async (
+  kit: BotKit,
   typed: BotContext,
+  resident: Resident,
   said: Said,
   attachments: Attachment[],
   startParam: string | undefined,
@@ -378,11 +381,34 @@ const askAboutPhoto = async (
   if (said.text?.trim() || attachments.length === 0) return false;
   if (attachments.some((file) => file.kind === 'voice')) return false;
 
-  expect(typed, { kind: 'description', ...(startParam ? { target: startParam } : {}), photos: attachments });
+  const guess = await guessFromPhoto(kit, resident, attachments);
 
-  await typed.reply(t('dialog.photo_ask'), cancelKeyboard(t));
+  expect(typed, {
+    kind: 'description',
+    ...(startParam ? { target: startParam } : {}),
+    photos: attachments,
+    ...(guess ? { guess } : {}),
+  });
+
+  await typed.reply(
+    guess ? t('dialog.photo_guess', { что: guess }) : t('dialog.photo_ask'),
+    guess ? photoGuessKeyboard(t) : cancelKeyboard(t),
+  );
 
   return true;
+};
+
+/**
+ * Догадка, что сломано, по первому снимку. Модель отвечает по-русски, поэтому
+ * догадку видят только те, кто пишет по-русски. Сбой службы, неуверенный ответ
+ * или снимок не о доме оставляют прежний вопрос словами.
+ */
+const guessFromPhoto = async (kit: BotKit, resident: Resident, attachments: Attachment[]): Promise<string | undefined> => {
+  const photo = attachments.find((file) => file.kind === 'photo')?.token;
+
+  if (!kit.seer || !photo || (resident.language !== undefined && resident.language !== 'ru')) return undefined;
+
+  return kit.seer.describeUrl(photo).catch(() => undefined);
 };
 
 const describeProblem = async (
@@ -412,7 +438,7 @@ const describeProblem = async (
       return;
     }
 
-    if (await askAboutPhoto(typed, said, attachments, startParam, t)) return;
+    if (await askAboutPhoto(kit, typed, resident, said, attachments, startParam, t)) return;
 
     // Сказанное словами, набрано оно или надиктовано, разбирается одинаково:
     // вопрос, дело по заявке, просьба. Снимок и файл идут только в заявку.

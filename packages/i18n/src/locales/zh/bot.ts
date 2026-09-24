@@ -229,6 +229,7 @@ export const bot: Dictionary = {
 
   'dialog.describe': '请用文字描述发生了什么。照片和文件都可以。',
   'dialog.photo_ask': '照片上是什么？请用文字写明。',
+  'dialog.photo_guess': '照片上似乎是：«{что}»。可以这样提交，或用自己的话写明。',
   'dialog.one_line': '请用一行写明发生了什么。',
   'dialog.unknown_attachment': '这种附件我无法识别。请用文字写明，或发送照片或文件。',
   'dialog.need_text': '这里需要文字：请用消息写下回复。',
@@ -372,6 +373,7 @@ export const bot: Dictionary = {
   'button.menu': '🏠 菜单',
   'button.back': '⬅️ 返回',
   'button.cancel': '✖️ 取消',
+  'button.photo_yes': '✅ 就这样提交',
   'button.open_app': '📱 打开应用',
   'button.in_app': '在应用中打开',
   'button.in_app_short': '在应用里',
