@@ -11,13 +11,14 @@
     "test": "tsc -p tsconfig.test.json && node --test test/*.test.ts"
   },
   "dependencies": {
+    "@domovoy/i18n": "0.1.0",
     "@maxhub/max-ui": "^0.4.0",
     "@maxkit/bridge": "0.1.0",
     "@maxkit/devhost": "0.1.0",
     "@maxkit/react": "0.1.0",
+    "@phosphor-icons/react": "^2.1.10",
     "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "@domovoy/i18n": "0.1.0"
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.13.2",

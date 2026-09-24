@@ -39,7 +39,7 @@ export const TabBar = ({ sections, current, waiting, hidden = [], onPick }: TabB
             onClick={() => onPick(section.screen)}
           >
             <span className="tab-icon">
-              <section.icon />
+              <section.icon filled={current === section.screen} />
 
               {badge > 0 ? (
                 <span className="badge-count" aria-label={t('chrome.waiting', { число: badge })}>

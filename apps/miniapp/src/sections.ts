@@ -16,6 +16,7 @@ import {
   IconMeters,
   IconMore,
   IconNews,
+  IconPayment,
   IconPeople,
   IconPerson,
   IconPolls,
@@ -27,6 +28,7 @@ import {
   IconSend,
   IconSticker,
   IconWrench,
+  type IconProps,
 } from './screens/icons.js';
 
 export interface Section {
@@ -35,7 +37,7 @@ export interface Section {
   /** Пояснение в списке «Ещё»: в нижней панели для него нет места. */
   hint: string;
   /** Значок для нижней панели: подпись рядом с ним остаётся. */
-  icon: () => ReactNode;
+  icon: (props?: IconProps) => ReactNode;
   /** Цвет плитки в списке «Ещё». */
   tone: string;
   /** Подпись группы в списке «Ещё»: у смены разделов много. */
@@ -50,7 +52,7 @@ const residentSections = (t: Translate): readonly Section[] => [
     screen: 'meters',
     title: t('sections.meters.title'),
     hint: t('sections.meters.hint'),
-    icon: IconMeters,
+    icon: IconPayment,
     tone: 'tile-yellow',
   },
   { screen: 'news', title: t('sections.news.title'), hint: t('sections.news.hint'), icon: IconNews, tone: 'tile-orange' },
@@ -121,7 +123,7 @@ const contractorExtra = (t: Translate): readonly Section[] => [
     screen: 'meters',
     title: t('sections.meters.title'),
     hint: t('sections.meters.hint.own'),
-    icon: IconMeters,
+    icon: IconPayment,
     tone: 'tile-yellow',
   },
   {
@@ -277,7 +279,7 @@ const STAFF_EXTRA: readonly Section[] = [
     tone: 'tile-orange',
     group: 'Дом',
   },
-  { screen: 'meters', title: 'Оплата', hint: 'Ваша квитанция', icon: IconMeters, tone: 'tile-yellow', group: 'Своё' },
+  { screen: 'meters', title: 'Оплата', hint: 'Ваша квитанция', icon: IconPayment, tone: 'tile-yellow', group: 'Своё' },
   {
     screen: 'quality',
     title: 'Работа дома',

@@ -10,6 +10,7 @@ import {
   IconWater,
   IconWrench,
   IconYard,
+  type IconProps,
 } from './icons.js';
 
 /**
@@ -18,7 +19,7 @@ import {
  * рядом с красной полосой аварии читалась как «здесь авария» на любой
  * заявке о лифте. Что за поломка, говорит рисунок.
  */
-const ICONS: Record<string, () => ReactNode> = {
+const ICONS: Record<string, (props?: IconProps) => ReactNode> = {
   elevator: IconElevator,
   plumbing: IconWater,
   heating: IconHeating,
