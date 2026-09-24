@@ -17,7 +17,7 @@ import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
-import { IconCalendar, IconPerson } from './icons.js';
+import { IconCalendar, IconClose, IconPerson } from './icons.js';
 import { RetryLink } from './Retry.js';
 import { Skeleton } from './Skeleton.js';
 
@@ -165,7 +165,7 @@ const Hours = ({
                 aria-label={`Убрать окно ${index + 1}`}
                 onClick={() => setWindows(windows.filter((_current, at) => at !== index))}
               >
-                ×
+                <IconClose />
               </button>
             </div>
           ))}
@@ -581,7 +581,7 @@ const ResidentVisits = ({ api, onSupport }: { api: DomovoyApi; onSupport?: () =>
       {days.map((day) => (
         <div key={day} className="list">
           <Group title={day}>
-            <div className="chips">
+            <div className="chips chips-grid">
               {view.slots
                 .filter((slot) => slot.day === day)
                 .map((slot) => (

@@ -628,7 +628,7 @@ export const miniapp: Dictionary = {
   'polls.voted.by': 'Голос квартиры подал {кто}: {голос}. Ваш голос заменит его.',
 
   'quality.average': 'Среднее время работы',
-  'quality.before': 'периодом раньше {было}',
+  'quality.before': 'прошлый период: {было}',
   'quality.closed': 'Закрыто',
   'quality.created': 'Заявок подано',
   'quality.failed': 'Работа дома недоступна',

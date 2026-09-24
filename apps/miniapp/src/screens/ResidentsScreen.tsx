@@ -373,10 +373,7 @@ const UnboundRow = ({
     <article className="request">
       <header>
         <strong>{resident.displayName}</strong>
-        <span className="row-state">
-          <span className="dot dot-warn" />
-          без квартиры
-        </span>
+        <span className="state state-wait">без квартиры</span>
       </header>
 
       <div className="bind">

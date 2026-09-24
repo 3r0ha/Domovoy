@@ -9,7 +9,7 @@ import { useT } from '../i18n.js';
 import { useFit } from './Composer.js';
 import { Domovoy } from './Domovoy.js';
 import { ErrorText } from './ErrorText.js';
-import { IconHelp, IconSend } from './icons.js';
+import { IconClose, IconHelp, IconSend } from './icons.js';
 import { VoiceButton } from './VoiceButton.js';
 
 export interface AssistantProps {
@@ -185,7 +185,7 @@ export const Assistant = ({ api, onGo, onLanguage, at, onClose }: AssistantProps
           <h2>{t('assistant.lead')}</h2>
 
           <button type="button" className="assistant-close" aria-label={t('assistant.close')} onClick={onClose}>
-            ×
+            <IconClose />
           </button>
         </header>
 

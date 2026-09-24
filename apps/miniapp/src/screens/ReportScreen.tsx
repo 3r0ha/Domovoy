@@ -3,9 +3,11 @@ import { useBridgeRequest } from '@maxkit/react';
 import { useState, type ReactNode } from 'react';
 
 import { ApiError, decimal, formatPublished, hours, type DomovoyApi, type PeriodSummaryView } from '../api.js';
+import { Amount } from './Amount.js';
 import { CategoryTile } from './CategoryTile.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
+import { IconDown, IconUp } from './icons.js';
 import { useToast } from '../toast.js';
 import { Skeleton } from './Skeleton.js';
 
@@ -48,7 +50,8 @@ const Change = ({
 
   return (
     <span className={`change${tone}`}>
-      {grew ? '↑' : '↓'} было {format ? format(before) : before}
+      {grew ? <IconUp /> : <IconDown />}
+      было {format ? format(before) : before}
     </span>
   );
 };
@@ -74,12 +77,7 @@ const Row = ({
     {...(before ? { before } : {})}
     title={title}
     subtitle={hint}
-    after={
-      <span className={plain ? 'report-value report-plain' : 'report-value'}>
-        {value}
-        <span className="report-unit">{unit ?? ''}</span>
-      </span>
-    }
+    after={<Amount value={value} {...(unit ? { unit } : {})} {...(plain ? { plain } : {})} />}
     separator
     height="compact"
   />

@@ -39,7 +39,7 @@ import { Clarify } from './Clarify.js';
 import { Confirm } from './Confirm.js';
 import { Responsibility } from './Responsibility.js';
 import { Skeleton } from './Skeleton.js';
-import { IconStar } from './icons.js';
+import { IconBack, IconStar } from './icons.js';
 
 export interface RequestScreenProps {
   api: DomovoyApi;
@@ -199,10 +199,10 @@ const surveyTitle = (t: Translate, state: string): string =>
 
 /** Точка последнего события повторяет цвет текущего состояния. */
 const TIP: Record<string, string> = {
-  confirmed: '#34c759',
+  confirmed: 'var(--success-tone)',
   rejected: 'var(--faint)',
-  needs_info: '#f5a623',
-  done: '#f5a623',
+  needs_info: 'var(--warning-tone)',
+  done: 'var(--warning-tone)',
 };
 
 /** Кто написал: своё сообщение подписывается «Вы». */
@@ -789,7 +789,8 @@ export const RequestScreen = ({
     <div className="list">
       {onBack ? (
         <button type="button" className="link back-link" onClick={onBack}>
-          <span aria-hidden="true">‹</span> {backTitle ?? t('request.back')}
+          <IconBack />
+          {backTitle ?? t('request.back')}
         </button>
       ) : null}
 
@@ -904,6 +905,7 @@ export const RequestScreen = ({
         staff={staff}
         closed={ended}
         {...(selfAssigned && meName ? { own: meName } : {})}
+        {...(view.assigneeName ? { worker: view.assigneeName } : {})}
         onChanged={reload}
       />
 

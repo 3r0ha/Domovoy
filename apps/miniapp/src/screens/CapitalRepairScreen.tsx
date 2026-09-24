@@ -24,9 +24,9 @@ const states = (t: Translate): Record<string, string> => ({
 });
 
 const TONE: Record<string, string> = {
-  planned: 'dot',
-  running: 'dot dot-work',
-  done: 'dot dot-good',
+  planned: 'state-muted',
+  running: 'state-work',
+  done: 'state-good',
 };
 
 const funds = (t: Translate): Record<string, string> => ({
@@ -84,12 +84,9 @@ export const CapitalRepairScreen = ({ api }: CapitalRepairScreenProps) => {
             <CellSimple
               key={`${work.title}-${work.year}`}
               title={work.title}
-              {...(work.note ? { subtitle: work.note } : {})}
+              subtitle={work.note ? `${work.year} · ${work.note}` : work.year}
               after={
-                <span className="row-state">
-                  <span className={TONE[work.state] ?? 'dot'} />
-                  {work.year}, {state[work.state] ?? work.state}
-                </span>
+                <span className={`state ${TONE[work.state] ?? 'state-muted'}`}>{state[work.state] ?? work.state}</span>
               }
               separator={index > 0}
             />

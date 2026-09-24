@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { money } from '../api.js';
 
 /**
@@ -11,7 +13,7 @@ export const Amount = ({
   className,
   plain,
 }: {
-  value: string | number;
+  value: ReactNode;
   unit?: string;
   /** На месте числа слово: «нет данных», «не оценивали». Весом оно не кричит. */
   plain?: boolean;

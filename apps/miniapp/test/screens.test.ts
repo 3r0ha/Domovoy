@@ -1369,9 +1369,8 @@ describe('очередь сотрудника', () => {
     const screen = await render(createElement(QueueScreen as never, { api, onOpen: () => {} } as never), bridge);
 
     assert.deepEqual(
-      // Неразрывный пробел держит номер при разделителе: сравниваем по обычному.
-      screen.findAll('.request-row .row-number').map((node) => (node.textContent ?? '').replace(/\s+/gu, ' ').trim()),
-      ['· Д15-2', '· Д15-3', '· Д15-1'],
+      screen.findAll('.request-row .row-number').map((node) => node.textContent),
+      ['Д15-2', 'Д15-3', 'Д15-1'],
     );
 
     await screen.unmount();
@@ -2311,9 +2310,12 @@ describe('сводка по дому', () => {
 
     assert.match(screen.text, /Склеено обращений/);
     assert.match(screen.text, /Дом сейчас/);
-    assert.match(screen.text, /↓ было 9/);
+    const change = (was: string): Element | undefined =>
+      screen.findAll('.change').find((line) => line.textContent === `было ${was}`);
+
+    assert.ok(change('9')?.querySelector('svg'), 'нет стрелки у «было 9»');
     assert.match(screen.text, /75%/);
-    assert.match(screen.text, /↑ было 50%/);
+    assert.ok(change('50%')?.querySelector('svg'), 'нет стрелки у «было 50%»');
     // Дробь через запятую, как и суммы, а единица стоит рядом отдельной частью.
     assert.match(screen.text, /Среднее время18,5ч/);
     assert.match(screen.text, /Авария: несколько обращений/);

@@ -54,26 +54,13 @@ export const RequestState = ({ status, staff }: { status: string; staff?: boolea
   );
 };
 
-/**
- * Срок в конце той же строки, что состояние и адрес. У просроченной заявки
- * на его месте стоит «просрочено 5 дней». Точка склеена с предыдущим словом:
- * иначе при переносе она повисает в начале следующей строки.
- */
+/** Срок в конце той же строки, что состояние и адрес. У просроченной заявки его нет: там плашка. */
 export const RequestDue = ({ dueAt, overdue }: { dueAt: string; overdue: boolean }) => {
   const t = useT();
 
   if (overdue) return null;
 
-  const left = dueNow(dueAt) ? t('request.due.soon') : formatLeft(dueAt);
-
-  // Пробел снаружи куска: перед точкой строка может перенестись, а сама точка
-  // остаётся со своим словом. Внутри куска переносу было негде случиться.
-  return (
-    <>
-      {' '}
-      <span className="row-due">{`·\u{a0}${left}`}</span>
-    </>
-  );
+  return <span className="row-part row-due">{dueNow(dueAt) ? t('request.due.soon') : formatLeft(dueAt)}</span>;
 };
 
 /** Состояние стоит под заголовком. */
@@ -116,31 +103,18 @@ export const RequestRow = ({
             ) : (
               <RequestState status={request.status} {...(staff ? { staff } : {})} />
             )}
-            {/* После плашки состояния разделителя нет: расстояние держит отступ.
-                Знак повисал в начале строки, когда адрес переносился. */}
             <span className="row-target">{tight(request.target)}</span>
-            {staff ? (
-              <>
-                {' '}
-                <span className="row-number">{`·\u{a0}${request.number}`}</span>
-              </>
-            ) : null}
+            {staff ? <span className="row-part row-number">{request.number}</span> : null}
 
             {/* Назначенное время визита важнее остатка срока: к нему ждут дома. */}
             {request.appointment?.at ? (
-              <>
-                {' '}
-                <span className="row-visit">
-                  {`·\u{a0}${t('day.visitAt', { когда: formatDayAt(request.appointment.at) })}`}
-                </span>
-              </>
+              <span className="row-part row-visit">
+                {t('day.visitAt', { когда: formatDayAt(request.appointment.at) })}
+              </span>
             ) : null}
 
             {request.machineTranslated ? (
-              <>
-                {' '}
-                <span className="row-machine">{`·\u{a0}${t('translation.machine')}`}</span>
-              </>
+              <span className="row-part row-machine">{t('translation.machine')}</span>
             ) : null}
 
             {/* Рядом с кнопкой строка коротка: срок в ней всё равно обрезался бы

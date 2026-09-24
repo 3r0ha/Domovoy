@@ -51,6 +51,9 @@ body::-webkit-scrollbar,
   --border: var(--divider-primary, rgb(12 13 14 / 16%));
   --warning: color-mix(in srgb, #e07b00 65%, var(--text));
   --success: color-mix(in srgb, #12b76a 62%, var(--text));
+  /* Те же тона заливкой: точки, полосы, подложки ярлыков. */
+  --warning-tone: #f5a623;
+  --success-tone: #2fb35a;
   --danger-text: color-mix(in srgb, var(--danger) 74%, var(--text));
   /* Цвет акцента буквами: сам акцент даёт 4:1 на белом и 3,3:1 на подложке 14%. */
   --accent-text: color-mix(in srgb, var(--accent) 82%, var(--text));
@@ -171,6 +174,8 @@ body::-webkit-scrollbar,
   --danger-solid: #c93b52;
   --warning: color-mix(in srgb, #ffb547 88%, var(--text));
   --success: color-mix(in srgb, #3dd68c 82%, var(--text));
+  --warning-tone: #ffb547;
+  --success-tone: #3dd68c;
 }
 
 /*
@@ -183,11 +188,11 @@ body::-webkit-scrollbar,
 }
 
 .app[class*='colorScheme_dark'] .state-wait {
-  background: color-mix(in srgb, #ffb547 18%, var(--card));
+  background: color-mix(in srgb, var(--warning-tone) 18%, var(--card));
 }
 
 .app[class*='colorScheme_dark'] .state-good {
-  background: color-mix(in srgb, #3dd68c 16%, var(--card));
+  background: color-mix(in srgb, var(--success-tone) 16%, var(--card));
 }
 
 .app[class*='colorScheme_dark'] .state-bad {
@@ -440,10 +445,11 @@ button.now-row {
 }
 
 .now-chevron {
+  display: inline-flex;
+  flex: none;
   margin-left: auto;
-  color: var(--faint);
-  font-size: 1.125rem;
-  line-height: 1;
+  color: var(--icon-tertiary, var(--faint));
+  font-size: 1.25rem;
 }
 
 .now-row:last-child {
@@ -724,25 +730,27 @@ button.link.danger-link {
 }
 
 .nearest-go {
+  display: inline-flex;
   flex: none;
-  color: var(--faint);
-  font-size: 1.5rem;
-  line-height: 1;
+  color: var(--icon-tertiary, var(--faint));
+  font-size: 1.25rem;
 }
 
 .nearest:active {
   background-color: var(--sunk);
 }
 
+/* Что сделать, подписью над заявкой: главное в карточке сама заявка, а не призыв. */
 .nearest-line {
-  font-size: var(--font-head);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  color: var(--accent-text);
+  font-size: var(--font-meta);
+  font-weight: 600;
 }
 
 .nearest-about {
-  color: var(--muted);
-  font-size: var(--font-meta);
+  font-size: var(--font-title);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 /* Просроченное называется цветом: это уже не срок, а нарушение. */
@@ -750,7 +758,7 @@ button.link.danger-link {
   color: var(--danger-text);
 }
 
-/* Состояние точкой и словом: объявления, счётчики, собрания, люди дома. */
+/* Строка с точкой: сроки работ в объявлениях, охват рассылки. Короткое состояние идёт плашкой. */
 .row-state {
   display: inline-flex;
   align-items: center;
@@ -781,7 +789,7 @@ button.link.danger-link {
 }
 
 .state-wait {
-  background: color-mix(in srgb, #f5a623 22%, transparent);
+  background: color-mix(in srgb, var(--warning-tone) 22%, transparent);
   color: var(--warning);
 }
 
@@ -833,7 +841,7 @@ button.link.danger-link {
 }
 
 .dot-warn {
-  background: #f5a623;
+  background: var(--warning-tone);
 }
 
 .dot-bad {
@@ -841,7 +849,7 @@ button.link.danger-link {
 }
 
 .dot-good {
-  background: #34c759;
+  background: var(--success-tone);
 }
 
 .dot-muted {
@@ -863,29 +871,44 @@ button.link.danger-link {
   gap: 2px 8px;
 }
 
+/*
+ * Куски строки: состояние, адрес, номер, срок. Каждый кусок стоит со своим
+ * отступом слева, в отступе точка-разделитель. Ряд сдвинут влево на ширину
+ * отступа и обрезан по краю: у куска, который открывает строку, точка уходит
+ * за край. Так разделитель есть только между кусками одной строки и не
+ * висит ни в начале, ни в конце при переносе.
+ */
 .row-where {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  row-gap: 2px;
   min-width: 0;
+  margin-left: -0.75em;
+  clip-path: inset(0 0 0 0.75em);
 }
 
-/*
- * Разделитель уезжает на новую строку вместе с тем, что после него: приклеенный
- * к предыдущему слову, он повисал в конце строки как «выполняется ·».
- */
-.row-target::before {
-  content: ' ·\00a0';
+.row-where > * {
+  min-width: 0;
+  margin-left: 0.75em;
 }
 
-/*
- * После плашки состояния разделителя нет. Плашка выше строки, и перенос
- * случается сразу за ней: точка оставалась висеть в начале следующей строки
- * как «· Подъезд 1». Расстояние держит отступ, а не знак.
- */
-.state + .row-target::before {
-  content: none;
+.row-where > .row-target,
+.row-where > .row-part {
+  margin-left: 0;
+  padding-left: 0.75em;
 }
 
-.row-line .state {
-  margin-right: 6px;
+.row-part {
+  position: relative;
+}
+
+.row-part::before {
+  content: '·';
+  position: absolute;
+  left: 0;
+  width: 0.75em;
+  text-align: center;
 }
 
 /* Рядом с кнопкой строке тесно: адрес встаёт под состоянием целиком, а не рвётся вокруг кнопки. */
@@ -896,11 +919,7 @@ button.link.danger-link {
   }
 
   .request-row-acting .row-target {
-    display: block;
-  }
-
-  .request-row-acting .row-target::before {
-    content: none;
+    flex-basis: 100%;
   }
 
   /* Номер третьей строкой не помещается: он есть в карточке заявки. */
@@ -1277,10 +1296,12 @@ input[type='search']::-webkit-search-decoration {
   padding: 0;
   border: 0;
   border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   color: var(--faint);
   font-size: 1.125rem;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -1526,11 +1547,12 @@ main > * > .loading:only-child {
   height: 44px;
   border: 0;
   border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgb(255 255 255 / 18%);
   color: #fff;
-  font: inherit;
-  font-size: 1.5rem;
-  line-height: 1;
+  font-size: 1.25rem;
   cursor: pointer;
 }
 
@@ -1980,6 +2002,15 @@ button.link.quiet {
 }
 
 /* Возврат к списку: нижние вкладки уводят из стопки, а эта ссылка на шаг назад. */
+.glyph {
+  flex: none;
+}
+
+/* У стрелки назад поле внутри рисунка: без сдвига она отходила от слова на пробел. */
+.back-link .glyph {
+  margin: 0 -0.15em 0 -0.2em;
+}
+
 .back-link {
   align-self: flex-start;
   min-width: 44px;
@@ -2183,7 +2214,9 @@ main > * > .empty:only-child {
 }
 
 .change {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin-top: 2px;
   color: var(--muted);
   font-size: var(--font-small);
@@ -2263,7 +2296,7 @@ button.flat {
 }
 
 .flat-open {
-  background: color-mix(in srgb, #f5a623 22%, transparent);
+  background: color-mix(in srgb, var(--warning-tone) 22%, transparent);
   color: var(--warning);
 }
 
@@ -2363,10 +2396,8 @@ button.flat {
 /* Знак валюты часть суммы, а не сноска при ней: вдвое мельче и серым он
    отрывался от числа и висел отдельным значком. */
 .currency {
-  margin-left: 4px;
-  font-size: 0.72em;
-  font-weight: 600;
-  color: var(--muted);
+  margin-left: 0.2em;
+  font-size: 0.8em;
 }
 
 .amount + .hint {
@@ -2429,6 +2460,10 @@ button.flat {
   background: var(--warning);
 }
 
+.bar + .hint.aside {
+  margin-top: 8px;
+}
+
 .quorum {
   margin-top: 14px;
 }
@@ -2449,7 +2484,7 @@ button.flat {
 }
 
 .quorum-fill-ok {
-  background: #34c759;
+  background: var(--success-tone);
 }
 
 .quorum-mark {
@@ -2479,8 +2514,13 @@ button.flat {
   }
 }
 
+/* Под отметкой кворума стоит подпись: место под неё держит полоса, а не текст ниже. */
+.quorum-bar-marked {
+  margin-bottom: 26px;
+}
+
 .quorum-meta {
-  margin: 22px 0 0;
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: var(--font-meta);
 }
@@ -3107,6 +3147,16 @@ button.chat-done {
   padding: 12px;
 }
 
+/* Часы приёма одной ширины: столбцы по ширине карточки, без пустого хвоста справа. */
+.chips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+}
+
+.chips-grid .chip {
+  padding-inline: 0;
+}
+
 /*
  * Свободный час и категория: заливка, а не пустая рамка. Прозрачная кнопка
  * с бледной рамкой стоит на карточке и читается как выключенная, а выбирать
@@ -3451,11 +3501,12 @@ select {
   margin: -6px -6px 0 auto;
   border: 0;
   border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--sunk);
   color: var(--muted);
-  font: inherit;
-  font-size: 1.5rem;
-  line-height: 1;
+  font-size: 1.25rem;
   cursor: pointer;
 }
 
@@ -3782,7 +3833,7 @@ select.building {
 }
 
 .star-on {
-  color: #f5a623;
+  color: var(--warning-tone);
 }
 
 /* Нажатие видно фоном, а не сжатием: палец на прокрутке задевает звёзды. */
@@ -4013,10 +4064,6 @@ button.link.danger-action {
   white-space: nowrap;
 }
 
-/*
- * Место под единицу держится всегда, даже когда её нет: иначе «12» упиралось
- * в правый край, а «67 %» кончалось на знаке, и числа в столбце шли уступом.
- */
 /* Слово на месте числа: «нет данных» весом числа читалось как главное в столбце. */
 .report-plain {
   color: var(--muted);
@@ -4024,8 +4071,13 @@ button.link.danger-action {
   font-weight: 400;
 }
 
+/*
+ * Место под единицу держится всегда, даже когда её нет: иначе «12» упиралось
+ * в правый край, а «67 %» кончалось на знаке, и числа в столбце шли уступом.
+ * Ширина по самому широкому из коротких знаков, «%».
+ */
 .report-unit {
-  min-width: 12px;
+  min-width: 1.2em;
   color: var(--muted);
   font-size: var(--font-meta);
   font-weight: 400;

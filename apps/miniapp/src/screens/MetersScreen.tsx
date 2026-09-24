@@ -224,13 +224,9 @@ const MeterCard = ({
         subtitle={sent ? was : meter.lastValue === undefined ? was : t('meters.last.was', { показание: was })}
         after={
           expired ? (
-            <span className="row-state">
-              <span className="dot dot-bad" />
-              {t('meters.verification.state')}
-            </span>
+            <span className="state state-bad">{t('meters.verification.state')}</span>
           ) : (
-            <span className="row-state">
-              <span className={meter.submittedThisMonth ? 'dot dot-good' : 'dot dot-muted'} />
+            <span className={meter.submittedThisMonth ? 'state state-good' : 'state state-muted'}>
               {meter.submittedThisMonth ? t('meters.state.sent') : t('meters.state.waiting')}
             </span>
           )

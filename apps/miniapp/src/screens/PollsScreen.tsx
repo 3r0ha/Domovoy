@@ -99,9 +99,9 @@ const PollCard = ({
     <article className="request poll">
       <header>
         <strong className="poll-title">{poll.title}</strong>
-        <span className="row-state">
-          <span className={poll.open || !poll.closedAt ? 'dot' : poll.passed ? 'dot dot-good' : 'dot dot-muted'} />
-
+        <span
+          className={`state ${poll.open || !poll.closedAt ? 'state-work' : poll.passed ? 'state-good' : 'state-muted'}`}
+        >
           {poll.open
             ? t('polls.state.open')
             : !poll.closedAt
@@ -148,7 +148,7 @@ const PollCard = ({
       ) : (
         <div className="quorum">
           <div
-            className="quorum-bar"
+            className={poll.quorumShare === undefined ? 'quorum-bar' : 'quorum-bar quorum-bar-marked'}
             role="progressbar"
             aria-label={t('polls.turnout.meeting')}
             aria-valuenow={Math.round(poll.turnout * 100)}
@@ -279,8 +279,7 @@ const InitiativeCard = ({
     <article className="request poll">
       <header>
         <strong className="poll-title">{initiative.title}</strong>
-        <span className="row-state">
-          <span className={initiative.enough ? 'dot dot-good' : 'dot'} />
+        <span className={initiative.enough ? 'state state-good' : 'state state-work'}>
           {initiative.enough ? t('polls.initiative.enough') : t('polls.initiative.collecting')}
         </span>
       </header>

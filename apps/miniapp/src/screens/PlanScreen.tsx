@@ -3,7 +3,7 @@ import { useBridgeRequest } from '@maxkit/react';
 import { type DomovoyApi, type HousePlanView, type PlanAlertView } from '../api.js';
 import { Empty } from './Empty.js';
 import { Failure } from './Failure.js';
-import { IconHome } from './icons.js';
+import { IconChevron, IconHome } from './icons.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface PlanScreenProps {
@@ -45,8 +45,8 @@ const Alerts = ({ alerts, onOpen }: { alerts: PlanAlertView[]; onOpen: (id: stri
     <button key={alert.id} type="button" className="now-row now-row-open" onClick={() => onOpen(alert.id)}>
       <span className={alert.emergency ? 'dot dot-bad' : 'dot'} />
       <span>{alert.title}</span>
-      <span className="now-chevron" aria-hidden="true">
-        ›
+      <span className="now-chevron">
+        <IconChevron />
       </span>
     </button>
   ));

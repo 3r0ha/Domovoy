@@ -5,6 +5,7 @@ import type { Translate } from '@domovoy/i18n';
 
 import { counted, type DomovoyApi, type QualityView } from '../api.js';
 import { useT } from '../i18n.js';
+import { Amount } from './Amount.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
 import { Skeleton } from './Skeleton.js';
@@ -96,14 +97,12 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
       <Group title={t('quality.now')}>
         <CellSimple
           title={t('quality.open')}
-          after={<span className="report-value">{data.open}</span>}
+          after={<Amount value={data.open} />}
           height="compact"
         />
         <CellSimple
           title={t('quality.overdue')}
-          after={
-            <span className={data.overdue > 0 ? 'report-value overdue' : 'report-value'}>{data.overdue}</span>
-          }
+          after={<Amount value={data.overdue} {...(data.overdue > 0 ? { className: 'overdue' } : {})} />}
           separator
           height="compact"
         />
@@ -116,10 +115,11 @@ export const QualityScreen = ({ api }: QualityScreenProps) => {
             title={line.title}
             {...(line.hint ? { subtitle: line.hint } : {})}
             after={
-              <span className={line.plain ? 'report-value report-plain' : 'report-value'}>
-                {line.value}
-                <span className="report-unit">{line.unit ?? ''}</span>
-              </span>
+              <Amount
+                value={line.value}
+                {...(line.unit ? { unit: line.unit } : {})}
+                {...(line.plain ? { plain: line.plain } : {})}
+              />
             }
             separator={index > 0}
             height="compact"

@@ -12,6 +12,7 @@ import {
 } from '../api.js';
 import { useHaptics } from '../haptics.js';
 import { usePhotos } from '../use-photos.js';
+import { Amount } from './Amount.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -273,7 +274,7 @@ export const InspectionsScreen = ({ api, onOpen }: InspectionsScreenProps) => {
           {open.requestIds.length > 0 ? (
             <CellSimple
               title="Заявки по осмотру"
-              after={<span className="report-value">{open.requestIds.length}</span>}
+              after={<Amount value={open.requestIds.length} />}
               separator
               height="compact"
               showChevron

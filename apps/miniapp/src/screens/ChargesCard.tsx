@@ -107,7 +107,7 @@ export const ChargesCard = ({ api, version, payable = true, model }: ChargesCard
         <p className="amount" key={paid}>
           {left > 0 ? (
             <>
-              {`${money(left)}\u{a0}`}
+              {money(left)}
               <span className="currency">₽</span>
             </>
           ) : (

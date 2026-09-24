@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 import { useTrapped } from './focus.js';
 import { useT } from './i18n.js';
+import { IconClose } from './screens/icons.js';
 
 type Show = (source: string, alt?: string) => void;
 
@@ -52,7 +53,7 @@ export const Viewer = ({ children }: { children: ReactNode }) => {
               setShown(null);
             }}
           >
-            ×
+            <IconClose />
           </button>
 
           <img src={shown.source} alt={shown.alt} />

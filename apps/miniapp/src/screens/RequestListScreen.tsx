@@ -15,7 +15,7 @@ import { HouseNow } from './HouseNow.js';
 import { HouseRequests } from './HouseRequests.js';
 import { RequestRow } from './RequestRow.js';
 import { Skeleton } from './Skeleton.js';
-import { IconRequests } from './icons.js';
+import { IconChevron, IconRequests } from './icons.js';
 
 export interface RequestListScreenProps {
   api: DomovoyApi;
@@ -69,8 +69,8 @@ const Nearest = ({ requests, onOpen }: { requests: RequestView[]; onOpen: (id: s
 
       {/* Шеврон, как у остальных нажимаемых карточек: без него блок читался
           как надпись, а не как переход в заявку. */}
-      <span className="nearest-go" aria-hidden="true">
-        ›
+      <span className="nearest-go">
+        <IconChevron />
       </span>
     </button>
   );

@@ -1,9 +1,13 @@
 import {
   ArrowClockwise,
+  ArrowDown,
+  ArrowUp,
   Broom,
   Buildings,
   CalendarBlank,
   Camera,
+  CaretLeft,
+  CaretRight,
   ChartBar,
   ChartPieSlice,
   ChatCircle,
@@ -13,17 +17,20 @@ import {
   DotsThree,
   Drop,
   Elevator,
+  Envelope,
   Export,
   FileText,
   Gauge,
   Globe,
   Hammer,
+  HardHat,
   House,
   Key,
   Lightning,
   Megaphone,
   Microphone,
   PaperPlaneRight,
+  Phone,
   Plus,
   QrCode,
   Question,
@@ -37,6 +44,7 @@ import {
   UsersThree,
   WarningCircle,
   Wrench,
+  X,
   type Icon,
   type IconWeight,
 } from '@phosphor-icons/react';
@@ -90,3 +98,17 @@ export const IconChat = icon(ChatCircle);
 export const IconSticker = icon(QrCode);
 export const IconWrench = icon(Wrench);
 export const IconRepair = icon(Hammer);
+export const IconPhone = icon(Phone);
+export const IconMail = icon(Envelope);
+export const IconDuty = icon(HardHat);
+
+/** Мелкие значки внутри строки текста: размер задаёт шрифт. */
+const inline =
+  (Glyph: Icon, weight: IconWeight = 'bold') =>
+  () => <Glyph size="1em" weight={weight} aria-hidden className="glyph" />;
+
+export const IconBack = inline(CaretLeft);
+export const IconChevron = inline(CaretRight, 'regular');
+export const IconClose = inline(X);
+export const IconUp = inline(ArrowUp);
+export const IconDown = inline(ArrowDown);

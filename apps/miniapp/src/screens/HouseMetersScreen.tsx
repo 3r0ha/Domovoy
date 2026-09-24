@@ -11,6 +11,7 @@ import {
   type DomovoyApi,
   type MeterView,
 } from '../api.js';
+import { Amount } from './Amount.js';
 import { Empty } from './Empty.js';
 import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
@@ -93,13 +94,9 @@ const HouseMeterCard = ({
         subtitle={was}
         after={
           expired ? (
-            <span className="row-state">
-              <span className="dot dot-bad" />
-              нужна поверка
-            </span>
+            <span className="state state-bad">нужна поверка</span>
           ) : (
-            <span className="row-state">
-              <span className={meter.submittedThisMonth ? 'dot dot-good' : 'dot dot-muted'} />
+            <span className={meter.submittedThisMonth ? 'state state-good' : 'state state-muted'}>
               {meter.submittedThisMonth ? 'подано' : 'ждём'}
             </span>
           )
@@ -129,12 +126,7 @@ const HouseMeterCard = ({
       {meter.lastConsumption > 0 ? (
         <CellSimple
           title="Расход за месяц"
-          after={
-            <span className="report-value">
-              {number(meter.lastConsumption)}
-              <span className="report-unit">{meter.unit}</span>
-            </span>
-          }
+          after={<Amount value={number(meter.lastConsumption)} unit={meter.unit} />}
           separator
           height="compact"
         />

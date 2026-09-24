@@ -36,7 +36,7 @@ import { Consent } from './screens/Consent.js';
 import { LanguageSheet } from './screens/LanguageScreen.js';
 import { useTour } from './use-tour.js';
 import { Tour, type TourStep } from './screens/Tour.js';
-import { IconHome } from './screens/icons.js';
+import { IconBack, IconHome } from './screens/icons.js';
 import { Loading } from './screens/Loading.js';
 import { ScreenGuard } from './screens/ScreenGuard.js';
 import { TabBar } from './screens/TabBar.js';
@@ -548,7 +548,8 @@ const Workspace = ({ api: session, profile, refreshSession, patchProfile, launch
             везде, и человек, который зашёл вглубь, оттуда не выбирается. */}
         {screens.deep && !OWN_BACK.includes(screen) ? (
           <button type="button" className="link back-link" onClick={context.back}>
-            <span aria-hidden="true">‹</span> {backTitle}
+            <IconBack />
+            {backTitle}
           </button>
         ) : null}
 

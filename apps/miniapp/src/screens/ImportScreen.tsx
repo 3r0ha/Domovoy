@@ -7,7 +7,7 @@ import { ErrorText } from './ErrorText.js';
 import { Failure } from './Failure.js';
 import { Confirm } from './Confirm.js';
 import { Group } from './Group.js';
-import { IconNews } from './icons.js';
+import { IconClose, IconNews } from './icons.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface ImportScreenProps {
@@ -555,7 +555,7 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
                     aria-label={`Убрать строку ${index + 1}`}
                     onClick={() => setFlats(flats.filter((_row, at) => at !== index))}
                   >
-                    ×
+                    <IconClose />
                   </button>
                 </div>
               ))}
@@ -633,7 +633,7 @@ export const ImportScreen = ({ api }: ImportScreenProps) => {
                     aria-label={`Убрать строку ${index + 1}`}
                     onClick={() => setUnits(units.filter((_row, at) => at !== index))}
                   >
-                    ×
+                    <IconClose />
                   </button>
                 </div>
               ))}

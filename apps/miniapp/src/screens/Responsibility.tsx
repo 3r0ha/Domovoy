@@ -24,6 +24,8 @@ export interface ResponsibilityProps {
   closed?: boolean;
   /** Организация смотрящего: подрядчик не передаёт обращение сам себе. */
   own?: string;
+  /** Кто ведёт работу: названный в карточке, здесь он второй раз не повторяется. */
+  worker?: string;
   onChanged?: () => void;
 }
 
@@ -52,6 +54,10 @@ const plainKey = (kind: string, category?: string): string | null => {
 
   return null;
 };
+
+/** Название организации содержит имя исполнителя: «ООО «Лифтсервис»» и «Лифтсервис». */
+const names = (organization: string, worker?: string): boolean =>
+  Boolean(worker) && organization.toLocaleLowerCase('ru').includes((worker ?? '').toLocaleLowerCase('ru'));
 
 /** Зоны, у которых есть и пояснение, что делать дальше. */
 const WITH_NEXT = ['flat', 'elevator', 'yard'];
@@ -151,6 +157,7 @@ export const Responsibility = ({
   staff,
   closed,
   own,
+  worker,
   onChanged,
 }: ResponsibilityProps) => {
   const t = useT();
@@ -192,7 +199,7 @@ export const Responsibility = ({
       <div className="block">
         {/* Зона ответственности это справка, а не заголовок экрана: в размер
             заголовка заявки она перевешивала саму суть обращения. */}
-        <p className="zone-title">{organization ? `${zone}: ${organization}` : zone}</p>
+        <p className="zone-title">{organization && !names(organization, worker) ? `${zone}: ${organization}` : zone}</p>
         <p className="hint">{plain ? t(`responsibility.plain.${plain}`) : basis}</p>
         {next ? <p className="hint">{advice}</p> : null}
 

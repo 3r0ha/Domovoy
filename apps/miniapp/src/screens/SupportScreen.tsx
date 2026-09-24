@@ -24,7 +24,17 @@ import { Composer } from './Composer.js';
 import { Original } from './Original.js';
 import { Failure } from './Failure.js';
 import { Group } from './Group.js';
-import { IconChat, IconPerson, IconWarning } from './icons.js';
+import {
+  IconBack,
+  IconBuildings,
+  IconCalendar,
+  IconChat,
+  IconDuty,
+  IconMail,
+  IconPerson,
+  IconPhone,
+  IconWarning,
+} from './icons.js';
 import { Skeleton } from './Skeleton.js';
 
 export interface SupportScreenProps {
@@ -106,6 +116,11 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {contact?.phone ? (
         <CellSimple
+          before={
+            <span className="tile tile-plain">
+              <IconPhone />
+            </span>
+          }
           title={t('support.call')}
           subtitle={contact.phone}
           height="compact"
@@ -117,6 +132,11 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {contact?.email ? (
         <CellSimple
+          before={
+            <span className="tile tile-plain">
+              <IconMail />
+            </span>
+          }
           title={t('support.email')}
           subtitle={contact.email}
           height="compact"
@@ -128,6 +148,11 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {service?.phone || service?.hours ? (
         <CellSimple
+          before={
+            <span className="tile tile-plain">
+              <IconBuildings />
+            </span>
+          }
           title={t('support.service')}
           subtitle={[service.phone, service.hours].filter(Boolean).join(' · ')}
           height="compact"
@@ -138,6 +163,11 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {service?.office ? (
         <CellSimple
+          before={
+            <span className="tile tile-plain">
+              <IconCalendar />
+            </span>
+          }
           title={t('support.office')}
           subtitle={[service.office, service.officeHours].filter(Boolean).join(' · ')}
           height="compact"
@@ -147,6 +177,11 @@ const Contacts = ({ contacts }: { contacts: HouseContactsView }) => {
 
       {duty ? (
         <CellSimple
+          before={
+            <span className="tile tile-plain">
+              <IconDuty />
+            </span>
+          }
           title={t('support.duty')}
           subtitle={duty.phone ? `${duty.displayName} · ${duty.phone}` : duty.displayName}
           height="compact"
@@ -212,7 +247,8 @@ const Thread = ({
   return (
     <section className="chat">
       <button type="button" className="link back-link" onClick={onBack}>
-        <span aria-hidden="true">‹</span> {t('support.all')}
+        <IconBack />
+        {t('support.all')}
       </button>
 
       {/* Кто спрашивает и к какому сроку ждёт ответа: это шапка переписки, а не первое сообщение. */}
@@ -305,7 +341,8 @@ const Ask = ({
   return (
     <section className="chat">
       <button type="button" className="link back-link" onClick={onBack}>
-        <span aria-hidden="true">‹</span> {t('support.all')}
+        <IconBack />
+        {t('support.all')}
       </button>
 
       <div className="chat-flow">
@@ -352,7 +389,8 @@ export const SupportScreen = ({ api, staff, onBack, backTitle, onChanged }: Supp
 
   const back = onBack ? (
     <button type="button" className="link back-link" onClick={onBack}>
-      <span aria-hidden="true">‹</span> {backTitle ?? t('app.back')}
+      <IconBack />
+      {backTitle ?? t('app.back')}
     </button>
   ) : null;
 
